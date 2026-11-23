@@ -62,15 +62,11 @@ flowchart LR
 
 In the general $n$-dimensional case, a frame's origin $p_o$ and its $n$ linearly independent basis vectors define an $n$-dimensional **affine space**. Every vector $\mathbf v$ in the space can be expressed as a linear combination of the basis vectors: given a vector $\mathbf v$ and the basis vectors $\mathbf v_i$, there is a unique set of scalars $s_i$ such that
 
-$$
-\mathbf v = s_1 \mathbf v_1 + \cdots + s_n \mathbf v_n.
-$$
+$$\mathbf v = s_1 \mathbf v_1 + \cdots + s_n \mathbf v_n.$$
 
 The scalars $s_i$ are the *representation* of $\mathbf v$ with respect to the basis $\{\mathbf v_1, \mathbf v_2, \ldots, \mathbf v_n\}$ and are the coordinate values stored with the vector. Similarly, for every point $p$ there are unique scalars $s_i$ such that
 
-$$
-p = p_o + s_1 \mathbf v_1 + \cdots + s_n \mathbf v_n.
-$$
+$$p = p_o + s_1 \mathbf v_1 + \cdots + s_n \mathbf v_n.$$
 
 Thus, although points and vectors are both represented by $(x, y, z)$ coordinates in 3D, they are distinct mathematical entities and are **not** freely interchangeable.
 
@@ -246,9 +242,7 @@ flowchart LR
 
 It is often necessary to **normalize** a vector: compute a new vector pointing in the same direction but with unit length, written $\hat{\mathbf v} = \mathbf v / \|\mathbf v\|$ and called a *unit vector*. First we need the vector's length. The squared length is the sum of the squares of the components:
 
-$$
-\|\mathbf v\|^2 = v_x^2 + v_y^2 + v_z^2.
-$$
+$$\|\mathbf v\|^2 = v_x^2 + v_y^2 + v_z^2.$$
 
 ```rust
 pub fn length_squared<T: Float>(v: Vector3<T>) -> T {
@@ -279,9 +273,7 @@ pub fn normalize<T: Float>(v: Vector3<T>) -> Vector3<T> {
 
 The **dot product** (scalar or inner product) of two 3D vectors is
 
-$$
-\mathbf v \cdot \mathbf w = v_x w_x + v_y w_y + v_z w_z,
-$$
+$$\mathbf v \cdot \mathbf w = v_x w_x + v_y w_y + v_z w_z,$$
 
 implemented directly:
 
@@ -293,19 +285,11 @@ pub fn dot<T: Float>(v: Vector3<T>, w: Vector3<T>) -> T {
 
 Basic properties follow immediately. For vectors $\mathbf u, \mathbf v, \mathbf w$ and scalar $s$:
 
-$$
-\begin{aligned}
-\mathbf u \cdot \mathbf v &= \mathbf v \cdot \mathbf u, \\
-(s\mathbf u)\cdot \mathbf v &= s(\mathbf u \cdot \mathbf v), \\
-\mathbf u \cdot (\mathbf v + \mathbf w) &= (\mathbf u\cdot\mathbf v) + (\mathbf u\cdot\mathbf w).
-\end{aligned}
-$$
+$$\begin{aligned} \mathbf u \cdot \mathbf v &= \mathbf v \cdot \mathbf u, \\ (s\mathbf u)\cdot \mathbf v &= s(\mathbf u \cdot \mathbf v), \\ \mathbf u \cdot (\mathbf v + \mathbf w) &= (\mathbf u\cdot\mathbf v) + (\mathbf u\cdot\mathbf w). \end{aligned}$$
 
 The dot product relates to the angle $\theta$ between the vectors:
 
-$$
-\mathbf v\cdot\mathbf w = \|\mathbf v\|\,\|\mathbf w\|\cos\theta. \tag{3.1}
-$$
+$$\mathbf v\cdot\mathbf w = \|\mathbf v\|\,\|\mathbf w\|\cos\theta. \quad\text{(3.1)}$$
 
 Hence $\mathbf v\cdot\mathbf w = 0$ if and only if $\mathbf v$ and $\mathbf w$ are perpendicular, provided neither is the degenerate vector $(0,0,0)$. A set of mutually perpendicular vectors is **orthogonal**; an orthogonal set of unit vectors is **orthonormal**. For unit vectors, the dot product is the cosine of the angle between them — a property used constantly in rendering.
 
@@ -333,9 +317,7 @@ pub fn abs_dot<T: Float>(v1: Vector3<T>, v2: Vector3<T>) -> T {
 
 Based on the dot product, the **Gram–Schmidt process** turns a non-orthogonal basis into an orthogonal one spanning the same space. It repeatedly applies the orthogonal projection of a vector $\mathbf v$ onto a normalized vector $\hat{\mathbf w}$, $(\mathbf v\cdot\hat{\mathbf w})\hat{\mathbf w}$ (Figure 3.5). The resulting vector $\mathbf v_\perp$ is orthogonal to $\mathbf w$, and the two span the same subspace as $\mathbf v$ and $\mathbf w$ did:
 
-$$
-\mathbf v_\perp = \mathbf v - (\mathbf v\cdot\hat{\mathbf w})\hat{\mathbf w}. \tag{3.2}
-$$
+$$\mathbf v_\perp = \mathbf v - (\mathbf v\cdot\hat{\mathbf w})\hat{\mathbf w}. \quad\text{(3.2)}$$
 
 `gram_schmidt()` implements Equation (3.2) and expects $\mathbf w$ already to be normalized.
 
@@ -357,24 +339,11 @@ flowchart LR
 
 The **cross product** of two 3D vectors is perpendicular to both; for orthogonal $\mathbf v$ and $\mathbf w$, the triple $(\mathbf v, \mathbf w, \mathbf v\times\mathbf w)$ forms an orthogonal coordinate system:
 
-$$
-\begin{aligned}
-(\mathbf v\times\mathbf w)_x &= v_y w_z - v_z w_y, \\
-(\mathbf v\times\mathbf w)_y &= v_z w_x - v_x w_z, \\
-(\mathbf v\times\mathbf w)_z &= v_x w_y - v_y w_x.
-\end{aligned}
-$$
+$$\begin{aligned} (\mathbf v\times\mathbf w)_x &= v_y w_z - v_z w_y, \\ (\mathbf v\times\mathbf w)_y &= v_z w_x - v_x w_z, \\ (\mathbf v\times\mathbf w)_z &= v_x w_y - v_y w_x. \end{aligned}$$
 
 A mnemonic is the determinant of a matrix whose first row holds the axis vectors $\mathbf i=(1,0,0)$, $\mathbf j=(0,1,0)$, $\mathbf k=(0,0,1)$:
 
-$$
-\mathbf v\times\mathbf w =
-\begin{vmatrix}
-\mathbf i & \mathbf j & \mathbf k \\
-v_x & v_y & v_z \\
-w_x & w_y & w_z
-\end{vmatrix}.
-$$
+$$\mathbf v\times\mathbf w = \begin{vmatrix} \mathbf i & \mathbf j & \mathbf k \\ v_x & v_y & v_z \\ w_x & w_y & w_z \end{vmatrix}.$$
 
 This is only a memory aid, not a rigorous construction: the matrix mixes scalars and vectors.
 
@@ -401,9 +370,7 @@ pub fn cross<T: Float>(v: Vector3<T>, w: Vector3<T>) -> Vector3<T> {
 
 From the definition,
 
-$$
-\|\mathbf v\times\mathbf w\| = \|\mathbf v\|\,\|\mathbf w\|\,|\sin\theta|, \tag{3.3}
-$$
+$$\|\mathbf v\times\mathbf w\| = \|\mathbf v\|\,\|\mathbf w\|\,|\sin\theta|, \quad\text{(3.3)}$$
 
 where $\theta$ is the angle between the vectors. Therefore the cross product of two perpendicular unit vectors is itself a unit vector, and the result degenerates to zero if $\mathbf v$ and $\mathbf w$ are parallel. Equation (3.3) also gives a convenient parallelogram area: with edges $\mathbf v_1$, $\mathbf v_2$ and height $h$, the area is $\|\mathbf v_1\|h = \|\mathbf v_1\times\mathbf v_2\|$.
 
@@ -411,10 +378,7 @@ where $\theta$ is the angle between the vectors. Therefore the cross product of 
 
 We sometimes need a local coordinate system given only a single normalized 3D vector: two more normalized vectors must be found so that all three are mutually perpendicular. Given a vector $\mathbf v$, the two vectors
 
-$$
-\mathbf v_2 = \left(1 - \frac{v_x^2}{1+v_z},\; -\frac{v_x v_y}{1+v_z},\; -v_x\right), \qquad
-\mathbf v_3 = \left(-\frac{v_x v_y}{1+v_z},\; 1 - \frac{v_y^2}{1+v_z},\; -v_y\right)
-$$
+$$\mathbf v_2 = \left(1 - \frac{v_x^2}{1+v_z},\; -\frac{v_x v_y}{1+v_z},\; -v_x\right), \qquad \mathbf v_3 = \left(-\frac{v_x v_y}{1+v_z},\; 1 - \frac{v_y^2}{1+v_z},\; -v_y\right)$$
 
 fulfill these conditions. Computing them directly has high error when $v_z \approx -1$, because $1/(1+v_z)$ loses accuracy there; the implementation reformulates the computation with `copysign` to address that issue.
 
@@ -567,9 +531,7 @@ pub struct Ray {
 
 The origin and direction are named `o` and `d` because they are referenced constantly; the data is public for convenience. The parametric form expresses the ray as a function of $t$, giving the set of points it passes through:
 
-$$
-\mathbf r(t) = \mathbf o + t\,\mathbf d, \qquad 0 \le t < \infty. \tag{3.4}
-$$
+$$\mathbf r(t) = \mathbf o + t\,\mathbf d, \qquad 0 \le t < \infty. \quad\text{(3.4)}$$
 
 The function application operator is overloaded to match this notation:
 
@@ -919,9 +881,7 @@ flowchart TD
 
 The angle at each vertex is the angle between the two planes of the edges meeting there, i.e. their **dihedral angle** (Figure 3.15); we label the angles $\alpha$, $\beta$, $\gamma$ after their vertices. Unlike planar triangles, the angles of a spherical triangle sum to $\pi + A$, where $A$ is its area. Given $\alpha,\beta,\gamma$, **Girard's theorem** gives the area on the unit sphere as
 
-$$
-A = \alpha + \beta + \gamma - \pi. \tag{3.5}
-$$
+$$A = \alpha + \beta + \gamma - \pi. \quad\text{(3.5)}$$
 
 ```mermaid
 flowchart TD
@@ -937,10 +897,7 @@ flowchart TD
 
 Direct evaluation of Equation (3.5) needs several expensive inverse trigonometric functions and can suffer from floating-point cancellation. A better approach uses the identity (derived from (3.5) by spherical trigonometry)
 
-$$
-\tan\frac{A}{2} = \frac{\mathbf a\cdot(\mathbf b\times\mathbf c)}
-{1 + (\mathbf a\cdot\mathbf b) + (\mathbf a\cdot\mathbf c) + (\mathbf b\cdot\mathbf c)}, \tag{3.6}
-$$
+$$\tan\frac{A}{2} = \frac{\mathbf a\cdot(\mathbf b\times\mathbf c)} {1 + (\mathbf a\cdot\mathbf b) + (\mathbf a\cdot\mathbf c) + (\mathbf b\cdot\mathbf c)}, \quad\text{(3.6)}$$
 
 which is what `SphericalTriangleArea()` implements; its arguments are the three unit-sphere vertex vectors.
 
@@ -972,11 +929,7 @@ Cartesian coordinates on the unit sphere are not always the most convenient repr
 
 For a sphere of radius $r$, spherical coordinates $(\theta,\phi)$ relate to Cartesian coordinates by
 
-$$
-x = r\sin\theta\cos\phi,\qquad
-y = r\sin\theta\sin\phi,\qquad
-z = r\cos\theta. \tag{3.7}
-$$
+$$x = r\sin\theta\cos\phi,\qquad y = r\sin\theta\sin\phi,\qquad z = r\cos\theta. \quad\text{(3.7)}$$
 
 Figure 3.16 shows the geometry. `SphericalDirection()` applies these equations directly, but takes $\sin\theta$ and $\cos\theta$ rather than $\theta$ itself because those are often already available to the caller; $\phi$ is not, so it is passed as an angle. Components are clamped to $[-1,1]$ to protect against round-off.
 
@@ -1000,9 +953,7 @@ pub fn spherical_direction(sin_theta: f32, cos_theta: f32, phi: f32) -> Vec3 {
 
 The inverse conversion of $(x,y,z)$ is
 
-$$
-\theta = \arccos z,\qquad \phi = \arctan\frac{y}{x}.
-$$
+$$\theta = \arccos z,\qquad \phi = \arctan\frac{y}{x}.$$
 
 `SphericalTheta()` assumes a normalized vector and uses `SafeACos()` instead of `acos()` in case $|v_z|$ is slightly greater than 1 from round-off. `SphericalPhi()` returns $[0,2\pi]$, adjusting a negative `atan2` result.
 
@@ -1017,9 +968,7 @@ pub fn spherical_phi(v: Vec3) -> f32 {
 
 For a direction $\omega$, the cosine of $\theta$ needs no inverse trigonometric function at all:
 
-$$
-\cos\theta = ((0,0,1)\cdot\omega) = \omega_z.
-$$
+$$\cos\theta = ((0,0,1)\cdot\omega) = \omega_z.$$
 
 This is far more efficient than computing $\theta$ and then its cosine. The following variants follow directly.
 
@@ -1040,10 +989,7 @@ pub fn tan2_theta(w: Vec3) -> f32 { sin2_theta(w) / cos2_theta(w) }
 
 In the $z=0$ plane the vector $\omega$ has coordinates $(x,y) = (r\cos\phi, r\sin\phi)$ with $r=\sin\theta$ (Figure 3.17), so
 
-$$
-\cos\phi = \frac{x}{r} = \frac{x}{\sin\theta},\qquad
-\sin\phi = \frac{y}{r} = \frac{y}{\sin\theta}.
-$$
+$$\cos\phi = \frac{x}{r} = \frac{x}{\sin\theta},\qquad \sin\phi = \frac{y}{r} = \frac{y}{\sin\theta}.$$
 
 ```mermaid
 flowchart TD
@@ -1156,17 +1102,11 @@ The third parameterization deliberately preserves area: any area on the sphere m
 
 Given $(u,v)\in[-1,1]^2$, in the first sector ($u\ge0$ and $u-|v|\ge0$), the polar coordinates of a point on the unit disk are
 
-$$
-r = u,\qquad \phi = \frac{\pi}{4}\frac{v}{u},\qquad \phi\in\left[-\frac{\pi}{4},\frac{\pi}{4}\right].
-$$
+$$r = u,\qquad \phi = \frac{\pi}{4}\frac{v}{u},\qquad \phi\in\left[-\frac{\pi}{4},\frac{\pi}{4}\right].$$
 
 Mapping the disk point to the positive hemisphere with
 
-$$
-x = \cos\phi\, r\sqrt{2-r^2},\qquad
-y = \sin\phi\, r\sqrt{2-r^2},\qquad
-z = 1-r^2
-$$
+$$x = \cos\phi\, r\sqrt{2-r^2},\qquad y = \sin\phi\, r\sqrt{2-r^2},\qquad z = 1-r^2$$
 
 is also area-preserving. To extend this to the whole sphere:
 
@@ -1272,10 +1212,7 @@ A direction lies inside the cone when the cosine of the angle to the axis is *gr
 
 `BoundSubtendedDirections()` returns a cone bounding the directions subtended by a box from a point $p$. It first finds a bounding sphere for the box; if $p$ is inside that sphere, the bound is all directions. (The point may be inside the sphere but outside the box, in which case the bound is merely conservative — see Exercise 3.3.) Otherwise the axis is the vector from $p$ to the sphere center and the spread's cosine follows from basic trigonometry (Figure 3.22):
 
-$$
-\sin^2\theta_{\max} = \frac{r^2}{d^2},\qquad
-\cos\theta_{\max} = \sqrt{1-\sin^2\theta_{\max}}.
-$$
+$$\sin^2\theta_{\max} = \frac{r^2}{d^2},\qquad \cos\theta_{\max} = \sqrt{1-\sin^2\theta_{\max}}.$$
 
 ```mermaid
 flowchart LR
@@ -1365,9 +1302,7 @@ pub fn union(a: DirectionCone, b: DirectionCone) -> DirectionCone {
 
 In general, a transformation $\mathbf T$ is a mapping from points to points and from vectors to vectors:
 
-$$
-p' = \mathbf T(p),\qquad \mathbf v' = \mathbf T(\mathbf v).
-$$
+$$p' = \mathbf T(p),\qquad \mathbf v' = \mathbf T(\mathbf v).$$
 
 $\mathbf T$ could be an arbitrary procedure, but we restrict ourselves to transformations that are:
 
@@ -1398,51 +1333,27 @@ flowchart LR
 
 Given a frame $(p_o,\mathbf v_1,\mathbf v_2,\mathbf v_3)$, the triples $(p_x,p_y,p_z)$ and $(v_x,v_y,v_z)$ are ambiguous. Using the representations from the start of the chapter, the point is
 
-$$
-\begin{bmatrix}s_1 & s_2 & s_3 & 1\end{bmatrix}
-\begin{bmatrix}\mathbf v_1 & \mathbf v_2 & \mathbf v_3 & p_o\end{bmatrix}^T,
-$$
+$$\begin{bmatrix}s_1 & s_2 & s_3 & 1\end{bmatrix} \begin{bmatrix}\mathbf v_1 & \mathbf v_2 & \mathbf v_3 & p_o\end{bmatrix}^T,$$
 
 and the vector is the same expression with the last weight $0$ and different coefficients $s'_i$:
 
-$$
-\begin{bmatrix}s'_1 & s'_2 & s'_3 & 0\end{bmatrix}
-\begin{bmatrix}\mathbf v_1 & \mathbf v_2 & \mathbf v_3 & p_o\end{bmatrix}^T.
-$$
+$$\begin{bmatrix}s'_1 & s'_2 & s'_3 & 0\end{bmatrix} \begin{bmatrix}\mathbf v_1 & \mathbf v_2 & \mathbf v_3 & p_o\end{bmatrix}^T.$$
 
 These four-vectors are the **homogeneous representations** of the point and the vector; the fourth coordinate is the **weight**. For a point it can be any nonzero scalar: $[1,3,-2,1]$ and $[-2,-6,4,-2]$ describe the same Cartesian point $(1,3,-2)$. Converting back divides the first three components by the weight:
 
-$$
-(x, y, z, w) \longrightarrow \left(\frac{x}{w}, \frac{y}{w}, \frac{z}{w}\right).
-$$
+$$(x, y, z, w) \longrightarrow \left(\frac{x}{w}, \frac{y}{w}, \frac{z}{w}\right).$$
 
 Now consider a matrix $M$ describing a transformation from one coordinate system to another (indices start at zero so equations and code correspond):
 
-$$
-M = \begin{pmatrix}
-m_{0,0} & m_{0,1} & m_{0,2} & m_{0,3} \\
-m_{1,0} & m_{1,1} & m_{1,2} & m_{1,3} \\
-m_{2,0} & m_{2,1} & m_{2,2} & m_{2,3} \\
-m_{3,0} & m_{3,1} & m_{3,2} & m_{3,3}
-\end{pmatrix}.
-$$
+$$M = \begin{pmatrix} m_{0,0} & m_{0,1} & m_{0,2} & m_{0,3} \\ m_{1,0} & m_{1,1} & m_{1,2} & m_{1,3} \\ m_{2,0} & m_{2,1} & m_{2,2} & m_{2,3} \\ m_{3,0} & m_{3,1} & m_{3,2} & m_{3,3} \end{pmatrix}.$$
 
 Applying $M$ to the $x$-axis vector gives
 
-$$
-M\mathbf x = M\begin{bmatrix}1&0&0&0\end{bmatrix}^T
-= \begin{bmatrix}m_{0,0}&m_{1,0}&m_{2,0}&m_{3,0}\end{bmatrix}^T,
-$$
+$$M\mathbf x = M\begin{bmatrix}1&0&0&0\end{bmatrix}^T = \begin{bmatrix}m_{0,0}&m_{1,0}&m_{2,0}&m_{3,0}\end{bmatrix}^T,$$
 
 and reading the other columns shows how the whole basis is transformed:
 
-$$
-\begin{aligned}
-M\mathbf y &= \begin{bmatrix}m_{0,1}&m_{1,1}&m_{2,1}&m_{3,1}\end{bmatrix}^T, \\
-M\mathbf z &= \begin{bmatrix}m_{0,2}&m_{1,2}&m_{2,2}&m_{3,2}\end{bmatrix}^T, \\
-Mp &= \begin{bmatrix}m_{0,3}&m_{1,3}&m_{2,3}&m_{3,3}\end{bmatrix}^T.
-\end{aligned}
-$$
+$$\begin{aligned} M\mathbf y &= \begin{bmatrix}m_{0,1}&m_{1,1}&m_{2,1}&m_{3,1}\end{bmatrix}^T, \\ M\mathbf z &= \begin{bmatrix}m_{0,2}&m_{1,2}&m_{2,2}&m_{3,2}\end{bmatrix}^T, \\ Mp &= \begin{bmatrix}m_{0,3}&m_{1,3}&m_{2,3}&m_{3,3}\end{bmatrix}^T. \end{aligned}$$
 
 Characterizing the basis's transformation tells us how *any* point or vector expressed in that basis is transformed: applying the matrix directly is equivalent to transforming the basis and re-expressing coordinates in the new basis. pbrt has no `HomogeneousPoint` class and never uses homogeneous coordinates explicitly in its code; the transformation routines implicitly promote to homogeneous form, transform, and convert back. This isolates the details in one place.
 
@@ -1466,11 +1377,7 @@ This representation is memory-hungry: 128 bytes assuming 4-byte floats. Used na�
 
 A new `Transform` defaults to the **identity**, mapping every point and vector to itself:
 
-$$
-I = \begin{pmatrix}
-1&0&0&0\\0&1&0&0\\0&0&1&0\\0&0&0&1
-\end{pmatrix}.
-$$
+$$I = \begin{pmatrix} 1&0&0&0\\0&1&0&0\\0&0&1&0\\0&0&0&1 \end{pmatrix}.$$
 
 A transform can also be created from a matrix, in which case the matrix must be inverted. If the caller's matrix is degenerate, `m_inv` is filled with NaN values, which poison any computation that uses them — arithmetic with a NaN yields a NaN. A caller can still use such a transform as long as no method touching `m_inv` is called.
 
@@ -1514,43 +1421,19 @@ Equality, inequality, and `IsIdentity()` tests are also provided (a Rust `Partia
 
 The translation $T(\Delta x,\Delta y,\Delta z)$ offsets a point's coordinates: $T(2,2,1)(x,y,z) = (x+2,y+2,z+1)$ (Figure 3.25). Its basic properties are
 
-$$
-\begin{aligned}
-T(0,0,0) &= I, \\
-T(x_1,y_1,z_1)\,T(x_2,y_2,z_2) &= T(x_1+x_2,\;y_1+y_2,\;z_1+z_2), \\
-T(x_1,y_1,z_1)\,T(x_2,y_2,z_2) &= T(x_2,y_2,z_2)\,T(x_1,y_1,z_1), \\
-T^{-1}(x,y,z) &= T(-x,-y,-z).
-\end{aligned}
-$$
+$$\begin{aligned} T(0,0,0) &= I, \\ T(x_1,y_1,z_1)\,T(x_2,y_2,z_2) &= T(x_1+x_2,\;y_1+y_2,\;z_1+z_2), \\ T(x_1,y_1,z_1)\,T(x_2,y_2,z_2) &= T(x_2,y_2,z_2)\,T(x_1,y_1,z_1), \\ T^{-1}(x,y,z) &= T(-x,-y,-z). \end{aligned}$$
 
 In matrix form,
 
-$$
-T(\Delta x,\Delta y,\Delta z) =
-\begin{pmatrix}
-1&0&0&\Delta x\\0&1&0&\Delta y\\0&0&1&\Delta z\\0&0&0&1
-\end{pmatrix}.
-$$
+$$T(\Delta x,\Delta y,\Delta z) = \begin{pmatrix} 1&0&0&\Delta x\\0&1&0&\Delta y\\0&0&1&\Delta z\\0&0&0&1 \end{pmatrix}.$$
 
 The value of homogeneous coordinates becomes clear when the matrix multiplies a point $[x\;y\;z\;1]^T$:
 
-$$
-\begin{pmatrix}
-1&0&0&\Delta x\\0&1&0&\Delta y\\0&0&1&\Delta z\\0&0&0&1
-\end{pmatrix}
-\begin{pmatrix}x\\y\\z\\1\end{pmatrix}
-= \begin{pmatrix}x+\Delta x\\y+\Delta y\\z+\Delta z\\1\end{pmatrix},
-$$
+$$\begin{pmatrix} 1&0&0&\Delta x\\0&1&0&\Delta y\\0&0&1&\Delta z\\0&0&0&1 \end{pmatrix} \begin{pmatrix}x\\y\\z\\1\end{pmatrix} = \begin{pmatrix}x+\Delta x\\y+\Delta y\\z+\Delta z\\1\end{pmatrix},$$
 
 whereas applying $T$ to a vector gives back the same vector (its homogeneous $w$ is zero):
 
-$$
-\begin{pmatrix}
-1&0&0&\Delta x\\0&1&0&\Delta y\\0&0&1&\Delta z\\0&0&0&1
-\end{pmatrix}
-\begin{pmatrix}x\\y\\z\\0\end{pmatrix}
-= \begin{pmatrix}x\\y\\z\\0\end{pmatrix}.
-$$
+$$\begin{pmatrix} 1&0&0&\Delta x\\0&1&0&\Delta y\\0&0&1&\Delta z\\0&0&0&1 \end{pmatrix} \begin{pmatrix}x\\y\\z\\0\end{pmatrix} = \begin{pmatrix}x\\y\\z\\0\end{pmatrix}.$$
 
 This makes sense: vectors are directions, so translation leaves them unchanged. `Translate()` is a direct application of the matrix, and the inverse is trivial to provide.
 
@@ -1585,22 +1468,11 @@ flowchart LR
 
 The scale transformation $S(s_x,s_y,s_z)$ multiplies components by the scale factors: $S(2,2,1)(x,y,z) = (2x,2y,z)$. Its properties are
 
-$$
-\begin{aligned}
-S(1,1,1) &= I, \\
-S(x_1,y_1,z_1)\,S(x_2,y_2,z_2) &= S(x_1x_2,\;y_1y_2,\;z_1z_2), \\
-S(x_1,y_1,z_1)\,S(x_2,y_2,z_2) &= S(x_2,y_2,z_2)\,S(x_1,y_1,z_1), \\
-S^{-1}(x,y,z) &= S(1/x,\;1/y,\;1/z).
-\end{aligned}
-$$
+$$\begin{aligned} S(1,1,1) &= I, \\ S(x_1,y_1,z_1)\,S(x_2,y_2,z_2) &= S(x_1x_2,\;y_1y_2,\;z_1z_2), \\ S(x_1,y_1,z_1)\,S(x_2,y_2,z_2) &= S(x_2,y_2,z_2)\,S(x_1,y_1,z_1), \\ S^{-1}(x,y,z) &= S(1/x,\;1/y,\;1/z). \end{aligned}$$
 
 We distinguish **uniform** scaling (all factors equal) from **nonuniform** scaling. The general scale matrix is
 
-$$
-S(x,y,z) = \begin{pmatrix}
-x&0&0&0\\0&y&0&0\\0&0&z&0\\0&0&0&1
-\end{pmatrix}.
-$$
+$$S(x,y,z) = \begin{pmatrix} x&0&0&0\\0&y&0&0\\0&0&z&0\\0&0&0&1 \end{pmatrix}.$$
 
 ```rust
 pub fn scale(x: f32, y: f32, z: f32) -> Transform {
@@ -1629,28 +1501,13 @@ impl Transform {
 
 The rotation transformation $R$ can be about any axis from the origin; the common cases are the coordinate axes, written $R_x(\theta)$, $R_y(\theta)$, $R_z(\theta)$, and the general $R_{(x,y,z)}(\theta)$. Rotations satisfy
 
-$$
-\begin{aligned}
-R_a(0) &= I, \\
-R_a(\theta_1)\,R_a(\theta_2) &= R_a(\theta_1+\theta_2), \\
-R_a(\theta_1)\,R_a(\theta_2) &= R_a(\theta_2)\,R_a(\theta_1), \\
-R_a^{-1}(\theta) &= R_a(-\theta) = R_a^T(\theta).
-\end{aligned}
-$$
+$$\begin{aligned} R_a(0) &= I, \\ R_a(\theta_1)\,R_a(\theta_2) &= R_a(\theta_1+\theta_2), \\ R_a(\theta_1)\,R_a(\theta_2) &= R_a(\theta_2)\,R_a(\theta_1), \\ R_a^{-1}(\theta) &= R_a(-\theta) = R_a^T(\theta). \end{aligned}$$
 
 The inverse equals the transpose because $R$ is an **orthogonal** matrix: its first three columns (or rows) are normalized and mutually orthogonal. Computing a transpose is much cheaper than a full matrix inverse.
 
 In pbrt's left-handed system the matrix for clockwise rotation about $x$ is
 
-$$
-R_x(\theta) =
-\begin{pmatrix}
-1&0&0&0\\
-0&\cos\theta&-\sin\theta&0\\
-0&\sin\theta&\cos\theta&0\\
-0&0&0&1
-\end{pmatrix}.
-$$
+$$R_x(\theta) = \begin{pmatrix} 1&0&0&0\\ 0&\cos\theta&-\sin\theta&0\\ 0&\sin\theta&\cos\theta&0\\ 0&0&0&1 \end{pmatrix}.$$
 
 Figure 3.26 gives the intuition: the $x$ axis is unchanged, $R_x(\theta)[1\;0\;0\;0]^T = [1\;0\;0\;0]^T$; $y$ maps to $(0,\cos\theta,\sin\theta)$ and $z$ to $(0,-\sin\theta,\cos\theta)$. The $y$ and $z$ axes stay in their plane, perpendicular to $x$, rotated by $\theta$; an arbitrary point rotates in its original $yz$ plane.
 
@@ -1680,22 +1537,7 @@ flowchart TD
 
 Similarly, for clockwise rotations about $y$ and $z$:
 
-$$
-R_y(\theta) =
-\begin{pmatrix}
-\cos\theta&0&\sin\theta&0\\
-0&1&0&0\\
--\sin\theta&0&\cos\theta&0\\
-0&0&0&1
-\end{pmatrix},\qquad
-R_z(\theta) =
-\begin{pmatrix}
-\cos\theta&-\sin\theta&0&0\\
-\sin\theta&\cos\theta&0&0\\
-0&0&1&0\\
-0&0&0&1
-\end{pmatrix}.
-$$
+$$R_y(\theta) = \begin{pmatrix} \cos\theta&0&\sin\theta&0\\ 0&1&0&0\\ -\sin\theta&0&\cos\theta&0\\ 0&0&0&1 \end{pmatrix},\qquad R_z(\theta) = \begin{pmatrix} \cos\theta&-\sin\theta&0&0\\ \sin\theta&\cos\theta&0&0\\ 0&0&1&0\\ 0&0&0&1 \end{pmatrix}.$$
 
 `RotateY()` and `RotateZ()` follow directly and are not included here.
 
@@ -1703,22 +1545,15 @@ $$
 
 A common derivation maps the given axis to a fixed one (e.g. $z$), rotates there, and rotates back; a more elegant derivation uses vector algebra. Let $\mathbf a$ be the normalized axis, $\mathbf v$ the vector to rotate, and $\alpha$ the angle between them. First compute the component of $\mathbf v$ along $\mathbf a$ (Figure 3.27):
 
-$$
-\mathbf v_c = \mathbf a\,\|\mathbf v\|\cos\alpha = \mathbf a\,(\mathbf v\cdot\mathbf a).
-$$
+$$\mathbf v_c = \mathbf a\,\|\mathbf v\|\cos\alpha = \mathbf a\,(\mathbf v\cdot\mathbf a).$$
 
 Then find two basis vectors in the plane of rotation (the plane through $\mathbf v$'s endpoint perpendicular to $\mathbf a$):
 
-$$
-\mathbf v_1 = \mathbf v - \mathbf v_c,\qquad
-\mathbf v_2 = (\mathbf v_1\times\mathbf a).
-$$
+$$\mathbf v_1 = \mathbf v - \mathbf v_c,\qquad \mathbf v_2 = (\mathbf v_1\times\mathbf a).$$
 
 Because $\mathbf a$ is normalized, $\mathbf v_1$ and $\mathbf v_2$ have equal length. Rotating by $\theta$ about $\mathbf v_c$ in that plane gives
 
-$$
-\mathbf v' = \mathbf v_c + \mathbf v_1\cos\theta + \mathbf v_2\sin\theta.
-$$
+$$\mathbf v' = \mathbf v_c + \mathbf v_1\cos\theta + \mathbf v_2\sin\theta.$$
 
 Applying this formula to the basis vectors $(1,0,0)$, $(0,1,0)$, $(0,0,1)$ yields the rows of the rotation matrix. The inverse is again the transpose, and because some callers already have $\sin\theta$ and $\cos\theta$, a variant takes them directly.
 
@@ -1772,15 +1607,11 @@ pub fn rotate(theta_deg: f32, axis: Vec3) -> Transform {
 
 It is sometimes useful to find the rotation that aligns a unit vector $\mathbf f$ ("from") with $\mathbf t$ ("to"). Using the cross product as the axis and `acos(dot)` as the angle is unstable for nearly parallel vectors and needs expensive trigonometry. Instead, use a pair of **reflections**: reflect $\mathbf f$ to an intermediate $\mathbf r$, then $\mathbf r$ to $\mathbf t$; their product is the desired rotation. The Householder matrix reflects $\mathbf v$ to $-\mathbf v$ while leaving vectors orthogonal to $\mathbf v$ unchanged:
 
-$$
-H(\mathbf v) = I - \frac{2}{\mathbf v\cdot\mathbf v}\,\mathbf v\mathbf v^T.
-$$
+$$H(\mathbf v) = I - \frac{2}{\mathbf v\cdot\mathbf v}\,\mathbf v\mathbf v^T.$$
 
 With $\mathbf u = \mathbf r - \mathbf f$ and $\mathbf v = \mathbf r - \mathbf t$,
 
-$$
-\mathbf R = H(\mathbf v)\,H(\mathbf r-\mathbf t)\;H(\mathbf u)\;=\;H(\mathbf r-\mathbf t)\,H(\mathbf r-\mathbf f),
-$$
+$$\mathbf R = H(\mathbf v)\,H(\mathbf r-\mathbf t)\;H(\mathbf u)\;=\;H(\mathbf r-\mathbf t)\,H(\mathbf r-\mathbf f),$$
 
 the second matrix reflects $\mathbf f$ to $\mathbf r$ and the first reflects $\mathbf r$ to $\mathbf t$.
 
@@ -1810,12 +1641,7 @@ pub fn rotate_from_to(from: Vec3, to: Vec3) -> Transform {
 
 Expanding the Householder product gives the matrix element
 
-$$
-r_{i,j} = \delta_{i,j}
-- \frac{2u_i u_j}{\mathbf u\cdot\mathbf u}
-- \frac{2v_i v_j}{\mathbf v\cdot\mathbf v}
-+ \frac{4(\mathbf u\cdot\mathbf v)\,v_i u_j}{(\mathbf u\cdot\mathbf u)(\mathbf v\cdot\mathbf v)},
-$$
+$$r_{i,j} = \delta_{i,j} - \frac{2u_i u_j}{\mathbf u\cdot\mathbf u} - \frac{2v_i v_j}{\mathbf v\cdot\mathbf v} + \frac{4(\mathbf u\cdot\mathbf v)\,v_i u_j}{(\mathbf u\cdot\mathbf u)(\mathbf v\cdot\mathbf v)},$$
 
 where $\delta_{i,j}$ is the Kronecker delta ($1$ if $i=j$, otherwise $0$); the implementation follows directly.
 
@@ -1951,19 +1777,11 @@ impl Transform {
 
 Normals do **not** transform like vectors (Figure 3.29). Tangent vectors at a surface transform in the straightforward way, but a normal is defined by orthogonality to those tangents. If $\mathbf n\cdot\mathbf t = \mathbf n^T\mathbf t = 0$, a point transformed by $M$ has tangent $\mathbf t' = M\mathbf t$, and we want a normal $\mathbf n' = S\mathbf n$ that is still orthogonal to it:
 
-$$
-\begin{aligned}
-0 &= (\mathbf n')^T\mathbf t' \\
-  &= (S\mathbf n)^T M\mathbf t \\
-  &= \mathbf n^T S^T M\,\mathbf t.
-\end{aligned}
-$$
+$$\begin{aligned} 0 &= (\mathbf n')^T\mathbf t' \\ &= (S\mathbf n)^T M\mathbf t \\ &= \mathbf n^T S^T M\,\mathbf t. \end{aligned}$$
 
 This holds for all tangents when $S^T M = I$, so $S^T = M^{-1}$ and
 
-$$
-S = (M^{-1})^T.
-$$
+$$S = (M^{-1})^T.$$
 
 Normals must therefore be transformed by the **inverse transpose** of the transformation matrix — one of the reasons `Transform` stores its inverse. The implementation does not explicitly form the transpose; it indexes the inverse matrix in a different order.
 
@@ -2034,9 +1852,7 @@ Now the real value of matrices becomes apparent. Given a series of transformatio
 
 The inverse of the product is `t2.m_inv * m_inv`, from the identity
 
-$$
-(AB)^{-1} = B^{-1}A^{-1}.
-$$
+$$(AB)^{-1} = B^{-1}A^{-1}.$$
 
 ```rust
 impl std::ops::Mul for Transform {
@@ -2071,14 +1887,7 @@ It is often useful to define a rotation aligning three orthonormal vectors with 
 
 Given orthonormal $\mathbf x,\mathbf y,\mathbf z$, the transform into their space is
 
-$$
-F = \begin{pmatrix}
-x_x & x_y & x_z\\
-y_x & y_y & y_z\\
-z_x & z_y & z_z
-\end{pmatrix}
-= \begin{pmatrix}\mathbf x\\ \mathbf y\\ \mathbf z\end{pmatrix},
-$$
+$$F = \begin{pmatrix} x_x & x_y & x_z\\ y_x & y_y & y_z\\ z_x & z_y & z_z \end{pmatrix} = \begin{pmatrix}\mathbf x\\ \mathbf y\\ \mathbf z\end{pmatrix},$$
 
 stored as three `Vec3`s.
 
@@ -2263,14 +2072,7 @@ After computing an initial shading normal (with the same cross product and possi
 
 The surface normal has special meaning in pbrt: for closed shapes it should point outward, and area lights emit only from the side the normal points toward (the other side is black). A `ReverseOrientation` directive flips it. In addition, if a shape's transform changes handedness from pbrt's default left-handed system to right-handed, the normal's orientation must be switched. To see why, consider $S(1,1,-1)$: one expects it to reverse the normal, but the cross product gives
 
-$$
-\begin{aligned}
-S(1,1,-1)\frac{\partial p}{\partial u}\times S(1,1,-1)\frac{\partial p}{\partial v}
-&= S(-1,-1,1)\left(\frac{\partial p}{\partial u}\times\frac{\partial p}{\partial v}\right) \\
-&= S(-1,-1,1)\,\mathbf n \\
-&\ne S(1,1,-1)\,\mathbf n.
-\end{aligned}
-$$
+$$\begin{aligned} S(1,1,-1)\frac{\partial p}{\partial u}\times S(1,1,-1)\frac{\partial p}{\partial v} &= S(-1,-1,1)\left(\frac{\partial p}{\partial u}\times\frac{\partial p}{\partial v}\right) \\ &= S(-1,-1,1)\,\mathbf n \\ &\ne S(1,1,-1)\,\mathbf n. \end{aligned}$$
 
 The cross product therefore does not account for the flip, so the caller passes a `flipNormal` flag; when set, both the true and shading normals are negated. pbrt can also associate an integer index with each face of a polygon mesh for texture mapping, stored in `faceIndex` (a separate constructor accepts it).
 

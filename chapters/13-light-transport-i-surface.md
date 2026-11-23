@@ -66,9 +66,7 @@ The key principle underlying the LTE is energy balance. Any change in energy has
 
 To enforce energy balance at a surface, exitant radiance $L_o$ must be equal to emitted radiance plus the fraction of incident radiance that is scattered. Emitted radiance is given by $L_e$, and scattered radiance is given by the scattering equation, which gives
 
-$$
-L_o(p, \omega_o) = L_e(p, \omega_o) + \int_{\mathcal{S}^2} f(p, \omega_o, \omega_i)\, L_i(p, \omega_i)\, |\cos\theta_i| \, d\omega_i .
-$$
+$$L_o(p, \omega_o) = L_e(p, \omega_o) + \int_{\mathcal{S}^2} f(p, \omega_o, \omega_i)\, L_i(p, \omega_i)\, |\cos\theta_i| \, d\omega_i .$$
 
 Because we have assumed for now that no participating media are present, radiance is constant along rays through the scene. We can therefore relate the incident radiance at $p$ to the outgoing radiance from another point $p'$, as shown by Figure 13.1. If we define the ray-casting function $t(p, \omega)$ as a function that computes the first surface point $p'$ intersected by a ray from $p$ in the direction $\omega$, we can write the incident radiance at $p$ in terms of outgoing radiance at $p'$: $L_i(p, \omega) = L_o(t(p, \omega), -\omega)$.
 
@@ -85,9 +83,7 @@ In case the scene is not closed, we will define the ray-casting function to retu
 
 Dropping the subscripts from $L_o$ for brevity, this relationship allows us to write the LTE as
 
-$$
-L(p, \omega_o) = L_e(p, \omega_o) + \int_{\mathcal{S}^2} f(p, \omega_o, \omega_i)\, L\big(t(p, \omega_i), -\omega_i\big)\, |\cos\theta_i| \, d\omega_i . \tag{13.1}
-$$
+$$L(p, \omega_o) = L_e(p, \omega_o) + \int_{\mathcal{S}^2} f(p, \omega_o, \omega_i)\, L\big(t(p, \omega_i), -\omega_i\big)\, |\cos\theta_i| \, d\omega_i . \quad\text{(13.1)}$$
 
 The key to the above representation is that there is only one quantity of interest, exitant radiance from points on surfaces. Of course, it appears on both sides of the equation, so our task is still not simple, but it is certainly easier. It is important to keep in mind that we were able to arrive at this equation simply by enforcing energy balance in our scene.
 
@@ -99,33 +95,25 @@ It is possible to find analytic solutions to the LTE in very simple settings. Wh
 
 also emit a constant amount of radiance in all directions. We have
 
-$$
-f(p, \omega_o, \omega_i) = c, \qquad L_e(p, \omega_o) = L_e \quad (\text{constant}) .
-$$
+$$f(p, \omega_o, \omega_i) = c, \qquad L_e(p, \omega_o) = L_e \quad (\text{constant}) .$$
 
 The outgoing radiance distribution at any point on the sphere interior must be the same as at any other point; nothing in the environment introduces any variation among different points. Therefore, the incident radiance distribution must be the same at all points, and the cosine-weighted integral of incident radiance must be the same everywhere as well. As such, we can replace the radiance functions with constants and simplify, writing the LTE as $L = L_e + c\pi L$. While we could immediately solve this equation for $L$, it is interesting to consider successive substitution of the right hand side into the $L$ term on the right hand side. If we also replace $\pi c$ with
 
 $\rho_{hh}$, the reflectance of a Lambertian surface, we have
 
-$$
-L = L_e + \rho_{hh} L = L_e + \rho_{hh} L_e + \rho_{hh}^2 L = L_e + \rho_{hh} L_e + \rho_{hh}^2 L_e + \cdots .
-$$
+$$L = L_e + \rho_{hh} L = L_e + \rho_{hh} L_e + \rho_{hh}^2 L = L_e + \rho_{hh} L_e + \rho_{hh}^2 L_e + \cdots .$$
 
 In other words, exitant radiance is equal to the emitted radiance at the point plus light that has been scattered by a `BSDF` once after emission, plus light that has been scattered twice, and so forth.
 
 Because $\rho_{hh} < 1$ due to conservation of energy, the series converges and the reflected radiance at all points in all directions is
 
-$$
-L = \frac{L_e}{1 - \rho_{hh}} .
-$$
+$$L = \frac{L_e}{1 - \rho_{hh}} .$$
 
 (This series is called a Neumann series.)
 
 This process of repeatedly substituting the LTE’s right hand side into the incident radiance term in the integral can be instructive in more general cases.[^1] For example, only accounting for direct illumination effectively computes the result of making a single substitution:
 
-$$
-L(p, \omega_o) = L_e(p, \omega_o) + \int_{\mathcal{S}^2} f(p, \omega_o, \omega_i)\, L_d(p, \omega_i)\, |\cos\theta_i| \, d\omega_i
-$$
+$$L(p, \omega_o) = L_e(p, \omega_o) + \int_{\mathcal{S}^2} f(p, \omega_o, \omega_i)\, L_d(p, \omega_i)\, |\cos\theta_i| \, d\omega_i$$
 
 where $L_d(p, \omega_i) = L_e(t(p, \omega_i), -\omega_i)$, and further scattering is ignored.
 
@@ -137,15 +125,11 @@ One reason the LTE as written in Equation (13.1) is complex is that the relation
 
 First, we define exitant radiance from a point p′ to a point p by
 
-$$
-L(p' \to p) = L(p', \omega)
-$$
+$$L(p' \to p) = L(p', \omega)$$
 
 if $p'$ and $p$ are mutually visible and $\omega = \dfrac{p - p'}{\|p - p'\|}$. We can also write the `BSDF` at $p'$ as
 
-$$
-f(p'' \to p' \to p) = f(p', \omega_o, \omega_i),
-$$
+$$f(p'' \to p' \to p) = f(p', \omega_o, \omega_i),$$
 
 where $\omega_o = \dfrac{p - p'}{\|p - p'\|}$ and $\omega_i = \dfrac{p'' - p'}{\|p'' - p'\|}$ (Figure 13.2). This is sometimes called the three-point form of the `BSDF`.
 
@@ -153,9 +137,7 @@ Rewriting the terms in the LTE in this manner is not quite enough, however. We a
 
 We will combine this change-of-variables term, the original $|\cos\theta|$ term from the LTE, and a binary visibility function $V$ ($V = 1$ if the two points are mutually visible, and $V = 0$ otherwise) into a single geometric coupling term, $G(p \leftrightarrow p')$:
 
-$$
-G(p \leftrightarrow p') = V(p \leftrightarrow p')\, \frac{|\cos\theta|\,|\cos\theta'|}{r^2}, \qquad r = \|p - p'\| .
-$$
+$$G(p \leftrightarrow p') = V(p \leftrightarrow p')\, \frac{|\cos\theta|\,|\cos\theta'|}{r^2}, \qquad r = \|p - p'\| .$$
 
 ```mermaid
 flowchart LR
@@ -169,9 +151,7 @@ flowchart LR
 
 Substituting these into the light transport equation and converting to an area integral, we have the three-point form of the LTE,
 
-$$
-L(p'' \to p') = L_e(p'' \to p') + \int_{A} f(p''' \to p'' \to p')\, L(p''' \to p'')\, G(p'' \leftrightarrow p''')\, dA(p''') . \tag{13.3}
-$$
+$$L(p'' \to p') = L_e(p'' \to p') + \int_{A} f(p''' \to p'' \to p')\, L(p''' \to p'')\, G(p'' \leftrightarrow p''')\, dA(p''') . \quad\text{(13.3)}$$
 
 where $A$ is all the surfaces of the scene.
 
@@ -185,15 +165,7 @@ The explicit form allows for considerable freedom in how these paths are found�
 
 To go from the area integral to a sum over path integrals involving light-carrying paths of different lengths, we can start to expand the three-point light transport equation, repeatedly substituting the right hand side of the equation into the $L(p'' \to p')$ term inside the integral. Here are the first few terms that give incident radiance at a point $p_0$ from another point $p_1$, where $p_1$ is the first point on a surface along the ray from $p_0$ in direction $p_1 - p_0$:
 
-$$
-\begin{aligned}
-L(p_1 \to p_0) = {} & L_e(p_1 \to p_0) \\
-& + \int_{A} f(p_2 \to p_1 \to p_0)\, L_e(p_2 \to p_1)\, G(p_1 \leftrightarrow p_2)\, dA(p_2) \\
-& + \int_{A}\!\int_{A} f(p_2 \to p_1 \to p_0)\, f(p_3 \to p_2 \to p_1)\, L_e(p_3 \to p_2)\,
-     G(p_1 \leftrightarrow p_2)\, G(p_2 \leftrightarrow p_3)\, dA(p_3)\, dA(p_2) \\
-& + \cdots
-\end{aligned}
-$$
+$$\begin{aligned} L(p_1 \to p_0) = {} & L_e(p_1 \to p_0) \\ & + \int_{A} f(p_2 \to p_1 \to p_0)\, L_e(p_2 \to p_1)\, G(p_1 \leftrightarrow p_2)\, dA(p_2) \\ & + \int_{A}\!\int_{A} f(p_2 \to p_1 \to p_0)\, f(p_3 \to p_2 \to p_1)\, L_e(p_3 \to p_2)\, G(p_1 \leftrightarrow p_2)\, G(p_2 \leftrightarrow p_3)\, dA(p_3)\, dA(p_2) \\ & + \cdots \end{aligned}$$
 
 ```mermaid
 flowchart LR
@@ -208,33 +180,23 @@ Each term on the right side of this equation represents a path of increasing len
 
 This infinite sum can be written compactly as
 
-$$
-L(p_1 \to p_0) = \sum_{n=1}^{\infty} P(\bar{p}_n) . \tag{13.4}
-$$
+$$L(p_1 \to p_0) = \sum_{n=1}^{\infty} P(\bar{p}_n) . \quad\text{(13.4)}$$
 
 $P(\bar{p}_n)$ gives the amount of radiance scattered over a path $\bar{p}_n$ with $n + 1$ vertices, $\bar{p}_n = p_0, p_1, \ldots, p_n$, where $p_0$ is on the film plane or front lens element and $p_n$ is on a light source, and
 
-$$
-P(\bar{p}_n) = L_e(p_n \to p_{n-1}) \prod_{i=1}^{n-1} f(p_{i+1} \to p_i \to p_{i-1})\, G(p_i \leftrightarrow p_{i+1}) .
-$$
+$$P(\bar{p}_n) = L_e(p_n \to p_{n-1}) \prod_{i=1}^{n-1} f(p_{i+1} \to p_i \to p_{i-1})\, G(p_i \leftrightarrow p_{i+1}) .$$
 
 Before we move on, we will define one additional term that will be helpful in the subsequent discussion. The product of a path’s `BSDF` and geometry terms is called the throughput of the path; it describes the fraction of radiance from the light source that arrives at the camera after all the scattering at vertices between them. We will denote it by
 
-$$
-T(\bar{p}_n) = \prod_{i=1}^{n-1} f(p_{i+1} \to p_i \to p_{i-1})\, G(p_i \leftrightarrow p_{i+1}),
-$$
+$$T(\bar{p}_n) = \prod_{i=1}^{n-1} f(p_{i+1} \to p_i \to p_{i-1})\, G(p_i \leftrightarrow p_{i+1}),$$
 
 so
 
-$$
-P(\bar{p}_n) = T(\bar{p}_n)\, L_e(p_n \to p_{n-1}) .
-$$
+$$P(\bar{p}_n) = T(\bar{p}_n)\, L_e(p_n \to p_{n-1}) .$$
 
 Given Equation (13.4) and a particular length $n$, all that we need to do to compute a Monte Carlo estimate of the radiance arriving at $p_0$ due to paths of length $n$ is to sample a set of vertices with an appropriate sampling density, $\bar{p}_n \sim p$, to generate a path and then to evaluate an estimate of $P(\bar{p}_n)$
 
-$$
-\left\langle L(p_1 \to p_0) \right\rangle_n \approx \frac{P(\bar{p}_n)}{p(\bar{p}_n)}
-$$
+$$\left\langle L(p_1 \to p_0) \right\rangle_n \approx \frac{P(\bar{p}_n)}{p(\bar{p}_n)}$$
 
 using those vertices: Whether we generate those vertices by starting a path from the camera, starting from the light, starting from both ends, or starting from a point in the middle is a detail that only affects how the path probability $p(\bar{p}_n)$ is computed. We will see how this formulation leads to practical light transport algorithms throughout this and the following chapters.
 
@@ -244,10 +206,7 @@ Delta functions may be present in $P(\bar{p}_i)$ terms due not only to certain t
 
 For example, consider the direct illumination term, $P(\bar{p}_2)$, in a scene with a single point light source at point $p_{\text{light}}$ described by a delta distribution:
 
-$$
-L_e(p_2 \to p_1) = \Phi\,\delta(p_2 - p_{\text{light}}), \qquad
-\frac{P(\bar{p}_2)}{p(\bar{p}_2)} = f(p_2 \to p_1 \to p_0)\, G(p_1 \leftrightarrow p_2)\, \frac{\Phi}{p(l)} \bigg|_{p_2 = p_{\text{light}}} .
-$$
+$$L_e(p_2 \to p_1) = \Phi\,\delta(p_2 - p_{\text{light}}), \qquad \frac{P(\bar{p}_2)}{p(\bar{p}_2)} = f(p_2 \to p_1 \to p_0)\, G(p_1 \leftrightarrow p_2)\, \frac{\Phi}{p(l)} \bigg|_{p_2 = p_{\text{light}}} .$$
 
 In other words, $p_2$ must be the light’s position in the scene; the delta distribution in the numerator cancels out due to an implicit delta distribution in $p(p_{\text{light}})$ (recall the discussion of sampling Dirac delta distributions in Section 12.1), and we are left with terms that can be evaluated directly, with no need for Monte Carlo. An analogous situation holds for `BSDFs` with delta distributions in the path throughput $T(\bar{p}_n)$; each one eliminates an integral over area from the estimate to be computed.
 
@@ -261,18 +220,13 @@ expand the sum over paths to where the first term is trivially evaluated by comp
 
 It is also useful to partition individual $P(\bar{p}_n)$ terms. For example, we might want to split the emission term into emission from small light sources, $L_{e,s}$, and emission from large light sources, $L_{e,l}$, giving us two separate integrals to estimate:
 
-$$
-P(\bar{p}_n) = T(\bar{p}_n)\, L_{e,s}(p_n \to p_{n-1}) \;+\; T(\bar{p}_n)\, L_{e,l}(p_n \to p_{n-1}) .
-$$
+$$P(\bar{p}_n) = T(\bar{p}_n)\, L_{e,s}(p_n \to p_{n-1}) \;+\; T(\bar{p}_n)\, L_{e,l}(p_n \to p_{n-1}) .$$
 
 The two integrals can be evaluated independently, possibly using completely different algorithms or different numbers of samples, selected in a way that handles the different conditions well. As long as the estimate of the $L_{e,s}$ integral ignores any emission from large lights, the estimate of the $L_{e,l}$ integral ignores emission from small lights, and all lights are categorized as either “large” or “small,” the correct result is computed in the end.
 
 Finally, the `BSDF` terms can be partitioned as well (in fact, this application was the reason `BSDF` categorization with `BxDFFlags` values was introduced in Section 9.1.2). For example, if $f_\Delta$ denotes components of the `BSDF` described by delta distributions and $f_{\neg\Delta}$ denotes the remaining components,
 
-$$
-f = f_\Delta + f_{\neg\Delta}, \qquad
-\prod_{i=1}^{n-1} f_i = \prod_{i=1}^{n-1}\left(f_{\Delta,i} + f_{\neg\Delta,i}\right) .
-$$
+$$f = f_\Delta + f_{\neg\Delta}, \qquad \prod_{i=1}^{n-1} f_i = \prod_{i=1}^{n-1}\left(f_{\Delta,i} + f_{\neg\Delta,i}\right) .$$
 
 <details>
 <summary>Figure 13.4 — Kroken Scene Rendered with Path Tracing (pictorial renders)</summary>
@@ -297,9 +251,7 @@ Although it is slightly easier to derive path tracing directly from the basic li
 
 Given the path integral form of the LTE, we would like to estimate the value of the exitant radiance
 
-$$
-L(p_1 \to p_0) = \sum_{n=1}^{\infty} P(\bar{p}_n)
-$$
+$$L(p_1 \to p_0) = \sum_{n=1}^{\infty} P(\bar{p}_n)$$
 
 from the camera ray’s intersection point $p_1$, for a given camera ray from $p_0$ that first intersects the scene at $p_1$. We have two problems that must be solved in order to compute this estimate:
 
@@ -308,13 +260,7 @@ from the camera ray’s intersection point $p_1$, for a given camera ray from $p
 
 For path tracing, we can take advantage of the fact that for physically valid scenes, paths with more vertices scatter less light than paths with fewer vertices overall (this is not necessarily true for any particular pair of paths, just in the aggregate). This is a natural consequence of conservation of energy in `BSDFs`. Therefore, we will always estimate the first few terms $P(\bar{p}_i)$ and will then start to apply Russian roulette (RR) to stop sampling after a finite number of terms without introducing bias. (Recall that Section 2.2.4 showed how to use Russian roulette to probabilistically stop computing terms in a sum as long as the terms that are not skipped are reweighted appropriately.) For example, if we always computed estimates of $P(\bar{p}_1)$, $P(\bar{p}_2)$, and $P(\bar{p}_3)$ but stopped without computing more terms with probability $q$, then an unbiased estimate of the sum would be
 
-$$
-\hat{L} = P(\bar{p}_1) + P(\bar{p}_2) + P(\bar{p}_3) +
-\begin{cases}
-0, & \text{with probability } q, \\[3pt]
-\dfrac{1}{1-q}\displaystyle\sum_{n=4}^{\infty} P(\bar{p}_n), & \text{with probability } 1-q .
-\end{cases}
-$$
+$$\hat{L} = P(\bar{p}_1) + P(\bar{p}_2) + P(\bar{p}_3) + \begin{cases} 0, & \text{with probability } q, \\[3pt] \dfrac{1}{1-q}\displaystyle\sum_{n=4}^{\infty} P(\bar{p}_n), & \text{with probability } 1-q . \end{cases}$$
 
 Using Russian roulette in this way does not solve the problem of needing to evaluate an infinite sum but has pushed it a bit farther out.
 
@@ -322,13 +268,7 @@ If we take this idea a step further and instead randomly consider terminating ev
 
 each term with probability $q_i$, we will eventually stop continued evaluation of the sum. The estimator then carries a survival weight $\prod_{j=1}^{n-1}(1-q_j)^{-1}$:
 
-$$
-\hat{L} = \sum_{n=1}^{\infty}
-\left(\prod_{j=1}^{n-1}\frac{1}{1-q_j}\right)
-\mathbf{1}\!\left[\text{survive to term } n\right] P(\bar{p}_n),
-\qquad
-\mathbb{E}\!\left[\mathbf{1}\!\left[\text{survive to } n\right]\right] = \prod_{j=1}^{n-1}(1-q_j).
-$$
+$$\hat{L} = \sum_{n=1}^{\infty} \left(\prod_{j=1}^{n-1}\frac{1}{1-q_j}\right) \mathbf{1}\!\left[\text{survive to term } n\right] P(\bar{p}_n), \qquad \mathbb{E}\!\left[\mathbf{1}\!\left[\text{survive to } n\right]\right] = \prod_{j=1}^{n-1}(1-q_j).$$
 
 Yet, because for any particular value of $i$ there is greater than zero probability of evaluating the term $P(\bar{p}_i)$ and because it will be weighted appropriately if we do evaluate it, the final result is an unbiased estimate of the sum.
 
@@ -347,23 +287,17 @@ flowchart LR
 
 With this sampling approach, we might define a discrete probability over the $n$ objects in the scene. If each has surface area $A_i$, then the probability of sampling a path vertex on the surface of the $i$th object
 
-$$
-p_i = \frac{A_i}{\sum_{j=1}^{n} A_j}
-$$
+$$p_i = \frac{A_i}{\sum_{j=1}^{n} A_j}$$
 
 should be. Then, given a method to sample a point on the $i$th object with uniform probability, the probability density function (PDF) for sampling any particular point on object $i$ is $1/A_i$. Thus, the overall
 
 probability density for sampling the point is
 
-$$
-p_A(x \in \text{object } i) = \frac{A_i}{\sum_j A_j}\cdot\frac{1}{A_i} = \frac{1}{\sum_j A_j} = \frac{1}{A},
-$$
+$$p_A(x \in \text{object } i) = \frac{A_i}{\sum_j A_j}\cdot\frac{1}{A_i} = \frac{1}{\sum_j A_j} = \frac{1}{A},$$
 
 and all samples $p_i$ have the same PDF value:
 
-$$
-p_A(p_i) = \frac{1}{A} \quad \text{for all } i .
-$$
+$$p_A(p_i) = \frac{1}{A} \quad \text{for all } i .$$
 
 It is reassuring that they all have the same weight, since our intent was to choose among all points on surfaces in the scene with equal probability.
 
@@ -383,9 +317,7 @@ series of choices that find directions with important local contributions. While
 
 Because this approach constructs the path by sampling `BSDFs` according to solid angle, and because the path integral LTE is an integral over surface area in the scene, we need to apply the correction to convert from the probability density according to solid angle $p_\omega$ to a density according to area $p_A$ (Section 4.2). If $\omega_{i-1}$ is the normalized direction sampled at $p_{i-1}$, it is:
 
-$$
-p_A(p_i) = p_\omega(\omega_{i-1})\,\frac{|\cos\theta_i|}{r^2}, \qquad r = \|p_i - p_{i-1}\| .
-$$
+$$p_A(p_i) = p_\omega(\omega_{i-1})\,\frac{|\cos\theta_i|}{r^2}, \qquad r = \|p_i - p_{i-1}\| .$$
 
 This correction causes all the factors of the corresponding geometric function $G(p_{i+1} \leftrightarrow p_i)$ to cancel out of $P(\bar{p}_i)$ except for the $\cos\theta_{i+1}$ term. Furthermore, we already know that $p_{i-1}$ and $p_i$ must be mutually visible since we traced a ray to find $p_i$, so the visibility term is trivially equal to 1. An alternative way to think about this is that ray tracing provides an operation to importance sample the visibility component of $G$.
 
@@ -393,11 +325,7 @@ With path tracing, the last vertex of the path, which is on the surface of a lig
 
 With this approach, the value of the Monte Carlo estimate for a path is
 
-$$
-\frac{P(\bar{p}_n)}{p(\bar{p}_n)} =
-\underbrace{\left[\prod_{i=1}^{n-1} \frac{f(p_{i+1}\to p_i\to p_{i-1})\,|\cos\theta_i|}{p_\omega(\omega_i)}\right]}_{\text{path throughput, accumulated in }\beta}
-\frac{L_e(p_n\to p_{n-1})}{p_e(p_n)} . \tag{13.7}
-$$
+$$\frac{P(\bar{p}_n)}{p(\bar{p}_n)} = \underbrace{\left[\prod_{i=1}^{n-1} \frac{f(p_{i+1}\to p_i\to p_{i-1})\,|\cos\theta_i|}{p_\omega(\omega_i)}\right]}_{\text{path throughput, accumulated in }\beta} \frac{L_e(p_n\to p_{n-1})}{p_e(p_n)} . \quad\text{(13.7)}$$
 
 (When the emitter distribution $p_e$ is expressed per solid angle rather than per area, the light term carries the corresponding Jacobian $|\cos\theta_n|/r^2$; the geometric term $G$ for the final segment is then only partially cancelled.)
 
@@ -492,9 +420,7 @@ A number of variables record the current state of the path. $L$ is the current e
 
 The `beta` variable holds the path throughput weight, which is defined as the factors of the throughput function $T(\bar{p}_{i-1})$—that is, the product of the `BSDF` values and cosine terms for the vertices generated so far, divided by their respective sampling PDFs:
 
-$$
-\beta = \prod_{j=1}^{i-1} \frac{f(p_{j+1}\to p_j\to p_{j-1})\,|\cos\theta_j|}{p_\omega(\omega_j)} .
-$$
+$$\beta = \prod_{j=1}^{i-1} \frac{f(p_{j+1}\to p_j\to p_{j-1})\,|\cos\theta_j|}{p_\omega(\omega_j)} .$$
 
 Thus, the product of `beta` with scattered light from direct lighting from the final vertex of the path gives the contribution for a path. (This quantity will reoccur many times in the following few chapters, and we will consistently refer to it as `beta`.) Because the effect of earlier path vertices is aggregated in this way, there is no need to store the positions and `BSDFs` of all the vertices of the path—only the last one.
 
@@ -683,9 +609,7 @@ Given a light source, a call to `SampleLi()` yields a sample on the light. If th
 
 Returning to the path tracing estimator in Equation (13.7), we have the path throughput weight in `beta`, which corresponds to the term in parentheses there. A call to `SampleLi()` yields a sample on the light. Because the light sampling methods return samples that are with respect to solid angle and not area, yet another Jacobian correction term is necessary, and the estimator becomes
 
-$$
-\frac{P(\bar{p}_2)}{p(\bar{p}_2)} = \beta\;\frac{f(p,\omega_o,\omega_i)\, L_e\big(t(p,\omega_i),-\omega_i\big)\,|\cos\theta_i|}{p_l(\omega_i)\,p(l)} . \tag{13.9}
-$$
+$$\frac{P(\bar{p}_2)}{p(\bar{p}_2)} = \beta\;\frac{f(p,\omega_o,\omega_i)\, L_e\big(t(p,\omega_i),-\omega_i\big)\,|\cos\theta_i|}{p_l(\omega_i)\,p(l)} . \quad\text{(13.9)}$$
 
 where $p_l$ is the solid angle density that the chosen light $l$ would use to sample the direction $\omega_i$ and $p(l)$ is the discrete probability of sampling the light $l$ (recall Equation (12.2)); their product gives the full probability of the light sample.
 
@@ -725,9 +649,7 @@ To sample the next path vertex, the direction of the ray leaving the surface is 
 
 If `BSDF` sampling is being used to sample the new direction, the `Sample_f()` method gives a direction and the associated `BSDF` and PDF values. `beta` can then be updated according to Equation (13.8):
 
-$$
-\beta \leftarrow \beta\;\frac{f(p,\omega_o,\omega_i)\,|\cos\theta_i|}{p_\omega(\omega_i)} . \tag{13.8}
-$$
+$$\beta \leftarrow \beta\;\frac{f(p,\omega_o,\omega_i)\,|\cos\theta_i|}{p_\omega(\omega_i)} . \quad\text{(13.8)}$$
 
 `〈Sample BSDF for new path direction〉 ≡ 830`
 
@@ -908,9 +830,7 @@ While these additions make its implementation more complex, they also substantia
 
 The most important of these differences is how the direct lighting calculation is performed. In the `SimplePathIntegrator`, a light was chosen with uniform probability and then that light sampled a direction; the corresponding estimator was given by Equation (13.9). More generally, the path contribution estimator can be expressed in terms of an arbitrary directional probability distribution $p(\omega_i)$,
 
-$$
-L_d = \frac{f(p,\omega_o,\omega_i)\, L_e(\omega_i)\, |\cos\theta_i|}{p(\omega_i)} ,
-$$
+$$L_d = \frac{f(p,\omega_o,\omega_i)\, L_e(\omega_i)\, |\cos\theta_i|}{p(\omega_i)} ,$$
 
 which gives, once both sampling techniques are combined with MIS, the estimator in Equation (13.10) below.
 
@@ -941,22 +861,15 @@ Taking a single sample with each sampling technique and averaging the estimators
 
 This situation is therefore a natural for the application of multiple importance sampling—we have multiple sampling techniques, each of which is sometimes effective and sometimes not. That approach is used in the `PathIntegrator` with one light sample $\omega_l \sim p_l$ and one `BSDF` sample $\omega_b \sim p_b$, giving the estimator
 
-$$
-L_d = w_l(\omega_l)\, \frac{f(\omega_l)\, L_e(\omega_l)\, |\cos\theta_l|}{p_l(\omega_l)}
-    + w_b(\omega_b)\, \frac{f(\omega_b)\, L_e(\omega_b)\, |\cos\theta_b|}{p_b(\omega_b)} . \tag{13.10}
-$$
+$$L_d = w_l(\omega_l)\, \frac{f(\omega_l)\, L_e(\omega_l)\, |\cos\theta_l|}{p_l(\omega_l)} + w_b(\omega_b)\, \frac{f(\omega_b)\, L_e(\omega_b)\, |\cos\theta_b|}{p_b(\omega_b)} . \quad\text{(13.10)}$$
 
 The MIS weights can be computed, for example, using the balance heuristic
 
-$$
-w_s(x) = \frac{p_s(x)}{\sum_t p_t(x)}
-$$
+$$w_s(x) = \frac{p_s(x)}{\sum_t p_t(x)}$$
 
 from Equation (2.14), or the power heuristic
 
-$$
-w_s(x) = \frac{p_s(x)^2}{\sum_t p_t(x)^2}
-$$
+$$w_s(x) = \frac{p_s(x)^2}{\sum_t p_t(x)^2}$$
 
 from Equation (2.15).
 
@@ -1458,11 +1371,7 @@ Finally, note that the termination probability is set according to the maximum c
 
 Doing so gives better results when surface reflectances are highly saturated and some of the wavelength samples have much lower `beta` values than others, since it prevents any of the `beta` components from going above 1 due to Russian roulette:
 
-$$
-\mathrm{rrBeta} = \beta \cdot \eta_{\text{scale}}, \qquad
-q = \max\!\left(0,\ 1 - \max_c \mathrm{rrBeta}_c\right), \qquad
-\beta \leftarrow \frac{\beta}{1-q}\ \text{on survival}.
-$$
+$$\mathrm{rrBeta} = \beta \cdot \eta_{\text{scale}}, \qquad q = \max\!\left(0,\ 1 - \max_c \mathrm{rrBeta}_c\right), \qquad \beta \leftarrow \frac{\beta}{1-q}\ \text{on survival}.$$
 
 `〈Possibly terminate the path with Russian roulette〉 ≡ 834`
 
@@ -1695,7 +1604,6 @@ Modify one or more integrators to instead perform this division by the current s
 [^2]: “Depth” is something of a misnomer in that this integrator constructs the path iteratively rather than recursively as the `RandomWalkIntegrator` did. Nevertheless, here and in the following integrators, we will continue to describe the path length in this way.
 
 [^3]: By this we mean that this is a place where the current version of pbrt does markedly better than previous ones.
-
 
 ---
 

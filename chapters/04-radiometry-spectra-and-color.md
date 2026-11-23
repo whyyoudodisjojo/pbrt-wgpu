@@ -84,25 +84,19 @@ There are four radiometric quantities that are central to rendering: flux, irrad
 
 **Energy.** Our starting point is energy, which is measured in joules (J). Sources of illumination emit photons, each of which is at a particular wavelength and carries a particular amount of energy. All the basic radiometric quantities are effectively different ways of measuring photons. A photon at wavelength $\lambda$ carries energy
 
-$$
-Q = \frac{hc}{\lambda},
-$$
+$$Q = \frac{hc}{\lambda},$$
 
 where $c$ is the speed of light, $299{,}792{,}458\ \mathrm{m/s}$, and $h$ is Planck's constant, $h \approx 6.626 \times 10^{-34}\ \mathrm{m^2\,kg/s}$.
 
 **Flux.** Energy measures work over some period of time, though under the steady-state assumption generally used in rendering, we are mostly interested in measuring light at an instant. **Radiant flux**, also known as *power*, is the total amount of energy passing through a surface or region of space per unit time. Radiant flux can be found by taking the limit of differential energy per differential time:
 
-$$
-\Phi = \lim_{\Delta t \to 0} \frac{\Delta Q}{\Delta t} = \frac{\mathrm{d}Q}{\mathrm{d}t}.
-$$
+$$\Phi = \lim_{\Delta t \to 0} \frac{\Delta Q}{\Delta t} = \frac{\mathrm{d}Q}{\mathrm{d}t}.$$
 
 Its units are joules/second (J/s), or more commonly, watts (W).
 
 For example, given a light that emitted $Q = 200{,}000\ \mathrm{J}$ over the course of an hour, if the same amount of energy was emitted at all times over the hour, we can find that the light source's flux was $\Phi = 200{,}000\ \mathrm{J} / 3600\ \mathrm{s} \approx 55.6\ \mathrm{W}$. Conversely, given flux as a function of time, we can integrate over a range of times to compute the total energy:
 
-$$
-Q = \int_{t_0}^{t_1} \Phi(t)\,\mathrm{d}t.
-$$
+$$Q = \int_{t_0}^{t_1} \Phi(t)\,\mathrm{d}t.$$
 
 Note that our notation here is slightly informal: among other issues, because photons are discrete quanta, it is not meaningful to take limits that go to zero for differential time. For the purposes of rendering, where the number of photons is enormous with respect to the measurements we are interested in, this detail is not problematic.
 
@@ -124,29 +118,21 @@ flowchart LR
 
 For the point light source example in Figure 4.1, irradiance at a point on the outer sphere is less than the irradiance at a point on the inner sphere, since the surface area of the outer sphere is larger. In particular, if the point source is emitting the same amount of illumination in all directions, then for a sphere in this configuration that has radius $r$,
 
-$$
-E = \frac{\Phi}{4\pi r^2}.
-$$
+$$E = \frac{\Phi}{4\pi r^2}.$$
 
 This fact explains why the amount of energy received from a light at a point falls off with the squared distance from the light.
 
 More generally, we can define irradiance and radiant exitance by taking the limit of differential power per differential area at a point $\mathbf{p}$:
 
-$$
-E(\mathbf{p}) = \frac{\mathrm{d}\Phi}{\mathrm{d}A}, \qquad M(\mathbf{p}) = \frac{\mathrm{d}\Phi}{\mathrm{d}A}.
-$$
+$$E(\mathbf{p}) = \frac{\mathrm{d}\Phi}{\mathrm{d}A}, \qquad M(\mathbf{p}) = \frac{\mathrm{d}\Phi}{\mathrm{d}A}.$$
 
 We can also integrate irradiance over an area to find power:
 
-$$
-\Phi = \int_A E(\mathbf{p})\,\mathrm{d}A.
-$$
+$$\Phi = \int_A E(\mathbf{p})\,\mathrm{d}A.$$
 
 The irradiance equation can also help us understand the origin of **Lambert's law**, which says that the amount of light energy arriving at a surface is proportional to the cosine of the angle between the light direction and the surface normal (Figure 4.2). Consider a light source with area $A$ and flux $\Phi$ that is illuminating a surface. If the light is shining directly down on the surface (as on the left side of the figure), then the area on the surface receiving light $A_1$ is equal to $A$. Irradiance at any point inside $A_1$ is then
 
-$$
-E_1 = \frac{\Phi}{A_1} = \frac{\Phi}{A}.
-$$
+$$E_1 = \frac{\Phi}{A_1} = \frac{\Phi}{A}.$$
 
 **Figure 4.2.** Lambert's Law. Irradiance arriving at a surface varies according to the cosine of the angle of incidence of illumination, since illumination is over a larger area at larger incident angles.
 
@@ -159,35 +145,25 @@ flowchart TD
 
 However, if the light is at an angle to the surface, the area on the surface receiving light is larger. If $A$ is small, then the area receiving flux, $A_2$, is roughly $A/\cos\theta$. For points inside $A_2$, the irradiance is therefore
 
-$$
-E_2 = \frac{\Phi}{A_2} = \frac{\Phi\cos\theta}{A} = E_1\cos\theta.
-$$
+$$E_2 = \frac{\Phi}{A_2} = \frac{\Phi\cos\theta}{A} = E_1\cos\theta.$$
 
 **Intensity.** Consider now an infinitesimal light source emitting photons. If we center this light source within the unit sphere, we can compute the angular density of emitted power. **Intensity**, denoted by $I$, is this quantity; it has units $\mathrm{W/sr}$. Over the entire sphere of directions we have
 
-$$
-I = \frac{\Phi}{4\pi},
-$$
+$$I = \frac{\Phi}{4\pi},$$
 
 but more generally we are interested in taking the limit of a differential cone of directions:
 
-$$
-I = \lim_{\Delta\omega \to 0} \frac{\Delta\Phi}{\Delta\omega} = \frac{\mathrm{d}\Phi}{\mathrm{d}\omega}.
-$$
+$$I = \lim_{\Delta\omega \to 0} \frac{\Delta\Phi}{\Delta\omega} = \frac{\mathrm{d}\Phi}{\mathrm{d}\omega}.$$
 
 As usual, we can go back to power by integrating intensity: given intensity as a function of direction $I(\omega)$, we can integrate over a finite set of directions $\Omega$ to recover the power:
 
-$$
-\Phi = \int_{\Omega} I(\omega)\,\mathrm{d}\omega.
-$$
+$$\Phi = \int_{\Omega} I(\omega)\,\mathrm{d}\omega.$$
 
 Intensity describes the directional distribution of light, but it is only meaningful for point light sources.
 
 **Radiance.** The final, and most important, radiometric quantity is **radiance**, $L$. Irradiance and radiant exitance give us differential power per differential area at a point $\mathbf{p}$, but they do not distinguish the directional distribution of power. Radiance takes this last step and measures irradiance or radiant exitance with respect to solid angles. It is defined by
 
-$$
-L = \frac{\mathrm{d}E_\omega}{\mathrm{d}\omega},
-$$
+$$L = \frac{\mathrm{d}E_\omega}{\mathrm{d}\omega},$$
 
 where we have used $E_\omega$ to denote irradiance at the surface that is perpendicular to the direction $\omega$. In other words, radiance is not measured with respect to the irradiance incident at the surface $\mathbf{p}$ lies on. In effect, this change of measurement area serves to eliminate the $\cos\theta$ factor from Lambert's law in the definition of radiance.
 
@@ -202,9 +178,7 @@ flowchart LR
 
 Radiance is the flux density per unit area, per unit solid angle. In terms of flux, it is defined by
 
-$$
-L = \frac{\mathrm{d}^2\Phi}{\mathrm{d}\omega\,\mathrm{d}A_\perp},
-$$
+$$L = \frac{\mathrm{d}^2\Phi}{\mathrm{d}\omega\,\mathrm{d}A_\perp},$$
 
 where $\mathrm{d}A_\perp$ is the projected area of $\mathrm{d}A$ on a hypothetical surface perpendicular to $\omega$ (Figure 4.3). Thus, it is the limit of the measurement of incident light at the surface as a cone of incident directions of interest $\mathrm{d}\omega$ becomes very small and as the local area of interest on the surface $\mathrm{d}A$ also becomes very small.
 
@@ -216,10 +190,7 @@ When light interacts with surfaces in the scene, the radiance function $L$ is ge
 
 It therefore makes sense to take one-sided limits at the discontinuity to distinguish between the radiance function just above and below the surface:
 
-$$
-L^{+}(\mathbf{p},\omega) = \lim_{t \to 0^{+}} L(\mathbf{p} + t\mathbf{n}_p, \omega), \qquad
-L^{-}(\mathbf{p},\omega) = \lim_{t \to 0^{-}} L(\mathbf{p} + t\mathbf{n}_p, \omega), \tag{4.4}
-$$
+$$L^{+}(\mathbf{p},\omega) = \lim_{t \to 0^{+}} L(\mathbf{p} + t\mathbf{n}_p, \omega), \qquad L^{-}(\mathbf{p},\omega) = \lim_{t \to 0^{-}} L(\mathbf{p} + t\mathbf{n}_p, \omega), \quad\text{(4.4)}$$
 
 where $\mathbf{n}_p$ is the surface normal at $\mathbf{p}$. However, keeping track of one-sided limits throughout the text is unnecessarily cumbersome.
 
@@ -239,10 +210,7 @@ flowchart LR
 
 There is a simple relation between these more intuitive incident and exitant radiance functions and the one-sided limits from Equation (4.4):
 
-$$
-L^{+}(\mathbf{p},\omega) = L_o(\mathbf{p},\omega), \qquad
-L^{-}(\mathbf{p},\omega) = L_i(\mathbf{p},-\omega).
-$$
+$$L^{+}(\mathbf{p},\omega) = L_o(\mathbf{p},\omega), \qquad L^{-}(\mathbf{p},\omega) = L_i(\mathbf{p},-\omega).$$
 
 Throughout the book we will use the idea of incident and exitant radiance functions to resolve ambiguity in the radiance function at boundaries.
 
@@ -254,17 +222,11 @@ Thus far, all the radiometric quantities have been defined without considering v
 
 For example, we can define spectral radiance $L_\lambda$ as the limit of radiance over an infinitesimal interval of wavelengths $\Delta\lambda$:
 
-$$
-L_\lambda = \lim_{\Delta\lambda \to 0}
-\frac{L(\mathbf{p},\omega,\lambda+\Delta\lambda) - L(\mathbf{p},\omega,\lambda)}{\Delta\lambda}
-= \frac{\mathrm{d}L}{\mathrm{d}\lambda}.
-$$
+$$L_\lambda = \lim_{\Delta\lambda \to 0} \frac{L(\mathbf{p},\omega,\lambda+\Delta\lambda) - L(\mathbf{p},\omega,\lambda)}{\Delta\lambda} = \frac{\mathrm{d}L}{\mathrm{d}\lambda}.$$
 
 In turn, radiance can be found by integrating spectral radiance over a range of wavelengths:
 
-$$
-L = \int_{\lambda_0}^{\lambda_1} L_\lambda(\lambda)\,\mathrm{d}\lambda. \tag{4.5}
-$$
+$$L = \int_{\lambda_0}^{\lambda_1} L_\lambda(\lambda)\,\mathrm{d}\lambda. \quad\text{(4.5)}$$
 
 Definitions for the other radiometric quantities follow similarly. All of these spectral variants have an additional factor of $1/\mathrm{m}$ in their units.
 
@@ -276,9 +238,7 @@ All the radiometric measurements like flux, radiance, and so forth have correspo
 
 We will denote luminance by $Y$; it is related to spectral radiance by
 
-$$
-Y = \int_{\lambda} V(\lambda)\,L_\lambda(\lambda)\,\mathrm{d}\lambda. \tag{4.6}
-$$
+$$Y = \int_{\lambda} V(\lambda)\,L_\lambda(\lambda)\,\mathrm{d}\lambda. \quad\text{(4.6)}$$
 
 Luminance and the spectral response curve $V(\lambda)$ are closely related to the `XYZ` representation of color, which will be introduced in [Section 4.6.1](#461-xyz-color).
 
@@ -321,9 +281,7 @@ flowchart LR
 
 A frequent task in rendering is the evaluation of integrals of radiometric quantities. In this section we will present some tricks that can make it easier to do this. To illustrate the use of these techniques, we will take the computation of irradiance at a point as an example. Irradiance at a point $\mathbf{p}$ with surface normal $\mathbf{n}$ due to radiance over a set of directions $\Omega$ is
 
-$$
-E(\mathbf{p},\mathbf{n}) = \int_{\Omega} L_i(\mathbf{p},\omega)\cos\theta\,\mathrm{d}\omega, \tag{4.7}
-$$
+$$E(\mathbf{p},\mathbf{n}) = \int_{\Omega} L_i(\mathbf{p},\omega)\cos\theta\,\mathrm{d}\omega, \quad\text{(4.7)}$$
 
 where $L_i(\mathbf{p},\omega)$ is the incident radiance function (Figure 4.5) and the $\cos\theta$ factor in the integrand is due to the $\mathrm{d}A_\perp$ factor in the definition of radiance. $\theta$ is measured as the angle between $\omega$ and the surface normal $\mathbf{n}$. Irradiance is usually computed over the hemisphere $H^2(\mathbf{n})$ of directions about a given surface normal $\mathbf{n}$.
 
@@ -344,15 +302,11 @@ The various cosine factors in the integrals for radiometric quantities can often
 
 The projected solid angle measure is related to the solid angle measure by
 
-$$
-\mathrm{d}\omega_\perp = \lvert\cos\theta\rvert\,\mathrm{d}\omega,
-$$
+$$\mathrm{d}\omega_\perp = \lvert\cos\theta\rvert\,\mathrm{d}\omega,$$
 
 so the irradiance-from-radiance integral over the hemisphere can be written more simply as
 
-$$
-E(\mathbf{p},\mathbf{n}) = \int_{H^2(\mathbf{n})} L_i(\mathbf{p},\omega)\,\mathrm{d}\omega_\perp.
-$$
+$$E(\mathbf{p},\mathbf{n}) = \int_{H^2(\mathbf{n})} L_i(\mathbf{p},\omega)\,\mathrm{d}\omega_\perp.$$
 
 For the rest of this book we will write integrals over directions in terms of solid angle, rather than projected solid angle. In other sources, however, projected solid angle may be used, so it is always important to be aware of the integrand's actual measure.
 
@@ -360,9 +314,7 @@ For the rest of this book we will write integrals over directions in terms of so
 
 It is often convenient to transform integrals over solid angle into integrals over spherical coordinates $(\theta,\phi)$ using Equation (3.7). In order to convert an integral over a solid angle to an integral over $(\theta,\phi)$, we need to be able to express the relationship between the differential area of a set of directions $\mathrm{d}\omega$ and the differential area of a $(\theta,\phi)$ pair (Figure 4.7). The differential area on the unit sphere $\mathrm{d}\omega$ is the product of the differential lengths of its sides, $\sin\theta\,\mathrm{d}\phi$ and $\mathrm{d}\theta$. Therefore,
 
-$$
-\mathrm{d}\omega = \sin\theta\,\mathrm{d}\theta\,\mathrm{d}\phi.
-$$
+$$\mathrm{d}\omega = \sin\theta\,\mathrm{d}\theta\,\mathrm{d}\phi.$$
 
 **Figure 4.7.** The differential area $\mathrm{d}\omega$ subtended by a differential solid angle is the product of the differential lengths of the two edges $\sin\theta\,\mathrm{d}\phi$ and $\mathrm{d}\theta$. The resulting relationship, $\mathrm{d}\omega = \sin\theta\,\mathrm{d}\theta\,\mathrm{d}\phi$, is the key to converting between integrals over solid angles and integrals over spherical angles.
 
@@ -374,10 +326,7 @@ flowchart LR
 
 (This result can also be derived using the multidimensional transformation approach from Section 2.4.1.) We can thus see that the irradiance integral over the hemisphere, Equation (4.7) with $\Omega = H^2(\mathbf{n})$, can equivalently be written as
 
-$$
-E(\mathbf{p},\mathbf{n}) = \int_{\phi=0}^{2\pi}\int_{\theta=0}^{\pi/2}
-L_i(\mathbf{p},\omega)\cos\theta\,\sin\theta\,\mathrm{d}\theta\,\mathrm{d}\phi.
-$$
+$$E(\mathbf{p},\mathbf{n}) = \int_{\phi=0}^{2\pi}\int_{\theta=0}^{\pi/2} L_i(\mathbf{p},\omega)\cos\theta\,\sin\theta\,\mathrm{d}\theta\,\mathrm{d}\phi.$$
 
 If the radiance is the same from all directions, the equation simplifies to $E = \pi L_i$.
 
@@ -387,17 +336,13 @@ One last useful transformation is to turn integrals over directions into integra
 
 Differential area $\mathrm{d}A$ on a surface is related to differential solid angle as viewed from a point $\mathbf{p}$ by
 
-$$
-\mathrm{d}\omega = \frac{\cos\theta\,\mathrm{d}A}{r^2}, \tag{4.9}
-$$
+$$\mathrm{d}\omega = \frac{\cos\theta\,\mathrm{d}A}{r^2}, \quad\text{(4.9)}$$
 
 where $\theta$ is the angle between the surface normal of $\mathrm{d}A$ and the vector to $\mathbf{p}$, and $r$ is the distance from $\mathbf{p}$ to $\mathrm{d}A$ (Figure 4.8). We will not derive this result here, but it can be understood intuitively: if $\mathrm{d}A$ is at distance 1 from $\mathbf{p}$ and is aligned exactly so that it is perpendicular to $\mathrm{d}\omega$, then $\mathrm{d}\omega = \mathrm{d}A$, $\theta = 0$, and Equation (4.9) holds. As $\mathrm{d}A$ moves farther away from $\mathbf{p}$, or as it rotates so that it is not aligned with the direction of $\mathrm{d}\omega$, the $r^2$ and $\cos\theta$ factors compensate accordingly to reduce $\mathrm{d}\omega$.
 
 Therefore, we can write the irradiance integral for the quadrilateral source as
 
-$$
-E(\mathbf{p}) = \int_A L\,\frac{\cos\theta_i\,\cos\theta_o}{r^2}\,\mathrm{d}A,
-$$
+$$E(\mathbf{p}) = \int_A L\,\frac{\cos\theta_i\,\cos\theta_o}{r^2}\,\mathrm{d}A,$$
 
 where $L$ is the emitted radiance from the surface of the quadrilateral, $\theta_i$ is the angle between the surface normal at $\mathbf{p}$ and the direction from $\mathbf{p}$ to the point $\mathbf{p}'$ on the light, and $\theta_o$ is the angle between the surface normal at $\mathbf{p}'$ on the light and the direction from $\mathbf{p}'$ to $\mathbf{p}$ (Figure 4.9).
 
@@ -427,18 +372,11 @@ Reflection from translucent surfaces is more complex; a variety of materials ran
 
 The **bidirectional reflectance distribution function (BRDF)** gives a formalism for describing reflection from a surface. Consider the setting in Figure 4.10: we would like to know how much radiance is leaving the surface in the direction $\omega_o$ toward the viewer, $L_o(\mathbf{p},\omega_o)$, as a result of incident radiance along the direction $\omega_i$, $L_i(\mathbf{p},\omega_i)$. (When considering light scattering at a surface location, pbrt uses the convention that $\omega_i$ refers to the direction *from which* the quantity of interest (radiance in this case) arrives, rather than the direction from which the `Integrator` reached the surface.) If the direction $\omega_i$ is considered as a differential cone of directions, the differential irradiance at $\mathbf{p}$ is
 
-$$
-\mathrm{d}E(\mathbf{p},\omega_i) = L_i(\mathbf{p},\omega_i)\cos\theta_i\,\mathrm{d}\omega_i.
-$$
+$$\mathrm{d}E(\mathbf{p},\omega_i) = L_i(\mathbf{p},\omega_i)\cos\theta_i\,\mathrm{d}\omega_i.$$
 
 A differential amount of radiance will be reflected in the direction $\omega_o$ due to this irradiance. Because of the linearity assumption from geometric optics, the reflected differential radiance is proportional to the irradiance, $\mathrm{d}L_o(\mathbf{p},\omega_o) \propto \mathrm{d}E(\mathbf{p},\omega_i)$. The constant of proportionality defines the surface's BRDF $f_r$ for the particular pair of directions $\omega_i$ and $\omega_o$:
 
-$$
-f_r(\mathbf{p},\omega_i,\omega_o)
-= \frac{\mathrm{d}L_o(\mathbf{p},\omega_o)}{\mathrm{d}E(\mathbf{p},\omega_i)}
-= \frac{\mathrm{d}L_o(\mathbf{p},\omega_o)}
-{L_i(\mathbf{p},\omega_i)\cos\theta_i\,\mathrm{d}\omega_i}.
-$$
+$$f_r(\mathbf{p},\omega_i,\omega_o) = \frac{\mathrm{d}L_o(\mathbf{p},\omega_o)}{\mathrm{d}E(\mathbf{p},\omega_i)} = \frac{\mathrm{d}L_o(\mathbf{p},\omega_o)} {L_i(\mathbf{p},\omega_i)\cos\theta_i\,\mathrm{d}\omega_i}.$$
 
 The spectral BRDF is defined by using spectral radiance in place of radiance.
 
@@ -456,27 +394,18 @@ Physically based BRDFs have two important qualities:
 1. **Reciprocity:** For all pairs of directions $\omega_i$ and $\omega_o$,
    $f_r(\mathbf{p},\omega_i,\omega_o) = f_r(\mathbf{p},\omega_o,\omega_i)$.
 2. **Energy conservation:** The total energy of light reflected is less than or equal to the energy of incident light. For all directions $\omega_o$,
-   $$
-   \int_{H^2(\mathbf{n})} f_r(\mathbf{p},\omega_i,\omega_o)\cos\theta_o\,\mathrm{d}\omega_o \le 1.
-   $$
+
+$$\int_{H^2(\mathbf{n})} f_r(\mathbf{p},\omega_i,\omega_o)\cos\theta_o\,\mathrm{d}\omega_o \le 1.$$
 
 Note that the value of the BRDF for a pair of directions $\omega_i$ and $\omega_o$ is not necessarily less than 1; it is only its integral that has this normalization constraint.
 
 Two quantities that are based on the BRDF will occasionally be useful. First, the **hemispherical-directional reflectance** is a 2D function that gives the total reflection in a given direction due to constant illumination over the hemisphere, or, equivalently, the total reflection over the hemisphere due to light from a given direction.[^4] It is defined as
 
-$$
-\rho_{hd}(\mathbf{p},\omega_o)
-= \int_{H^2(\mathbf{n})} f_r(\mathbf{p},\omega_i,\omega_o)\cos\theta_i\,\mathrm{d}\omega_i.
-$$
+$$\rho_{hd}(\mathbf{p},\omega_o) = \int_{H^2(\mathbf{n})} f_r(\mathbf{p},\omega_i,\omega_o)\cos\theta_i\,\mathrm{d}\omega_i.$$
 
 The **hemispherical-hemispherical reflectance** of a BRDF, denoted by $\rho_{hh}$, gives the fraction of incident light reflected by a surface when the incident light is the same from all directions. It is
 
-$$
-\rho_{hh}(\mathbf{p})
-= \frac{1}{\pi}\int_{H^2(\mathbf{n})}\int_{H^2(\mathbf{n})}
-f_r(\mathbf{p},\omega_i,\omega_o)\cos\theta_i\cos\theta_o
-\,\mathrm{d}\omega_i\,\mathrm{d}\omega_o.
-$$
+$$\rho_{hh}(\mathbf{p}) = \frac{1}{\pi}\int_{H^2(\mathbf{n})}\int_{H^2(\mathbf{n})} f_r(\mathbf{p},\omega_i,\omega_o)\cos\theta_i\cos\theta_o \,\mathrm{d}\omega_i\,\mathrm{d}\omega_o.$$
 
 A surface's **bidirectional transmittance distribution function (BTDF)**, which describes the distribution of transmitted light, can be defined in a manner similar to that for the BRDF. The BTDF is generally denoted by $f_t(\mathbf{p},\omega_o,\omega_i)$, where $\omega_i$ and $\omega_o$ are in opposite hemispheres around $\mathbf{p}$. Remarkably, the BTDF does not obey reciprocity as defined above; we will discuss this issue in detail in Section 9.5.2.
 
@@ -484,20 +413,13 @@ For convenience in equations, we will denote the BRDF and BTDF when considered t
 
 Using the definition of the BSDF, we have
 
-$$
-\mathrm{d}L_o(\mathbf{p},\omega_o)
-= f(\mathbf{p},\omega_o,\omega_i)\,L_i(\mathbf{p},\omega_i)\,\lvert\cos\theta_i\rvert\,\mathrm{d}\omega_i.
-$$
+$$\mathrm{d}L_o(\mathbf{p},\omega_o) = f(\mathbf{p},\omega_o,\omega_i)\,L_i(\mathbf{p},\omega_i)\,\lvert\cos\theta_i\rvert\,\mathrm{d}\omega_i.$$
 
 Here an absolute value has been added to the $\cos\theta_i$ factor. This is done because surface normals in pbrt are not reoriented to lie on the same side of the surface as $\omega_i$ (many other rendering systems do this, although we find it more useful to leave them in their natural orientation as given by the `Shape`). Doing so makes it easier to consistently apply conventions like "the surface normal is assumed to point outside the surface" elsewhere in the system. Thus, applying the absolute value to $\cos\theta$ factors like these ensures that the desired quantity is calculated.
 
 We can integrate this equation over the sphere of incident directions around $\mathbf{p}$ to compute the outgoing radiance in direction $\omega_o$ due to the incident illumination at $\mathbf{p}$ from all directions:
 
-$$
-L_o(\mathbf{p},\omega_o)
-= \int_{S^2} f(\mathbf{p},\omega_o,\omega_i)\,
-L_i(\mathbf{p},\omega_i)\,\lvert\cos\theta_i\rvert\,\mathrm{d}\omega_i. \tag{4.14}
-$$
+$$L_o(\mathbf{p},\omega_o) = \int_{S^2} f(\mathbf{p},\omega_o,\omega_i)\, L_i(\mathbf{p},\omega_i)\,\lvert\cos\theta_i\rvert\,\mathrm{d}\omega_i. \quad\text{(4.14)}$$
 
 This is a fundamental equation in rendering; it describes how an incident distribution of light at a point is transformed into an outgoing distribution, based on the scattering properties of the surface. It is often called the **scattering equation** when the sphere $S^2$ is the domain (as it is here), or the **reflection equation** when just the upper hemisphere $H^2(\mathbf{n})$ is being integrated over. One of the key tasks of the integration routines in Chapters 13 through 15 is to evaluate this integral at points on surfaces in the scene.
 
@@ -505,21 +427,11 @@ This is a fundamental equation in rendering; it describes how an incident distri
 
 The **bidirectional scattering surface reflectance distribution function (BSSRDF)** is the formalism that describes scattering from materials that exhibit subsurface light transport. It is a distribution function $S(\mathbf{p}_o,\omega_o,\mathbf{p}_i,\omega_i)$ that describes the ratio of exitant differential radiance at point $\mathbf{p}_o$ in direction $\omega_o$ to the incident differential flux at $\mathbf{p}_i$ from direction $\omega_i$ (Figure 4.11):
 
-$$
-S(\mathbf{p}_o,\omega_o,\mathbf{p}_i,\omega_i)
-= \frac{\mathrm{d}L_o(\mathbf{p}_o,\omega_o)}
-{\mathrm{d}\Phi_i(\mathbf{p}_i,\omega_i)}.
-$$
+$$S(\mathbf{p}_o,\omega_o,\mathbf{p}_i,\omega_i) = \frac{\mathrm{d}L_o(\mathbf{p}_o,\omega_o)} {\mathrm{d}\Phi_i(\mathbf{p}_i,\omega_i)}.$$
 
 The generalization of the scattering equation for the BSSRDF requires integration over surface area and incoming direction, turning the 2D scattering Equation (4.14) into a 4D integral:
 
-$$
-L_o(\mathbf{p}_o,\omega_o)
-= \int_A\int_{S^2}
-S(\mathbf{p}_o,\omega_o,\mathbf{p}_i,\omega_i)\,
-L_i(\mathbf{p}_i,\omega_i)\,\lvert\cos\theta_i\rvert\,
-\mathrm{d}\omega_i\,\mathrm{d}A_i.
-$$
+$$L_o(\mathbf{p}_o,\omega_o) = \int_A\int_{S^2} S(\mathbf{p}_o,\omega_o,\mathbf{p}_i,\omega_i)\, L_i(\mathbf{p}_i,\omega_i)\,\lvert\cos\theta_i\rvert\, \mathrm{d}\omega_i\,\mathrm{d}A_i.$$
 
 With two more dimensions to integrate over, it is more complex to account for in rendering algorithms than Equation (4.14) is. However, as the distance between points $\mathbf{p}_i$ and $\mathbf{p}_o$ increases, the value of $S$ generally diminishes. This fact can be a substantial help in implementations of subsurface scattering algorithms.
 
@@ -551,11 +463,7 @@ For all of these sources, the underlying physical process is electrons colliding
 
 **Luminous efficacy** measures how effectively a light source converts power to visible illumination, accounting for the fact that for human observers, emission in non-visible wavelengths is of little value. Interestingly enough, it is the ratio of a photometric quantity (the emitted luminous flux) to a radiometric quantity (either the total power it uses or the total power that it emits over all wavelengths, measured in flux):
 
-$$
-\eta = \frac{\Phi_v}{\Phi_e}
-= \frac{\int V(\lambda)\,\Phi_{e,\lambda}(\lambda)\,\mathrm{d}\lambda}
-{\int \Phi_{e,\lambda}(\lambda)\,\mathrm{d}\lambda},
-$$
+$$\eta = \frac{\Phi_v}{\Phi_e} = \frac{\int V(\lambda)\,\Phi_{e,\lambda}(\lambda)\,\mathrm{d}\lambda} {\int \Phi_{e,\lambda}(\lambda)\,\mathrm{d}\lambda},$$
 
 where $V(\lambda)$ is the spectral response curve that was introduced in [Section 4.1.4](#414-luminance-and-photometry).
 
@@ -571,10 +479,7 @@ Blackbodies are so-named because they absorb absolutely all incident power, refl
 
 **Planck's law** gives the radiance emitted by a blackbody as a function of wavelength $\lambda$ and temperature $T$ measured in kelvins:
 
-$$
-L_e(\lambda,T) = \frac{2hc^2}{\lambda^5}\,
-\frac{1}{e^{hc/(\lambda k_B T)} - 1}, \tag{4.17}
-$$
+$$L_e(\lambda,T) = \frac{2hc^2}{\lambda^5}\, \frac{1}{e^{hc/(\lambda k_B T)} - 1}, \quad\text{(4.17)}$$
 
 where $c$ is the speed of light in the medium ($299{,}792{,}458\ \mathrm{m/s}$ in a vacuum), $h$ is Planck's constant, $6.62606957 \times 10^{-34}\ \mathrm{J\,s}$, and $k_B$ is the Boltzmann constant, $1.3806488 \times 10^{-23}\ \mathrm{J/K}$, where kelvin (K) is the unit of temperature. Blackbody emitters are perfectly diffuse; they emit radiance equally in all directions.
 
@@ -611,27 +516,19 @@ The wavelength passed to `Blackbody()` is in nm, but the constants for Equation 
 
 The emission of non-blackbodies is described by **Kirchhoff's law**, which says that the emitted radiance distribution at any frequency is equal to the emission of a perfect blackbody at that frequency times the fraction of incident radiance at that frequency that is absorbed by the object. (This relationship follows from the object being assumed to be in thermal equilibrium.) The fraction of radiance absorbed is equal to 1 minus the amount reflected, and so the emitted radiance is
 
-$$
-L_e(\mathbf{p},\omega,\lambda,T)
-= \big(1 - \rho_{hd}(\mathbf{p},\omega,\lambda)\big)\,
-L_{\text{blackbody}}(\lambda,T), \tag{4.18}
-$$
+$$L_e(\mathbf{p},\omega,\lambda,T) = \big(1 - \rho_{hd}(\mathbf{p},\omega,\lambda)\big)\, L_{\text{blackbody}}(\lambda,T), \quad\text{(4.18)}$$
 
 where $L_e(T,\lambda)$ is the emitted radiance given by Planck's law, Equation (4.17), and $\rho_{hd}(\omega)$ is the hemispherical-directional reflectance from Equation (4.12).
 
 The **Stefan–Boltzmann law** gives the radiant exitance (recall that this is the outgoing irradiance) at a point $\mathbf{p}$ for a blackbody emitter:
 
-$$
-M = \sigma T^4, \tag{4.19}
-$$
+$$M = \sigma T^4, \quad\text{(4.19)}$$
 
 where $\sigma$ is the Stefan–Boltzmann constant, $5.67032 \times 10^{-8}\ \mathrm{W\,m^{-2}\,K^{-4}}$. Note that the total emission over all frequencies grows very rapidly — at the rate $T^4$. Thus, doubling the temperature of a blackbody emitter increases the total energy emitted by a factor of 16.
 
 The blackbody emission distribution provides a useful metric for describing the emission characteristics of non-blackbody emitters through the notion of **color temperature**. If the shape of the emitted spectral distribution of an emitter is similar to the blackbody distribution at some temperature, then we can say that the emitter has the corresponding color temperature. One approach to find color temperature is to take the wavelength where the light's emission is highest and find the corresponding temperature using **Wien's displacement law**, which gives the wavelength where emission of a blackbody is maximum given its temperature:
 
-$$
-\lambda_{\max} = \frac{b}{T}, \tag{4.20}
-$$
+$$\lambda_{\max} = \frac{b}{T}, \quad\text{(4.20)}$$
 
 where $b$ is Wien's displacement constant, $2.8977721 \times 10^{-3}\ \mathrm{m\,K}$.
 
@@ -964,21 +861,13 @@ The attentive reader may have noticed that although `Spectrum` makes it possible
 
 pbrt avoids this complexity by performing spectral calculations at a set of discrete wavelengths as part of the Monte Carlo integration that is already being performed for image synthesis. To understand how this works, consider computing the (non-spectral) irradiance at some point $\mathbf{p}$ with surface normal $\mathbf{n}$ over some range of wavelengths of interest, $[\lambda_0,\lambda_1]$. Using Equation (4.7), which expresses irradiance in terms of incident radiance, and Equation (4.5), which expresses radiance in terms of spectral radiance, we have
 
-$$
-E(\mathbf{p},\mathbf{n})
-= \int_{\lambda_0}^{\lambda_1}\int_{S^2}
-L_i(\mathbf{p},\omega,\lambda)\cos\theta\,\mathrm{d}\omega\,\mathrm{d}\lambda,
-$$
+$$E(\mathbf{p},\mathbf{n}) = \int_{\lambda_0}^{\lambda_1}\int_{S^2} L_i(\mathbf{p},\omega,\lambda)\cos\theta\,\mathrm{d}\omega\,\mathrm{d}\lambda,$$
 
 where $L_i(\mathbf{p},\omega,\lambda)$ is the incident spectral radiance at wavelength $\lambda$.
 
 Applying the standard Monte Carlo estimator and taking advantage of the fact that $\omega$ and $\lambda$ are independent, we can see that estimates of $E$ can be computed by sampling directions $\omega_i$ from some distribution $p_\omega$, wavelengths $\lambda_i$ from some distribution $p_\lambda$, and then evaluating:
 
-$$
-\hat{E} = \frac{1}{n}\sum_{i=1}^{n}
-\frac{L_i(\mathbf{p},\omega_i,\lambda_i)\cos\theta_i}
-{p_\omega(\omega_i)\,p_\lambda(\lambda_i)}.
-$$
+$$\hat{E} = \frac{1}{n}\sum_{i=1}^{n} \frac{L_i(\mathbf{p},\omega_i,\lambda_i)\cos\theta_i} {p_\omega(\omega_i)\,p_\lambda(\lambda_i)}.$$
 
 Thus, we only need to be able to evaluate the integrand at the specified discrete wavelengths to estimate the irradiance. More generally, we will see that it is possible to express all the spectral quantities that pbrt outputs as integrals over wavelength. For example, [Section 4.6](#46-color) shows that when rendering an image represented using `RGB` colors, each pixel's color can be computed by integrating the spectral radiance arriving at a pixel with functions that model red, green, and blue color response. pbrt therefore uses only discrete spectral samples for spectral computation.
 
@@ -1142,9 +1031,7 @@ We will often have a `Spectrum` and a set of wavelengths for which we would like
 
 The **tristimulus theory** of color perception says that all visible spectral distributions can be accurately represented for human observers using three scalar values. Its basis is that there are three types of photoreceptive cone cells in the eye, each sensitive to different wavelengths of light. This theory, which has been tested in numerous experiments since its introduction in the 1800s, has led to the development of spectral matching functions, which are functions of wavelength that can be used to compute a tristimulus representation of a spectral distribution. Integrating the product of a spectral distribution $S(\lambda)$ with three tristimulus matching functions $m_{\{1,2,3\}}(\lambda)$ gives three tristimulus values $v_i$:
 
-$$
-v_i = \int S(\lambda)\,m_i(\lambda)\,\mathrm{d}\lambda, \qquad i \in \{1,2,3\}. \tag{4.21}
-$$
+$$v_i = \int S(\lambda)\,m_i(\lambda)\,\mathrm{d}\lambda, \qquad i \in \{1,2,3\}. \quad\text{(4.21)}$$
 
 The matching functions thus define a **color space**, which is a 3D vector space of the tristimulus values: the tristimulus values for the sum of two spectra are given by the sum of their tristimulus values and the tristimulus values associated with a spectrum that has been scaled by a constant can be found by scaling the tristimulus values by the same factor. Note that from these definitions, the tristimulus values for the product of two spectral distributions are not given by the product of their tristimulus values. This nit is why using tristimulus color like `RGB` for rendering may not give accurate results; we will say more about this topic in [Section 4.6.6](#466-from-rgb-to-spectra). The files `util/color.rs` contain the implementation of the functionality related to color that is introduced in this section.
 
@@ -1182,19 +1069,11 @@ An important set of color matching functions were determined by the Commission I
 
 Given a spectral distribution $S(\lambda)$, its `XYZ` color space coordinates $x_\lambda$, $y_\lambda$, and $z_\lambda$ are computed by integrating its product with the $X(\lambda)$, $Y(\lambda)$, and $Z(\lambda)$ spectral matching curves:[^7]
 
-$$
-\begin{aligned}
-x_\lambda &= \int S(\lambda)\,X(\lambda)\,\mathrm{d}\lambda, \\
-y_\lambda &= \int S(\lambda)\,Y(\lambda)\,\mathrm{d}\lambda, \\
-z_\lambda &= \int S(\lambda)\,Z(\lambda)\,\mathrm{d}\lambda.
-\end{aligned} \tag{4.22}
-$$
+$$\begin{aligned} x_\lambda &= \int S(\lambda)\,X(\lambda)\,\mathrm{d}\lambda, \\ y_\lambda &= \int S(\lambda)\,Y(\lambda)\,\mathrm{d}\lambda, \\ z_\lambda &= \int S(\lambda)\,Z(\lambda)\,\mathrm{d}\lambda. \end{aligned} \quad\text{(4.22)}$$
 
 The CIE $Y(\lambda)$ tristimulus curve was chosen to be proportional to the $V(\lambda)$ spectral response curve used to define photometric quantities such as luminance in Equation (4.6). Their relationship is:
 
-$$
-V(\lambda) = 683\,Y(\lambda).
-$$
+$$V(\lambda) = 683\,Y(\lambda).$$
 
 Remarkably, spectra with substantially different distributions may have very similar $x_\lambda$, $y_\lambda$, and $z_\lambda$ values. To the human observer, such spectra appear the same. Pairs of such spectra are called **metamers**. Figure 4.19 shows a 3D plot of the curve in the XYZ space corresponding to the XYZ coefficients for single wavelengths of light over the visible range. The coefficients for more complex spectral distributions therefore correspond to linear combinations of points along this curve. Although all spectral distributions can be represented with XYZ coefficients, not all values of XYZ coefficients correspond to realizable spectra; such sets of coefficients are termed **imaginary colors**.
 
@@ -1230,11 +1109,7 @@ impl XYZ {
 
 The `SpectrumToXYZ()` function computes the `XYZ` coefficients of a spectral distribution following Equation (4.22) using an `InnerProduct()` utility function to handle each component. Monte Carlo is not necessary for a simple 1D integral of two spectra, so `InnerProduct()` computes a Riemann sum over integer wavelengths instead:
 
-$$
-\int_{\lambda_{\min}}^{\lambda_{\max}} f(\lambda)\,g(\lambda)\,\mathrm{d}\lambda
-\;\approx\;
-\sum_{\lambda=\lambda_{\min}}^{\lambda_{\max}} f(\lambda)\,g(\lambda).
-$$
+$$\int_{\lambda_{\min}}^{\lambda_{\max}} f(\lambda)\,g(\lambda)\,\mathrm{d}\lambda \;\approx\; \sum_{\lambda=\lambda_{\min}}^{\lambda_{\max}} f(\lambda)\,g(\lambda).$$
 
 ```rust
 // Spectrum Function Definitions
@@ -1270,11 +1145,7 @@ fn inner_product(f: Spectrum, g: Spectrum) -> Float {
 
 It is also useful to be able to compute `XYZ` coefficients for a `SampledSpectrum`. Because `SampledSpectrum` only has point samples of the spectral distribution at predetermined wavelengths, they are found via a Monte Carlo estimate of Equation (4.22) using the sampled spectral values $s_i$ at wavelengths $\lambda_i$ and their associated PDFs:
 
-$$
-x_\lambda \approx \frac{1}{n}\sum_{i=1}^{n}\frac{s_i\,X(\lambda_i)}{p(\lambda_i)}, \qquad
-y_\lambda \approx \frac{1}{n}\sum_{i=1}^{n}\frac{s_i\,Y(\lambda_i)}{p(\lambda_i)}, \qquad
-z_\lambda \approx \frac{1}{n}\sum_{i=1}^{n}\frac{s_i\,Z(\lambda_i)}{p(\lambda_i)}. \tag{4.23}
-$$
+$$x_\lambda \approx \frac{1}{n}\sum_{i=1}^{n}\frac{s_i\,X(\lambda_i)}{p(\lambda_i)}, \qquad y_\lambda \approx \frac{1}{n}\sum_{i=1}^{n}\frac{s_i\,Y(\lambda_i)}{p(\lambda_i)}, \qquad z_\lambda \approx \frac{1}{n}\sum_{i=1}^{n}\frac{s_i\,Z(\lambda_i)}{p(\lambda_i)}. \quad\text{(4.23)}$$
 
 `SampledSpectrum::ToXYZ()` computes the value of this estimator.
 
@@ -1311,11 +1182,7 @@ The summand in Equation (4.23) is easily computed with the values at hand. Here,
 
 **Chromaticity and xyY Color.** Color can be separated into *lightness*, which describes how bright it is relative to something white, and *chroma*, which describes its relative colorfulness with respect to white. One approach to quantifying chroma is the xyz chromaticity coordinates, which are defined in terms of `XYZ` color space coordinates by
 
-$$
-x = \frac{x_\lambda}{x_\lambda + y_\lambda + z_\lambda}, \qquad
-y = \frac{y_\lambda}{x_\lambda + y_\lambda + z_\lambda}, \qquad
-z = \frac{z_\lambda}{x_\lambda + y_\lambda + z_\lambda}.
-$$
+$$x = \frac{x_\lambda}{x_\lambda + y_\lambda + z_\lambda}, \qquad y = \frac{y_\lambda}{x_\lambda + y_\lambda + z_\lambda}, \qquad z = \frac{z_\lambda}{x_\lambda + y_\lambda + z_\lambda}.$$
 
 Note that any two of them are sufficient to specify chromaticity.
 
@@ -1363,36 +1230,15 @@ flowchart TD
 
 If a display's $R(\lambda)$, $G(\lambda)$, and $B(\lambda)$ curves are known, the `RGB` coefficients for displaying a spectral distribution $S(\lambda)$ on that display can be found by integrating $S(\lambda)$ with each curve:
 
-$$
-r = \int S(\lambda)\,R(\lambda)\,\mathrm{d}\lambda, \qquad
-g = \int S(\lambda)\,G(\lambda)\,\mathrm{d}\lambda, \qquad
-b = \int S(\lambda)\,B(\lambda)\,\mathrm{d}\lambda.
-$$
+$$r = \int S(\lambda)\,R(\lambda)\,\mathrm{d}\lambda, \qquad g = \int S(\lambda)\,G(\lambda)\,\mathrm{d}\lambda, \qquad b = \int S(\lambda)\,B(\lambda)\,\mathrm{d}\lambda.$$
 
 The same approaches that were used to compute `XYZ` values for spectra in the previous section can be used to compute the values of these integrals. Alternatively, if we already have the $(x_\lambda, y_\lambda, z_\lambda)$ representation of $S(\lambda)$, it is possible to convert the `XYZ` coefficients directly to corresponding `RGB` coefficients. Consider, for example, computing the value of the red component for a spectral distribution $S(\lambda)$:
 
-$$
-\begin{aligned}
-r &= \int S(\lambda)\,R(\lambda)\,\mathrm{d}\lambda \\
-  &= \int \big(x_\lambda X(\lambda) + y_\lambda Y(\lambda) + z_\lambda Z(\lambda)\big)\,R(\lambda)\,\mathrm{d}\lambda \\
-  &= x_\lambda\!\int X(\lambda)R(\lambda)\,\mathrm{d}\lambda
-   + y_\lambda\!\int Y(\lambda)R(\lambda)\,\mathrm{d}\lambda
-   + z_\lambda\!\int Z(\lambda)R(\lambda)\,\mathrm{d}\lambda .
-\end{aligned}
-$$
+$$\begin{aligned} r &= \int S(\lambda)\,R(\lambda)\,\mathrm{d}\lambda \\ &= \int \big(x_\lambda X(\lambda) + y_\lambda Y(\lambda) + z_\lambda Z(\lambda)\big)\,R(\lambda)\,\mathrm{d}\lambda \\ &= x_\lambda\!\int X(\lambda)R(\lambda)\,\mathrm{d}\lambda + y_\lambda\!\int Y(\lambda)R(\lambda)\,\mathrm{d}\lambda + z_\lambda\!\int Z(\lambda)R(\lambda)\,\mathrm{d}\lambda . \end{aligned}$$
 
 The second step takes advantage of the tristimulus theory of color perception. The integrals of the products of an `RGB` response function and `XYZ` matching function can be precomputed for given response curves, making it possible to express the full conversion as a matrix:
 
-$$
-\begin{pmatrix} r \\ g \\ b \end{pmatrix}
-=
-\begin{pmatrix}
-\int X R & \int Y R & \int Z R \\
-\int X G & \int Y G & \int Z G \\
-\int X B & \int Y B & \int Z B
-\end{pmatrix}
-\begin{pmatrix} x_\lambda \\ y_\lambda \\ z_\lambda \end{pmatrix}.
-$$
+$$\begin{pmatrix} r \\ g \\ b \end{pmatrix} = \begin{pmatrix} \int X R & \int Y R & \int Z R \\ \int X G & \int Y G & \int Z G \\ \int X B & \int Y B & \int Z B \end{pmatrix} \begin{pmatrix} x_\lambda \\ y_\lambda \\ z_\lambda \end{pmatrix}.$$
 
 pbrt frequently uses this approach in order to efficiently convert colors from one color space to another. An `RGB` class that has the obvious representation and provides a variety of useful arithmetic operations (not included in the text) is also provided by pbrt.
 
@@ -1471,22 +1317,11 @@ impl RGBColorSpace {
 
 To find `RGB` values in the color space, it is useful to be able to convert to and from `XYZ`. This can be done using 3 × 3 matrices. To compute them, we will require the XYZ coordinates of the chromaticities and the whitepoint. We will first derive the matrix $M$ that transforms from RGB coefficients in the color space to XYZ:
 
-$$
-M = \begin{pmatrix}
-x_r & x_g & x_b \\
-y_r & y_g & y_b \\
-z_r & z_g & z_b
-\end{pmatrix}.
-$$
+$$M = \begin{pmatrix} x_r & x_g & x_b \\ y_r & y_g & y_b \\ z_r & z_g & z_b \end{pmatrix}.$$
 
 This matrix can be found by considering the relationship between the RGB triplet (1, 1, 1) and the whitepoint in XYZ coordinates, which is available in $W$. In this case, we know that $w_\lambda$ must be proportional to the sum of the $x_\lambda$ coordinates of the red, green, and blue primaries, since we are considering the case of a (1, 1, 1) RGB. The same follows for $y_\lambda$ and $z_\lambda$. This relationship can be expressed as
 
-$$
-c_r\begin{pmatrix}x_r\\y_r\\z_r\end{pmatrix}
-+ c_g\begin{pmatrix}x_g\\y_g\\z_g\end{pmatrix}
-+ c_b\begin{pmatrix}x_b\\y_b\\z_b\end{pmatrix}
-= \begin{pmatrix}w_x\\w_y\\w_z\end{pmatrix},
-$$
+$$c_r\begin{pmatrix}x_r\\y_r\\z_r\end{pmatrix} + c_g\begin{pmatrix}x_g\\y_g\\z_g\end{pmatrix} + c_b\begin{pmatrix}x_b\\y_b\\z_b\end{pmatrix} = \begin{pmatrix}w_x\\w_y\\w_z\end{pmatrix},$$
 
 which only has unknowns $c_r$, $c_g$, and $c_b$. These can be found by multiplying the whitepoint XYZ coordinates by the inverse of the remaining matrix. Inverting this matrix then gives the matrix that goes to RGB from XYZ.
 
@@ -1561,18 +1396,13 @@ Thus far, we have been proceeding with the description of pbrt's implementation 
 
 To understand the problem, suppose that we are rendering a uniformly colored object (e.g., green) that is uniformly illuminated by light of the same color. For simplicity, assume that both illumination and the object's reflectance value are represented by the `RGB` color (0, 1, 0). The scattered light is then given by a product of reflectance and incident illumination:
 
-$$
-(0,1,0) \odot (0,1,0) = (0,1,0),
-$$
+$$(0,1,0) \odot (0,1,0) = (0,1,0),$$
 
 where component-wise multiplication of `RGB` colors is indicated by the "$\odot$" operator.
 
 In the sRGB color space, the green color (0, 1, 0) maps to the upper vertex of the gamut of representable colors (Figure 4.24), and this `RGB` color value furthermore remains unchanged by the multiplication. Now suppose that we change to the wide-gamut color space ACES2065-1. The sRGB color (0, 1, 0) can be found to be (0.38, 0.82, 0.12) in this color space — it thus maps to a location that lies in the interior of the set of representable colors. Performing the same component-wise multiplication gives the result:
 
-$$
-(0.38,0.82,0.12) \odot (0.38,0.82,0.12)
-= (0.1444, 0.6724, 0.0144).
-$$
+$$(0.38,0.82,0.12) \odot (0.38,0.82,0.12) = (0.1444, 0.6724, 0.0144).$$
 
 This time, the resulting color has lower intensity than it started with and has also become more saturated due to an increase in the relative proportion of green light. That leads to the somewhat bizarre situation shown in Figure 4.24: component-wise multiplication in this new color space not only produces a different color — it also increases saturation so severely that the color is pushed outside of the CIE horseshoe shape of physically realizable colors! The ability to multiply spectral values is crucial for evaluating the interaction of materials and light sources in the context of rendering. At the same time, this example demonstrates the problem when `RGB` values are used for this purpose: the multiplication operation is in some sense arbitrary, because its behavior heavily depends on the chosen color space. Thus, rendering using a spectral model is preferable even in situations where `RGB` output is ultimately desired, as is the case with pbrt.
 
@@ -1625,9 +1455,7 @@ Although real-world reflectance spectra exist in a wide variety of shapes, they 
 
 Polynomials are typically a standard building block in such constructions; indeed, a quadratic polynomial could represent constant and linear curves, as well as ones that peak in the middle or toward the endpoints of the wavelength range. However, their lack of energy conservation poses a problem that we address using a **sigmoid** function:
 
-$$
-s(x) = \frac{1}{2} + \frac{x}{2\sqrt{1+x^2}}. \tag{4.25}
-$$
+$$s(x) = \frac{1}{2} + \frac{x}{2\sqrt{1+x^2}}. \quad\text{(4.25)}$$
 
 This function, plotted in Figure 4.29, is strictly monotonic and smoothly approaches the endpoints 0 and 1 as $x \to \mp\infty$.
 
@@ -1635,9 +1463,7 @@ This function, plotted in Figure 4.29, is strictly monotonic and smoothly approa
 
 We apply this sigmoid to a quadratic polynomial defined by three coefficients $c_i$, squashing its domain to the interval $[0,1]$ to ensure energy conservation:
 
-$$
-S(\lambda) = s\big(c_0\lambda^2 + c_1\lambda + c_2\big). \tag{4.26}
-$$
+$$S(\lambda) = s\big(c_0\lambda^2 + c_1\lambda + c_2\big). \quad\text{(4.26)}$$
 
 Representing ideally absorptive and reflective spectra (i.e., $S(\lambda) = \pm 1$) is somewhat awkward using this representation, since the polynomial must evaluate to positive or negative infinity to reach these two limits. This in turn leads to a fraction of the form $\pm\infty/\infty$ in Equation (4.25), which evaluates to a not-a-number value in IEEE-754 arithmetic. We will need to separately handle this limit case. We begin with the definition of a class that encapsulates the coefficients $c_i$ and evaluates Equation (4.26).
 
@@ -1684,22 +1510,7 @@ impl RGBSigmoidPolynomial {
 
 We now turn to the second half of `RGBSigmoidPolynomial`, which is the computation that determines suitable coefficients $c_0$, $c_1$, $c_2$ for a given `RGB` color. This step depends on the spectral emission curves of the color primaries and generally does not have an explicit solution. We instead formulate it as an optimization problem that minimizes the round-trip error (i.e., the identity goal mentioned above) by computing the difference between input and output `RGB` values following forward and reverse conversion. The precise optimization goal is
 
-$$
-\min_{c_0,c_1,c_2}\ \left\|
-\begin{pmatrix}
-\int S(\lambda)\,R(\lambda)\,\mathrm{d}\lambda \\
-\int S(\lambda)\,G(\lambda)\,\mathrm{d}\lambda \\
-\int S(\lambda)\,B(\lambda)\,\mathrm{d}\lambda
-\end{pmatrix}
--
-\begin{pmatrix}
-\int \hat S(\lambda)\,R(\lambda)\,\mathrm{d}\lambda \\
-\int \hat S(\lambda)\,G(\lambda)\,\mathrm{d}\lambda \\
-\int \hat S(\lambda)\,B(\lambda)\,\mathrm{d}\lambda
-\end{pmatrix}
-\right\|_{\Delta E_{76},\,W},
-\qquad \hat S(\lambda) = s(c_0\lambda^2 + c_1\lambda + c_2),
-$$
+$$\min_{c_0,c_1,c_2}\ \left\| \begin{pmatrix} \int S(\lambda)\,R(\lambda)\,\mathrm{d}\lambda \\ \int S(\lambda)\,G(\lambda)\,\mathrm{d}\lambda \\ \int S(\lambda)\,B(\lambda)\,\mathrm{d}\lambda \end{pmatrix} - \begin{pmatrix} \int \hat S(\lambda)\,R(\lambda)\,\mathrm{d}\lambda \\ \int \hat S(\lambda)\,G(\lambda)\,\mathrm{d}\lambda \\ \int \hat S(\lambda)\,B(\lambda)\,\mathrm{d}\lambda \end{pmatrix} \right\|_{\Delta E_{76},\,W}, \qquad \hat S(\lambda) = s(c_0\lambda^2 + c_1\lambda + c_2),$$
 
 where $R(\lambda)$, $G(\lambda)$, $B(\lambda)$ describe emission curves of the color primaries and $W(\lambda)$ represents the whitepoint (e.g., D65 shown in Figure 4.14 in the case of the sRGB color space). Including the whitepoint in this optimization problem ensures that monochromatic `RGB` values map to uniform reflectance spectra. In spaces with a relatively compact gamut like sRGB, this optimization can achieve zero error regardless of the method used to quantify color distances. In larger color spaces, particularly those including imaginary colors like ACES2065-1, zero round-trip error is clearly not achievable, and the choice of norm $\|\cdot\|$ becomes relevant. In principle, we could simply use the 2-norm — however, a problem with such a basic choice is that it is not perceptually uniform: whether a given amount of error is actually visible depends on its position within the `RGB` cube. We instead use CIE76 $\Delta E$, which first transforms both colors into a color space known as CIELAB before evaluating the L2-distance.
 
@@ -1750,11 +1561,7 @@ impl RGBToSpectrumTable {
 
 The coefficients $c_i$ from the optimization are generally smoothly varying; small changes in RGB generally lead to small changes in their values. (This property also ends up being helpful for the smoothness goal.) However, there are a few regions of the RGB space where they change rapidly, which makes direct 3D tabularization of them prone to error in those regions — see Figure 4.31(a), (b), and (c). A better approach is to tabularize them independently based on which of the red, green, or blue RGB coefficients has the largest magnitude. This partitioning matches the coefficient discontinuities well, as is shown in Figure 4.31(d). A 3D tabularization problem remains within each of the three partitions. We will use the partition where the red component $r$ has the greatest magnitude to explain how the table is indexed. For a given $(r,g,b)$, the first step is to compute a renormalized coordinate
 
-$$
-x = \frac{g}{r}\,(\mathrm{res}-1), \qquad
-y = \frac{b}{r}\,(\mathrm{res}-1), \qquad
-z = r,
-$$
+$$x = \frac{g}{r}\,(\mathrm{res}-1), \qquad y = \frac{b}{r}\,(\mathrm{res}-1), \qquad z = r,$$
 
 where `res` is the resolution of the tabularization (the same in all three dimensions). By convention, the largest component is always mapped to $z$. A similar remapping is applied if $g$ or $b$ is the maximum. With this mapping, all three coordinates span the range $[0,1]$, which makes it possible to make better use of samples in a fixed grid.
 

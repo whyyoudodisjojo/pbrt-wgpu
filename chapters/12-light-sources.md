@@ -500,9 +500,7 @@ fn pdf_li(&self, _ctx: LightSampleContext, _wi: Vector3f,
 
 The total power emitted by the light source can be found by integrating the intensity over the entire sphere of directions:
 
-$$
-\Phi = \int_{S^2} I \, \mathrm{d}\omega = I \int_{S^2} \mathrm{d}\omega = 4\pi I.
-$$
+$$\Phi = \int_{S^2} I \, \mathrm{d}\omega = I \int_{S^2} \mathrm{d}\omega = 4\pi I.$$
 
 Radiant power is returned by the `Phi()` method and not the luminous power that may have been used to specify the light source.
 
@@ -617,19 +615,11 @@ fn i(&self, w: Vector3f, lambda: SampledWavelengths) -> SampledSpectrum {
 
 To compute the power emitted by a spotlight, it is necessary to integrate the falloff function over the sphere. In spherical coordinates, $\theta$ and $\phi$ are separable, so we just need to integrate over $\theta$ and scale the result by $2\pi$. For the part that lies inside the inner cone of full power, we have
 
-$$
-\int_0^{\theta_{\mathrm{start}}} \sin\theta \, \mathrm{d}\theta
-    = 1 - \cos\theta_{\mathrm{start}}.
-$$
+$$\int_0^{\theta_{\mathrm{start}}} \sin\theta \, \mathrm{d}\theta = 1 - \cos\theta_{\mathrm{start}}.$$
 
 The falloff region works out simply, thanks in part to `SmoothStep()` being a polynomial:
 
-$$
-\int_{\theta_{\mathrm{start}}}^{\theta_{\mathrm{end}}}
-    \operatorname{smoothstep}(\cos\theta, \cos\theta_{\mathrm{end}}, \cos\theta_{\mathrm{start}})
-    \sin\theta \, \mathrm{d}\theta
-    = \frac{\cos\theta_{\mathrm{start}} - \cos\theta_{\mathrm{end}}}{2}.
-$$
+$$\int_{\theta_{\mathrm{start}}}^{\theta_{\mathrm{end}}} \operatorname{smoothstep}(\cos\theta, \cos\theta_{\mathrm{end}}, \cos\theta_{\mathrm{start}}) \sin\theta \, \mathrm{d}\theta = \frac{\cos\theta_{\mathrm{start}} - \cos\theta_{\mathrm{end}}}{2}.$$
 
 *〈SpotLight Method Definitions〉 +≡*
 
@@ -836,10 +826,7 @@ self.scale * s.sample(lambda)
 
 The total emitted power is given by integrating radiant intensity over the sphere of directions (Equation (4.2)), though here the projection function is tabularized over a planar 2D area. Power can thus be computed by integrating over the area of the image and applying a change of variables factor $\mathrm{d}\omega/\mathrm{d}A$:
 
-$$
-\Phi = \int_{S^2} I(\omega) \, \mathrm{d}\omega
-     = \int_A I(p) \, \frac{\mathrm{d}\omega}{\mathrm{d}A} \, \mathrm{d}A.
-$$
+$$\Phi = \int_{S^2} I(\omega) \, \mathrm{d}\omega = \int_A I(p) \, \frac{\mathrm{d}\omega}{\mathrm{d}A} \, \mathrm{d}A.$$
 
 *〈ProjectionLight Method Definitions〉 +≡*
 
@@ -1067,9 +1054,7 @@ scene_radius: f32,
 
 The incident radiance at a point p due to a distant light can be described using a Dirac delta distribution,
 
-$$
-L_i(p, \omega) = L_e \, \delta(\omega - \omega_l),
-$$
+$$L_i(p, \omega) = L_e \, \delta(\omega - \omega_l),$$
 
 where the light’s direction is $\omega_l$. Given this definition, the implementation of the `SampleLi()` method is straightforward: the incident direction and radiance are always the same. The only interesting bit is the initialization of the `Interaction` that provides the second point for the future shadow ray. It is set along the distant light’s incident direction at a distance of twice the radius of the scene’s bounding sphere, guaranteeing a second point that is outside of the scene’s bounds (Figure 12.13).
 
@@ -1118,9 +1103,7 @@ flowchart LR
 
 The distant light is different than the lights we have seen so far in that the amount of power it emits is related to the spatial extent of the scene. In fact, it is proportional to the area of the scene receiving light. To see why this is so, consider a disk of area $A$ being illuminated by a distant light with emitted radiance $L$ where the incident light arrives along the disk’s normal direction. The total power reaching the disk is
 
-$$
-\Phi = A L.
-$$
+$$\Phi = A L.$$
 
 As the size of the receiving surface varies, power varies proportionally. To find the emitted power for a `DistantLight`, it is impractical to compute the total surface area of the objects that are visible to the light. Instead, we will approximate this area with a disk inside the scene’s bounding sphere oriented in the light’s direction (Figure 12.14). This will always overestimate the actual area but is sufficient for the needs of code elsewhere in the system.
 
@@ -1352,9 +1335,7 @@ fn pdf_li(&self, ctx: LightSampleContext, wi: Vector3f,
 
 Emitted power from an area light with uniform emitted radiance over the surface can be computed in closed form: from Equation (4.1) it follows that it is $\pi$ times the surface area times the emitted radiance,
 
-$$
-\Phi = \pi A L
-$$
+$$\Phi = \pi A L$$
 
 (and twice that for a two-sided emitter). If an image has been specified for the emission, its average value is computed in a fragment that is not included here. That computation neglects the effect of any alpha texture and effectively assumes that there is no distortion in the surface’s $(u, v)$ parameterization. If these are not the case, there will be error in the $\Phi$ value.
 
@@ -1432,10 +1413,7 @@ fn le(&self, _ray: &Ray, _lambda: &SampledWavelengths) -> SampledSpectrum {
 
 We can see the use of the `allowIncompletePDF` parameter for the first time in the `SampleLi()` method. If it is true, then `UniformInfiniteLight` immediately returns an unset sample. (And its `PDF_Li()` method, described a bit later, will return a PDF of zero for all directions.) To understand why it is implemented in this way, consider the direct lighting integral
 
-$$
-\int_{S^2} f(p, \omega_o, \omega_i)\, L_i(p, \omega_i)\, |\cos\theta_i| \, \mathrm{d}\omega_i
-= c \int_{S^2} f(p, \omega_o, \omega_i)\, |\cos\theta_i| \, \mathrm{d}\omega_i .
-$$
+$$\int_{S^2} f(p, \omega_o, \omega_i)\, L_i(p, \omega_i)\, |\cos\theta_i| \, \mathrm{d}\omega_i = c \int_{S^2} f(p, \omega_o, \omega_i)\, |\cos\theta_i| \, \mathrm{d}\omega_i .$$
 
 For a uniform infinite light, the incident radiance function is a constant times the visibility term; the constant $c$ can be pulled out of the integral. There is no reason for the light to participate in sampling this integral, since `BSDF` sampling accounts for the remaining factors well. Furthermore, recall from Section 2.2.3 that multiple importance sampling (MIS) can increase variance when one of the sampling techniques is much more effective than the others. This is such a case, so as long as calling code is sampling the `BSDF` and using MIS, samples should not be generated here. (This is an application of MIS compensation, which was introduced in Section 2.2.3.)
 
@@ -1491,9 +1469,7 @@ fn pdf_li(&self, _ctx: LightSampleContext, _w: Vector3f,
 
 The total power from an infinite light can be found by taking the product of the integral of the incident radiance over all directions times an integral over the area of the disk, along the lines of `DistantLight::Phi()`:
 
-$$
-\Phi = 4\pi^2 r^2 L .
-$$
+$$\Phi = 4\pi^2 r^2 L .$$
 
 *〈UniformInfiniteLight Method Definitions〉 +≡*
 
@@ -1674,9 +1650,7 @@ let wi = self.base.render_from_light(w_light);
 
 The PDF returned by `PiecewiseConstant2D::Sample()` is with respect to the image’s $[0, 1]^2$ domain. To find the corresponding PDF with respect to direction, the change of variables factor for going from the unit square to the unit sphere $1/(4\pi)$ must be applied:
 
-$$
-p(\omega) = \frac{p(u, v)}{4\pi}.
-$$
+$$p(\omega) = \frac{p(u, v)}{4\pi}.$$
 
 *〈Compute PDF for sampled infinite light direction〉 ≡ (page 769)*
 
@@ -1811,9 +1785,7 @@ It should be evident that in this coordinate system, vectors to adjacent vertice
 
 A mapping that does work is based on the angles $\alpha$ and $\beta$ that the x and y coordinates of the vector respectively make with the z axis, as illustrated in Figure 12.22. These angles are given by
 
-$$
-(\alpha, \beta) = \left(\arctan\frac{x}{z},\; \arctan\frac{y}{z}\right).
-$$
+$$(\alpha, \beta) = \left(\arctan\frac{x}{z},\; \arctan\frac{y}{z}\right).$$
 
 We can ignore vectors with negative z components in the rectified coordinate system: they face away from the portal and thus do not receive any illumination. Each of $\alpha$ and $\beta$ then spans the range $[-\pi/2, \pi/2]$ and the pair of them can be easily mapped to $[0, 1]^2$ (u, v) image coordinates. The environment map resampled into this parameterization is shown in Figure 12.21(b), with the visible regions for the same two points in the scene indicated. We will start the implementation of the `PortalImageInfiniteLight` with its `ImageFromRender()` method, which applies this mapping to a vector in the rendering coordinate system `wRender`. (We will come to the initialization of the `portalFrame` member variable in the `PortalImageInfiniteLight` constructor later in this section.) It uses `pstd::optional` for the return value in order to be able to return an invalid result in the case that the vector is coplanar with the portal or facing away from it.
 
@@ -1852,10 +1824,7 @@ fn image_from_render(&self, w_render: Vector3f,
 
 We will find it useful to be able to convert sampling densities from the $(u, v)$ parameterization of the image to be with respect to solid angle on the unit sphere. The appropriate factor can be found following the usual approach of computing the determinant of the Jacobian of the mapping function, which is based on Equation (12.1), and then rescaling the coordinates to image coordinates in $[0, 1]^2$. The result is a simple expression when expressed in terms of $\omega$:
 
-$$
-\frac{\mathrm{d}(u, v)}{\mathrm{d}\omega}
-    = \pi^2 \frac{(1 - \omega_x^2)(1 - \omega_y^2)}{\omega_z}.
-$$
+$$\frac{\mathrm{d}(u, v)}{\mathrm{d}\omega} = \pi^2 \frac{(1 - \omega_x^2)(1 - \omega_y^2)}{\omega_z}.$$
 
 If a non-null `duv_dw` parameter is passed to this method, this factor is returned.
 
@@ -2157,9 +2126,7 @@ Due to the linearity assumption in radiometry, illumination at a point in a scen
 
 Fortunately, here, too, is a setting where stochastic sampling can be applied. An unbiased estimator for a sum of terms $f_i$ is given by
 
-$$
-\sum_{i=1}^{n} f_i \approx \frac{f_j}{p(j)},
-$$
+$$\sum_{i=1}^{n} f_i \approx \frac{f_j}{p(j)},$$
 
 where the probability mass function (PMF) $p(j) > 0$ for any term where $f_j$ is nonzero and where $j \sim p$. This is the discrete analog to the integral Monte Carlo estimator, Equation (2.7). Therefore, we can replace any sum over all the scene’s light sources with a sum over just one or a few of them, where the contributions are weighted by one over the probability of sampling the ones selected.
 
@@ -2661,9 +2628,7 @@ d2 = d2.max(self.bounds.diagonal().length() / 2.0);
 
 In the following computations, we will need to produce a series of values of the form $\cos(\max(0, \theta_a - \theta_b))$ and $\sin(\max(0, \theta_a - \theta_b))$. Given the sine and cosine of $\theta_a$ and $\theta_b$, it is possible to do so without evaluating any trigonometric functions. To see how, consider the cosine: $\theta_a - \theta_b < 0$ implies that $\theta_a < \theta_b$ and that therefore $\cos\theta_a > \cos\theta_b$. We thus start by checking that case and returning $\cos 0 = 1$ if it is true. We are otherwise left with $\cos(\theta_a - \theta_b)$, which can be expressed in terms of the sines and cosines of the two angles using a trigonometric identity,
 
-$$
-\cos\theta_a \cos\theta_b + \sin\theta_a \sin\theta_b .
-$$
+$$\cos\theta_a \cos\theta_b + \sin\theta_a \sin\theta_b .$$
 
 The case for sine follows analogously. Two simple lambda functions provide these capabilities. (Only the one for cosine is included in the text, as `sinSubClamped` follows a similar form.)
 
@@ -2724,9 +2689,7 @@ let sin_theta_b = safe_sqrt(1.0 - cos_theta_b * cos_theta_b);
 
 The last angle we will use is the minimum angle between the emitter’s normal and the vector to the reference point. We will denote it by $\theta'$, and it is given by
 
-$$
-\theta' = \max(0, \theta_w - \theta_o - \theta_b).
-$$
+$$\theta' = \max(0, \theta_w - \theta_o - \theta_b).$$
 
 As with the other angles, we only need its sine and cosine, which can be computed one subtraction at a time. If this angle is greater than $\theta_e$ (or, here, if its cosine is less than $\cos\theta_e$), then it is certain that the lights represented by the bounds do not illuminate the reference point and an importance value of 0 can be returned immediately.
 
@@ -3248,13 +3211,7 @@ fn evaluate_cost(&self, b: &LightBounds, bounds: &Bounds3f, dim: usize) -> f32 {
 
 The principal surface normal direction and the angles $\theta_o$ and $\theta_e$ that are stored in `LightBounds` are worthwhile to include in the light BVH cost function. Doing so can encourage partitions of primitives into groups that emit light in different directions, which can be helpful for culling groups of lights that do not illuminate a given receiving point. To compute these costs, pbrt uses a weighted measure of the solid angle of directions that the direction bounds subtend. A weight of 1 is used for all directions inside the center cone up to $\theta_o$ and then the remainder of directions up to $\theta_e$ are cosine-weighted, following the importance computation earlier. (See Figure 12.32.) Integrating over the relevant directions gives us the direction bounds measure,
 
-$$
-M_\Omega = 2\pi\left(
-  \int_0^{\theta_o} \sin\theta'\,\mathrm{d}\theta'
-  + \int_{\theta_o}^{\min(\theta_o+\theta_e,\,\pi)}
-    \cos(\theta' - \theta_o)\sin\theta'\,\mathrm{d}\theta'
-\right).
-$$
+$$M_\Omega = 2\pi\left( \int_0^{\theta_o} \sin\theta'\,\mathrm{d}\theta' + \int_{\theta_o}^{\min(\theta_o+\theta_e,\,\pi)} \cos(\theta' - \theta_o)\sin\theta'\,\mathrm{d}\theta' \right).$$
 
 The first term integrates to $1 - \cos\theta_o$ and the second has a simple analytic form that is evaluated in the second term of `M_omega`’s initializer below.
 

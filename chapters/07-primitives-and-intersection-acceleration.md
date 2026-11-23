@@ -889,12 +889,7 @@ $$C_{\text{leaf}} = n\, t_{\text{isect}},$$
 
 where $n$ is the number of primitives and $t_{\text{isect}}(i)$ is the time to compute a ray–object intersection with the $i$th primitive. The other option is to split the region. In that case, rays will incur the cost
 
-$$
-C_{\text{split}} = t_{\text{trav}}
-    + p_A \sum_{i \in a} t_{\text{isect}}(i)
-    + p_B \sum_{i \in b} t_{\text{isect}}(i),
-\tag{7.1}
-$$
+$$C_{\text{split}} = t_{\text{trav}} + p_A \sum_{i \in a} t_{\text{isect}}(i) + p_B \sum_{i \in b} t_{\text{isect}}(i), \quad\text{(7.1)}$$
 
 where $t_{\text{trav}}$ is the time it takes to traverse the interior node and determine which of the children the ray passes through, $p_A$ and $p_B$ are the probabilities that the ray passes through each of the child nodes (assuming binary subdivision), $a_i$ and $b_i$ are the indices of primitives in the two child nodes, and $n_A$ and $n_B$ are the number of primitives that overlap the regions of the two child nodes, respectively. The choice of how primitives are partitioned affects the values of the two probabilities as well as the set of primitives on each side of the split.
 
@@ -1062,9 +1057,7 @@ for i in 0..N_SPLITS {
 
 To find the best split, we evaluate a simplified version of Equation (7.1), neglecting the traversal cost and the division by the surface area of the bounding box of all the primitives to compute the probabilities $p_A$ and $p_B$; these have no effect on the choice of the best split. That cost is precisely what is stored in `costs`, so the split with minimum cost is easily found:
 
-$$
-\text{cost}(i) = n_L(i)\, s_L(i) + n_R(i)\, s_R(i).
-$$
+$$\text{cost}(i) = n_L(i)\, s_L(i) + n_R(i)\, s_R(i).$$
 
 ```rust
 // ⟨Compute cost for candidate split and update minimum if necessary⟩ ≡ 419
@@ -1076,10 +1069,7 @@ if costs[i] < min_cost {
 
 To compute the final SAH cost for a split, we need to divide by the surface area of the overall bounding box to compute the probabilities $p_A$ and $p_B$ before adding the estimated traversal cost, $1/2$. Because we set the estimated intersection cost to $1$ previously, the estimated cost for just creating a leaf node is equal to the number of primitives.
 
-$$
-\text{leafCost} = n, \qquad
-\text{minCost} = \frac{1}{2} + \frac{\min_i \text{cost}(i)}{s_{\text{parent}}}.
-$$
+$$\text{leafCost} = n, \qquad \text{minCost} = \frac{1}{2} + \frac{\min_i \text{cost}(i)}{s_{\text{parent}}}.$$
 
 ```rust
 // ⟨Compute leaf cost and SAH split cost for chosen split⟩ ≡ 419
@@ -1121,9 +1111,7 @@ The key idea behind LBVHs is to turn BVH construction into a sorting problem. Be
 
 Morton codes are based on a simple transformation: given $n$-dimensional integer coordinate values, their Morton-coded representation is found by interleaving the bits of the coordinates in base 2. For example, consider a 2D coordinate $(x, y)$ where the bits of $x$ and $y$ are denoted by $x_i$ and $y_i$. The corresponding Morton-coded value is
 
-$$
-\cdots y_3\, x_3\, y_2\, x_2\, y_1\, x_1\, y_0\, x_0.
-$$
+$$\cdots y_3\, x_3\, y_2\, x_2\, y_1\, x_1\, y_0\, x_0.$$
 
 Figure 7.8 shows a plot of the 2D points in Morton order — note that they are visited along a path that follows a reversed "z" shape. (The Morton path is sometimes called "z-order" for this reason.) We can see that points with coordinates that are close together in 2D are generally close together along the Morton curve.[^4]
 
@@ -2116,7 +2104,4 @@ Construct such a scene and then measure the performance of rendering it with bot
 ---
 
 [↑ Back to top](#contents)
-
-
-
 

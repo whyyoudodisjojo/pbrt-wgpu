@@ -167,16 +167,11 @@ impl<T: Float> Bounds3<T> {
 
 For each pair of planes the routine computes two ray–plane intersections. For the slab perpendicular to the $x$ axis, the two planes pass through $(x_0,0,0)$ and $(x_1,0,0)$ with normal $(1,0,0)$. Substituting the ray equation into a general plane $ax+by+cz+d=0$ gives
 
-$$
-a(o_x+t d_x)+b(o_y+t d_y)+c(o_z+t d_z)+d
-= (a,b,c)\cdot\mathbf o + t\,(a,b,c)\cdot\mathbf d + d = 0,
-$$
+$$a(o_x+t d_x)+b(o_y+t d_y)+c(o_z+t d_z)+d = (a,b,c)\cdot\mathbf o + t\,(a,b,c)\cdot\mathbf d + d = 0,$$
 
 so solving for $t$ yields
 
-$$
-t = -\frac{(a,b,c)\cdot\mathbf o + d}{(a,b,c)\cdot\mathbf d}.
-$$
+$$t = -\frac{(a,b,c)\cdot\mathbf o + d}{(a,b,c)\cdot\mathbf d}.$$
 
 For the $x$ slab we have $a=1$, $b=c=0$, and $d=-x_0$, which simplifies the calculation to $t=(x_0-o_x)/d_x$.
 
@@ -335,17 +330,11 @@ Using the properties of transformations we can show that $t$ is unaffected. Cons
 
 If the algorithm finds an object-space intersection at distance $t$, the object-space intersection point is
 
-$$
-\mathbf p_o = \mathbf o_o + t\,\mathbf d_o.
-$$
+$$\mathbf p_o = \mathbf o_o + t\,\mathbf d_o.$$
 
 Applying $M^{-1}$ to both sides gives the rendering-space intersection point $\mathbf p_r$:
 
-$$
-M^{-1}\mathbf p_o = M^{-1}(\mathbf o_o + t\,\mathbf d_o)
-                 = M^{-1}\mathbf o_o + t\,M^{-1}\mathbf d_o
-                 = \mathbf o_r + t\,\mathbf d_r.
-$$
+$$M^{-1}\mathbf p_o = M^{-1}(\mathbf o_o + t\,\mathbf d_o) = M^{-1}\mathbf o_o + t\,M^{-1}\mathbf d_o = \mathbf o_r + t\,\mathbf d_r.$$
 
 Therefore the $t$ computed in object space is also the correct $t$ in rendering space. Note that if the object-space ray's direction were normalized after transformation, this would no longer hold and a correction factor related to the unnormalized ray length would be needed. This is one reason pbrt does not normalize object-space ray directions after transformation.[^2]
 
@@ -480,9 +469,7 @@ Spheres are a special case of quadrics—surfaces described by quadratic polynom
 
 Surfaces can be described in two main ways. An *implicit* function describes a 3D surface as $f(x,y,z)=0$; the set of points satisfying the condition defines the surface. For a unit sphere at the origin the familiar implicit equation is
 
-$$
-x^2 + y^2 + z^2 - 1 = 0.
-$$
+$$x^2 + y^2 + z^2 - 1 = 0.$$
 
 *Figure 6.3: Basic Setting for the Sphere Shape. It has radius $r$ and is centered at the object-space origin. A partial sphere is described by a maximum $\phi$ value.*
 
@@ -496,15 +483,11 @@ flowchart TD
 
 Many surfaces can also be described *parametrically*, by a function mapping 2D points to 3D points on the surface. A sphere of radius $r$ is a function of spherical coordinates $(\theta,\phi)$, with $\theta\in[0,\pi]$ and $\phi\in[0,2\pi]$:
 
-$$
-\mathbf p(\theta,\phi) = \big(r\sin\theta\cos\phi,\; r\sin\theta\sin\phi,\; r\cos\theta\big).
-$$
+$$\mathbf p(\theta,\phi) = \big(r\sin\theta\cos\phi,\; r\sin\theta\sin\phi,\; r\cos\theta\big).$$
 
 We can transform this into a function $\mathbf f(u,v)$ over $[0,1]^2$ and allow partial spheres sweeping $\theta\in[\theta_{\min},\theta_{\max}]$ and $\phi\in[0,\phi_{\max}]$ with the substitution
 
-$$
-\theta = \theta_{\min} + v\,(\theta_{\max}-\theta_{\min}), \qquad \phi = u\,\phi_{\max}.
-$$
+$$\theta = \theta_{\min} + v\,(\theta_{\max}-\theta_{\min}), \qquad \phi = u\,\phi_{\max}.$$
 
 This form is particularly useful for texture mapping, since a texture over $[0,1]^2$ maps directly to the sphere. Figure 6.4 shows two spheres with a grid image map revealing the $(u,v)$ parameterization.
 
@@ -693,23 +676,15 @@ let di: Vector3fi = self.object_from_render.apply(Vector3fi::from(r.d));
 
 For a sphere centered at the origin with radius $r$, the implicit representation is
 
-$$
-x^2+y^2+z^2-r^2=0.
-$$
+$$x^2+y^2+z^2-r^2=0.$$
 
 Substituting the ray equation (Equation 3.4), $\mathbf p(t)=\mathbf o+t\mathbf d$, gives
 
-$$
-(o_x+t d_x)^2+(o_y+t d_y)^2+(o_z+t d_z)^2=r^2.
-$$
+$$(o_x+t d_x)^2+(o_y+t d_y)^2+(o_z+t d_z)^2=r^2.$$
 
 Every quantity except $t$ is known. Expanding and gathering terms gives the quadratic equation
 
-$$
-a t^2 + b t + c = 0,
-\qquad
-a = |\mathbf d|^2,\quad b = 2\,\mathbf d\!\cdot\!\mathbf o,\quad c = |\mathbf o|^2-r^2.
-$$
+$$a t^2 + b t + c = 0, \qquad a = |\mathbf d|^2,\quad b = 2\,\mathbf d\!\cdot\!\mathbf o,\quad c = |\mathbf o|^2-r^2.$$
 
 <details>
 <summary>Reference / notes</summary>
@@ -739,10 +714,7 @@ let c = oi.x.sqr() + oi.y.sqr() + oi.z.sqr() - Interval::from(self.radius).sqr()
 
 The fragment `〈Compute sphere quadratic discriminant discrim〉` computes $b^2-4ac$ in a way that maintains accuracy in tricky cases; it is defined later in Section 6.8.3, after the relevant floating-point topics have been introduced. With `discrim` in hand, the quadratic formula can be applied. We use a more accurate variant of the traditional approach (Section B.2.10):
 
-$$
-q = -\tfrac12\big(b \pm \sqrt{b^2-4ac}\big), \qquad
-t_0 = q/a,\qquad t_1 = c/q .
-$$
+$$q = -\tfrac12\big(b \pm \sqrt{b^2-4ac}\big), \qquad t_0 = q/a,\qquad t_1 = c/q .$$
 
 **〈Compute quadratic t values〉 ≡ 274, 288**
 
@@ -915,18 +887,11 @@ let v = (theta - self.theta_z_min) / (self.theta_z_max - self.theta_z_min);
 
 Computing the partial derivatives of a point on the sphere is a short algebra exercise. Using $x=r\sin\theta\cos\phi$, the $x$ component is
 
-$$
-\frac{\partial p_x}{\partial u}
-= \frac{\partial p_x}{\partial\phi}\frac{\partial\phi}{\partial u}
-= (-r\sin\theta\sin\phi)\,\phi_{\max} = -\phi_{\max}\,y,
-$$
+$$\frac{\partial p_x}{\partial u} = \frac{\partial p_x}{\partial\phi}\frac{\partial\phi}{\partial u} = (-r\sin\theta\sin\phi)\,\phi_{\max} = -\phi_{\max}\,y,$$
 
 and similarly $\partial p_y/\partial u=\phi_{\max}x$ and $\partial p_z/\partial u=0$. Likewise,
 
-$$
-\frac{\partial\mathbf p}{\partial v}
-= (\theta_{\max}-\theta_{\min})\big(z\cos\phi,\; z\sin\phi,\; -r\sin\theta\big).
-$$
+$$\frac{\partial\mathbf p}{\partial v} = (\theta_{\max}-\theta_{\min})\big(z\cos\phi,\; z\sin\phi,\; -r\sin\theta\big).$$
 
 The complete result follows directly in code:
 
@@ -951,42 +916,19 @@ let dpdv = (self.theta_z_max - self.theta_z_min)
 
 It is also useful to know how the normal changes as we move along the surface—the antialiasing techniques of Chapter 10 use this to antialias textures on curved reflected objects. The differential changes $\partial\mathbf n/\partial u$ and $\partial\mathbf n/\partial v$ are given by the *Weingarten equations* from differential geometry:
 
-$$
-\frac{\partial\mathbf n}{\partial u}
- = \frac{fF-eG}{EG-F^2}\frac{\partial\mathbf p}{\partial u}
- + \frac{eF-fE}{EG-F^2}\frac{\partial\mathbf p}{\partial v},
-\qquad
-\frac{\partial\mathbf n}{\partial v}
- = \frac{gF-fG}{EG-F^2}\frac{\partial\mathbf p}{\partial u}
- + \frac{fF-gE}{EG-F^2}\frac{\partial\mathbf p}{\partial v}.
-$$
+$$\frac{\partial\mathbf n}{\partial u} = \frac{fF-eG}{EG-F^2}\frac{\partial\mathbf p}{\partial u} + \frac{eF-fE}{EG-F^2}\frac{\partial\mathbf p}{\partial v}, \qquad \frac{\partial\mathbf n}{\partial v} = \frac{gF-fG}{EG-F^2}\frac{\partial\mathbf p}{\partial u} + \frac{fF-gE}{EG-F^2}\frac{\partial\mathbf p}{\partial v}.$$
 
 Here $E$, $F$, $G$ are coefficients of the first fundamental form,
 
-$$
-E = \frac{\partial\mathbf p}{\partial u}\!\cdot\!\frac{\partial\mathbf p}{\partial u},
-\quad
-F = \frac{\partial\mathbf p}{\partial u}\!\cdot\!\frac{\partial\mathbf p}{\partial v},
-\quad
-G = \frac{\partial\mathbf p}{\partial v}\!\cdot\!\frac{\partial\mathbf p}{\partial v},
-$$
+$$E = \frac{\partial\mathbf p}{\partial u}\!\cdot\!\frac{\partial\mathbf p}{\partial u}, \quad F = \frac{\partial\mathbf p}{\partial u}\!\cdot\!\frac{\partial\mathbf p}{\partial v}, \quad G = \frac{\partial\mathbf p}{\partial v}\!\cdot\!\frac{\partial\mathbf p}{\partial v},$$
 
 and $e$, $f$, $g$ are coefficients of the second fundamental form,
 
-$$
-e = \mathbf n\cdot\frac{\partial^2\mathbf p}{\partial u^2},\quad
-f = \mathbf n\cdot\frac{\partial^2\mathbf p}{\partial u\,\partial v},\quad
-g = \mathbf n\cdot\frac{\partial^2\mathbf p}{\partial v^2}.
-$$
+$$e = \mathbf n\cdot\frac{\partial^2\mathbf p}{\partial u^2},\quad f = \mathbf n\cdot\frac{\partial^2\mathbf p}{\partial u\,\partial v},\quad g = \mathbf n\cdot\frac{\partial^2\mathbf p}{\partial v^2}.$$
 
 The two forms capture elementary metric properties of a surface—distance, angle, and curvature; see a differential geometry textbook such as Gray (1993) for details. Finding $e,f,g$ requires the second-order partial derivatives. For spheres, a little more algebra gives
 
-$$
-\frac{\partial^2\mathbf p}{\partial u^2}=-\phi_{\max}^2(x,y,0),\quad
-\frac{\partial^2\mathbf p}{\partial u\,\partial v}=(\theta_{\max}-\theta_{\min})\,z\,\phi_{\max}(-\sin\phi,\cos\phi,0),
-\quad
-\frac{\partial^2\mathbf p}{\partial v^2}=-(\theta_{\max}-\theta_{\min})^2(x,y,z).
-$$
+$$\frac{\partial^2\mathbf p}{\partial u^2}=-\phi_{\max}^2(x,y,0),\quad \frac{\partial^2\mathbf p}{\partial u\,\partial v}=(\theta_{\max}-\theta_{\min})\,z\,\phi_{\max}(-\sin\phi,\cos\phi,0), \quad \frac{\partial^2\mathbf p}{\partial v^2}=-(\theta_{\max}-\theta_{\min})^2(x,y,z).$$
 
 **〈Compute sphere dndu and dndv〉 ≡ 277**
 
@@ -1055,27 +997,19 @@ self.render_from_object.apply(SurfaceInteraction::new(
 
 To compute the surface area of quadrics we use a standard formula from integral calculus: if a curve $y=f(x)$ from $x=a$ to $x=b$ is revolved around the $x$ axis, the swept surface has area
 
-$$
-A = 2\pi\int_a^b f(x)\sqrt{1+f'(x)^2}\,dx,
-$$
+$$A = 2\pi\int_a^b f(x)\sqrt{1+f'(x)^2}\,dx,$$
 
 where $f'(x)=df/dx$. Since most of our surfaces of revolution are only partially swept, we instead use
 
-$$
-A = \phi\int_a^b f(x)\sqrt{1+f'(x)^2}\,dx .
-$$
+$$A = \phi\int_a^b f(x)\sqrt{1+f'(x)^2}\,dx .$$
 
 The sphere is a surface of revolution of a circular arc. Its profile curve along the $z$ axis is
 
-$$
-f(z)=\sqrt{r^2-z^2}, \qquad f'(z)=\frac{-z}{\sqrt{r^2-z^2}},
-$$
+$$f(z)=\sqrt{r^2-z^2}, \qquad f'(z)=\frac{-z}{\sqrt{r^2-z^2}},$$
 
 so $f(z)\sqrt{1+f'(z)^2}=r$, and the area is therefore
 
-$$
-A = \phi_{\max}\, r\,(z_{\max}-z_{\min}).
-$$
+$$A = \phi_{\max}\, r\,(z_{\max}-z_{\min}).$$
 
 For a full sphere, $\phi_{\max}=2\pi$, $z_{\min}=-r$, and $z_{\max}=r$, giving the standard $A=4\pi r^2$, which confirms the formula.
 
@@ -1222,9 +1156,7 @@ flowchart LR
 
 If the reference point is outside the sphere, it subtends an angle
 
-$$
-\theta_{\max} = \arcsin\!\frac{r}{|\mathbf p_c-\mathbf p|},
-$$
+$$\theta_{\max} = \arcsin\!\frac{r}{|\mathbf p_c-\mathbf p|},$$
 
 where $r$ is the radius and $\mathbf p_c$ the center (Figure 6.5). The sampling method computes $\cos\theta_{\max}$ using Equation (6.4) and samples directions uniformly inside the cone using the approach derived for `SampleUniformCone()` in Section A.5.4: sample an offset $\theta$ from the center vector $\omega_c$ and a rotation angle $\phi$ around it. That function is not used here because some intermediate values are needed below.
 
@@ -1281,10 +1213,7 @@ flowchart LR
 
 Denoting by $d_c$ the distance from the reference point to the center, the law of sines gives $\sin\gamma=(d_c/r)\sin\theta$. Because $\gamma$ is obtuse, $\gamma=\pi-\arcsin\big((d_c/r)\sin\theta\big)$. Given two of the three triangle angles, $\alpha$ follows. We avoid expensive inverse trig functions by taking the cosine of both sides, applying the cosine angle-addition formula, and using $\sin\theta_{\max}=r/d_c$, which yields
 
-$$
-\cos\alpha = \frac{\sin^2\theta}{\sin\theta_{\max}}
-           + \cos\theta\,\sqrt{1-\frac{\sin^2\theta}{\sin^2\theta_{\max}}},
-$$
+$$\cos\alpha = \frac{\sin^2\theta}{\sin\theta_{\max}} + \cos\theta\,\sqrt{1-\frac{\sin^2\theta}{\sin^2\theta_{\max}}},$$
 
 with $\sin\alpha=\sqrt{1-\cos^2\alpha}$.
 
@@ -1318,9 +1247,7 @@ if self.reverse_orientation { n = -n; }
 
 The `〈Compute (u, v) coordinates for sampled point on sphere〉` fragment applies the same mapping as `Intersect()` using the object-space sample point, so it is elided. The PDF for uniform cone sampling is
 
-$$
-p(\omega)=\frac{1}{2\pi(1-\cos\theta_{\max})}.
-$$
+$$p(\omega)=\frac{1}{2\pi(1-\cos\theta_{\max})}.$$
 
 (A derivation is in Section A.5.4.)
 
@@ -1433,12 +1360,7 @@ struct Cylinder {
 
 In parametric form a cylinder is described by
 
-$$
-\phi = u\,\phi_{\max},\qquad
-x = r\cos\phi,\qquad
-y = r\sin\phi,\qquad
-z = z_{\min} + v\,(z_{\max}-z_{\min}).
-$$
+$$\phi = u\,\phi_{\max},\qquad x = r\cos\phi,\qquad y = r\sin\phi,\qquad z = z_{\min} + v\,(z_{\max}-z_{\min}).$$
 
 *Figure 6.8 shows a rendered image of two cylinders. Like the sphere image, the right cylinder is complete while the left one is partial, with $\phi_{\max}<2\pi$.*
 
@@ -1580,15 +1502,11 @@ let (mut t0, mut t1): (Interval, Interval);
 
 As with spheres, the formula comes from substituting the ray equation into the cylinder's implicit equation. An infinitely long cylinder of radius $r$ on the $z$ axis satisfies $x^2+y^2-r^2=0$, so
 
-$$
-(o_x+t d_x)^2 + (o_y+t d_y)^2 = r^2,
-$$
+$$(o_x+t d_x)^2 + (o_y+t d_y)^2 = r^2,$$
 
 and the coefficients of $a t^2+bt+c=0$ are
 
-$$
-a=d_x^2+d_y^2,\qquad b=2(d_x o_x + d_y o_y),\qquad c=o_x^2+o_y^2-r^2.
-$$
+$$a=d_x^2+d_y^2,\qquad b=2(d_x o_x + d_y o_y),\qquad c=o_x^2+o_y^2-r^2.$$
 
 **〈Compute cylinder quadratic coefficients〉 ≡ 288**
 
@@ -1691,13 +1609,7 @@ let dpdv = Vector3f::new(0.0, 0.0, self.z_max - self.z_min);
 
 We again use the Weingarten equations for the normal derivatives. The relevant second derivatives are
 
-$$
-\frac{\partial^2\mathbf p}{\partial u^2}=-\phi_{\max}^2(x,y,0),
-\qquad
-\frac{\partial^2\mathbf p}{\partial u\,\partial v}=\mathbf 0,
-\qquad
-\frac{\partial^2\mathbf p}{\partial v^2}=\mathbf 0.
-$$
+$$\frac{\partial^2\mathbf p}{\partial u^2}=-\phi_{\max}^2(x,y,0), \qquad \frac{\partial^2\mathbf p}{\partial u\,\partial v}=\mathbf 0, \qquad \frac{\partial^2\mathbf p}{\partial v^2}=\mathbf 0.$$
 
 **〈Compute cylinder dndu and dndv〉 ≡ 290**
 
@@ -1791,12 +1703,7 @@ flowchart TD
 
 To describe partial disks, the user may specify a maximum $\phi$ beyond which the disk is cut off. The disk can also be generalized to an annulus with an inner radius $r_i$. In parametric form,
 
-$$
-\phi=u\,\phi_{\max},\qquad
-x=\big((1-v)r+v r_i\big)\cos\phi,\qquad
-y=\big((1-v)r+v r_i\big)\sin\phi,\qquad
-z=h.
-$$
+$$\phi=u\,\phi_{\max},\qquad x=\big((1-v)r+v r_i\big)\cos\phi,\qquad y=\big((1-v)r+v r_i\big)\sin\phi,\qquad z=h.$$
 
 *Figure 6.10 is a rendered image of two disks.*
 
@@ -1906,9 +1813,7 @@ fn basic_intersect(&self, r: &Ray, t_max: Float) -> Option<QuadricIntersection> 
 
 We want $t$ such that the $z$ component of the ray's position equals the disk's height:
 
-$$
-h = o_z + t\,d_z \quad\Longrightarrow\quad t = \frac{h-o_z}{d_z}.
-$$
+$$h = o_z + t\,d_z \quad\Longrightarrow\quad t = \frac{h-o_z}{d_z}.$$
 
 The method computes $t$ and checks it lies in $(0,t_{\max})$; otherwise there is no intersection.
 
@@ -1984,11 +1889,7 @@ fn interaction_from_intersection(
 
 The parameter $u$ is scaled to reflect the partial disk specified by $\phi_{\max}$; $v$ is computed by inverting the parametric equation. The partial derivatives at the hit point are derived as for the previous quadrics. Because a disk's normal is the same everywhere, $\partial\mathbf n/\partial u$ and $\partial\mathbf n/\partial v$ are both trivially $(0,0,0)$, and
 
-$$
-\frac{\partial\mathbf p}{\partial u}=\phi_{\max}(-y,x,0),\qquad
-\frac{\partial\mathbf p}{\partial v}=\frac{(r_i-r)}{r_{\mathrm{hit}}}(x,y,0),
-\quad r_{\mathrm{hit}}=\sqrt{x^2+y^2}.
-$$
+$$\frac{\partial\mathbf p}{\partial u}=\phi_{\max}(-y,x,0),\qquad \frac{\partial\mathbf p}{\partial v}=\frac{(r_i-r)}{r_{\mathrm{hit}}}(x,y,0), \quad r_{\mathrm{hit}}=\sqrt{x^2+y^2}.$$
 
 **〈Find parametric representation of disk hit〉 ≡ 295**
 
@@ -2063,15 +1964,11 @@ The triangle is one of the most commonly used shapes in computer graphics; compl
 
 To see why, consider the Euler–Poincaré formula, relating vertices $V$, edges $E$, and faces $F$ of a closed discrete mesh:
 
-$$
-V-E+F = 2(1-g),
-$$
+$$V-E+F = 2(1-g),$$
 
 where $g\in\mathbb N$ is the genus, usually a small number interpreted as the number of "handles" in the mesh (analogous to a teacup handle). On a triangle mesh the numbers of edges and vertices are further related by
 
-$$
-2E = 3F.
-$$
+$$2E = 3F.$$
 
 This follows by dividing each edge into two half-edges associated with the two adjacent triangles: there are $3F$ half-edges, and colocated pairs constitute the $E$ mesh edges. For large closed meshes the genus becomes negligible, so combining the two equations with $g=0$ gives $F\approx 2V$.
 
@@ -2524,9 +2421,7 @@ There are three steps in the transformation: translation $T$, a coordinate permu
 
 The translation placing the ray origin at the origin is
 
-$$
-T(\mathbf p) = \mathbf p - \mathbf o,
-$$
+$$T(\mathbf p) = \mathbf p - \mathbf o,$$
 
 applied to the three vertices (not explicitly to the ray origin).
 
@@ -2554,13 +2449,7 @@ let p2t = permute(p2t, [kx, ky, kz]);
 
 Finally a shear aligns the ray direction with $+z$:
 
-$$
-S = \begin{pmatrix}
-1 & 0 & -d_x/d_z \\
-0 & 1 & -d_y/d_z \\
-0 & 0 & 1/d_z
-\end{pmatrix},
-$$
+$$S = \begin{pmatrix} 1 & 0 & -d_x/d_z \\ 0 & 1 & -d_y/d_z \\ 0 & 0 & 1/d_z \end{pmatrix},$$
 
 so applied to $[d_x\;d_y\;d_z\;0]^T$ it yields $[0\;0\;1\;0]^T$. Only $x$ and $y$ are sheared now; the $z$ shear is deferred until the ray actually intersects the triangle.
 
@@ -2607,15 +2496,11 @@ With the vertices transformed, the task is to determine whether the ray from the
 
 Recall from Figure 3.6 that the length of the cross product of two vectors gives their parallelogram's area. In 2D, for vectors $\mathbf a$ and $\mathbf b$, the area is $a_xb_y-b_xa_y$, so the area of a triangle with vertices $\mathbf p_0,\mathbf p_1,\mathbf p_2$ is
 
-$$
-A=\tfrac12\big[(p_{1x}-p_{0x})(p_{2y}-p_{0y})-(p_{1y}-p_{0y})(p_{2x}-p_{0x})\big].
-$$
+$$A=\tfrac12\big[(p_{1x}-p_{0x})(p_{2y}-p_{0y})-(p_{1y}-p_{0y})(p_{2x}-p_{0x})\big].$$
 
 We use this to define a signed *edge function*: given two vertices $\mathbf p_0$ and $\mathbf p_1$, the directed edge function $e$ gives twice the signed area of the triangle $(\mathbf p_0,\mathbf p_1,\mathbf p)$:
 
-$$
-e(\mathbf p_0,\mathbf p_1,\mathbf p)=(p_{1x}-p_{0x})(p_y-p_{0y})-(p_{1y}-p_{0y})(p_x-p_{0x}).
-$$
+$$e(\mathbf p_0,\mathbf p_1,\mathbf p)=(p_{1x}-p_{0x})(p_y-p_{0y})-(p_{1y}-p_{0y})(p_x-p_{0x}).$$
 
 *Figure 6.14: The edge function $e(\mathbf p)$ characterizes points relative to an oriented line through $\mathbf p_0$ and $\mathbf p_1$: positive to the right of the line, zero on it, negative to the left. The ray–triangle test uses an edge function equal to twice the signed area of the triangle formed by the three points.*
 
@@ -2632,9 +2517,7 @@ flowchart LR
 
 Thanks to the coordinate transformation, the point being tested is $\mathbf p=(0,0)$, which simplifies the expressions. For the edge $e_0$ from $\mathbf p_1$ to $\mathbf p_2$,
 
-$$
-e_0 = p_{1t,x}\,p_{2t,y} - p_{1t,y}\,p_{2t,x}.
-$$
+$$e_0 = p_{1t,x}\,p_{2t,y} - p_{1t,y}\,p_{2t,x}.$$
 
 We use the indexing scheme where $e_i$ corresponds to the directed edge from $\mathbf p_{(i+1)\bmod 3}$ to $\mathbf p_{(i+2)\bmod 3}$.
 
@@ -2669,9 +2552,7 @@ if det == 0.0 { return None; }
 
 Because the ray starts at the origin, has unit length, and points along $+z$, the intersection's $z$ coordinate equals its parametric $t$. We first apply the shear to the vertices' $z$ coordinates, then interpolate with barycentric coordinates
 
-$$
-b_i = \frac{e_i}{e_0+e_1+e_2}, \qquad b_0+b_1+b_2=1,
-$$
+$$b_i = \frac{e_i}{e_0+e_1+e_2}, \qquad b_0+b_1+b_2=1,$$
 
 so $z=b_0z_0+b_1z_1+b_2z_2$. To avoid a division when the final $t$ is out of range, the implementation first computes $t$ by interpolating $z_i$ with $e_i$—without dividing by $\det$—and checks the sign. The test $t<t_{\max}$ can equivalently be applied to the scaled value, as shown below.
 
@@ -2765,28 +2646,15 @@ To generate consistent tangent vectors over meshes, $\partial\mathbf p/\partial 
 
 A triangle can be described as
 
-$$
-\mathbf p(u,v) = \mathbf p_0 + u(\mathbf p_1-\mathbf p_0) + v(\mathbf p_2-\mathbf p_0),
-$$
+$$\mathbf p(u,v) = \mathbf p_0 + u(\mathbf p_1-\mathbf p_0) + v(\mathbf p_2-\mathbf p_0),$$
 
 with $(u,v)$ over the triangle's parametric coordinates. Given vertex positions $\mathbf p_i$ and texture coordinates $(u_i,v_i)$, the derivatives satisfy a unique affine mapping from 2D $(u,v)$ space to points on the (planar) triangle. Starting from the differences $\mathbf p_0-\mathbf p_2$ and $\mathbf p_1-\mathbf p_2$ we get the matrix equation
 
-$$
-\begin{bmatrix}\mathbf p_0-\mathbf p_2 & \mathbf p_1-\mathbf p_2\end{bmatrix}
-\begin{bmatrix}u\\v\end{bmatrix} = \mathbf p-\mathbf p_2,
-$$
+$$\begin{bmatrix}\mathbf p_0-\mathbf p_2 & \mathbf p_1-\mathbf p_2\end{bmatrix} \begin{bmatrix}u\\v\end{bmatrix} = \mathbf p-\mathbf p_2,$$
 
 whose 2×2 coefficient matrix has inverse
 
-$$
-\frac{1}{\det}
-\begin{bmatrix}
-\Delta v_{12} & -\Delta v_{02}\\
--\Delta u_{12} & \Delta u_{02}
-\end{bmatrix},
-\qquad
-\det = \Delta u_{02}\Delta v_{12}-\Delta u_{12}\Delta v_{02}.
-$$
+$$\frac{1}{\det} \begin{bmatrix} \Delta v_{12} & -\Delta v_{02}\\ -\Delta u_{12} & \Delta u_{02} \end{bmatrix}, \qquad \det = \Delta u_{02}\Delta v_{12}-\Delta u_{12}\Delta v_{02}.$$
 
 This computation is performed by `〈Compute triangle partial derivatives〉`, with handling for corner cases.
 
@@ -3100,17 +2968,11 @@ In order to sample points on spheres with respect to solid angle, we derived a s
 
 To see why, consider a simplified form of the reflection integral from the scattering equation (4.14), with the BRDF replaced by a constant $\rho$ (a diffuse surface). If incident radiance comes only from a triangular light emitting uniform diffuse radiance $L_e$, the integral becomes
 
-$$
-L_o = \frac{\rho}{\pi}\int_A L_e\, V(\mathbf p,\mathbf p')\,
-      \cos\theta_o\,\frac{\cos\theta_l}{\|\mathbf p'-\mathbf p\|^2}\,dA,
-$$
+$$L_o = \frac{\rho}{\pi}\int_A L_e\, V(\mathbf p,\mathbf p')\, \cos\theta_o\,\frac{\cos\theta_l}{\|\mathbf p'-\mathbf p\|^2}\,dA,$$
 
 where $V$ is 1 if the ray from $\mathbf p$ in direction $\omega_i$ hits the light and 0 if it misses or is occluded. Sampling the triangle uniformly within the solid angle $A_{\mathrm{solid}}$ it subtends gives the estimator
 
-$$
-L_o \approx \frac{\rho}{\pi}\,L_e\,\frac{A_{\mathrm{solid}}}{N}\sum_i
-          \big(\cos\theta_{o,i}\big)\big(\cos\theta_{l,i}\,V_i\big),
-$$
+$$L_o \approx \frac{\rho}{\pi}\,L_e\,\frac{A_{\mathrm{solid}}}{N}\sum_i \big(\cos\theta_{o,i}\big)\big(\cos\theta_{l,i}\,V_i\big),$$
 
 with the constants pulled out: only the two factors in parentheses vary with $\mathbf p'$, and both lie in $[0,1]$, so variance is low.
 
@@ -3293,30 +3155,19 @@ if let Some(p) = pdf {
 
 At this point $\mathbf a$, $\mathbf b$, edge $\bar{\mathbf c}$, and angle $\alpha$ are unchanged. We know the sampled triangle's area-plus-$\pi$ but not its vertex $\mathbf c'$, edge $\bar{\mathbf b}'$, or angles $\beta'$, $\gamma'$. To find $\mathbf c'$ it suffices to find $\cos b'$ (since $0\le b'<\pi$). A spherical cosine law gives
 
-$$
-\cos A' = -\cos\alpha\cos b' + \sin\alpha\sin b'\cos\gamma',
-\tag{6.8}
-$$
+$$\cos A' = -\cos\alpha\cos b' + \sin\alpha\sin b'\cos\gamma', \quad\text{(6.8)}$$
 
 and the definition of $A'_\pi=\alpha+\beta'+\gamma'$ lets us express $\gamma'=A'_\pi-\alpha-\beta'$. Substituting into Equation (6.8) and solving for $\cos b'$ gives, after defining $\Phi=A'_\pi-\alpha$,
 
-$$
-\cos b' = \frac{k_2 + (k_2\cos\Phi - k_1\sin\Phi)\cos\alpha}
-               {(k_2\sin\Phi + k_1\cos\Phi)\sin\alpha},
-\tag{6.9}
-$$
+$$\cos b' = \frac{k_2 + (k_2\cos\Phi - k_1\sin\Phi)\cos\alpha} {(k_2\sin\Phi + k_1\cos\Phi)\sin\alpha}, \quad\text{(6.9)}$$
 
 where the cosine and sine sum identities were used and
 
-$$
-k_1=\cos\Phi+\cos\alpha,\qquad k_2=\sin\Phi-\sin\alpha\cos c .
-$$
+$$k_1=\cos\Phi+\cos\alpha,\qquad k_2=\sin\Phi-\sin\alpha\cos c .$$
 
 The only remaining unknowns are $\sin\beta'$ and $\cos\beta'$. Another spherical cosine law gives an equality that simplifies to
 
-$$
-0 = k_1\cos\beta' + k_2\sin\beta',
-$$
+$$0 = k_1\cos\beta' + k_2\sin\beta',$$
 
 whose solutions are $\cos\beta'=k_2/\sqrt{k_1^2+k_2^2}$ and $\sin\beta'=k_1/\sqrt{k_1^2+k_2^2}$. Substituting into Equation (6.9), taking the solution with positive cosine, and simplifying yields an expression with only known values on the right-hand side. The code also applies trig identities to compute $\sin\Phi$ and $\cos\Phi$ from other sines and cosines.
 
@@ -3343,9 +3194,7 @@ cos_bp = cos_bp.clamp(-1.0, 1.0);
 
 The great-circle arc between $\mathbf a$ and $\mathbf c$ can be parameterized as $\cos\theta\,\mathbf a+\sin\theta\,\mathbf c_\perp$, where $\mathbf c_\perp$ is the normalized component of $\mathbf c$ perpendicular to $\mathbf a$, given by `GramSchmidt()`. Then
 
-$$
-\mathbf c' = \cos b'\,\mathbf a + \sin b'\,\frac{\mathbf c - (\mathbf a\cdot\mathbf c)\mathbf a}{\|\mathbf c-(\mathbf a\cdot\mathbf c)\mathbf a\|},
-$$
+$$\mathbf c' = \cos b'\,\mathbf a + \sin b'\,\frac{\mathbf c - (\mathbf a\cdot\mathbf c)\mathbf a}{\|\mathbf c-(\mathbf a\cdot\mathbf c)\mathbf a\|},$$
 
 and $\sin b'=\sqrt{1-\cos^2 b'}$ since it must be nonnegative.
 
@@ -3358,18 +3207,11 @@ let cp = cos_bp * a + sin_bp * normalize(gram_schmidt(c, a));
 
 For the samples to be uniform in the spherical triangle, if the edge from $\mathbf b$ to $\mathbf c'$ is parameterized analogously, $\cos\theta$ must be sampled as
 
-$$
-\cos\theta = 1 - u_1\big(1-\mathbf b\cdot\mathbf c'\big).
-\tag{6.10}
-$$
+$$\cos\theta = 1 - u_1\big(1-\mathbf b\cdot\mathbf c'\big). \quad\text{(6.10)}$$
 
 (The "Further Reading" section points to the details.) The final sampled direction is
 
-$$
-\omega = \cos\theta\,\mathbf b + \sin\theta\,
-         \frac{\mathbf c'-(\mathbf b\cdot\mathbf c')\mathbf b}
-              {\|\mathbf c'-(\mathbf b\cdot\mathbf c')\mathbf b\|}.
-$$
+$$\omega = \cos\theta\,\mathbf b + \sin\theta\, \frac{\mathbf c'-(\mathbf b\cdot\mathbf c')\mathbf b} {\|\mathbf c'-(\mathbf b\cdot\mathbf c')\mathbf b\|}.$$
 
 **〈Compute sampled spherical triangle direction and return barycentrics〉 ≡ 318**
 
@@ -3617,11 +3459,7 @@ Point2f::new(u0.clamp(0.0, 1.0), u1.clamp(0.0, 1.0))
 
 It is useful to have a shape defined by four vertices. A planar quadrilateral is one option, but it is preferable not to require coplanarity. The bilinear patch is a parametric surface defined by four vertices $\mathbf p_{0,0}$, $\mathbf p_{1,0}$, $\mathbf p_{0,1}$, $\mathbf p_{1,1}$, each associated with a corner of the $(u,v)$ domain $[0,1]^2$. Points on the surface come from bilinear interpolation:
 
-$$
-\mathbf p(u,v)=(1-u)(1-v)\mathbf p_{0,0}+u(1-v)\mathbf p_{1,0}
-             +(1-u)v\,\mathbf p_{0,1}+uv\,\mathbf p_{1,1}.
-\tag{6.11}
-$$
+$$\mathbf p(u,v)=(1-u)(1-v)\mathbf p_{0,0}+u(1-v)\mathbf p_{1,0} +(1-u)v\,\mathbf p_{0,1}+uv\,\mathbf p_{1,1}. \quad\text{(6.11)}$$
 
 *Figure 6.22: Two Bilinear Patches. A bilinear patch is defined by four vertices that need not be planar and can represent a variety of simple curved surfaces.*
 
@@ -3727,22 +3565,11 @@ There is a subtlety in using a vector of meshes: pbrt's scene initialization par
 
 The area of a parametric surface over $[0,1]^2$ is
 
-$$
-A=\int_0^1\!\!\int_0^1 \left\|\frac{\partial\mathbf p}{\partial u}
-                     \times\frac{\partial\mathbf p}{\partial v}\right\| du\,dv,
-\tag{6.12}
-$$
+$$A=\int_0^1\!\!\int_0^1 \left\|\frac{\partial\mathbf p}{\partial u} \times\frac{\partial\mathbf p}{\partial v}\right\| du\,dv, \quad\text{(6.12)}$$
 
 and the partial derivatives of a bilinear patch are easily derived:
 
-$$
-\frac{\partial\mathbf p}{\partial u}=(1-v)(\mathbf p_{1,0}-\mathbf p_{0,0})
-                                     +v(\mathbf p_{1,1}-\mathbf p_{0,1}),
-\qquad
-\frac{\partial\mathbf p}{\partial v}=(1-u)(\mathbf p_{0,1}-\mathbf p_{0,0})
-                                     +u(\mathbf p_{1,1}-\mathbf p_{1,0}).
-\tag{6.13}
-$$
+$$\frac{\partial\mathbf p}{\partial u}=(1-v)(\mathbf p_{1,0}-\mathbf p_{0,0}) +v(\mathbf p_{1,1}-\mathbf p_{0,1}), \qquad \frac{\partial\mathbf p}{\partial v}=(1-u)(\mathbf p_{0,1}-\mathbf p_{0,0}) +u(\mathbf p_{1,1}-\mathbf p_{1,0}). \quad\text{(6.13)}$$
 
 In general Equation (6.12) cannot be evaluated in closed form with these derivatives. Therefore the constructor caches the area, using numerical integration when necessary. Because patches are often rectangles, it first checks for that case and takes the product of side lengths. Otherwise `〈Compute approximate area of bilinear patch〉` uses a 3×3 Riemann sum; we do not include it.
 
@@ -3907,15 +3734,11 @@ fn intersect_bilinear_patch(
 
 Going back to Equation (6.11), fixing $u$ leaves a line,
 
-$$
-\mathbf f_u(v)=(1-v)\mathbf p_{u,0}+v\mathbf p_{u,1},
-$$
+$$\mathbf f_u(v)=(1-v)\mathbf p_{u,0}+v\mathbf p_{u,1},$$
 
 where $\mathbf p_{u,0}=(1-u)\mathbf p_{0,0}+u\mathbf p_{1,0}$ and $\mathbf p_{u,1}=(1-u)\mathbf p_{0,1}+u\mathbf p_{1,1}$ (Figure 6.24). At any intersection the minimum distance from a point on the ray to a point on one of these lines is zero. For two infinite non-parallel lines $(\mathbf p_a,\mathbf p_b)$ and $(\mathbf p_c,\mathbf p_d)$, the minimum distance is found from two parallel planes containing the lines:
 
-$$
-a x+b y+c z+d=0,\qquad (a,b,c)=(\mathbf p_b-\mathbf p_a)\times(\mathbf p_d-\mathbf p_c),
-$$
+$$a x+b y+c z+d=0,\qquad (a,b,c)=(\mathbf p_b-\mathbf p_a)\times(\mathbf p_d-\mathbf p_c),$$
 
 with $d_{ab}$ and $d_{cd}$ found by substituting a point on each line; the distance is $(d_{ab}-d_{cd})/\sqrt{a^2+b^2+c^2}$ (Figure 6.25).
 
@@ -4139,13 +3962,7 @@ dvdt = if dstdv[1].abs() < 1e-8 { 0.0 } else { 1.0 / dstdv[1] };
 
 The chain rule then gives the updated position derivatives:
 
-$$
-\frac{\partial\mathbf p}{\partial s}=\frac{\partial\mathbf p}{\partial u}\frac{\partial u}{\partial s}
-                                     +\frac{\partial\mathbf p}{\partial v}\frac{\partial v}{\partial s},
-\qquad
-\frac{\partial\mathbf p}{\partial t}=\frac{\partial\mathbf p}{\partial u}\frac{\partial u}{\partial t}
-                                     +\frac{\partial\mathbf p}{\partial v}\frac{\partial v}{\partial t}.
-$$
+$$\frac{\partial\mathbf p}{\partial s}=\frac{\partial\mathbf p}{\partial u}\frac{\partial u}{\partial s} +\frac{\partial\mathbf p}{\partial v}\frac{\partial v}{\partial s}, \qquad \frac{\partial\mathbf p}{\partial t}=\frac{\partial\mathbf p}{\partial u}\frac{\partial u}{\partial t} +\frac{\partial\mathbf p}{\partial v}\frac{\partial v}{\partial t}.$$
 
 **〈Compute partial derivatives of p with respect to (s, t)〉 ≡ 336**
 
@@ -4655,11 +4472,7 @@ fn invert_spherical_rectangle_sample(
 
 Triangles and bilinear patches can represent thin shapes for hair, fur, or grass, but a specialized `Shape` is worthwhile when many such instances are present. The `Curve` shape models thin geometry with cubic Bézier curves defined by four control points $\mathbf p_0,\mathbf p_1,\mathbf p_2,\mathbf p_3$. The spline passes through the first and last control points; points along it are given by
 
-$$
-\mathbf p(u)=(1-u)^3\mathbf p_0+3(1-u)^2u\,\mathbf p_1
-            +3(1-u)u^2\mathbf p_2+u^3\mathbf p_3.
-\tag{6.16}
-$$
+$$\mathbf p(u)=(1-u)^3\mathbf p_0+3(1-u)^2u\,\mathbf p_1 +3(1-u)u^2\mathbf p_2+u^3\mathbf p_3. \quad\text{(6.16)}$$
 
 *Figure 6.29: A cubic Bézier curve is defined by four control points $\mathbf p_i$. The curve $\mathbf p(u)$ passes through the first and last control points at $u=0$ and $u=1$, respectively.*
 
@@ -5050,21 +4863,15 @@ flowchart LR
 
 Projecting control points into ray space makes the test efficient: the ray is along $+z$, reducing the problem to 2D in $x,y$, and the point to classify is $(0,0)$, simplifying the edge function as in ray–triangle intersection (Equation 6.5, Figure 6.14). We need two points on the line perpendicular to the curve through the starting point: $\mathbf p_0$ itself, and a point offset along the perpendicular to the tangent. Differentiating Equation (6.16) shows the tangent at $\mathbf p_0$ is $3(\mathbf p_1-\mathbf p_0)$; the scale does not matter, so we use $\mathbf t=\mathbf p_1-\mathbf p_0$. In 2D a perpendicular is obtained by swapping $x$ and $y$ and negating one component, since $(x,y)\cdot(y,-x)=xy-yx=0$. The second point is
 
-$$
-\mathbf p_0+(p_{1y}-p_{0y},\;p_{0x}-p_{1x}).
-$$
+$$\mathbf p_0+(p_{1y}-p_{0y},\;p_{0x}-p_{1x}).$$
 
 Substituting into the edge function gives
 
-$$
-e(\mathbf p)=(p_{1y}-p_{0y})(p_y-p_{0y})-(p_x-p_{0x})(p_{0x}-p_{1x}),
-$$
+$$e(\mathbf p)=(p_{1y}-p_{0y})(p_y-p_{0y})-(p_x-p_{0x})(p_{0x}-p_{1x}),$$
 
 and with $\mathbf p=(0,0)$ the final test is
 
-$$
-e((0,0))=(p_{1y}-p_{0y})(-p_{0y})+p_{0x}(p_{0x}-p_{1x}).
-$$
+$$e((0,0))=(p_{1y}-p_{0y})(-p_{0y})+p_{0x}(p_{0x}-p_{1x}).$$
 
 **〈Test sample point against tangent perpendicular at curve start〉 ≡ 352**
 
@@ -5104,18 +4911,11 @@ flowchart LR
 
 We linearly approximate the Bézier with a segment from $\mathbf p_0$ to $\mathbf p_3$ parameterized by $w\in[0,1]$ (Figure 6.36). At the closest point $\mathbf p'$, the vector from the line to $\mathbf p$ is perpendicular to the line (Figure 6.37(a)). Equation (3.1) relates the dot product, lengths, and cosine of the angle between $\mathbf p-\mathbf p_0$ and $\mathbf p_3-\mathbf p_0$:
 
-$$
-\cos\theta=\frac{(\mathbf p-\mathbf p_0)\cdot(\mathbf p_3-\mathbf p_0)}
-                 {\lVert\mathbf p-\mathbf p_0\rVert\,\lVert\mathbf p_3-\mathbf p_0\rVert}.
-$$
+$$\cos\theta=\frac{(\mathbf p-\mathbf p_0)\cdot(\mathbf p_3-\mathbf p_0)} {\lVert\mathbf p-\mathbf p_0\rVert\,\lVert\mathbf p_3-\mathbf p_0\rVert}.$$
 
 Because $\mathbf p-\mathbf p'$ is perpendicular (Figure 6.37(b)), the distance along the line from $\mathbf p_0$ to $\mathbf p'$ is
 
-$$
-d = \lVert\mathbf p-\mathbf p_0\rVert\cos\theta
-  = \frac{(\mathbf p-\mathbf p_0)\cdot(\mathbf p_3-\mathbf p_0)}
-         {\lVert\mathbf p_3-\mathbf p_0\rVert},
-$$
+$$d = \lVert\mathbf p-\mathbf p_0\rVert\cos\theta = \frac{(\mathbf p-\mathbf p_0)\cdot(\mathbf p_3-\mathbf p_0)} {\lVert\mathbf p_3-\mathbf p_0\rVert},$$
 
 and $w=d/\lVert\mathbf p_3-\mathbf p_0\rVert$. With $\mathbf p=(0,0)$ this simplifies further:
 
@@ -5309,36 +5109,25 @@ Modern CPUs and GPUs nearly universally implement the IEEE 754 standard (IEEE 19
 
 **Floating-Point Representation.** A 32-bit float has a sign bit, 8 exponent bits, and 23 significand bits. The stored exponent ranges over $0\ldots255$; we denote the biased value by $e_b$, and the actual exponent is
 
-$$
-e = e_b - 127.
-$$
+$$e = e_b - 127.$$
 
 A normalized stored significand has no leading zeros; in binary its leading digit must be 1, so that bit is implicit. The implicit leading 1 plus 23 fractional bits give 24 bits of precision. Given sign $s=\pm1$, significand $m$, and biased exponent $e_b$, the value is
 
-$$
-s \times m \times 2^{e_b-127}.
-$$
+$$s \times m \times 2^{e_b-127}.$$
 
 For example, $6.5=1.101_2\times 2^2$ (the subscript denotes base 2; the first bit right of the radix point contributes $2^{-1}=1/2$, and so on), so
 
-$$
-(1\times2^0+1\times2^{-1}+0\times2^{-2}+1\times2^{-3})\times2^2
-=1.625\times2^2=6.5.
-$$
+$$(1\times2^0+1\times2^{-1}+0\times2^{-2}+1\times2^{-3})\times2^2 =1.625\times2^2=6.5.$$
 
 Here $e=2$, so $e_b=129=10000001_2$ and $m=10100000000000000000000_2$. Floats are laid out with the sign bit at the most significant bit, then exponent, then significand: for $6.5$ the in-memory pattern is $0\;10000001\;10100000000000000000000=40\mathrm{d}00000_{16}$. Similarly $1.0$ has $m=0\ldots0_2$, $e=0$, $e_b=127=01111111_2$, giving $0\;01111111\;00000000000000000000000=3\mathrm{f}800000_{16}$—a hexadecimal value worth remembering when debugging graphics programs.
 
 Between adjacent powers of two the spacing of representable floats is uniform (it corresponds to incrementing the significand by one). In $[2^e,2^{e+1})$ the spacing is
 
-$$
-2^{e-23}.
-$$
+$$2^{e-23}.$$
 
 Thus between 1 and 2 ($e=0$) the spacing is $2^{-23}\approx1.19209\times10^{-7}$, the magnitude of a *unit in the last place* (ulp). Ulps are relatively larger at larger magnitudes. Zero cannot be represented with the scheme so far, so the minimum exponent $e_b=0$ ($e=-127$) is reserved: the implicit leading 1 is dropped, and an all-zero significand gives $s\times0.0\ldots0_2\times2^{-127}=0$. Dropping the leading 1 also permits *denormalized* numbers:[^7] without it the smallest float would be $1.0\ldots0_2\times2^{-127}\approx5.8774718\times10^{-39}$; with it the minimum is
 
-$$
-0.00\ldots1_2\times2^{-126}=2^{-23}\times2^{-126}\approx1.4012985\times10^{-45}.
-$$
+$$0.00\ldots1_2\times2^{-126}=2^{-23}\times2^{-126}\approx1.4012985\times10^{-45}.$$
 
 (The exponent $-126$ is used because denormals are encoded with $e_b=0$ but interpreted as if $e_b=1$, avoiding a gap to the smallest regular float.) Representing such small values can avoid rounding them to zero. There are both positive and negative zeros; the standard guarantees `-0.0 == 0.0`, and a zero with unset sign bit is simply 0 in memory.
 
@@ -5354,25 +5143,13 @@ With $e_b=255$ and nonzero significand we get "not a number" (NaN) values, from 
 
 **Arithmetic Operations.** IEEE 754 guarantees that addition, subtraction, multiplication, division, and square root give the result *closest*, in infinite precision, to the underlying computation. With circled operators for floating-point operations and `sqrt` for floating-point square root, these guarantees are:
 
-$$
-\begin{aligned}
-a\oplus b &= \operatorname{round}(a+b), &
-a\ominus b &= \operatorname{round}(a-b),\\
-a\otimes b &= \operatorname{round}(a\times b), &
-a\oslash b &= \operatorname{round}(a/b),\\
-\sqrt{a} &= \operatorname{round}(\sqrt{a}), &
-\operatorname{FMA}(a,b,c) &= \operatorname{round}(a\times b + c).
-\end{aligned}
-\tag{6.19}
-$$
+$$\begin{aligned} a\oplus b &= \operatorname{round}(a+b), & a\ominus b &= \operatorname{round}(a-b),\\ a\otimes b &= \operatorname{round}(a\times b), & a\oslash b &= \operatorname{round}(a/b),\\ \sqrt{a} &= \operatorname{round}(\sqrt{a}), & \operatorname{FMA}(a,b,c) &= \operatorname{round}(a\times b + c). \end{aligned} \quad\text{(6.19)}$$
 
 *Figure 6.40: IEEE arithmetic behaves as if computed in infinite precision and then rounded to the nearest float. The infinite-precision result is a filled dot, representable floats are ticks; the rounding error $\delta$ is at most half the spacing between floats.*
 
 Here `round(x)` rounds a real to the nearest float, and FMA is the fused multiply-add, which rounds only once and is therefore more accurate than $(a\otimes b)\oplus c$. The rounding error is at most half the float spacing at $a+b$: more would allow rounding to a closer float. For 32-bit floats that spacing is at most $(a+b)2^{-23}$, so half is at most $(a+b)2^{-24}$, giving $|\varepsilon|\le 2^{-24}$—the *machine epsilon*.[^10]
 
-$$
-\varepsilon_m = 2^{-24}\approx5.960464\times10^{-8}.
-$$
+$$\varepsilon_m = 2^{-24}\approx5.960464\times10^{-8}.$$
 
 **〈Floating-point Constants〉 +≡**
 
@@ -5382,17 +5159,11 @@ const MACHINE_EPSILON: Float = Float::EPSILON * 0.5;
 
 Thus
 
-$$
-a\oplus b=\operatorname{round}(a+b)\in(a+b)(1\pm\varepsilon_m)
-        =[(a+b)(1-\varepsilon_m),\,(a+b)(1+\varepsilon_m)].
-\tag{6.20}
-$$
+$$a\oplus b=\operatorname{round}(a+b)\in(a+b)(1\pm\varepsilon_m) =[(a+b)(1-\varepsilon_m),\,(a+b)(1+\varepsilon_m)]. \quad\text{(6.20)}$$
 
 Analogous relations hold for the other operators and square root.[^9][^11] Useful properties follow directly from Equation (6.20):
 
-$$
-1\otimes x=x,\qquad x\oslash x=1,\qquad x\oplus0=x,\qquad x\ominus x=0.
-$$
+$$1\otimes x=x,\qquad x\oslash x=1,\qquad x\oplus0=x,\qquad x\ominus x=0.$$
 
 Also $2\otimes x$ and $x\oslash2$ are exact, as is any multiplication or division by a power of two (barring overflow/underflow): $x\oslash2^i=x\otimes2^{-i}$ for integer $i$. These follow from the nearest-value rule: when the result is representable exactly, the exact result must be produced.
 
@@ -5476,15 +5247,11 @@ bits_to_float(ui)
 
 **Error Propagation.** IEEE guarantees let us analyze and bound error. Two measurements are useful: absolute error $\delta_a=|\tilde a-a|$ and relative error $\delta_r=\delta_a/|a|$ (for $a\ne0$), so
 
-$$
-\tilde a\in a\pm\delta_a=a(1\pm\delta_r).
-$$
+$$\tilde a\in a\pm\delta_a=a(1\pm\delta_r).$$
 
 As a first application, sum four floats as $r=(((a+b)+c)+d)$. Applying Equation (6.20) repeatedly, and bounding higher powers of $\varepsilon_m$ by an extra $\varepsilon_m$ term via $(1\pm\varepsilon_m)^n\le1\pm(n+1)\varepsilon_m$, the absolute error is bounded by
 
-$$
-|a+b|\gamma_3+|c|\gamma_2+|d|\gamma_1,
-$$
+$$|a+b|\gamma_3+|c|\gamma_2+|d|\gamma_1,$$
 
 where the $\gamma$ function captures the accumulated relative error. (This is fully conservative: $(1\pm n\varepsilon_m)$ almost suffices, since higher powers shrink quickly.[^13]) The magnitude of $a+b$ contributes strongly to the error, especially compared with $d$—which suggests why sorting many floats from small to large magnitude generally lowers final error.
 
@@ -5504,9 +5271,7 @@ Declared `const`, invocations with compile-time constants fold to the value. Usi
 
 Given inputs $a(1\pm\gamma_i)$ and $b(1\pm\gamma_j)$ carrying earlier error, their product lies in
 
-$$
-a(1\pm\gamma_i)\otimes b(1\pm\gamma_j)\in ab(1\pm\gamma_{i+j+1}),
-$$
+$$a(1\pm\gamma_i)\otimes b(1\pm\gamma_j)\in ab(1\pm\gamma_{i+j+1}),$$
 
 using $(1\pm\gamma_i)(1\pm\gamma_j)\in(1\pm\gamma_{i+j})$. The relative error is at most roughly $(i+j+1)/2$ ulps at the product—about as good as one could hope (division is similarly good). Addition and subtraction can be much worse: $a(1\pm\gamma_i)\oplus b(1\pm\gamma_j)\in a(1\pm\gamma_{i+1})+b(1\pm\gamma_{j+1})$, with absolute error at most $|a|\gamma_{i+1}+|b|\gamma_{j+1}$.
 
@@ -5527,10 +5292,7 @@ Round-off can make the ray–box test miss a ray that actually intersects the bo
 
 Recall that the $t$ for a ray intersecting a plane perpendicular to $x$ at $x$ is $t=(x-o_x)/d_x$. As a floating-point computation, applying Equation (6.20) gives
 
-$$
-t=\frac{x\ominus o_x}{d_x}\in\frac{(x-o_x)(1\pm\varepsilon_m)}{d_x}(1\pm\varepsilon_m)
- \subset t(1\pm\gamma_3),
-$$
+$$t=\frac{x\ominus o_x}{d_x}\in\frac{(x-o_x)(1\pm\varepsilon_m)}{d_x}(1\pm\varepsilon_m) \subset t(1\pm\gamma_3),$$
 
 so the difference between computed and precise $t$ is bounded by $\gamma_3|t|$.
 
@@ -5567,38 +5329,23 @@ Intersecting a ray with a sphere or cylinder requires the roots of a quadratic, 
 
 First rewrite the discriminant as
 
-$$
-b^2-4ac = 4\left[\left(\frac{b}{2}\right)^2-ac\right],
-\tag{6.24}
-$$
+$$b^2-4ac = 4\left[\left(\frac{b}{2}\right)^2-ac\right], \quad\text{(6.24)}$$
 
 then substitute $a=|\mathbf d|^2$, $b=2\,\mathbf d\cdot\mathbf o$, $c=|\mathbf o|^2-r^2$, giving
 
-$$
-\left(\frac{b}{2}\right)^2-ac
-= (\mathbf d\cdot\mathbf o)^2-|\mathbf d|^2(|\mathbf o|^2-r^2)
-= |\mathbf d|^2\left(r^2-\|\mathbf o\|^2+\frac{(\mathbf d\cdot\mathbf o)^2}{|\mathbf d|^2}\right).
-$$
+$$\left(\frac{b}{2}\right)^2-ac = (\mathbf d\cdot\mathbf o)^2-|\mathbf d|^2(|\mathbf o|^2-r^2) = |\mathbf d|^2\left(r^2-\|\mathbf o\|^2+\frac{(\mathbf d\cdot\mathbf o)^2}{|\mathbf d|^2}\right).$$
 
 Here $\mathbf o$ is the vector from the origin to the ray's origin and $\mathbf d$ its normalized direction. Decompose $\mathbf o=\mathbf d_\perp+\mathbf d_\parallel$, with $\mathbf d_\parallel$ parallel and $\mathbf d_\perp$ perpendicular to $\mathbf d$:
 
-$$
-\mathbf d_\parallel=\frac{\mathbf d\cdot\mathbf o}{|\mathbf d|^2}\mathbf d,
-\qquad
-\mathbf d_\perp=\mathbf o-\mathbf d_\parallel.
-$$
+$$\mathbf d_\parallel=\frac{\mathbf d\cdot\mathbf o}{|\mathbf d|^2}\mathbf d, \qquad \mathbf d_\perp=\mathbf o-\mathbf d_\parallel.$$
 
 These form a right triangle, so $\|\mathbf o\|^2=\|\mathbf d_\perp\|^2+\|\mathbf d_\parallel\|^2$. Applying Equation (6.25),
 
-$$
-\|\mathbf o\|^2-\frac{(\mathbf d\cdot\mathbf o)^2}{|\mathbf d|^2}=\|\mathbf d_\perp\|^2,
-$$
+$$\|\mathbf o\|^2-\frac{(\mathbf d\cdot\mathbf o)^2}{|\mathbf d|^2}=\|\mathbf d_\perp\|^2,$$
 
 and rearranging gives
 
-$$
-\left(\frac{b}{2a}\right)^2-\frac{c}{a} = r^2 - \|\mathbf o-\tfrac{b}{2a}\mathbf d\|^2.
-$$
+$$\left(\frac{b}{2a}\right)^2-\frac{c}{a} = r^2 - \|\mathbf o-\tfrac{b}{2a}\mathbf d\|^2.$$
 
 The left side is the bracketed term of Equation (6.24). Computing it this way eliminates $c$ from the discriminant—a great benefit, since $c$'s magnitude is proportional to the squared distance to the origin, with accordingly limited accuracy. The implementation also uses $x^2-y^2=(x+y)(x-y)$ to reduce intermediate magnitudes and further lower error:
 
@@ -5646,9 +5393,7 @@ if discrim.lower_bound() < 0.0 { return None; }
 
 The ray–triangle algorithm of Section 6.5.3 was carefully designed to avoid rays passing through an edge or vertex shared by two triangles without registering a hit. Such an algorithm is *watertight*. Transforming vertices into the ray coordinate system introduces round-off, but the same transformation applies to all triangles, so it does not affect watertightness (and the error is small enough not to significantly affect intersection points). The three edge functions of Equation (6.5) are evaluated at $(0,0)$ via Equation (6.6). The key to robustness is that with floating point their evaluations have the correct sign. In general,
 
-$$
-e = (a\otimes b)\ominus(c\otimes d)
-$$
+$$e = (a\otimes b)\ominus(c\otimes d)$$
 
 has the same sign as the exact $ab-cd$.
 
@@ -5660,23 +5405,11 @@ We can apply the machinery of this section to derive conservative bounds on the 
 
 It is illuminating to first examine conventional computation. Ray tracers commonly solve $\mathbf o+t\mathbf d$ for $t_{\mathrm{hit}}$ and then compute $\mathbf p=\mathbf o+t_{\mathrm{hit}}\mathbf d$. If $t_{\mathrm{hit}}$ carries error $\delta t$, then for the $x$ coordinate,
 
-$$
-\begin{aligned}
-x &= o_x\oplus(t_{\mathrm{hit}}\pm\delta t)\otimes d_x\\
-  &\in o_x\oplus(t_{\mathrm{hit}}\pm\delta t)d_x(1\pm\gamma_1)\\
-  &\subset o_x(1\pm\gamma_1)+(t_{\mathrm{hit}}\pm\delta t)d_x(1\pm\gamma_2)\\
-  &= o_x+t_{\mathrm{hit}}d_x+\big[\pm o_x\gamma_1\pm\delta t\,d_x
-      \pm t_{\mathrm{hit}}d_x\gamma_2\pm\delta t\,d_x\gamma_2\big].
-\end{aligned}
-\tag{6.27}
-$$
+$$\begin{aligned} x &= o_x\oplus(t_{\mathrm{hit}}\pm\delta t)\otimes d_x\\ &\in o_x\oplus(t_{\mathrm{hit}}\pm\delta t)d_x(1\pm\gamma_1)\\ &\subset o_x(1\pm\gamma_1)+(t_{\mathrm{hit}}\pm\delta t)d_x(1\pm\gamma_2)\\ &= o_x+t_{\mathrm{hit}}d_x+\big[\pm o_x\gamma_1\pm\delta t\,d_x \pm t_{\mathrm{hit}}d_x\gamma_2\pm\delta t\,d_x\gamma_2\big]. \end{aligned} \quad\text{(6.27)}$$
 
 The error term in brackets is bounded by
 
-$$
-\gamma_1|o_x|+\delta_t|d_x|+\gamma_2|t_{\mathrm{hit}}d_x|
-+\gamma_2\delta_t|d_x|.
-$$
+$$\gamma_1|o_x|+\delta_t|d_x|+\gamma_2|t_{\mathrm{hit}}d_x| +\gamma_2\delta_t|d_x|.$$
 
 Two things follow from Equation (6.27). First, the magnitudes of the contributing terms ($o_x$, $d_x$, $t_{\mathrm{hit}}d_x$) may differ greatly from the magnitude of the intersection point itself, risking catastrophic cancellation. Second, intersection algorithms perform tens of floating-point operations to find $t$, so $\delta t$ is at least of magnitude $\gamma_n t$ with $n$ in the tens (and possibly much more with cancellation).
 
@@ -5705,9 +5438,7 @@ flowchart LR
 
 Consider a ray–sphere intersection with computed point $\mathbf p$ and a sphere of radius $r$ at the origin. Reprojection scales the point by the ratio of the radius to its distance from the origin:
 
-$$
-\mathbf p'=\frac{r}{\|\mathbf p\|}\,\mathbf p.
-$$
+$$\mathbf p'=\frac{r}{\|\mathbf p\|}\,\mathbf p.$$
 
 Because $x'^2+y'^2+z'^2=r^2$, the terms in the square root share one $\gamma$ term, giving absolute error bounded by $\gamma_5|x'|$ in each coordinate—at most 2.5 ulps from a point on the sphere.
 
@@ -5790,16 +5521,11 @@ let d = 1.0 / (e0 + e1 + e2);
 
 Because all $e_i$ have the same sign when there is a hit, their error can be collected into a conservative bound on $d$. For the $x$ coordinate,
 
-$$
-x'=\big((e_0\otimes x_0)\oplus(e_1\otimes x_1)\oplus(e_2\otimes x_2)\big)\otimes d.
-$$
+$$x'=\big((e_0\otimes x_0)\oplus(e_1\otimes x_1)\oplus(e_2\otimes x_2)\big)\otimes d.$$
 
 Tracking the $\varepsilon_m$ factors and using the bound on $d$ gives the absolute error in $x'$ as $\pm b_0x_0\gamma_7\pm b_1x_1\gamma_7\pm b_2x_2\gamma_7$, bounded by
 
-$$
-\gamma_7\big(|b_0x_0|+|b_1x_1|+|b_2x_2|\big).
-\tag{6.29}
-$$
+$$\gamma_7\big(|b_0x_0|+|b_1x_1|+|b_2x_2|\big). \quad\text{(6.29)}$$
 
 (The $b_2x_2$ term could use $\gamma_6$, but the difference is tiny and the simpler expression is preferable.) Equivalent bounds hold for $y'$ and $z'$. Equation (6.29) bounds the error in the point computed by `Triangle::Intersect()`.
 
@@ -5822,16 +5548,11 @@ let p_error = Vector3f::from(gamma(6) * p_abs_sum);
 
 **Parametric Evaluation: Bilinear Patches.** Patch intersection points come from evaluating Equation (6.11). Considering only $x$, the error is bounded by
 
-$$
-\gamma_6|(1-u)(1-v)x_{0,0}|+\gamma_5|(1-u)v x_{0,1}|
-+\gamma_5|u(1-v)x_{1,0}|+\gamma_4|uv x_{1,1}|.
-$$
+$$\gamma_6|(1-u)(1-v)x_{0,0}|+\gamma_5|(1-u)v x_{0,1}| +\gamma_5|u(1-v)x_{1,0}|+\gamma_4|uv x_{1,1}|.$$
 
 Since $u,v\in[0,1]$ we use the looser but cheaper bound
 
-$$
-\gamma_6\big(|x_{0,0}|+|x_{0,1}|+|x_{1,0}|+|x_{1,1}|\big).
-$$
+$$\gamma_6\big(|x_{0,0}|+|x_{0,1}|+|x_{1,0}|+|x_{1,1}|\big).$$
 
 **〈Initialize bilinear patch intersection point error pError〉 ≡ 335**
 
@@ -5907,21 +5628,11 @@ if p.is_exact() {
 
 If $(x,y,z)$ has no accumulated error, a 4×4 non-projective matrix with elements $m_{i,j}$ gives
 
-$$
-\begin{aligned}
-x'&=\big((m_{0,0}\otimes x)\oplus(m_{0,1}\otimes y)\big)
-      \oplus\big((m_{0,2}\otimes z)\oplus m_{0,3}\big)\\
-  &\subset (m_{0,0}x+m_{0,1}y+m_{0,2}z+m_{0,3})
-      \pm\gamma_3\big(|m_{0,0}x|+|m_{0,1}y|+|m_{0,2}z|+|m_{0,3}|\big).
-\end{aligned}
-\tag{6.30}
-$$
+$$\begin{aligned} x'&=\big((m_{0,0}\otimes x)\oplus(m_{0,1}\otimes y)\big) \oplus\big((m_{0,2}\otimes z)\oplus m_{0,3}\big)\\ &\subset (m_{0,0}x+m_{0,1}y+m_{0,2}z+m_{0,3}) \pm\gamma_3\big(|m_{0,0}x|+|m_{0,1}y|+|m_{0,2}z|+|m_{0,3}|\big). \end{aligned} \quad\text{(6.30)}$$
 
 Thus the absolute error in the result is bounded by
 
-$$
-\gamma_3\big(|m_{0,0}x|+|m_{0,1}y|+|m_{0,2}z|+|m_{0,3}|\big),
-$$
+$$\gamma_3\big(|m_{0,0}x|+|m_{0,1}y|+|m_{0,2}z|+|m_{0,3}|\big),$$
 
 with analogous bounds for $y'$ and $z'$:
 
@@ -5938,27 +5649,15 @@ p_error.z = gamma(3) * (abs(m[2][0]*x) + abs(m[2][1]*y)
 
 Now suppose $\mathbf p$ has errors bounded by $\delta x,\delta y,\delta z$. The transformed $x$ coordinate is
 
-$$
-x'=\big(m_{0,0}\otimes(x\pm\delta x)\oplus m_{0,1}\otimes(y\pm\delta y)\big)
-    \oplus\big(m_{0,2}\otimes(z\pm\delta z)\oplus m_{0,3}\big),
-$$
+$$x'=\big(m_{0,0}\otimes(x\pm\delta x)\oplus m_{0,1}\otimes(y\pm\delta y)\big) \oplus\big(m_{0,2}\otimes(z\pm\delta z)\oplus m_{0,3}\big),$$
 
 and applying the definitions of floating-point addition and multiplication gives
 
-$$
-x'=m_{0,0}(x\pm\delta x)(1\pm\varepsilon_m)^3
-   +m_{0,1}(y\pm\delta y)(1\pm\varepsilon_m)^3
-   +m_{0,2}(z\pm\delta z)(1\pm\varepsilon_m)^3
-   +m_{0,3}(1\pm\varepsilon_m)^2.
-$$
+$$x'=m_{0,0}(x\pm\delta x)(1\pm\varepsilon_m)^3 +m_{0,1}(y\pm\delta y)(1\pm\varepsilon_m)^3 +m_{0,2}(z\pm\delta z)(1\pm\varepsilon_m)^3 +m_{0,3}(1\pm\varepsilon_m)^2.$$
 
 Switching to $\gamma$, the absolute error is bounded by
 
-$$
-\gamma_3\sum_{i=0}^{2}\big(|m_{0,i}|\,|p_i|+|m_{0,i}|\,\delta_{p_i}\big)
-+|m_{0,3}|\,\gamma_2.
-\tag{6.31}
-$$
+$$\gamma_3\sum_{i=0}^{2}\big(|m_{0,i}|\,|p_i|+|m_{0,i}|\,\delta_{p_i}\big) +|m_{0,3}|\,\gamma_2. \quad\text{(6.31)}$$
 
 We omit `〈Compute error for transformed approximate p〉`, which is nearly 20 lines of direct translation of Equation (6.31).
 
@@ -5991,9 +5690,7 @@ Consider a computed point at the origin with plane equation $f(x,y,z)=n_xx+n_yy+
 
 For corners $(\pm\delta_x,\pm\delta_y,\pm\delta_z)$,
 
-$$
-d=|n_x|\delta_x+|n_y|\delta_y+|n_z|\delta_z.
-$$
+$$d=|n_x|\delta_x+|n_y|\delta_y+|n_z|\delta_z.$$
 
 Offsetting along the normal has advantages: assuming local planarity (reasonable at the tiny error scale), it crosses the surface with the shortest possible move, and minimizing ray-origin displacement preserves shadow and reflection detail. `OffsetRayOrigin()` implements this.
 
@@ -6156,9 +5853,7 @@ Some algorithms always return a $t$ with the correct sign, which is the best cas
 
 **Triangles.** `Interval` has overhead we prefer to avoid for common shapes. For triangles the final $t$ comes from three edge functions $e_i$ and a barycentric-weighted sum of transformed vertex $z$ coordinates,
 
-$$
-t=\frac{e_0z_0+e_1z_1+e_2z_2}{e_0+e_1+e_2}.
-$$
+$$t=\frac{e_0z_0+e_1z_1+e_2z_2}{e_0+e_1+e_2}.$$
 
 Bounding the error successively in these terms lets us conservatively check positivity.
 
@@ -6173,9 +5868,7 @@ Bounding the error successively in these terms lets us conservatively check posi
 
 For a ray with origin $\mathbf o$, direction $\mathbf d$, and vertex $\mathbf p$, the projected $z$ coordinate is
 
-$$
-z=(1\oslash d_z)\otimes(p_z\ominus o_z).
-$$
+$$z=(1\oslash d_z)\otimes(p_z\ominus o_z).$$
 
 The maximum error in each $z_i$ is bounded by $\gamma_3|z_i|$, so a conservative bound takes the maximum over the three vertices:
 
@@ -6196,11 +5889,7 @@ let delta_z = gamma(3) * max_z_t;
 
 The edge functions are differences of products of transformed $x$ and $y$ positions:
 
-$$
-e_0=(x_1\otimes y_2)\ominus(y_1\otimes x_2),\quad
-e_1=(x_2\otimes y_0)\ominus(y_2\otimes x_0),\quad
-e_2=(x_0\otimes y_1)\ominus(y_0\otimes x_1).
-$$
+$$e_0=(x_1\otimes y_2)\ominus(y_1\otimes x_2),\quad e_1=(x_2\otimes y_0)\ominus(y_2\otimes x_0),\quad e_2=(x_0\otimes y_1)\ominus(y_0\otimes x_1).$$
 
 **〈Compute deltaX and deltaY terms for triangle t error bounds〉 ≡ 384**
 
@@ -6290,33 +5979,19 @@ Difficulty: ➊ straightforward, ➋ moderate, ➌ challenging.
 
 The implicit forms of the quadrics in this chapter all have the form
 
-$$
-ax^2+bxy+cxz+dy^2+eyz+fz^2+g=0,
-$$
+$$ax^2+bxy+cxz+dy^2+eyz+fz^2+g=0,$$
 
 where some constants $a\ldots g$ are zero. More generally, define quadric surfaces by
 
-$$
-ax^2+by^2+cz^2+2dxy+2eyz+2fxz+2gx+2hy+2iz+j=0,
-$$
+$$ax^2+by^2+cz^2+2dxy+2eyz+2fxz+2gx+2hy+2iz+j=0,$$
 
 where most parameters $a\ldots j$ do not correspond directly to the earlier $a\ldots g$. In this form a quadric is represented by a 4×4 symmetric matrix $Q$:
 
-$$
-Q=\begin{pmatrix}
-a & d & f & g\\
-d & b & e & h\\
-f & e & c & i\\
-g & h & i & j
-\end{pmatrix},
-\qquad \mathbf p^T Q\,\mathbf p=0.
-$$
+$$Q=\begin{pmatrix} a & d & f & g\\ d & b & e & h\\ f & e & c & i\\ g & h & i & j \end{pmatrix}, \qquad \mathbf p^T Q\,\mathbf p=0.$$
 
 First show that the matrix $Q'$ representing a quadric transformed by $M$ is
 
-$$
-Q'=(M^T)^{-1} Q\, M^{-1}.
-$$
+$$Q'=(M^T)^{-1} Q\, M^{-1}.$$
 
 To do so, show that for any point $\mathbf p$ with $\mathbf p^TQ\mathbf p=0$, applying $M$ gives $\mathbf p'=M\mathbf p$ and we want $(\mathbf p')^TQ'\mathbf p'=0$. Next, substitute the ray equation into the general quadric equation to compute coefficients of the quadratic equation in terms of entries of $Q$, to pass to `Quadratic()`.
 

@@ -75,9 +75,7 @@ As an example of these ideas, consider a 1D function (which we will interchangea
 
 **Figure 8.1 (transcribed plot).** Panel (a) plots a smooth, band-limited-looking curve with values in $[0,1]$; black dots mark samples near $x = 0.25, 1.0, 1.5, 2.2, 3.7, 4.5, 5.5, 6.2, 7.3, 8.0$. Panel (b) connects those dots with straight segments. Formally, piecewise-linear reconstruction from samples spaced $T$ apart is
 
-$$
-\tilde f(x) = \sum_i f(iT)\, r(x - iT), \qquad r(x) = \max(0,\, 1 - |x|).
-$$
+$$\tilde f(x) = \sum_i f(iT)\, r(x - iT), \qquad r(x) = \max(0,\, 1 - |x|).$$
 
 Fourier analysis can be used to evaluate the quality of the match between the reconstructed function and the original. This section will introduce the main ideas of Fourier analysis with enough detail to work through some parts of the sampling and reconstruction processes but will omit proofs of many properties and skip details that are not directly relevant to the sampling algorithms used in pbrt. The "Further Reading" section of this chapter has pointers to more detailed information about these topics.
 
@@ -99,25 +97,17 @@ Most functions can be decomposed into a weighted sum of shifted sinusoids. This 
 
 The Fourier transform of a 1D function $f(x)$ is[^2]
 
-$$
-F(\omega) = \int_{-\infty}^{\infty} f(x)\, e^{-i 2\pi \omega x}\, dx.
-\tag{8.1}
-$$
+$$F(\omega) = \int_{-\infty}^{\infty} f(x)\, e^{-i 2\pi \omega x}\, dx. \quad\text{(8.1)}$$
 
 (Recall that $e^{ix} = \cos x + i\sin x$, where $i = \sqrt{-1}$.) For simplicity, here we will consider only even functions where $f(-x) = f(x)$, in which case the Fourier transform of $f$ has no imaginary terms. The new function $F$ is a function of frequency, $\omega$.[^3] We will denote the Fourier transform operator by $\mathcal{F}$, such that $\mathcal{F}\{f(x)\} = F(\omega)$. $\mathcal{F}$ is clearly a linear operator—that is, $\mathcal{F}\{af(x)\} = a\mathcal{F}\{f(x)\}$ for any scalar $a$, and $\mathcal{F}\{f(x) + g(x)\} = \mathcal{F}\{f(x)\} + \mathcal{F}\{g(x)\}$. The Fourier transform has a straightforward generalization to multidimensional functions where $\omega$ is a corresponding multidimensional value, though we will generally stick to the 1D case for notational simplicity.
 
 Equation (8.1) is called the Fourier *analysis* equation, or sometimes just the Fourier transform. We can also transform from the frequency domain back to the spatial domain using the Fourier *synthesis* equation, or the inverse Fourier transform:
 
-$$
-f(x) = \int_{-\infty}^{\infty} F(\omega)\, e^{i 2\pi \omega x}\, d\omega.
-\tag{8.2}
-$$
+$$f(x) = \int_{-\infty}^{\infty} F(\omega)\, e^{i 2\pi \omega x}\, d\omega. \quad\text{(8.2)}$$
 
 *Table 8.1 shows a number of important functions and their frequency space representations. A number of these functions are based on the Dirac delta distribution, which is defined such that $\int \delta(x)\, dx = 1$, and for all $x \ne 0$, $\delta(x) = 0$. An important consequence of these properties is that*
 
-$$
-\int_{-\infty}^{\infty} f(x)\,\delta(x)\, dx = f(0).
-$$
+$$\int_{-\infty}^{\infty} f(x)\,\delta(x)\, dx = f(0).$$
 
 The delta distribution cannot be expressed as a standard mathematical function, but instead is generally thought of as the limit of a unit-area box function centered at the origin with width approaching 0.
 
@@ -139,27 +129,19 @@ The delta distribution cannot be expressed as a standard mathematical function, 
 
 Using frequency space analysis, we can now formally investigate the properties of sampling. Recall that the sampling process requires us to choose a set of equally spaced sample positions and compute the function's value at those positions. Formally, this corresponds to multiplying the function by a "shah," or "impulse train," function,
 
-$$
-\Sha_T(x) = T \sum_{i=-\infty}^{\infty} \delta(x - iT),
-$$
+$$\Sha_T(x) = T \sum_{i=-\infty}^{\infty} \delta(x - iT),$$
 
 an infinite sum of equally spaced delta functions, where $T$ defines the period, or sampling rate. This formal definition of sampling is illustrated in Figure 8.4. The multiplication yields an infinite sequence of values of the function at equally spaced points:
 
-$$
-\Sha_T(x)\, f(x) = T \sum_{i=-\infty}^{\infty} \delta(x - iT)\, f(iT).
-$$
+$$\Sha_T(x)\, f(x) = T \sum_{i=-\infty}^{\infty} \delta(x - iT)\, f(iT).$$
 
 These sample values can be used to define a reconstructed function by choosing a reconstruction filter function $r(x)$ and computing the convolution
 
-$$
-\tilde f = \big(\Sha_T(x)\, f(x)\big) \otimes r(x),
-$$
+$$\tilde f = \big(\Sha_T(x)\, f(x)\big) \otimes r(x),$$
 
 where the convolution operation $\otimes$ is defined as
 
-$$
-f(x) \otimes g(x) = \int_{-\infty}^{\infty} f(x')\, g(x - x')\, dx'.
-$$
+$$f(x) \otimes g(x) = \int_{-\infty}^{\infty} f(x')\, g(x - x')\, dx'.$$
 
 *Figure 8.5: The sum of instances of the triangle reconstruction filter, shown with dashed lines, gives the reconstructed approximation to the original function, shown with a solid line.*
 
@@ -167,9 +149,7 @@ $$
 
 For reconstruction, convolution gives a weighted sum of scaled instances of the reconstruction filter centered at the sample points:
 
-$$
-\tilde f(x) = T \sum_{i=-\infty}^{\infty} f(iT)\, r(x - iT).
-$$
+$$\tilde f(x) = T \sum_{i=-\infty}^{\infty} f(iT)\, r(x - iT).$$
 
 For example, in Figure 8.1, the triangle reconstruction filter, $r(x) = \max(0, 1 - |x|)$, was used. Figure 8.5 shows the scaled triangle functions used for that example.
 
@@ -179,15 +159,11 @@ We can gain a deeper understanding of the sampling process by analyzing the samp
 
 An important idea used in Fourier analysis is the fact that the Fourier transform of the product of two functions $\mathcal{F}\{f(x)g(x)\}$ can be shown to be the convolution of their individual Fourier transforms $F(\omega)$ and $G(\omega)$:
 
-$$
-\mathcal{F}\{f(x)\,g(x)\} = F(\omega) \otimes G(\omega).
-$$
+$$\mathcal{F}\{f(x)\,g(x)\} = F(\omega) \otimes G(\omega).$$
 
 It is similarly the case that convolution in the spatial domain is equivalent to multiplication in the frequency domain:
 
-$$
-\mathcal{F}\{f(x) \otimes g(x)\} = F(\omega)\, G(\omega).
-$$
+$$\mathcal{F}\{f(x) \otimes g(x)\} = F(\omega)\, G(\omega).$$
 
 These properties are derived in the standard references on Fourier analysis. Using these ideas, the original sampling step in the spatial domain, where the product of the shah function and the original function $f(x)$ is found, can be equivalently described by the convolution of $F(\omega)$ with another shah function in frequency space.
 
@@ -207,34 +183,21 @@ Now that we have this infinite set of copies of the function's spectrum, how do 
 
 In order to throw away all but the center copy of the spectrum, we multiply by a box function of the appropriate width (Figure 8.7). The box function $\Pi_T(x)$ of width $T$ is defined as
 
-$$
-\Pi_T(x) =
-\begin{cases}
-1/T & |x| < T/2, \\
-0   & \text{otherwise},
-\end{cases}
-$$
+$$\Pi_T(x) = \begin{cases} 1/T & |x| < T/2, \\ 0 & \text{otherwise}, \end{cases}$$
 
 with Fourier transform $\operatorname{sinc}(x) = \sin(\pi x)/(\pi x)$. This multiplication step corresponds to convolution with the reconstruction filter in the spatial domain. This is the ideal sampling and reconstruction process. To summarize:
 
-$$
-\tilde F(\omega) = \big(F(\omega) \otimes \Sha_{1/T}(\omega)\big)\, \Pi_{1/T}(\omega).
-$$
+$$\tilde F(\omega) = \big(F(\omega) \otimes \Sha_{1/T}(\omega)\big)\, \Pi_{1/T}(\omega).$$
 
 This is a remarkable result: we have been able to determine the exact frequency space representation of $f(x)$, purely by sampling it at a set of regularly spaced points. Other than knowing that the function was band limited, no additional information about the composition of the function was used.
 
 Applying the equivalent process in the spatial domain will likewise recover $f(x)$ exactly. Because the inverse Fourier transform of the box function is the sinc function, ideal reconstruction in the spatial domain is
 
-$$
-\tilde f = \big(f(x)\,\Sha_T(x)\big) \otimes \operatorname{sinc}_T(x),
-\qquad \operatorname{sinc}_T(x) = \operatorname{sinc}(Tx),
-$$
+$$\tilde f = \big(f(x)\,\Sha_T(x)\big) \otimes \operatorname{sinc}_T(x), \qquad \operatorname{sinc}_T(x) = \operatorname{sinc}(Tx),$$
 
 and thus
 
-$$
-\tilde f(x) = \sum_{i=-\infty}^{\infty} \operatorname{sinc}(x - iT)\, f(iT).
-$$
+$$\tilde f(x) = \sum_{i=-\infty}^{\infty} \operatorname{sinc}(x - iT)\, f(iT).$$
 
 Unfortunately, because the sinc function has infinite extent, it is necessary to use all the sample values $f(Ti)$ to compute any particular value of $\tilde f$ in the spatial domain. Filters with finite spatial extent are preferable for practical implementations even though they do not reconstruct the original function perfectly.
 
@@ -260,9 +223,7 @@ Because the copies are added together, the resulting spectrum no longer looks li
 
 A possible solution to the problem of overlapping spectra is to simply increase the sampling rate until the copies of the spectrum are sufficiently far apart not to overlap, thereby eliminating aliasing completely. The sampling theorem tells us exactly what rate is required. This theorem says that as long as the frequency of uniformly spaced sample points $\omega_s$ is greater than twice the maximum frequency present in the signal $\omega_0$,
 
-$$
-\omega_s > 2\omega_0,
-$$
+$$\omega_s > 2\omega_0,$$
 
 it is possible to reconstruct the original signal perfectly from the samples. This minimum sampling frequency is called the *Nyquist frequency*.
 
@@ -282,15 +243,11 @@ A related issue is that the pixels in an image are naturally defined at discrete
 
 A better convention is to truncate continuous coordinates $c$ to discrete coordinates $d$ by
 
-$$
-d = \lfloor c \rfloor,
-$$
+$$d = \lfloor c \rfloor,$$
 
 and convert from discrete to continuous by
 
-$$
-c = d + \tfrac{1}{2}.
-$$
+$$c = d + \tfrac{1}{2}.$$
 
 In this case, the range of continuous coordinates for the discrete range $[x_0, x_1]$ is naturally $[x_0, x_1 + 1)$, and the resulting code is much simpler (Heckbert 1990a). This convention, which we have adopted in pbrt, is shown in Figure 8.10.
 
@@ -319,17 +276,13 @@ flowchart TB
 
 The application of the principles of sampling theory to the 2D case of sampling and reconstructing images of rendered scenes is straightforward: we have an image, which we can think of as a function of 2D $(x, y)$ image locations to radiance values,
 
-$$
-f(x, y) \rightarrow L.
-$$
+$$f(x, y) \rightarrow L.$$
 
 It is useful to generalize the definition of the scene function to a higher-dimensional function that also depends on the time $t$ and $(u, v)$ lens position at which it is sampled. Because the rays from the camera are based on these five quantities, varying any of them gives a different ray and thus a potentially different value of $f$. For a particular image position, the radiance at that point will generally vary across both time (if there are moving objects in the scene) and position on the lens (if the camera has a finite-aperture lens).
 
 Even more generally, because the integrators defined in Chapters 13 through 15 use Monte Carlo integration to estimate the radiance along a given ray, they may return a different radiance value when repeatedly given the same ray. If we further extend the scene radiance function to include sample values used by the integrator (e.g., values used to choose points on area light sources for illumination computations), we have an even higher-dimensional image function
 
-$$
-f(x, y, t, u, v, i_1, i_2, \ldots) \rightarrow L.
-$$
+$$f(x, y, t, u, v, i_1, i_2, \ldots) \rightarrow L.$$
 
 Sampling all of these dimensions well is an important part of generating high-quality imagery efficiently. For example, if we ensure that nearby $(x, y)$ positions on the image tend to have dissimilar $(u, v)$ positions on the lens, the resulting rendered images will have less error because each sample is more likely to account for information about the scene that its neighboring samples do not. The `Sampler` class implementations later in this chapter will address the issue of sampling all of these dimensions effectively.
 
@@ -355,9 +308,7 @@ In general, adjacent sample values cannot tell us with certainty what is really 
 
 Recall that we would like to multiply the original function's spectrum with a box filter with width chosen so that frequencies above the Nyquist limit are removed. In the spatial domain, this corresponds to convolving the original function with a sinc filter,
 
-$$
-f(x) \otimes \operatorname{sinc}(2\omega_s x).
-$$
+$$f(x) \otimes \operatorname{sinc}(2\omega_s x).$$
 
 In practice, we can use a filter with finite extent that works well. The frequency space representation of this filter can help clarify how well it approximates the behavior of the ideal sinc filter.
 
@@ -373,17 +324,13 @@ Given a fixed sampling rate, the remaining option to improve image quality is to
 
 A concept known as the power spectral density (PSD) is helpful for this task. For a function $f(x)$ that is represented by $F(\omega)$ in the Fourier basis, the PSD is defined as
 
-$$
-P_f(\omega) = F(\omega)\,\overline{F(\omega)},
-$$
+$$P_f(\omega) = F(\omega)\,\overline{F(\omega)},$$
 
 where $\overline{F(\omega)}$ is the complex conjugate of $F(\omega)$. (Under the assumption of an even function $f(x)$, $P_f(\omega) = F(\omega)^2$.) Because the PSD discards information about the phase of the signal, the original Fourier coefficients cannot be recovered from it.
 
 A useful property of the PSD is that the PSD of the product of two functions $f$ and $g$ in the spatial domain is given by the convolution of their PSDs in the Fourier domain:
 
-$$
-P_{fg}(\omega) = P_f(\omega) \otimes P_g(\omega).
-$$
+$$P_{fg}(\omega) = P_f(\omega) \otimes P_g(\omega).$$
 
 This property follows directly from Equation (8.3). Therefore, if we have a point-sampling technique represented by a function $s(x)$ that is defined as a sum of Dirac delta distributions (as the shah function was), then the frequency content from sampling a function $f$ is given by the convolution of $P_f$ and $P_s$.
 
@@ -395,16 +342,11 @@ In some cases, the PSD of a sampling pattern can be derived analytically: doing 
 
 The ideal sampling pattern's PSD would have a single delta distribution spike at the origin and be zero everywhere else: in that case, sampling would exactly replicate $P_f$. Unfortunately, such a sampling pattern would require an infinite sampling density. (This can be understood by considering the inverse Fourier transform of $S(\omega) = \delta(\omega)$, which is a constant function.) The PSD makes it possible to analyze the effects of stochastic sampling. One way to do so is through *jittering*, which adds uniform random offsets to regularly spaced sample points. With uniform random numbers $\xi_i$ between 0 and 1, a random set of samples based on the impulse train is
 
-$$
-s_T(x) = \sum_{i=-\infty}^{\infty} \delta\Big(x - \big(i + \tfrac{1}{2} - \xi_i\big)T\Big).
-$$
+$$s_T(x) = \sum_{i=-\infty}^{\infty} \delta\Big(x - \big(i + \tfrac{1}{2} - \xi_i\big)T\Big).$$
 
 It is possible to derive the expectation of the analytic PSD of this sampling strategy:[^5]
 
-$$
-P_s(\omega) = 1 - \operatorname{sinc}^2\!\left(\frac{T\omega}{2}\right) + \delta(\omega).
-\tag{8.7}
-$$
+$$P_s(\omega) = 1 - \operatorname{sinc}^2\!\left(\frac{T\omega}{2}\right) + \delta(\omega). \quad\text{(8.7)}$$
 
 This function is graphed in Figure 8.13. Note that there is a spike at the origin, that its value is otherwise close to 0 in the low frequencies, and that it settles in to an increasingly narrow range around 1 at the higher frequencies.
 
@@ -458,59 +400,37 @@ Our first step is to introduce the Fourier *series* representation of functions,
 
 The Fourier series represents a function using an infinite set of coefficients $f_j$ for all integer-valued $j \ge 0$. (We use $j$ to index coefficients in order to avoid confusion with the use of $i$ for the unit imaginary number.) For the $[0,1)$ domain, the coefficients are given by[^6]
 
-$$
-f_j = \int_{[0,1)} f(x)\, e^{-i 2\pi j x}\, dx.
-\tag{8.8}
-$$
+$$f_j = \int_{[0,1)} f(x)\, e^{-i 2\pi j x}\, dx. \quad\text{(8.8)}$$
 
 (Domains other than $[0,1)$ can be handled using a straightforward reparameterization.)
 
 Expressed using the Fourier series coefficients, the original function is
 
-$$
-f(x) = \sum_{j \in \mathbb{Z}} f_j\, e^{-i 2\pi j x}.
-\tag{8.9}
-$$
+$$f(x) = \sum_{j \in \mathbb{Z}} f_j\, e^{-i 2\pi j x}. \quad\text{(8.9)}$$
 
 It can be shown that the continuous Fourier transform corresponds to the limit of taking the Fourier series with an infinite extent.
 
 The PSD of a function in the Fourier series basis is given by the product of each coefficient with its complex conjugate,
 
-$$
-P_f(j) = f_j\,\overline{f_j}.
-$$
+$$P_f(j) = f_j\,\overline{f_j}.$$
 
 In order to analyze Monte Carlo integration in frequency space, we will start by defining the sampling function $s(x)$ for a set of sample points $x_i$ as the averaged sum of $n$ samples, each represented by a delta distribution,
 
-$$
-s(x) = \frac{1}{n}\sum_{i=1}^{n} \delta(x - x_i).
-\tag{8.10}
-$$
+$$s(x) = \frac{1}{n}\sum_{i=1}^{n} \delta(x - x_i). \quad\text{(8.10)}$$
 
 Given the sampling function, it is possible to rewrite the Monte Carlo estimator as an integral:
 
-$$
-\int_{[0,1)} f(x)\, dx \approx \frac{1}{n}\sum_{i=1}^{n} f(x_i)
-= \int_{[0,1)} f(x)\, s(x)\, dx.
-$$
+$$\int_{[0,1)} f(x)\, dx \approx \frac{1}{n}\sum_{i=1}^{n} f(x_i) = \int_{[0,1)} f(x)\, s(x)\, dx.$$
 
 It may seem like we are moving backward: after all, the point of Monte Carlo integration is to transform integrals into sums. However, this transformation is key to being able to apply the Fourier machinery to the problem.
 
 If we substitute the Fourier series expansion of Equation (8.9) into Equation (8.10), we can find that
 
-$$
-\int_{[0,1)} f(x)\, s(x)\, dx
-= \sum_{j \in \mathbb{Z}} \overline{f_j}\, s_j.
-$$
+$$\int_{[0,1)} f(x)\, s(x)\, dx = \sum_{j \in \mathbb{Z}} \overline{f_j}\, s_j.$$
 
 From the definition of the Fourier series coefficients, we know that $f_0 = \overline{f_0} = \int f(x)\, dx$. Furthermore, $s_0 = 1$ from the definition of $s(x)$ and the assumption of uniform and unweighted samples. Therefore, the error in the Monte Carlo estimate is given by
 
-$$
-\left|\int f(x)\, dx - \int f(x)\, s(x)\, dx\right|
-= \left|f_0 - \sum_{j \in \mathbb{Z}} \overline{f_j}\, s_j\right|
-= \left|\sum_{j \in \mathbb{Z}^{*}} \overline{f_j}\, s_j\right|,
-\tag{8.11}
-$$
+$$\left|\int f(x)\, dx - \int f(x)\, s(x)\, dx\right| = \left|f_0 - \sum_{j \in \mathbb{Z}} \overline{f_j}\, s_j\right| = \left|\sum_{j \in \mathbb{Z}^{*}} \overline{f_j}\, s_j\right|, \quad\text{(8.11)}$$
 
 where $\mathbb{Z}^{*}$ denotes the set of all integers except for zero.
 
@@ -518,19 +438,13 @@ Equation (8.11) is the key result that gives us insight about integration error.
 
 Using Equation (8.11) with the definition of variance, it can be shown that the variance of the estimator is given by the sum of products of $f(x)$'s and $s(x)$'s PSDs:
 
-$$
-V\!\left[\frac{1}{n}\sum_{i=1}^{n} f(x_i)\right]
-= \sum_{j \in \mathbb{Z}^{*}} P_f(j)\, P_s(j).
-\tag{8.12}
-$$
+$$V\!\left[\frac{1}{n}\sum_{i=1}^{n} f(x_i)\right] = \sum_{j \in \mathbb{Z}^{*}} P_f(j)\, P_s(j). \quad\text{(8.12)}$$
 
 This gives a clear direction about how to reduce variance: it is best if the power spectrum of the sampling pattern is low where the function's power spectrum is high. In rendering, the function is generally not available analytically, let alone in the Fourier series basis, so we follow the usual expectation that the function has most of its frequency content in lower frequencies. This assumption argues for a sampling pattern with its energy concentrated in higher frequencies and minimal energy in the lower frequencies—precisely the same blue noise criterion that we earlier saw was effective for antialiasing.
 
 An insight that directly follows from Equation (8.12) is that with uniform random sampling (i.e., white noise), $P_s$ is the constant $1/n$, which leads to the variance of
 
-$$
-\frac{1}{n}\sum_{j \in \mathbb{Z}^{*}} P_f(j) = O\!\left(\frac{1}{n}\right),
-$$
+$$\frac{1}{n}\sum_{j \in \mathbb{Z}^{*}} P_f(j) = O\!\left(\frac{1}{n}\right),$$
 
 which is the same variance of the Monte Carlo estimator that was derived earlier using different means in Section 2.1.4. More generally, if the PSD for a sampling technique can be asymptotically bounded, it can be shown that the technique exhibits a higher rate of variance reduction given a suitable function being integrated. One example is that in 2D, a jittered sampling pattern can achieve $O(n^{-2})$ variance, given a smooth integrand.
 
@@ -590,18 +504,11 @@ The basic idea of discrepancy is that the quality of a set of points in a $d$-di
 
 To compute the discrepancy of a set of points, we first pick a family of shapes $\mathcal{B}$ that are subsets of $[0,1)^d$. For example, boxes with one corner at the origin are often used. This corresponds to
 
-$$
-\mathcal{B} = \big\{[0, v_1] \times [0, v_2] \times \cdots \times [0, v_d]\big\},
-\qquad 0 \le v_i < 1.
-$$
+$$\mathcal{B} = \big\{[0, v_1] \times [0, v_2] \times \cdots \times [0, v_d]\big\}, \qquad 0 \le v_i < 1.$$
 
 Given a set of $n$ sample points $P = \{x_1, \ldots, x_n\}$, the discrepancy of $P$ with respect to $\mathcal{B}$ is[^8]
 
-$$
-D_n(\mathcal{B}, P) = \sup_{b \in \mathcal{B}}
-\left| \frac{\#\{x_i \in b\}}{n} - V(b) \right|,
-\tag{8.13}
-$$
+$$D_n(\mathcal{B}, P) = \sup_{b \in \mathcal{B}} \left| \frac{\#\{x_i \in b\}}{n} - V(b) \right|, \quad\text{(8.13)}$$
 
 where $\#\{x_i \in b\}$ is the number of points in $b$ and $V(b)$ is the volume of $b$.
 
@@ -609,36 +516,25 @@ The intuition for why Equation (8.13) is a reasonable measure of quality is that
 
 For some point sets, the discrepancy can be computed analytically. For example, consider the set of points in one dimension
 
-$$
-x_i = \frac{i}{n}.
-$$
+$$x_i = \frac{i}{n}.$$
 
 We can see that the star discrepancy of $x_i$ is
 
-$$
-D_n^*(x_1, \ldots, x_n) = \frac{1}{n}.
-$$
+$$D_n^*(x_1, \ldots, x_n) = \frac{1}{n}.$$
 
 For example, take the interval $b = [0, 1/n)$. Then $V(b) = 1/n$, but $\#\{x_i \in b\} = 0$. This interval (and the intervals $[0, 2/n)$, etc.) is the interval where the largest differences between volume and fraction of points inside the volume are seen.
 
 The star discrepancy of this point set can be improved by modifying it slightly:
 
-$$
-x_i = \frac{i - \tfrac{1}{2}}{n}.
-$$
+$$x_i = \frac{i - \tfrac{1}{2}}{n}.$$
 
 Then
 
-$$
-D_n^*(x_i) = \frac{1}{2n}.
-$$
+$$D_n^*(x_i) = \frac{1}{2n}.$$
 
 The bounds for the star discrepancy of a sequence of points in one dimension have been shown to be
 
-$$
-D_n^*(x_i) = \frac{1}{2n} + \max_{1 \le i \le n}
-\left| x_i - \frac{2i - 1}{2n} \right|.
-$$
+$$D_n^*(x_i) = \frac{1}{2n} + \max_{1 \le i \le n} \left| x_i - \frac{2i - 1}{2n} \right|.$$
 
 Thus, the earlier set from the equation for $x_i = i/n$ has the lowest possible discrepancy for a sequence in 1D. In general, it is much easier to analyze and compute bounds for the discrepancy of sequences in 1D than for those in higher dimensions. When it is not possible to derive the discrepancy of a sampling technique analytically, it can be estimated numerically by constructing a large number of shapes $b$, computing their discrepancy, and reporting the maximum value found.
 
@@ -646,10 +542,7 @@ The astute reader will notice that according to the discrepancy measure, the uni
 
 A $d$-dimensional sequence of points is said to have low discrepancy if its discrepancy is of the order
 
-$$
-D_n = O\!\left(\frac{(\log n)^d}{n}\right).
-\tag{8.15}
-$$
+$$D_n = O\!\left(\frac{(\log n)^d}{n}\right). \quad\text{(8.15)}$$
 
 These bounds are the best that are known for arbitrary $d$.
 
@@ -657,17 +550,11 @@ Low-discrepancy point sets and sequences are often generated using deterministic
 
 The Koksma–Hlawka inequality relates the discrepancy of a set of points used for integration to the error of an estimate of the integral of a function $f$. It is:
 
-$$
-\left| \int f(x)\, dx - \frac{1}{n}\sum_{i} f(x_i) \right|
-\le D_n(\mathcal{B}, P)\, V_f,
-$$
+$$\left| \int f(x)\, dx - \frac{1}{n}\sum_{i} f(x_i) \right| \le D_n(\mathcal{B}, P)\, V_f,$$
 
 where $V_f$ is the total variation of the function $f$ being integrated. It is defined as
 
-$$
-V_f = \sup_{0 = y_1 < y_2 < \cdots < y_m = 1}
-\sum_{i=1}^{m} \big| f(y_i) - f(y_{i+1}) \big|,
-$$
+$$V_f = \sup_{0 = y_1 < y_2 < \cdots < y_m = 1} \sum_{i=1}^{m} \big| f(y_i) - f(y_{i+1}) \big|,$$
 
 over all partitions of the $[0,1)$ domain at points $y_i$. In essence, the total variation represents how quickly the function's value ever changes between points, and the discrepancy represents how effective the points used for integration are at catching the function's variation.
 
@@ -1061,9 +948,7 @@ Generating a 2D sample follows a similar approach, though the stratum index has 
 
 With a $d$-dimensional stratification, the star discrepancy of jittered points has been shown to be
 
-$$
-D_n^* = O\!\left(n^{-2/d}\right),
-$$
+$$D_n^* = O\!\left(n^{-2/d}\right),$$
 
 which means that stratified samples do not qualify as having low discrepancy. The PSD of 2D stratified samples was plotted earlier, in Figure 8.17(a). Other than the central spike at the origin (at the center of the image), power is low at low frequencies and settles in to be fairly constant at higher frequencies, which means that this sampling approach is effective at transforming aliasing into high-frequency noise.
 
@@ -1075,38 +960,27 @@ The underlying goal of the `StratifiedSampler` is to generate a well-distributed
 
 Hammersley and Halton points are two closely related types of low-discrepancy points that are constructed using the *radical inverse*. The radical inverse is based on the fact that a positive integer value $a$ can be expressed in a base $b$ with a sequence of digits $d_m(a) \ldots d_2(a) d_1(a)$ uniquely determined by
 
-$$
-a = \sum_{i=1}^{m} d_i(a)\, b^{\,i-1},
-$$
+$$a = \sum_{i=1}^{m} d_i(a)\, b^{\,i-1},$$
 
 where all digits $d_i(a)$ are between 0 and $b - 1$.
 
 The radical inverse function $\Phi_b$ in base $b$ converts a nonnegative integer $a$ to a fractional value in $[0, 1)$ by reflecting these digits about the radix point:
 
-$$
-\Phi_b(a) = 0.d_1(a)\, d_2(a) \ldots d_m(a) = \sum_{i=1}^{m} d_i(a)\, b^{-i}.
-\tag{8.18}
-$$
+$$\Phi_b(a) = 0.d_1(a)\, d_2(a) \ldots d_m(a) = \sum_{i=1}^{m} d_i(a)\, b^{-i}. \quad\text{(8.18)}$$
 
 One of the simplest low-discrepancy sequences is the van der Corput sequence, which is a 1D sequence given by the radical inverse function in base 2:
 
-$$
-x_a = \Phi_2(a), \qquad a = 0, 1, \ldots
-$$
+$$x_a = \Phi_2(a), \qquad a = 0, 1, \ldots$$
 
 Note that van der Corput points are a point *sequence* because an arbitrary number of them can be generated in succession; the total number need not be specified in advance. (However, if the number of points $n$ is not a power of 2, then the gaps between points will be of different sizes.) Table 8.2 shows the first few values of the van der Corput sequence. Notice how it recursively splits the intervals of the 1D line in half, generating a sample point at the center of each interval. The discrepancy of this sequence is
 
-$$
-D_n^* = O\!\left(\frac{\log n}{n}\right),
-$$
+$$D_n^* = O\!\left(\frac{\log n}{n}\right),$$
 
 which is optimal.
 
 The $d$-dimensional Halton sequence is defined using the radical inverse base $b$, with a different base for each dimension. The bases used must all be relatively prime to each other, so a natural choice is to use the first $d$ prime numbers $(p_1, \ldots, p_d)$:
 
-$$
-x_a = \big(\Phi_2(a),\, \Phi_3(a),\, \Phi_5(a),\, \ldots,\, \Phi_{p_d}(a)\big).
-$$
+$$x_a = \big(\Phi_2(a),\, \Phi_3(a),\, \Phi_5(a),\, \ldots,\, \Phi_{p_d}(a)\big).$$
 
 *Table 8.2: The radical inverse $\Phi_2(a)$ of the first few nonnegative integers, computed in base 2. Notice how successive values of $\Phi_2(a)$ are not close to any of the previous values of $\Phi_2(a)$. As more and more values of the sequence are generated, samples are necessarily closer to previous samples, although with a minimum distance that is guaranteed to be reasonably good.*
 
@@ -1131,23 +1005,17 @@ $$
 
 Like the van der Corput sequence, the Halton sequence can be used even if the total number of samples needed is not known in advance; all prefixes of the sequence are well distributed, so as additional samples are added to the sequence, low discrepancy will be maintained. (However, its distribution is best when the total number of samples is the product of powers of the bases for integer $k_i$, i.e., $\prod p_i^{k_i}$.) The discrepancy of a $d$-dimensional Halton sequence is
 
-$$
-D_n^* = O\!\left(\frac{(\log n)^d}{n}\right),
-$$
+$$D_n^* = O\!\left(\frac{(\log n)^d}{n}\right),$$
 
 which is asymptotically optimal. If the number of samples $n$ is fixed, the Hammersley point set can be used, giving slightly lower discrepancy. Hammersley point sets are defined by
 
-$$
-x_a = \left(\frac{a}{n},\, \Phi_{b_1}(a),\, \Phi_{b_2}(a),\, \ldots,\, \Phi_{b_{d-1}}(a)\right),
-$$
+$$x_a = \left(\frac{a}{n},\, \Phi_{b_1}(a),\, \Phi_{b_2}(a),\, \ldots,\, \Phi_{b_{d-1}}(a)\right),$$
 
 again with $a = 0, 1, \ldots, n - 1$, where $n$ is the total number of samples to be taken, and as before all the bases $b_i$ are relatively prime. Figure 8.27(a) shows a plot of the first 216 points of the 2D Halton sequence and Figure 8.27(b) shows a set of 256 Hammersley points. (216 Halton points were used in this figure, since they are based on the radical inverses in base 2 and 3, and $2^3 3^3 = 216$.)
 
 The `radical_inverse()` function computes the radical inverse for a given number $a$ using the `base_index`th prime number as the base. It does so by computing the digits $d_i$ starting with $d_1$ and then computing a series of values $v_i$ where $v_1 = d_1$, $v_2 = b d_1 + d_2$, and in general
 
-$$
-v_n = b^{n-1} d_1 + b^{n-2} d_2 + \cdots + d_n.
-$$
+$$v_n = b^{n-1} d_1 + b^{n-2} d_2 + \cdots + d_n.$$
 
 (For example, with base 10, it would convert the value 1234 to 4321.) The value of $v_n$ can be found entirely using integer arithmetic, without accumulating any round-off error. The final value of the radical inverse is then found by converting to floating-point and multiplying by $1/b^m$, where $m$ is the number of digits in the value, to get the value in Equation (8.18). The factor for this multiplication is built up in `inv_base_m` as the digits are processed.
 
@@ -1201,11 +1069,7 @@ One disadvantage of the fact that the Hammersley set and Halton sequence are bot
 
 These issues can be addressed using techniques that randomize the points that are generated by these algorithms while still maintaining low discrepancy. A family of such techniques are based on randomizing the digits of each sample coordinate with random permutations. Over all permutations, each coordinate value is then uniformly distributed over $[0,1)$, unlike as with the original point. These techniques are often referred to as *scrambling*. Scrambling can be performed by defining a set of permutations $\pi_i$ for each base $b$, where each digit has a distinct permutation of $\{0, 1, \ldots, b - 1\}$ associated with it. (In the following, we will consider scrambling a single dimension of a $d$-dimensional sample point and thus drop the base $b$ from our notation, leaving it implicit. In practice, all dimensions are independently scrambled.) Given such a set of permutations, we can define the scrambled radical inverse where a corresponding permutation is applied to each digit:
 
-$$
-\Psi_b(a) = 0.\,\pi_1(d_1(a))\, \pi_2(d_2(a)) \ldots \pi_m(d_m(a))
-= \sum_{i=1}^{m} \pi_i(d_i(a))\, b^{-i}.
-\tag{8.20}
-$$
+$$\Psi_b(a) = 0.\,\pi_1(d_1(a))\, \pi_2(d_2(a)) \ldots \pi_m(d_m(a)) = \sum_{i=1}^{m} \pi_i(d_i(a))\, b^{-i}. \quad\text{(8.20)}$$
 
 Note that the same permutations $\pi_i$ must be used for generating all the sample points for a given base. There are a few subtleties related to the permutations. First, with the regular radical inverse, computation of a sample dimension's value can stop once the remaining digits $d_i$ are 0, as they will have no effect on the final result. With the scrambled radical inverse, the zero digits must continue to be processed. If they are not, then scrambling only corresponds to a permutation of the unscrambled sample values in each dimension, which does not give a uniform distribution over $[0, 1)$. (In practice, it is only necessary to consider enough digits so that any more digits make no difference to the result given the limits of floating-point precision.) Second, it is important that each digit has its own permutation. One way to see why this is important is to consider the trailing 0 digits: if the same permutation is used for all of them, then all scrambled values will have the same digit value repeating infinitely at their end. Once again, $[0, 1)$ would not be sampled uniformly. The choice of permutations can affect the quality of the resulting points. In the following implementation, we will use random permutations. That alone is enough to break up the structure of the points, as shown in Figure 8.28(b). However, carefully constructed deterministic permutations have been shown to reduce error for some integration problems. See the "Further Reading" section for more information.
 
@@ -1284,9 +1148,7 @@ fn scrambled_radical_inverse(base_index: usize, a: u64, perm: &DigitPermutation)
 
 An even more effective scrambling approach defines digit permutations that not only depend on the index of the current digit $i$, but that also depend on the values of the previous digits $d_1 d_2 \ldots d_{i-1}$. This approach is known as *Owen scrambling*, after its inventor. Remarkably, it can be shown that for a class of smooth functions, the integration error with this scrambling technique decreases at a rate
 
-$$
-O\!\left(n^{-3/2}\,(\log n)^{(d-1)/2}\right),
-$$
+$$O\!\left(n^{-3/2}\,(\log n)^{(d-1)/2}\right),$$
 
 which is a substantial improvement over the $O(n^{-1/2})$ error rate for regular Monte Carlo. The reason for this benefit can be understood in terms of Owen scrambling being more effective at breaking up structure in the sample values while still maintaining their low discrepancy. Its effect is easiest to see when considering the trailing zero digits that are present in all sample values: if they are all permuted with the same permutation at each digit, they will end up with the same values, which effectively means that there is some structure shared among all the samples. Owen scrambling eliminates this regularity, to the benefit of integration error. (It also benefits the earlier digits in a similar manner, though the connection is less immediately intuitive.) The challenge with Owen scrambling is that it is infeasible to explicitly store all the permutations, as the number of them that are required grows exponentially with the number of digits. In this case, we can once again take advantage of `permutation_element()` and its capability of permuting without explicitly representing the full permutation.
 
@@ -1396,12 +1258,7 @@ This operation—scaling by $b^m$—forms the core of being able to determine wh
 
 Given a value $x$, $0 \le x \le b^2 - 1$, we can find the first value $a$ that gives the value $x$ in the integer components. By definition, the digits of $x$ in base $b$ are $d_2(x)d_1(x)$. Thus, if $d_1(a) = d_2(x)$ and $d_2(a) = d_1(x)$, then the scaled value of $a$'s radical inverse will have an integer component equal to $x$. Computing the index of the first sample in a given pixel $(x, y)$ where the samples have been scaled by $(2^j, 3^k)$ involves computing the inverse radical inverse of the last $j$ digits of $x$ in base 2, which we will denote by $x_r$, and of the last $k$ digits of $y$ in base 3, $y_r$. This gives us a system of equations
 
-$$
-\begin{cases}
-x_r \equiv i \pmod{2^j}, \\
-y_r \equiv i \pmod{3^k},
-\end{cases}
-$$
+$$\begin{cases} x_r \equiv i \pmod{2^j}, \\ y_r \equiv i \pmod{3^k}, \end{cases}$$
 
 where the index $i$ that satisfies these equations is the index of a sample that lies within the given pixel, after scaling.
 
@@ -1550,32 +1407,21 @@ While the Halton sequence is effective for Monte Carlo integration, each radical
 
 The base-2 radical inverse can be computed more efficiently than the way that the base-agnostic `radical_inverse()` function computes it. The key is to take advantage of the fact that numbers are already represented in base 2 on digital computers. If $a$ is a 64-bit value, then
 
-$$
-a = \sum_{i=1}^{64} d_i(a)\, 2^{i-1},
-$$
+$$a = \sum_{i=1}^{64} d_i(a)\, 2^{i-1},$$
 
 where $d_i(a)$ are its bits. First, consider reversing its bits, still represented as an integer value, which gives
 
-$$
-\operatorname{reverse}(a) = \sum_{i=1}^{64} d_i(a)\, 2^{64-i}.
-$$
+$$\operatorname{reverse}(a) = \sum_{i=1}^{64} d_i(a)\, 2^{64-i}.$$
 
 If we then divide this value by $2^{64}$, we have
 
-$$
-\frac{\operatorname{reverse}(a)}{2^{64}} = \sum_{i=1}^{64} d_i(a)\, 2^{-i},
-$$
+$$\frac{\operatorname{reverse}(a)}{2^{64}} = \sum_{i=1}^{64} d_i(a)\, 2^{-i},$$
 
 which equals $\Phi_2(a)$ (recall Equation (8.18)). Thus, the base-2 radical inverse can equivalently be computed using a bit reverse and a power-of-two division. The division can be replaced with multiplication by the corresponding inverse power-of-two, which gives the same result with IEEE floating point. Some processors provide a native instruction that directly reverses the bits in a register; otherwise it can be done in $O(\log_2 n)$ operations, where $n$ is the number of bits. (See the WGSL `reverse_bits32()` helper in Section 8.6.3.) While the implementation of a function that generates Halton points could be optimized by taking advantage of this for the first dimension where $b = 2$, performance would not improve for any of the remaining dimensions, so the overall benefit would be low. The Sobol′ sequence uses $b = 2$ for all dimensions, which allows it to benefit in all cases from computers' use of base 2 internally. So that each dimension has a different set of sample values, it uses a different *generator matrix* for each dimension, where the generator matrices are carefully chosen so that the resulting sequence has low discrepancy.
 
 To see how generator matrices are used, consider an $n$-digit number $a$ in base $b$, where the $i$th digit of $a$ is $d_i(a)$ and where we have an $n \times n$ generator matrix $\mathbf{C}$. Then the corresponding sample point $x_a \in [0,1)$ is defined by
 
-$$
-x_a = \big[b^{-1}\ b^{-2}\ \cdots\ b^{-n}\big]\,
-\mathbf{C}\,
-\begin{bmatrix} d_1(a) \\ d_2(a) \\ \vdots \\ d_n(a) \end{bmatrix},
-\tag{8.22}
-$$
+$$x_a = \big[b^{-1}\ b^{-2}\ \cdots\ b^{-n}\big]\, \mathbf{C}\, \begin{bmatrix} d_1(a) \\ d_2(a) \\ \vdots \\ d_n(a) \end{bmatrix}, \quad\text{(8.22)}$$
 
 where all arithmetic is performed in the ring $\mathbb{Z}_b$ (in other words, when all operations are performed modulo $b$). This construction gives a total of $b^n$ points as $a$ ranges from 0 to $b^n - 1$. If the generator matrix is the identity matrix, then this definition corresponds to the regular radical inverse, base $b$. (It is worth pausing to make sure you see this connection between Equations (8.18) and (8.22) before continuing.) In this section, we will exclusively use $b = 2$ and $n = 32$. While introducing a $32 \times 32$ matrix to each dimension of the sample generation algorithm may not seem like a step toward better performance, we will see that in the end the sampling code can be mapped to an implementation that uses a small number of bit operations that perform this computation in an extremely efficient manner.
 
@@ -1583,16 +1429,7 @@ The first step toward high performance comes from the fact that we are working i
 
 Now consider the task of computing the $\mathbf{C}\,[d_i(a)]^T$ matrix-vector product; using the definition of matrix-vector multiplication, we have
 
-$$
-\mathbf{C}\,[d_i(a)]^T =
-\begin{bmatrix} c_{1,1} & c_{1,2} & \cdots & c_{1,n} \\
-                c_{2,1} & \ddots &        & c_{2,n} \\
-                \vdots  &        & \ddots & \vdots  \\
-                c_{n,1} & \cdots & \cdots & c_{n,n} \end{bmatrix}
-\begin{bmatrix} d_1(a) \\ d_2(a) \\ \vdots \\ d_n(a) \end{bmatrix}
-= d_1 \begin{bmatrix} c_{1,1} \\ c_{2,1} \\ \vdots \\ c_{n,1} \end{bmatrix}
-+ \cdots + d_n \begin{bmatrix} c_{1,n} \\ c_{2,n} \\ \vdots \\ c_{n,n} \end{bmatrix}.
-$$
+$$\mathbf{C}\,[d_i(a)]^T = \begin{bmatrix} c_{1,1} & c_{1,2} & \cdots & c_{1,n} \\ c_{2,1} & \ddots & & c_{2,n} \\ \vdots & & \ddots & \vdots \\ c_{n,1} & \cdots & \cdots & c_{n,n} \end{bmatrix} \begin{bmatrix} d_1(a) \\ d_2(a) \\ \vdots \\ d_n(a) \end{bmatrix} = d_1 \begin{bmatrix} c_{1,1} \\ c_{2,1} \\ \vdots \\ c_{n,1} \end{bmatrix} + \cdots + d_n \begin{bmatrix} c_{1,n} \\ c_{2,n} \\ \vdots \\ c_{n,n} \end{bmatrix}.$$
 
 In other words, for each digit of $d_i$ that has a value of 1, the corresponding column of $\mathbf{C}$ should be summed. This addition can in turn be performed efficiently in $\mathbb{Z}_2$: in that setting, addition corresponds to the bitwise exclusive OR operation. (Consider the combinations of the two possible operand values—0 and 1—and the result of adding them mod 2, and compare to the values computed by exclusive OR with the same operand values.) Thus, the multiplication $\mathbf{C}\,[d_i(a)]^T$ is just a matter of exclusive ORing together the columns $i$ of $\mathbf{C}$ where $d_i(a)$'s bit is 1. This computation is implemented in the `multiply_generator()` function.
 
@@ -1611,11 +1448,7 @@ fn multiply_generator(c: &[u32], mut a: u32) -> u32 {
 
 Going back to Equation (8.22), if we denote the column vector from the product $v = \mathbf{C}\,[d_i(a)]^T$, then
 
-$$
-x_a = \big[2^{-1}\ 2^{-2}\ \cdots\ 2^{-n}\big]\,
-\begin{bmatrix} v_1 \\ v_2 \\ \vdots \\ v_n \end{bmatrix}
-= \sum_{i=1}^{32} 2^{-i}\, v_i.
-$$
+$$x_a = \big[2^{-1}\ 2^{-2}\ \cdots\ 2^{-n}\big]\, \begin{bmatrix} v_1 \\ v_2 \\ \vdots \\ v_n \end{bmatrix} = \sum_{i=1}^{32} 2^{-i}\, v_i.$$
 
 Applying the same ideas as we did before to derive an efficient base-2 radical inverse algorithm, this value can also be computed by reversing the bits of $v$ and dividing by $2^{32}$. To save the small cost of reversing the bits, we can equivalently reverse the bits in all the columns of the generator matrix before passing it to `multiply_generator()`. We will use that convention in what follows.
 
@@ -1631,14 +1464,7 @@ The first two dimensions of the Sobol′ sequence are stratified in a very gener
 
 Not only are corresponding stratification constraints obeyed by any power-of-2 set of samples starting from the beginning of the sequence, but subsequent power-of-2-sized sets of samples fulfill them as well. More formally, any sequence of length $2^{l_1 + l_2}$ (where $l_i$ is a non-negative integer) satisfies this general stratification constraint. The set of elementary intervals in two dimensions, base 2, is defined as
 
-$$
-E = \left\{
-\left[\frac{a_1}{2^{l_1}}, \frac{a_1 + 1}{2^{l_1}}\right)
-\times
-\left[\frac{a_2}{2^{l_2}}, \frac{a_2 + 1}{2^{l_2}}\right)
-\right\},
-\qquad a_i \in \{0, 1, \ldots, 2^{l_i} - 1\},
-$$
+$$E = \left\{ \left[\frac{a_1}{2^{l_1}}, \frac{a_1 + 1}{2^{l_1}}\right) \times \left[\frac{a_2}{2^{l_2}}, \frac{a_2 + 1}{2^{l_2}}\right) \right\}, \qquad a_i \in \{0, 1, \ldots, 2^{l_i} - 1\},$$
 
 where the integers $l_i \ge 0$ satisfy $l_1 + l_2 \le m$ for the resolution $m$ of the point set (here the 32-bit fixed-point precision of the sample values). One sample from each of the first $2^{l_1 + l_2}$ values in the sequence will be in each of the elementary intervals. Furthermore, the same property is true for each subsequent set of $2^{l_1 + l_2}$ values. Such a sequence is called a $(0, 2)$-sequence.
 
@@ -1699,9 +1525,7 @@ impl FastOwenScrambler {
 
 Its implementation builds on the fact that in base 2, if a number is multiplied by an even value, then the value of any particular bit in it only affects the bits above it in the result. Equivalently, for any bit in the result, it is only affected by the bits below it and the even multiplicand. One way to see why this is so is to consider long multiplication (as taught in grade school) applied to binary numbers. Given two $n$-digit binary numbers $a$ and $b$ where $d_i(b)$ is the $i$th digit of $b$, then using Equation (8.18), we have
 
-$$
-a \cdot b = a \sum_{i=1}^{n} d_i(b)\, 2^{i-1} = \sum_{i=1}^{n} d_i(b)\, \big(a \ll (i-1)\big).
-$$
+$$a \cdot b = a \sum_{i=1}^{n} d_i(b)\, 2^{i-1} = \sum_{i=1}^{n} d_i(b)\, \big(a \ll (i-1)\big).$$
 
 Thus, for any digit $i > 1$ where $d_i(b)$ is one, the value of $a$ is shifted $i - 1$ bits to the left and added to the final result and so any digit of the result only depends on lower digits of $a$.
 
@@ -1814,15 +1638,11 @@ fn sobol_interval_to_index(log2_scale: u32, sample_index: u64, p: Point2i) -> u6
 
 The general approach used to derive the algorithm it implements is similar to that used by the Halton sampler in its `start_pixel_sample()` method. Here, scaling by a power of two means that the base-2 logarithm of the scale gives the number of digits of the $\mathbf{C}[d_i(a)]^T$ product that form the scaled sample's integer component. To find the values of $a$ that give a particular integer value after scaling, we can compute the inverse of $\mathbf{C}$: given
 
-$$
-\mathbf{v} = \mathbf{C}\,[d_i(a)]^T,
-$$
+$$\mathbf{v} = \mathbf{C}\,[d_i(a)]^T,$$
 
 then equivalently
 
-$$
-\mathbf{C}^{-1}\,\mathbf{v} = [d_i(a)]^T.
-$$
+$$\mathbf{C}^{-1}\,\mathbf{v} = [d_i(a)]^T.$$
 
 We will not include the implementation of this function here.
 
@@ -2403,20 +2223,11 @@ Unlike the box and triangle filters, the Gaussian filter gives a reasonably good
 
 The Gaussian function is parameterized by the position of the peak $\mu$ and the standard deviation $\sigma$:
 
-$$
-g(x, \mu, \sigma) = \frac{1}{\sqrt{2\pi\sigma^2}}\, e^{-(x-\mu)^2 / (2\sigma^2)}.
-\tag{8.26}
-$$
+$$g(x, \mu, \sigma) = \frac{1}{\sqrt{2\pi\sigma^2}}\, e^{-(x-\mu)^2 / (2\sigma^2)}. \quad\text{(8.26)}$$
 
 Larger values of $\sigma$ cause a slower falloff, which leads to a blurrier image when the Gaussian is used as a filter. The `GaussianFilter` is centered at the origin, so $\mu = 0$. Further, the filter function subtracts the value of the Gaussian at the end of its extent $r$ from the filter value in order to make the filter go to 0 at its limit:
 
-$$
-f(x) =
-\begin{cases}
-g(x, 0, \sigma) - g(r, 0, \sigma) & |x| < r, \\
-0 & \text{otherwise}.
-\end{cases}
-$$
+$$f(x) = \begin{cases} g(x, 0, \sigma) - g(r, 0, \sigma) & |x| < r, \\ 0 & \text{otherwise}. \end{cases}$$
 
 For efficiency, the constructor precomputes the constant term for $g(r, 0, \sigma)$ in each direction. The product of the two 1D Gaussian functions gives the overall filter value according to Equation (8.26). The calls to `max()` ensure that the value of 0 is returned for points outside of the filter's extent.
 
@@ -2446,9 +2257,7 @@ impl Filter for GaussianFilter {
 
 The integral of the Gaussian is
 
-$$
-\int g(x, \mu, \sigma)\, dx = \tfrac{1}{2}\, \operatorname{erf}\!\left(\frac{\mu - x}{\sqrt{2}\,\sigma}\right),
-$$
+$$\int g(x, \mu, \sigma)\, dx = \tfrac{1}{2}\, \operatorname{erf}\!\left(\frac{\mu - x}{\sqrt{2}\,\sigma}\right),$$
 
 where `erf` is the error function. `GaussianIntegral()` evaluates its value over a given range. The filter function's integral can be computed by evaluating the Gaussian's integral over the filter's range and subtracting the integral of the offset that takes the filter to zero at the end of its extent.
 
@@ -2460,17 +2269,7 @@ Filter design is notoriously difficult, mixing mathematical analysis and percept
 
 The Mitchell filter has two parameters called $b$ and $c$. Although any values can be used for these parameters, Mitchell and Netravali recommend that they lie along the line $b + 2c = 1$. The Mitchell–Netravali filter is the product of 1D filter functions in the $x$ and $y$ directions and is therefore separable. The 1D function used in the Mitchell filter is an even function defined over the range $[-2, 2]$. This function is made by joining a cubic polynomial defined over $[0, 1]$ with another cubic polynomial defined over $[1, 2]$. This combined polynomial is also reflected around the $x = 0$ plane to give the complete function. These polynomials are controlled by the $b$ and $c$ parameters and are chosen carefully to guarantee $C^0$ and $C^1$ continuity at $x = 0$, $x = 1$, and $x = 2$. The polynomials are
 
-$$
-f(x) = \frac{1}{6}
-\begin{cases}
-(12 - 9b - 6c)|x|^3 + (-18 + 12b + 6c)|x|^2 + (6 - 2b)
-    & |x| < 1, \\[2pt]
-(-b - 6c)|x|^3 + (6b + 30c)|x|^2 + (-12b - 48c)|x| + (8b + 24c)
-    & 1 \le |x| < 2, \\[2pt]
-0 & \text{otherwise}.
-\end{cases}
-\tag{8.27}
-$$
+$$f(x) = \frac{1}{6} \begin{cases} (12 - 9b - 6c)|x|^3 + (-18 + 12b + 6c)|x|^2 + (6 - 2b) & |x| < 1, \\[2pt] (-b - 6c)|x|^3 + (6b + 30c)|x|^2 + (-12b - 48c)|x| + (8b + 24c) & 1 \le |x| < 2, \\[2pt] 0 & \text{otherwise}. \end{cases} \quad\text{(8.27)}$$
 
 `mitchell_1d()` evaluates this function. Its implementation is straightforward and is not included here. As a cubic polynomial, sampling this filter function directly would require inverting a quartic. Therefore, the `MitchellFilter` uses the `FilterSampler` for sampling. However, the function is easily integrated. The result is independent of the values of $b$ and $c$.
 
@@ -2499,9 +2298,7 @@ impl Filter for MitchellFilter {
 
 Finally, the `LanczosSincFilter` class implements a filter based on the sinc function. In practice, the sinc filter is often multiplied by another function that goes to 0 after some distance. This gives a filter function with finite extent. An additional parameter $\tau$ controls how many cycles the sinc function passes through before it is clamped to a value of 0. Figure 8.55 shows a graph of three cycles of the sinc function, along with a graph of the windowing function we use, which was developed by Lanczos. The Lanczos window is just the central lobe of the sinc function, scaled to cover the $\tau$ cycles:
 
-$$
-w(x) = \operatorname{sinc}\!\left(\frac{x}{\tau}\right) = \frac{\sin(\pi x / \tau)}{\pi x / \tau}.
-$$
+$$w(x) = \operatorname{sinc}\!\left(\frac{x}{\tau}\right) = \frac{\sin(\pi x / \tau)}{\pi x / \tau}.$$
 
 *Figure 8.55: Graphs of the Sinc Filter. (a) The sinc function, truncated after three cycles (blue line) and the Lanczos windowing function (red line). (b) The product of these two functions, as implemented in the `LanczosSincFilter`.*
 

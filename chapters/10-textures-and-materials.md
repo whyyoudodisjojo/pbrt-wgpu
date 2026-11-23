@@ -79,15 +79,11 @@ Consider an arbitrary texture function that is a function of position, $T(\mathb
 
 As a simple example of this idea, consider a 2D texture function $T(s, t)$ applied to a quadrilateral that is perpendicular to the $z$ axis and has corners at the world-space points $(0, 0, 0)$, $(1, 0, 0)$, $(1, 1, 0)$, and $(0, 1, 0)$. If an orthographic camera is placed looking down the $z$ axis such that the quadrilateral precisely fills the image plane and if points $\mathbf{p}$ on the quadrilateral are mapped to 2D $(s, t)$ texture coordinates by
 
-$$
-s = p_x,\qquad t = p_y,
-$$
+$$s = p_x,\qquad t = p_y,$$
 
 then the relationship between $(s, t)$ and screen $(x, y)$ pixels is straightforward:
 
-$$
-s = \frac{x}{x_r},\qquad t = \frac{y}{y_r},
-$$
+$$s = \frac{x}{x_r},\qquad t = \frac{y}{y_r},$$
 
 where the overall image resolution is $(x_r, y_r)$ (Figure 10.2). Thus, given a sample spacing of one pixel in the image plane, the sample spacing in $(s, t)$ texture parameter space is $(1/x_r,\,1/y_r)$, and the texture function must remove any detail at a higher frequency than can be represented at that sampling rate.
 
@@ -108,9 +104,7 @@ This relationship between pixel coordinates and texture coordinates, and thus th
 
 For more complex scene geometry, camera projections, and mappings to texture coordinates, it is much more difficult to precisely determine the relationship between image positions and texture parameter values. Fortunately, for texture antialiasing, we do not need to be able to evaluate $f(x, y)$ for arbitrary $(x, y)$ but just need to find the relationship between changes in pixel sample position and the resulting change in texture sample position at a particular point on the image. This relationship is given by the partial derivatives of this function, $\partial f/\partial x$ and $\partial f/\partial y$. For example, these can be used to find a first-order approximation to the value of $f$,
 
-$$
-f(x', y') \approx f(x, y) + \frac{\partial f}{\partial x}(x' - x) + \frac{\partial f}{\partial y}(y' - y).
-$$
+$$f(x', y') \approx f(x, y) + \frac{\partial f}{\partial x}(x' - x) + \frac{\partial f}{\partial y}(y' - y).$$
 
 If these partial derivatives are changing slowly with respect to the distances $x' - x$ and $y' - y$, this is a reasonable approximation. More importantly, the values of these partial derivatives give an approximation to the change in texture sample position for a shift of one pixel in the $x$ and $y$ directions, respectively, and thus directly yield the texture sampling rate. For example, in the previous quadrilateral example, $\partial s/\partial x = 1/x_r$, $\partial s/\partial y = 0$, $\partial t/\partial x = 0$, and $\partial t/\partial y = 1/y_r$.
 
@@ -165,16 +159,11 @@ The key to estimating the derivatives is the assumption that the surface is loca
 
 For this approximation, we need the plane through the point $\mathbf{p}$ intersected by the main ray that is tangent to the surface. This plane is given by the implicit equation
 
-$$
-a x + b y + c z + d = 0,
-$$
+$$a x + b y + c z + d = 0,$$
 
 where $a = n_x$, $b = n_y$, $c = n_z$, and $d = -(\mathbf{n}\cdot\mathbf{p})$. We can then compute the intersection points $\mathbf{p}_x$ and $\mathbf{p}_y$ between the auxiliary rays $\mathbf{r}_x$ and $\mathbf{r}_y$ and this plane (Figure 10.3). These new points give an approximation to the partial derivatives of position on the surface $\partial\mathbf{p}/\partial x$ and $\partial\mathbf{p}/\partial y$, based on forward differences:
 
-$$
-\frac{\partial\mathbf{p}}{\partial x} \approx \mathbf{p}_x - \mathbf{p},\qquad
-\frac{\partial\mathbf{p}}{\partial y} \approx \mathbf{p}_y - \mathbf{p}.
-$$
+$$\frac{\partial\mathbf{p}}{\partial x} \approx \mathbf{p}_x - \mathbf{p},\qquad \frac{\partial\mathbf{p}}{\partial y} \approx \mathbf{p}_y - \mathbf{p}.$$
 
 Because the differential rays are offset one pixel sample in each direction, there is no need to divide these differences by a $\Delta$ value, since $\Delta = 1$.
 
@@ -219,9 +208,7 @@ self.dpdy = py - self.p();
 
 The ray–plane intersection algorithm described in Section 6.1.2 gives the $t$ value where a ray described by origin $\mathbf{o}$ and direction $\mathbf{d}$ intersects a plane described by $a x + b y + c z + d = 0$:
 
-$$
-t = -\frac{\mathbf{n}\cdot\mathbf{o} + d}{\mathbf{n}\cdot\mathbf{d}}.
-$$
+$$t = -\frac{\mathbf{n}\cdot\mathbf{o} + d}{\mathbf{n}\cdot\mathbf{d}}.$$
 
 To compute this value for the two auxiliary rays, the plane’s $d$ coefficient is computed first. It is not necessary to compute the $a$, $b$, and $c$ coefficients, since they are available in $\mathbf{n}$. We can then apply the formula directly.
 
@@ -380,13 +367,7 @@ find_minimum_differentials(self);
 
 Given the intersection points $\mathbf{p}_x$ and $\mathbf{p}_y$, $\partial\mathbf{p}/\partial x$ and $\partial\mathbf{p}/\partial y$ can now be estimated by taking their differences with the main intersection point. To get final estimates of the partial derivatives, these vectors must be transformed back out into rendering space and scaled to account for the actual pixel sampling rate. As with the initial ray differentials that were generated in the 〈Scale camera ray differentials based on image sampling rate〉 fragment, these are scaled to account for the pixel sampling rate:
 
-$$
-\text{sppScale} =
-\begin{cases}
-1, & \text{if pixel jitter is disabled},\\[2pt]
-\max\!\left(0.125,\; 1\big/\sqrt{\text{samplesPerPixel}}\right), & \text{otherwise}.
-\end{cases}
-$$
+$$\text{sppScale} = \begin{cases} 1, & \text{if pixel jitter is disabled},\\[2pt] \max\!\left(0.125,\; 1\big/\sqrt{\text{samplesPerPixel}}\right), & \text{otherwise}. \end{cases}$$
 
 〈Estimate ∂p/∂x and ∂p/∂y in tangent plane at intersection point〉 ≡ 638
 
@@ -407,34 +388,15 @@ camera.approximate_dp_dxy(p(), n, time, samples_per_pixel, &mut dpdx, &mut dpdy)
 
 We now have both the partial derivatives $\partial\mathbf{p}/\partial u$ and $\partial\mathbf{p}/\partial v$ as well as, one way or another, $\partial\mathbf{p}/\partial x$ and $\partial\mathbf{p}/\partial y$. From them, we would now like to compute $\partial u/\partial x$, $\partial u/\partial y$, $\partial v/\partial x$, and $\partial v/\partial y$. Using the chain rule, we can find that (Equation 10.1; $\partial\mathbf{p}/\partial y$ has a similar expression with $\partial u/\partial x$ replaced by $\partial u/\partial y$ and $\partial v/\partial x$ replaced by $\partial v/\partial y$):
 
-$$
-\frac{\partial\mathbf{p}}{\partial x}
-= \frac{\partial\mathbf{p}}{\partial u}\frac{\partial u}{\partial x}
-+ \frac{\partial\mathbf{p}}{\partial v}\frac{\partial v}{\partial x}.
-\tag{10.1}
-$$
+$$\frac{\partial\mathbf{p}}{\partial x} = \frac{\partial\mathbf{p}}{\partial u}\frac{\partial u}{\partial x} + \frac{\partial\mathbf{p}}{\partial v}\frac{\partial v}{\partial x}. \quad\text{(10.1)}$$
 
 Equation (10.1) can be written as a matrix equation where the two following matrices that include $\partial\mathbf{p}$ have three rows, one for each of $\mathbf{p}$’s $x$, $y$, and $z$ components:
 
-$$
-\begin{pmatrix}
-\partial\mathbf{p}/\partial x
-\end{pmatrix}
-=
-\begin{pmatrix}
-\partial\mathbf{p}/\partial u & \partial\mathbf{p}/\partial v
-\end{pmatrix}
-\begin{pmatrix}
-\partial u/\partial x \\[2pt] \partial v/\partial x
-\end{pmatrix}.
-$$
+$$\begin{pmatrix} \partial\mathbf{p}/\partial x \end{pmatrix} = \begin{pmatrix} \partial\mathbf{p}/\partial u & \partial\mathbf{p}/\partial v \end{pmatrix} \begin{pmatrix} \partial u/\partial x \\[2pt] \partial v/\partial x \end{pmatrix}.$$
 
 This is an overdetermined linear system since there are three equations but only two unknowns, $\partial u/\partial x$ and $\partial v/\partial x$. An effective solution approach in this case is to apply linear least squares, which says that for a linear system of the form $A\mathbf{x} = \mathbf{b}$ with $A$ and $\mathbf{b}$ known, the least-squares solution for $\mathbf{x}$ is given by (Equation 10.2)
 
-$$
-\mathbf{x} = (A^{\mathsf T} A)^{-1} A^{\mathsf T}\,\mathbf{b}.
-\tag{10.2}
-$$
+$$\mathbf{x} = (A^{\mathsf T} A)^{-1} A^{\mathsf T}\,\mathbf{b}. \quad\text{(10.2)}$$
 
 In this case, $A = \bigl(\partial\mathbf{p}/\partial u \;\; \partial\mathbf{p}/\partial v\bigr)$, $\mathbf{b} = \bigl(\partial\mathbf{p}/\partial x\bigr)$, and $\mathbf{x} = \bigl(\partial u/\partial x \;\; \partial v/\partial x\bigr)^{\mathsf T}$. 〈Estimate screen-space change in (u, v)〉 ≡ 637, 964
 
@@ -470,23 +432,11 @@ In this case, $A = \bigl(\partial\mathbf{p}/\partial u \;\; \partial\mathbf{p}/\
 
 $A^{\mathsf T} A$ is a $2 \times 2$ matrix with elements given by dot products of partial derivatives of position (Equation 10.3):
 
-$$
-A^{\mathsf T} A =
-\begin{pmatrix}
-\frac{\partial\mathbf{p}}{\partial u}\cdot\frac{\partial\mathbf{p}}{\partial u} &
-\frac{\partial\mathbf{p}}{\partial u}\cdot\frac{\partial\mathbf{p}}{\partial v} \\[6pt]
-\frac{\partial\mathbf{p}}{\partial v}\cdot\frac{\partial\mathbf{p}}{\partial u} &
-\frac{\partial\mathbf{p}}{\partial v}\cdot\frac{\partial\mathbf{p}}{\partial v}
-\end{pmatrix}.
-\tag{10.3}
-$$
+$$A^{\mathsf T} A = \begin{pmatrix} \frac{\partial\mathbf{p}}{\partial u}\cdot\frac{\partial\mathbf{p}}{\partial u} & \frac{\partial\mathbf{p}}{\partial u}\cdot\frac{\partial\mathbf{p}}{\partial v} \\[6pt] \frac{\partial\mathbf{p}}{\partial v}\cdot\frac{\partial\mathbf{p}}{\partial u} & \frac{\partial\mathbf{p}}{\partial v}\cdot\frac{\partial\mathbf{p}}{\partial v} \end{pmatrix}. \quad\text{(10.3)}$$
 
 Its inverse is
 
-$$
-(A^{\mathsf T} A)^{-1} = \frac{1}{a c - b^2}
-\begin{pmatrix} c & -b \\ -b & a \end{pmatrix}.
-$$
+$$(A^{\mathsf T} A)^{-1} = \frac{1}{a c - b^2} \begin{pmatrix} c & -b \\ -b & a \end{pmatrix}.$$
 
 Note that in both matrices the two off-diagonal entries are equal. Thus, the fragment that computes the entries of $A^{\mathsf T} A$ only needs to compute three values. The inverse of the matrix determinant is computed here as well. If its value is infinite, the linear system cannot be solved; setting `invDet` to 0 causes the subsequently computed derivatives to be 0, which leads to point-sampled textures, the best remaining option in that case.
 
@@ -502,14 +452,7 @@ inv_det = if inv_det.is_finite() { inv_det } else { 0.0 };
 
 The $A^{\mathsf T}\mathbf{b}$ portion of the solution is easily computed. For the derivatives with respect to screen-space $x$, we have the two-element matrix (Equation 10.4)
 
-$$
-A^{\mathsf T}\mathbf{b}_x =
-\begin{pmatrix}
-\frac{\partial\mathbf{p}}{\partial u}\cdot\frac{\partial\mathbf{p}}{\partial x} \\[6pt]
-\frac{\partial\mathbf{p}}{\partial v}\cdot\frac{\partial\mathbf{p}}{\partial x}
-\end{pmatrix}.
-\tag{10.4}
-$$
+$$A^{\mathsf T}\mathbf{b}_x = \begin{pmatrix} \frac{\partial\mathbf{p}}{\partial u}\cdot\frac{\partial\mathbf{p}}{\partial x} \\[6pt] \frac{\partial\mathbf{p}}{\partial v}\cdot\frac{\partial\mathbf{p}}{\partial x} \end{pmatrix}. \quad\text{(10.4)}$$
 
 The solution for screen-space $y$ is analogous.
 
@@ -677,26 +620,15 @@ rd.ry_origin = p() + dpdy;
 
 Finding the directions of these rays is slightly trickier. If we know how much the reflected direction $\omega_i$ changes with respect to a shift of a pixel sample in the $x$ and $y$ directions on the image plane, we can use this information to approximate the direction of the offset rays. For example, the direction for the ray offset in $x$ is $\omega_i + \partial\omega_i/\partial x$. Recall from Equation (9.1) that for a normal $\mathbf{n}$ and outgoing direction $\omega_o$ the direction for perfect specular reflection is
 
-$$
-\omega_i = -\omega_o + 2(\omega_o\cdot\mathbf{n})\,\mathbf{n}.
-$$
+$$\omega_i = -\omega_o + 2(\omega_o\cdot\mathbf{n})\,\mathbf{n}.$$
 
 The partial derivatives of this expression are easily computed:
 
-$$
-\frac{\partial\omega_i}{\partial x}
-= -\frac{\partial\omega_o}{\partial x}
-+ 2\left[(\omega_o\cdot\mathbf{n})\frac{\partial\mathbf{n}}{\partial x}
-+ \frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x}\,\mathbf{n}\right].
-$$
+$$\frac{\partial\omega_i}{\partial x} = -\frac{\partial\omega_o}{\partial x} + 2\left[(\omega_o\cdot\mathbf{n})\frac{\partial\mathbf{n}}{\partial x} + \frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x}\,\mathbf{n}\right].$$
 
 Using the properties of the dot product, it can further be shown that
 
-$$
-\frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x}
-= \frac{\partial\omega_o}{\partial x}\cdot\mathbf{n}
-+ \omega_o\cdot\frac{\partial\mathbf{n}}{\partial x}.
-$$
+$$\frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x} = \frac{\partial\omega_o}{\partial x}\cdot\mathbf{n} + \omega_o\cdot\frac{\partial\mathbf{n}}{\partial x}.$$
 
 The value of $\partial\omega_o/\partial x$ has already been computed from the difference between the direction of the ray differential’s main ray and the direction of the `rx` offset ray, and all the other necessary quantities are readily available from the `SurfaceInteraction`. 〈Compute differential reflected directions〉 ≡ 645
 
@@ -711,20 +643,11 @@ rd.ry_direction = wi - dwody
 
 A similar process of differentiating the equation for the direction of a specularly transmitted ray, Equation (9.4), gives the equation to find the differential change in the transmitted direction. pbrt computes refracted rays as
 
-$$
-\omega_i = -\frac{1}{\eta}\,\omega_o + \mu\,\mathbf{n},
-\qquad
-\mu = \frac{1}{\eta}\cos\theta_o - \cos\theta_i,
-$$
+$$\omega_i = -\frac{1}{\eta}\,\omega_o + \mu\,\mathbf{n}, \qquad \mu = \frac{1}{\eta}\cos\theta_o - \cos\theta_i,$$
 
 where $\mathbf{n}$ is flipped if necessary to lie in the same hemisphere as $\omega_o$, and where $\eta$ is the relative index of refraction from $\omega_o$’s medium to $\omega_i$’s medium. If we denote the term in brackets by $\mu$, then we have $\omega_i = -(1/\eta)\omega_o + \mu\mathbf{n}$. Taking the partial derivative in $x$, we have
 
-$$
-\frac{\partial\omega_i}{\partial x}
-= -\frac{1}{\eta}\frac{\partial\omega_o}{\partial x}
-+ \mu\frac{\partial\mathbf{n}}{\partial x}
-+ \frac{\partial\mu}{\partial x}\,\mathbf{n}.
-$$
+$$\frac{\partial\omega_i}{\partial x} = -\frac{1}{\eta}\frac{\partial\omega_o}{\partial x} + \mu\frac{\partial\mathbf{n}}{\partial x} + \frac{\partial\mu}{\partial x}\,\mathbf{n}.$$
 
 Using some of the values found from computing specularly reflected ray differentials, we can find that we already know how to compute all of these values except for $\partial\mu/\partial x$. 〈Compute differential transmitted directions〉 ≡ 645
 
@@ -758,44 +681,23 @@ if dot(wo, n) < 0.0 {
 
 Returning to $\mu$ and considering $\partial\mu/\partial x$, we have
 
-$$
-\frac{\partial\mu}{\partial x}
-= \frac{1}{\eta}\frac{\partial\cos\theta_o}{\partial x}
-- \frac{\partial\cos\theta_i}{\partial x}.
-$$
+$$\frac{\partial\mu}{\partial x} = \frac{1}{\eta}\frac{\partial\cos\theta_o}{\partial x} - \frac{\partial\cos\theta_i}{\partial x}.$$
 
 Its first term can be evaluated with already known values. For the second term, we will start with Snell’s law, which gives
 
-$$
-\sin\theta_i = \frac{\eta_o}{\eta_i}\sin\theta_o = \frac{1}{\eta}\sin\theta_o.
-$$
+$$\sin\theta_i = \frac{\eta_o}{\eta_i}\sin\theta_o = \frac{1}{\eta}\sin\theta_o.$$
 
 If we square both sides of the equation and take the partial derivative $\partial/\partial x$, we find (this is the derivation shown in the scan that accompanied the page)
 
-$$
-2\cos\theta_i\frac{\partial\cos\theta_i}{\partial x}
-= \frac{\partial}{\partial x}\left(1 - \frac{1 - (\omega_o\cdot\mathbf{n})^2}{\eta^2}\right)
-= \frac{\partial}{\partial x}\left(\frac{(\omega_o\cdot\mathbf{n})^2}{\eta^2}\right)
-= \frac{2(\omega_o\cdot\mathbf{n})}{\eta^2}
-   \frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x}.
-$$
+$$2\cos\theta_i\frac{\partial\cos\theta_i}{\partial x} = \frac{\partial}{\partial x}\left(1 - \frac{1 - (\omega_o\cdot\mathbf{n})^2}{\eta^2}\right) = \frac{\partial}{\partial x}\left(\frac{(\omega_o\cdot\mathbf{n})^2}{\eta^2}\right) = \frac{2(\omega_o\cdot\mathbf{n})}{\eta^2} \frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x}.$$
 
 We now can solve for $\partial\cos\theta_i/\partial x$:
 
-$$
-\frac{\partial\cos\theta_i}{\partial x}
-= \frac{\omega_o\cdot\mathbf{n}}{\eta^2\cos\theta_i}
-  \frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x}.
-$$
+$$\frac{\partial\cos\theta_i}{\partial x} = \frac{\omega_o\cdot\mathbf{n}}{\eta^2\cos\theta_i} \frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x}.$$
 
 Putting it all together and simplifying, we have
 
-$$
-\frac{\partial\mu}{\partial x}
-= \left[\frac{1}{\eta}
-- \frac{\omega_o\cdot\mathbf{n}}{\eta^2\cos\theta_i}\right]
-  \frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x},
-$$
+$$\frac{\partial\mu}{\partial x} = \left[\frac{1}{\eta} - \frac{\omega_o\cdot\mathbf{n}}{\eta^2\cos\theta_i}\right] \frac{\partial(\omega_o\cdot\mathbf{n})}{\partial x},$$
 
 where in the implementation $\cos\theta_i = -\,\omega_i\cdot\mathbf{n}$ because the normal was flipped toward $\omega_o$; hence the plus sign in `1/eta + (1/eta²) * Dot(wo, n) / Dot(wi, n)`. The partial derivative in $y$ is analogous and the implementation follows. 〈Compute partial derivatives of μ〉 ≡ 646
 
@@ -825,34 +727,19 @@ If a ray undergoes many specular bounces, ray differentials sometimes drift off 
 
 To eliminate texture aliasing, it is necessary to remove frequencies in texture functions that are past the Nyquist limit for the texture sampling rate. The goal is to compute, with as few approximations as possible, the result of the ideal texture resampling process, which says that in order to evaluate a texture function $T$ at a point $(x, y)$ on the image without aliasing, we must first band-limit it, removing frequencies beyond the Nyquist limit by convolving it with the sinc filter:[^2]
 
-$$
-T_b(x, y)
-= \iint T\bigl(f(x', y')\bigr)\,
-  \operatorname{sinc}(x - x')\,\operatorname{sinc}(y - y')\,dx'\,dy',
-$$
+$$T_b(x, y) = \iint T\bigl(f(x', y')\bigr)\, \operatorname{sinc}(x - x')\,\operatorname{sinc}(y - y')\,dx'\,dy',$$
 
 where, as in Section 10.1.1, $f(x, y)$ maps pixel locations to points in the texture function’s domain. The band-limited function $T_b$ in turn should then be convolved with the pixel filter $g(x, y)$ centered at the $(x, y)$ point on the screen at which we want to evaluate the texture function:
 
-$$
-T(x, y) = \iint T_b(x', y')\,g(x - x', y - y')\,dx'\,dy'.
-$$
+$$T(x, y) = \iint T_b(x', y')\,g(x - x', y - y')\,dx'\,dy'.$$
 
 This gives the theoretically perfect value for the texture as projected onto the screen. In practice, there are many simplifications that can be made to this process. For example, a box filter may be used for the band-limiting step, and the second step is usually ignored completely, effectively acting as if the pixel filter were a box filter, which makes it possible to do the antialiasing work completely in texture space. (The EWA filtering algorithm in Section 10.4.4 is a notable exception in that it assumes a Gaussian pixel filter.) Assuming box filters then if, for example, the texture function is defined over parametric $(u, v)$ coordinates, the filtering task is to average it over a region in $(u, v)$:
 
-$$
-\bar{T}(u, v) = \frac{1}{(u_1 - u_0)(v_1 - v_0)}
-\int_{u_0}^{u_1}\int_{v_0}^{v_1} T(u', v')\,dv'\,du'.
-$$
+$$\bar{T}(u, v) = \frac{1}{(u_1 - u_0)(v_1 - v_0)} \int_{u_0}^{u_1}\int_{v_0}^{v_1} T(u', v')\,dv'\,du'.$$
 
 The extent of the filter region can be determined using the derivatives from the previous sections—for example, setting
 
-$$
-u_0 = u - \tfrac{1}{2}\max\!\left(\left|\frac{\partial u}{\partial x}\right|,
-                                   \left|\frac{\partial u}{\partial y}\right|\right),
-\qquad
-u_1 = u + \tfrac{1}{2}\max\!\left(\left|\frac{\partial u}{\partial x}\right|,
-                                   \left|\frac{\partial u}{\partial y}\right|\right),
-$$
+$$u_0 = u - \tfrac{1}{2}\max\!\left(\left|\frac{\partial u}{\partial x}\right|, \left|\frac{\partial u}{\partial y}\right|\right), \qquad u_1 = u + \tfrac{1}{2}\max\!\left(\left|\frac{\partial u}{\partial x}\right|, \left|\frac{\partial u}{\partial y}\right|\right),$$
 
 and similarly for $v_0$ and $v_1$ to conservatively specify the box’s extent.
 
@@ -968,27 +855,11 @@ fn map(&self, ctx: TextureEvalContext) -> TexCoord2D {
 
 For a general 2D mapping function $f(u, v) \to (s, t)$, the screen-space derivatives of $s$ and $t$ are given by the chain rule (Equation 10.6):
 
-$$
-\frac{\partial s}{\partial x}
-= \frac{\partial s}{\partial u}\frac{\partial u}{\partial x}
-+ \frac{\partial s}{\partial v}\frac{\partial v}{\partial x},
-\qquad
-\frac{\partial s}{\partial y}
-= \frac{\partial s}{\partial u}\frac{\partial u}{\partial y}
-+ \frac{\partial s}{\partial v}\frac{\partial v}{\partial y},
-$$
+$$\frac{\partial s}{\partial x} = \frac{\partial s}{\partial u}\frac{\partial u}{\partial x} + \frac{\partial s}{\partial v}\frac{\partial v}{\partial x}, \qquad \frac{\partial s}{\partial y} = \frac{\partial s}{\partial u}\frac{\partial u}{\partial y} + \frac{\partial s}{\partial v}\frac{\partial v}{\partial y},$$
 
 and analogously for $t$. Note that the `TextureEvalContext` provides the values $\partial(u, v)/\partial(x, y)$. In this case, $f(u, v) = (s_u u + d_u,\; s_v v + d_v)$ and so (Equation 10.7)
 
-$$
-\frac{\partial s}{\partial x} = s_u\frac{\partial u}{\partial x},
-\quad
-\frac{\partial s}{\partial y} = s_u\frac{\partial u}{\partial y},
-\quad
-\frac{\partial t}{\partial x} = s_v\frac{\partial v}{\partial x},
-\quad
-\frac{\partial t}{\partial y} = s_v\frac{\partial v}{\partial y}.
-$$
+$$\frac{\partial s}{\partial x} = s_u\frac{\partial u}{\partial x}, \quad \frac{\partial s}{\partial y} = s_u\frac{\partial u}{\partial y}, \quad \frac{\partial t}{\partial x} = s_v\frac{\partial v}{\partial x}, \quad \frac{\partial t}{\partial y} = s_v\frac{\partial v}{\partial y}.$$
 
 We will skip past the straightforward fragment that implements Equation (10.7) to initialize `dsdx`, `dsdy`, `dtdx`, and `dtdy`.
 
@@ -1033,11 +904,7 @@ fn sample_filtered(c: TexCoord2D) -> vec4<f32> {
 
 Another useful mapping effectively wraps a sphere around the object. Each point is projected along the vector from the sphere’s center through the point on to the sphere’s surface. Since this mapping is based on spherical coordinates, Equation (3.8) can be applied, with the angles it returns remapped to $[0, 1]$:
 
-$$
-s = \frac{\phi}{2\pi} = \frac{1}{2\pi}\operatorname{atan2}(y, x),
-\qquad
-t = \frac{\theta}{\pi} = \frac{1}{\pi}\arccos\!\frac{z}{\sqrt{x^2 + y^2 + z^2}}.
-$$
+$$s = \frac{\phi}{2\pi} = \frac{1}{2\pi}\operatorname{atan2}(y, x), \qquad t = \frac{\theta}{\pi} = \frac{1}{\pi}\arccos\!\frac{z}{\sqrt{x^2 + y^2 + z^2}}.$$
 
 *Figure 10.9 shows the use of this mapping with an object in the Kroken scene. The `SphericalMapping` further stores a transformation that is applied to points before this mapping is performed; this effectively allows the mapping sphere to be arbitrarily positioned and oriented with respect to the object.*
 
@@ -1087,28 +954,13 @@ fn map(&self, ctx: TextureEvalContext) -> TexCoord2D {
 
 For a mapping function based on a 3D point $\mathbf{p}$, the generalization of Equation (10.6) is
 
-$$
-\frac{\partial s}{\partial x}
-= \frac{\partial s}{\partial\mathbf{p}}\cdot\frac{\partial\mathbf{p}}{\partial x},
-\qquad
-\frac{\partial t}{\partial x}
-= \frac{\partial t}{\partial\mathbf{p}}\cdot\frac{\partial\mathbf{p}}{\partial x},
-$$
+$$\frac{\partial s}{\partial x} = \frac{\partial s}{\partial\mathbf{p}}\cdot\frac{\partial\mathbf{p}}{\partial x}, \qquad \frac{\partial t}{\partial x} = \frac{\partial t}{\partial\mathbf{p}}\cdot\frac{\partial\mathbf{p}}{\partial x},$$
 
 with analogous expressions for $y$. Taking the partial derivatives of the mapping function, Equation (10.8), we can find (Equation 10.10)
 
-$$
-\frac{\partial s}{\partial\mathbf{p}}
-= \frac{1}{2\pi(x^2 + y^2)}(-y,\; x,\; 0),
-$$
+$$\frac{\partial s}{\partial\mathbf{p}} = \frac{1}{2\pi(x^2 + y^2)}(-y,\; x,\; 0),$$
 
-$$
-\frac{\partial t}{\partial\mathbf{p}}
-= \frac{1}{\pi(x^2 + y^2 + z^2)}
-\left(\frac{xz}{\sqrt{x^2 + y^2}},\;
-      \frac{yz}{\sqrt{x^2 + y^2}},\;
-      -\sqrt{x^2 + y^2}\right).
-$$
+$$\frac{\partial t}{\partial\mathbf{p}} = \frac{1}{\pi(x^2 + y^2 + z^2)} \left(\frac{xz}{\sqrt{x^2 + y^2}},\; \frac{yz}{\sqrt{x^2 + y^2}},\; -\sqrt{x^2 + y^2}\right).$$
 
 These quantities are computed using the texture-space position $\mathbf{p}_t$. 〈Compute ∂s/∂p and ∂t/∂p for spherical mapping〉 ≡ 652
 
@@ -1189,9 +1041,7 @@ texture_from_render: Transform,
 
 Because the $s$ texture coordinate is computed in the same way as it is with the spherical mapping, the cylindrical mapping’s $\partial s/\partial\mathbf{p}$ matches the sphere’s in Equation (10.10). The partial derivative in $t$ can easily be seen to be
 
-$$
-\frac{\partial t}{\partial\mathbf{p}} = (0,\; 0,\; 1).
-$$
+$$\frac{\partial t}{\partial\mathbf{p}} = (0,\; 0,\; 1).$$
 
 <details>
 <summary>Reference / notes: CylindricalMapping 653…</summary>
@@ -1218,11 +1068,7 @@ Another classic mapping method is planar mapping. The point is effectively proje
 
 One way to define such a parameterized plane is with two nonparallel vectors $\mathbf{v}_s$ and $\mathbf{v}_t$ and offsets $d_s$ and $d_t$. The texture coordinates are given by the coordinates of the point with respect to the plane’s coordinate system, which are computed by taking the dot product of the vector from the point to the origin with each vector $\mathbf{v}_s$ and $\mathbf{v}_t$ and then adding the corresponding offset:
 
-$$
-s = d_s + \mathbf{p}\cdot\mathbf{v}_s,
-\qquad
-t = d_t + \mathbf{p}\cdot\mathbf{v}_t.
-$$
+$$s = d_s + \mathbf{p}\cdot\mathbf{v}_s, \qquad t = d_t + \mathbf{p}\cdot\mathbf{v}_t.$$
 
 〈PlanarMapping Definition〉 ≡
 
@@ -1249,9 +1095,7 @@ fn map(&self, ctx: TextureEvalContext) -> TexCoord2D {
 
 The planar mapping differentials can be computed directly using the partial derivatives of the mapping function, which are easily found. For example, the partial derivative of the $s$ texture coordinate with respect to screen-space $x$ is just
 
-$$
-\frac{\partial s}{\partial x} = \mathbf{v}_s\cdot\frac{\partial\mathbf{p}}{\partial x}.
-$$
+$$\frac{\partial s}{\partial x} = \mathbf{v}_s\cdot\frac{\partial\mathbf{p}}{\partial x}.$$
 
 〈Initialize partial derivatives of planar mapping (s, t) coordinates〉 ≡ 654
 
@@ -2022,9 +1866,7 @@ flowchart LR
 
 Since the resolutions of the levels of the pyramid are all powers of two, the resolution of level $l$ is $2^{n_{\text{levels}}-1-l}$. Therefore, to find the level with a texel spacing width $w$ requires solving for $l$:
 
-$$
-l = n_{\text{levels}} - 1 + \log_2 w.
-$$
+$$l = n_{\text{levels}} - 1 + \log_2 w.$$
 
 In general, this will be a floating-point value between two MIP map levels. Values of $l$ greater than the number of pyramid levels correspond to a filter width wider than the image, in which case the single pixel at the top level is returned. 〈Compute MIP Map level for width and handle very wide filter〉 ≡ 668
 
@@ -2210,9 +2052,7 @@ dst1[1] *= level_res[1] as Float;
 
 It next computes the coefficients of the implicit equation for the ellipse centered at the origin that is defined by the vectors $(ds_0, dt_0)$ and $(ds_1, dt_1)$. Placing the ellipse at the origin rather than at $(s, t)$ simplifies the implicit equation and the computation of its coefficients and can be easily corrected for when the equation is evaluated later. The general form of the implicit equation for all points $(s, t)$ inside such an ellipse is $e(s, t) = A s^2 + B s t + C t^2 < F$, although it is more computationally efficient to divide through by $F$ and express this as
 
-$$
-A s^2 + B s t + C t^2 < 1.
-$$
+$$A s^2 + B s t + C t^2 < 1.$$
 
 We will not derive the equations that give the values of the coefficients, although the interested reader can easily verify their correctness.[^5] 〈Find ellipse coefficients that bound EWA filter region〉 ≡ 671
 
@@ -2250,9 +2090,7 @@ let t1 = (st[1] + 2.0 * inv_det * v_sqrt).floor() as i32;
 
 Now that the bounding box is known, the EWA algorithm loops over the texels, transforming each one to the coordinate system where the texture lookup point $(s, t)$ is at the origin with a translation. It then evaluates the ellipse equation to see if the texel is inside the ellipse (Figure 10.19) and computes the filter weight for the texel if so. The final filtered value returned is a weighted sum over texels $T(s', t')$ inside the ellipse, where $f$ is the Gaussian filter function:
 
-$$
-T = \frac{\sum_{s',t'} f(r^2)\,T(s',t')}{\sum_{s',t'} f(r^2)}.
-$$
+$$T = \frac{\sum_{s',t'} f(r^2)\,T(s',t')}{\sum_{s',t'} f(r^2)}.$$
 
 〈Scan over ellipse bound and evaluate quadratic equation to filter image〉 ≡ 671
 
@@ -3105,9 +2943,7 @@ let vlen = length(ctx.shading.dpdv);
 
 Another way to define shading normals is via a `FloatTexture` that defines a displacement at each point on the surface: each point $\mathbf{p}$ has a displaced point $\mathbf{p}'$ associated with it, defined by
 
-$$
-\mathbf{p}' = \mathbf{p} + d(\mathbf{p})\,\mathbf{n}(\mathbf{p}),
-$$
+$$\mathbf{p}' = \mathbf{p} + d(\mathbf{p})\,\mathbf{n}(\mathbf{p}),$$
 
 where $d(\mathbf{p})$ is the offset returned by the displacement texture at $\mathbf{p}$ and $\mathbf{n}(\mathbf{p})$ is the surface normal at $\mathbf{p}$ (Figure 10.22). We can use this texture to compute shading normals so that the surface appears as if it actually had been offset by the displacement function, without modifying its geometry. This process is called bump mapping. For relatively small displacement functions, the visual effect of bump mapping can be quite convincing.
 
@@ -3125,9 +2961,7 @@ flowchart LR
 
 An example of bump mapping is shown in Figure 10.23, which shows part of the San Miguel scene rendered with and without bump mapping. There, the bump map gives the appearance of a substantial amount of detail in the walls and floors that is not actually present in the geometric model. Figure 10.24 shows one of the image maps used to define the bump function in Figure 10.23. The `BumpMap()` function is responsible for computing the effect of bump mapping at the point being shaded given a particular displacement texture. Its implementation is based on finding an approximation to the partial derivatives $\partial\mathbf{p}/\partial u$ and $\partial\mathbf{p}/\partial v$ of the displaced surface and using them in place of the surface’s actual partial derivatives to compute the shading normal. Assume that the original surface is defined by a parametric function $\mathbf{p}(u, v)$, and the bump offset function is a scalar function $d(u, v)$. Then the displaced surface is given by
 
-$$
-\mathbf{p}'(u, v) = \mathbf{p}(u, v) + d(u, v)\,\mathbf{n}(u, v),
-$$
+$$\mathbf{p}'(u, v) = \mathbf{p}(u, v) + d(u, v)\,\mathbf{n}(u, v),$$
 
 where $\mathbf{n}(u, v)$ is the surface normal at $(u, v)$. 〈Bump Mapping Function Definitions〉 ≡
 
@@ -3160,32 +2994,17 @@ fn bump_map<E: TextureEvaluator>(tex_eval: E, displacement: FloatTexture,
 
 The partial derivatives of $\mathbf{p}'$ can be found using the chain rule. For example, the partial derivative in $u$ is
 
-$$
-\frac{\partial\mathbf{p}'}{\partial u}
-= \frac{\partial\mathbf{p}}{\partial u}
-+ \frac{\partial d}{\partial u}\,\mathbf{n}
-+ d\,\frac{\partial\mathbf{n}}{\partial u}.
-\tag{10.11}
-$$
+$$\frac{\partial\mathbf{p}'}{\partial u} = \frac{\partial\mathbf{p}}{\partial u} + \frac{\partial d}{\partial u}\,\mathbf{n} + d\,\frac{\partial\mathbf{n}}{\partial u}. \quad\text{(10.11)}$$
 
 We have already computed the value of $\partial\mathbf{p}(u, v)/\partial u$; it is $\partial\mathbf{p}/\partial u$ and is available in the `TextureEvalContext` structure, which also stores the surface normal $\mathbf{n}(u, v)$ and the partial derivative $\partial\mathbf{n}(u, v)/\partial u = \partial\mathbf{n}/\partial u$. The displacement function $d(u, v)$ can be readily evaluated, which leaves $\partial d(u, v)/\partial u$ as the only remaining term. There are two possible approaches to finding the values of $\partial d(u, v)/\partial u$ and $\partial d(u, v)/\partial v$. One option would be to augment the `FloatTexture` interface with a method to compute partial derivatives of the underlying texture function. For example, for image map textures mapped to the surface directly using its $(u, v)$ parameterization, these partial derivatives can be computed by subtracting adjacent texels in the $u$ and $v$ directions. However, this approach is difficult to extend to complex procedural textures like some of the ones defined earlier in this chapter. Therefore, pbrt directly computes these values with forward differencing, without modifying the `FloatTexture` interface.
 
 Recall the definition of the partial derivative:
 
-$$
-\frac{\partial d}{\partial u}
-= \lim_{\Delta u \to 0}\frac{d(u + \Delta u, v) - d(u, v)}{\Delta u}.
-$$
+$$\frac{\partial d}{\partial u} = \lim_{\Delta u \to 0}\frac{d(u + \Delta u, v) - d(u, v)}{\Delta u}.$$
 
 Forward differencing approximates the value using a finite value of $\Delta u$ and evaluating $d(u, v)$ at two positions. Thus, the final expression for $\partial\mathbf{p}'/\partial u$ is the following (for simplicity, we have dropped the explicit dependence on $(u, v)$ for some of the terms):
 
-$$
-\frac{\partial\mathbf{p}'}{\partial u}
-\approx \frac{\partial\mathbf{p}}{\partial u}
-+ \frac{d(u + \Delta u, v) - d(u, v)}{\Delta u}\,\mathbf{n}
-+ d\,\frac{\partial\mathbf{n}}{\partial u}.
-\tag{10.12}
-$$
+$$\frac{\partial\mathbf{p}'}{\partial u} \approx \frac{\partial\mathbf{p}}{\partial u} + \frac{d(u + \Delta u, v) - d(u, v)}{\Delta u}\,\mathbf{n} + d\,\frac{\partial\mathbf{n}}{\partial u}. \quad\text{(10.12)}$$
 
 Interestingly enough, most bump-mapping implementations ignore the final term under the assumption that $d(u, v)$ is expected to be relatively small. (Since bump mapping is mostly useful for approximating small perturbations, this is a reasonable assumption.) The fact that many renderers do not compute the values $\partial\mathbf{n}/\partial u$ and $\partial\mathbf{n}/\partial v$ may also have something to do with this simplification. An implication of ignoring the last term is that the magnitude of the displacement function then does not affect the bump-mapped partial derivatives; adding a constant value to it globally does not affect the final result, since only differences of the bump function affect it. pbrt computes all three terms since it has $\partial\mathbf{n}/\partial u$ and $\partial\mathbf{n}/\partial v$ readily available, although in practice this final term rarely makes a visually noticeable difference. 〈Compute offset positions and evaluate displacement texture〉 ≡ 687
 

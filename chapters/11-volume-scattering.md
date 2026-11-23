@@ -119,21 +119,13 @@ flowchart LR
 
 Figure 11.3 shows the effect of absorption along a very short segment of a ray. Some amount of radiance $L_i(\mathrm{p},-\omega)$ is arriving at point $\mathrm{p}$, and we would like to find the exitant radiance $L_o(\mathrm{p},\omega)$ after absorption in the differential volume. This change in radiance along the differential ray length $\mathrm{d}t$ is described by the differential equation[^fn1]
 
-$$
-L_o(\mathrm{p},\omega) - L_i(\mathrm{p},-\omega)
-= \mathrm{d}L_o(\mathrm{p},\omega)
-= -\sigma_a(\mathrm{p},\omega)\,L_i(\mathrm{p},-\omega)\,\mathrm{d}t,
-$$
+$$L_o(\mathrm{p},\omega) - L_i(\mathrm{p},-\omega) = \mathrm{d}L_o(\mathrm{p},\omega) = -\sigma_a(\mathrm{p},\omega)\,L_i(\mathrm{p},-\omega)\,\mathrm{d}t,$$
 
 which says that the differential reduction in radiance along the beam is a linear function of its initial radiance. (This is another instance of the linearity assumption in radiometry: the fraction of light absorbed does not vary based on the ray's radiance, but is always a fixed fraction.)
 
 This differential equation can be solved to give the integral equation describing the total fraction of light absorbed for a ray. If we assume that the ray travels a distance $d$ in direction $\omega$ through the medium starting at point $\mathrm{p}$, the surviving portion of the original radiance is given by
 
-$$
-L_o(\mathrm{p},\omega)
-= \exp\!\left(-\int_0^d \sigma_a(\mathrm{p}+t\omega,\omega)\,\mathrm{d}t\right)
-\,L_i(\mathrm{p}-d\omega,\omega).
-$$
+$$L_o(\mathrm{p},\omega) = \exp\!\left(-\int_0^d \sigma_a(\mathrm{p}+t\omega,\omega)\,\mathrm{d}t\right) \,L_i(\mathrm{p}-d\omega,\omega).$$
 
 ### 11.1.2 EMISSION
 
@@ -141,10 +133,7 @@ While absorption reduces the amount of radiance along a ray as it passes through
 
 The differential equation that gives the change in radiance due to emission is
 
-$$
-\mathrm{d}L_o(\mathrm{p},\omega) = \sigma_a(\mathrm{p},\omega)\,L_e(\mathrm{p},\omega)\,\mathrm{d}t.
-\tag{11.1}
-$$
+$$\mathrm{d}L_o(\mathrm{p},\omega) = \sigma_a(\mathrm{p},\omega)\,L_e(\mathrm{p},\omega)\,\mathrm{d}t. \quad\text{(11.1)}$$
 
 The presence of $\sigma_a$ on the right hand side stems from the connection between how efficiently an object absorbs light and how efficiently it emits it, as was introduced in Section 4.4.1. That factor also ensures that the corresponding term has units of radiance when the differential equation is converted to an integral equation.
 
@@ -183,21 +172,15 @@ flowchart LR
 
 The probability of an out-scattering event occurring per unit distance is given by the scattering coefficient, $\sigma_s$. Similar to absorption, the reduction in radiance along a differential length $\mathrm{d}t$ due to out scattering is given by
 
-$$
-\mathrm{d}L_o(\mathrm{p},\omega) = -\sigma_s(\mathrm{p},\omega)\,L_i(\mathrm{p},-\omega)\,\mathrm{d}t.
-$$
+$$\mathrm{d}L_o(\mathrm{p},\omega) = -\sigma_s(\mathrm{p},\omega)\,L_i(\mathrm{p},-\omega)\,\mathrm{d}t.$$
 
 The total reduction in radiance due to absorption and out scattering is given by the sum $\sigma_a + \sigma_s$. This combined effect of absorption and out scattering is called attenuation or extinction. The sum of these two coefficients is denoted by the attenuation coefficient $\sigma_t$:
 
-$$
-\sigma_t(\mathrm{p},\omega) = \sigma_a(\mathrm{p},\omega) + \sigma_s(\mathrm{p},\omega).
-$$
+$$\sigma_t(\mathrm{p},\omega) = \sigma_a(\mathrm{p},\omega) + \sigma_s(\mathrm{p},\omega).$$
 
 Two values related to the attenuation coefficient will be useful in the following. The first is the single-scattering albedo, which is defined as
 
-$$
-\rho(\mathrm{p},\omega) = \frac{\sigma_s(\mathrm{p},\omega)}{\sigma_t(\mathrm{p},\omega)}.
-$$
+$$\rho(\mathrm{p},\omega) = \frac{\sigma_s(\mathrm{p},\omega)}{\sigma_t(\mathrm{p},\omega)}.$$
 
 Under the assumptions of radiometry, the single-scattering albedo is always between 0 and 1. It describes the probability of scattering (versus absorption) at a scattering event. The second is the mean free path, $1/\sigma_t(\mathrm{p},\omega)$, which gives the average distance that a ray travels in a medium with attenuation coefficient $\sigma_t(\mathrm{p},\omega)$ before interacting with a particle.
 
@@ -207,10 +190,7 @@ While out scattering reduces radiance along a ray due to scattering in different
 
 Assuming that the separation between particles is at least a few times the lengths of their radii, it is possible to ignore inter-particle interactions when describing scattering at a particular location. Under this assumption, the phase function $p(\omega,\omega')$ describes the angular distribution of scattered radiation at a point; it is the volumetric analog to the BSDF. The BSDF analogy is not exact, however. For example, phase functions have a normalization constraint: for all $\omega$, the condition
 
-$$
-\int_{\mathcal{S}^2} p(\omega,\omega')\,\mathrm{d}\omega' = 1
-\tag{11.2}
-$$
+$$\int_{\mathcal{S}^2} p(\omega,\omega')\,\mathrm{d}\omega' = 1 \quad\text{(11.2)}$$
 
 must hold.[^fn2] This constraint means that phase functions are probability distributions for scattering in a particular direction.
 
@@ -234,19 +214,11 @@ flowchart LR
 
 The total added radiance per unit distance due to in scattering is given by the source function $L_s$:
 
-$$
-\mathrm{d}L_o(\mathrm{p},\omega) = \sigma_t(\mathrm{p},\omega)\,L_s(\mathrm{p},\omega)\,\mathrm{d}t.
-$$
+$$\mathrm{d}L_o(\mathrm{p},\omega) = \sigma_t(\mathrm{p},\omega)\,L_s(\mathrm{p},\omega)\,\mathrm{d}t.$$
 
 It accounts for both volume emission and in scattering:
 
-$$
-L_s(\mathrm{p},\omega)
-= \frac{\sigma_a(\mathrm{p},\omega)}{\sigma_t(\mathrm{p},\omega)}\,L_e(\mathrm{p},\omega)
-+ \frac{\sigma_s(\mathrm{p},\omega)}{\sigma_t(\mathrm{p},\omega)}
-  \int_{\mathcal{S}^2} p(\mathrm{p},\omega_i,\omega)\,L_i(\mathrm{p},\omega_i)\,\mathrm{d}\omega_i.
-\tag{11.3}
-$$
+$$L_s(\mathrm{p},\omega) = \frac{\sigma_a(\mathrm{p},\omega)}{\sigma_t(\mathrm{p},\omega)}\,L_e(\mathrm{p},\omega) + \frac{\sigma_s(\mathrm{p},\omega)}{\sigma_t(\mathrm{p},\omega)} \int_{\mathcal{S}^2} p(\mathrm{p},\omega_i,\omega)\,L_i(\mathrm{p},\omega_i)\,\mathrm{d}\omega_i. \quad\text{(11.3)}$$
 
 The in-scattering portion of the source function is the product of the albedo and the amount of added radiance at a point, which is given by the spherical integral of the product of incident radiance and the phase function. Note that the source function is very similar to the scattering equation, Equation (4.14); the main difference is that there is no cosine term since the phase function operates on radiance rather than differential irradiance.
 
@@ -258,25 +230,15 @@ The scattering processes in Section 11.1 are all specified in terms of their loc
 
 Given the attenuation coefficient $\sigma_t$, the differential equation that describes extinction,
 
-$$
-\frac{\mathrm{d}L_o(\mathrm{p},\omega)}{\mathrm{d}t}
-= -\sigma_t(\mathrm{p},\omega)\,L_i(\mathrm{p},-\omega),
-\tag{11.4}
-$$
+$$\frac{\mathrm{d}L_o(\mathrm{p},\omega)}{\mathrm{d}t} = -\sigma_t(\mathrm{p},\omega)\,L_i(\mathrm{p},-\omega), \quad\text{(11.4)}$$
 
 can be solved to find the beam transmittance $T_r$, which gives the fraction of radiance that is transmitted between two points:
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}')
-= \exp\!\left(-\int_0^d \sigma_t(\mathrm{p}+t\omega,\omega)\,\mathrm{d}t\right).
-\tag{11.5}
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') = \exp\!\left(-\int_0^d \sigma_t(\mathrm{p}+t\omega,\omega)\,\mathrm{d}t\right). \quad\text{(11.5)}$$
 
 Here $d = \lVert \mathrm{p} - \mathrm{p}' \rVert$ is the distance between $\mathrm{p}$ and $\mathrm{p}'$, and $\omega$ is the normalized direction vector between them. Note that the transmittance is always between 0 and 1. Thus, if exitant radiance from a point $\mathrm{p}$ on a surface in a given direction $\omega$ is given by $L_o(\mathrm{p},\omega)$, then after accounting for extinction the incident radiance at another point $\mathrm{p}'$ in direction $-\omega$ is
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}')\,L_o(\mathrm{p},\omega).
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}')\,L_o(\mathrm{p},\omega).$$
 
 This idea is illustrated in Figure 11.9.
 
@@ -310,43 +272,27 @@ Not only is transmittance useful for modeling the attenuation of light within pa
 
 Two useful properties of beam transmittance are that transmittance from a point to itself is 1, $T_r(\mathrm{p}\to\mathrm{p}) = 1$, and in a vacuum $\sigma_t = 0$ and so $T_r(\mathrm{p}\to\mathrm{p}') = 1$ for all $\mathrm{p}'$. Furthermore, if the attenuation coefficient satisfies the directional symmetry $\sigma_t(\omega) = \sigma_t(-\omega)$ or does not vary with direction $\omega$ and only varies as a function of position, then the transmittance between two points is the same in both directions:
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}') = T_r(\mathrm{p}'\to\mathrm{p}).
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') = T_r(\mathrm{p}'\to\mathrm{p}).$$
 
 This property follows directly from Equation (11.5).
 
 Another important property, true in all media, is that transmittance is multiplicative along points on a ray:
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}'') = T_r(\mathrm{p}\to\mathrm{p}')\,T_r(\mathrm{p}'\to\mathrm{p}''),
-\tag{11.6}
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}'') = T_r(\mathrm{p}\to\mathrm{p}')\,T_r(\mathrm{p}'\to\mathrm{p}''), \quad\text{(11.6)}$$
 
 for all points $\mathrm{p}'$ between $\mathrm{p}$ and $\mathrm{p}''$ (Figure 11.11). This property is useful for volume scattering implementations, since it makes it possible to incrementally compute transmittance at multiple points along a ray: transmittance from the origin to a point $T_r(\mathrm{o}\to\mathrm{p})$ can be computed by taking the product of transmittance to a previous point $T_r(\mathrm{o}\to\mathrm{p}')$ and the transmittance of the segment between the previous and the current point $T_r(\mathrm{p}'\to\mathrm{p})$.
 
 The negated exponent in the definition of $T_r$ in Equation (11.5) is called the optical thickness between the two points. It is denoted by the symbol $\tau$:
 
-$$
-\tau(\mathrm{p}\to\mathrm{p}') = \int_0^d \sigma_t(\mathrm{p}+t\omega,\omega)\,\mathrm{d}t,
-\qquad T_r(\mathrm{p}\to\mathrm{p}') = e^{-\tau(\mathrm{p}\to\mathrm{p}')}.
-$$
+$$\tau(\mathrm{p}\to\mathrm{p}') = \int_0^d \sigma_t(\mathrm{p}+t\omega,\omega)\,\mathrm{d}t, \qquad T_r(\mathrm{p}\to\mathrm{p}') = e^{-\tau(\mathrm{p}\to\mathrm{p}')}.$$
 
 In a homogeneous medium, $\sigma_t$ is a constant, so the integral that defines $\tau$ is trivially evaluated, giving Beer's law:
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}') = e^{-\sigma_t d}.
-\tag{11.7}
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') = e^{-\sigma_t d}. \quad\text{(11.7)}$$
 
 It may appear that a straightforward application of Monte Carlo could be used to compute the beam transmittance in inhomogeneous media. Equation (11.5) consists of a 1D integral over a ray's parametric $t$ position that is then exponentiated; given a method to sample distances along the ray $t'$ according to some distribution $p$, one could evaluate the estimator:
 
-$$
-e^{-\int_0^d \sigma_t(\mathrm{p}+t\omega,\omega)\,\mathrm{d}t}
-\approx
-\exp\!\left[-\frac{\sigma_t(\mathrm{p}+t'\omega,\omega)}{p(t')}\right].
-\tag{11.8}
-$$
+$$e^{-\int_0^d \sigma_t(\mathrm{p}+t\omega,\omega)\,\mathrm{d}t} \approx \exp\!\left[-\frac{\sigma_t(\mathrm{p}+t'\omega,\omega)}{p(t')}\right]. \quad\text{(11.8)}$$
 
 However, even if the estimator in square brackets is an unbiased estimator of the optical thickness along the ray, the estimate of transmittance is *not* unbiased and will actually underestimate its value: $\mathrm{E}[e^{-X}] \ne e^{-\mathrm{E}[X]}$. (This state of affairs is explained by Jensen's inequality and the fact that $e^{-x}$ is a convex function.)
 
@@ -354,23 +300,13 @@ The error introduced by estimators of the form of Equation (11.8) decreases as e
 
 First, we will consider the change in radiance between two points $\mathrm{p}$ and $\mathrm{p}'$ along the ray. Integrating Equation (11.4) and dropping the directional dependence of $\sigma_t$ for notational simplicity, we can find that
 
-$$
-\int_0^d \frac{\mathrm{d}L(\mathrm{p}+t\omega)}{\mathrm{d}t}\,\mathrm{d}t
-= L(\mathrm{p}') - L(\mathrm{p})
-= -\int_0^d \sigma_t(\mathrm{p}+t\omega)\,L(\mathrm{p}+t\omega)\,\mathrm{d}t.
-\tag{11.9}
-$$
+$$\int_0^d \frac{\mathrm{d}L(\mathrm{p}+t\omega)}{\mathrm{d}t}\,\mathrm{d}t = L(\mathrm{p}') - L(\mathrm{p}) = -\int_0^d \sigma_t(\mathrm{p}+t\omega)\,L(\mathrm{p}+t\omega)\,\mathrm{d}t. \quad\text{(11.9)}$$
 
 where, as before, $d$ is the distance between $\mathrm{p}$ and $\mathrm{p}'$ and $\omega$ is the normalized vector from $\mathrm{p}$ to $\mathrm{p}'$.
 
 The transmittance is the fraction of the original radiance, and so $T_r(\mathrm{p}\to\mathrm{p}') = L(\mathrm{p}')/L(\mathrm{p})$. Thus, if we divide Equation (11.9) by $L(\mathrm{p})$ and rearrange terms, we can find that
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}')
-= 1 - \int_0^d \sigma_t(\mathrm{p}+t\omega)\,
-       T_r(\mathrm{p}+t\omega\to\mathrm{p}')\,\mathrm{d}t.
-\tag{11.10}
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') = 1 - \int_0^d \sigma_t(\mathrm{p}+t\omega)\, T_r(\mathrm{p}+t\omega\to\mathrm{p}')\,\mathrm{d}t. \quad\text{(11.10)}$$
 
 We have found ourselves with transmittance defined recursively in terms of an integral that includes transmittance in the integrand; although this may seem to be making the problem more complex than it was before, this definition makes it possible to apply Monte Carlo to the integral and to compute unbiased estimates of transmittance. However, it is difficult to sample this integrand well; in practice, estimates of it will have high variance. Therefore, the following section will introduce an alternative formulation of it that is amenable to sampling and makes a number of efficient solution techniques possible.
 
@@ -396,37 +332,21 @@ flowchart LR
 
 We will start by defining the null-scattering coefficient $\sigma_n$. Similar to the other scattering coefficients, it gives the probability of a null-scattering event per unit distance traveled in the medium. Here, we will define $\sigma_n(\mathrm{p})$ via a constant majorant $\sigma_{\mathrm{maj}}$ that is greater than or equal to $\sigma_a + \sigma_s$ at all points in the medium:[^fn3]
 
-$$
-\sigma_n(\mathrm{p},\omega) = \sigma_{\mathrm{maj}} - \sigma_t(\mathrm{p},\omega).
-\tag{11.11}
-$$
+$$\sigma_n(\mathrm{p},\omega) = \sigma_{\mathrm{maj}} - \sigma_t(\mathrm{p},\omega). \quad\text{(11.11)}$$
 
 Thus, the total scattering coefficient $\sigma_a + \sigma_s + \sigma_n = \sigma_{\mathrm{maj}}$ is uniform throughout the medium. (This idea is illustrated in Figure 11.12.) With this definition of $\sigma_n$, we can rewrite Equation (11.4) in terms of the majorant and the null-scattering coefficient:
 
-$$
-\frac{\mathrm{d}L_o(\mathrm{p},\omega)}{\mathrm{d}t}
-= -\bigl(\sigma_{\mathrm{maj}} - \sigma_n(\mathrm{p},\omega)\bigr)\,L_i(\mathrm{p},-\omega).
-\tag{11.12}
-$$
+$$\frac{\mathrm{d}L_o(\mathrm{p},\omega)}{\mathrm{d}t} = -\bigl(\sigma_{\mathrm{maj}} - \sigma_n(\mathrm{p},\omega)\bigr)\,L_i(\mathrm{p},-\omega). \quad\text{(11.12)}$$
 
 We will not include the full derivation here, but just as with Equation (11.10), this equation can be integrated over the segment of a ray and divided by the initial radiance $L(\mathrm{p})$ to find an equation for the transmittance. The result is:
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}')
-= e^{-\sigma_{\mathrm{maj}} d}
-+ \int_0^d e^{-\sigma_{\mathrm{maj}} t}\,
-  \sigma_n(\mathrm{p}+t\omega)\,
-  T_r(\mathrm{p}+t\omega\to\mathrm{p}')\,\mathrm{d}t.
-\tag{11.13}
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') = e^{-\sigma_{\mathrm{maj}} d} + \int_0^d e^{-\sigma_{\mathrm{maj}} t}\, \sigma_n(\mathrm{p}+t\omega)\, T_r(\mathrm{p}+t\omega\to\mathrm{p}')\,\mathrm{d}t. \quad\text{(11.13)}$$
 
 Note that with this expression of transmittance and a homogeneous medium, $\sigma_n = 0$ and the integral disappears. The first term then corresponds to Beer's law. For inhomogeneous media, the first term can be seen as computing an underestimate of the true transmittance, where the integral then accounts for the rest of it.
 
 To compute Monte Carlo estimates of Equation (11.13), we would like to sample a distance $t'$ from some distribution that is proportional to the integrand and then apply the regular Monte Carlo estimator. A convenient sampling distribution is the probability density function (PDF) of the exponential distribution that is derived in Section A.4.2. In this case, the PDF associated with $e^{-\sigma_{\mathrm{maj}} t}$ is
 
-$$
-p_{\mathrm{maj}}(t) = \sigma_{\mathrm{maj}}\,e^{-\sigma_{\mathrm{maj}} t},
-$$
+$$p_{\mathrm{maj}}(t) = \sigma_{\mathrm{maj}}\,e^{-\sigma_{\mathrm{maj}} t},$$
 
 and a corresponding sampling recipe is available via the `SampleExponential()` function.
 
@@ -439,80 +359,33 @@ and a corresponding sampling recipe is available via the `SampleExponential()` f
 
 Because $p_{\mathrm{maj}}$ is nonzero over the range $[0, \infty)$, the sampling algorithm will sometimes generate samples $t' > d$, which may seem to be undesirable. However, although we could define a PDF for the exponential function limited to $[0, d]$, sampling from $p_{\mathrm{maj}}$ leads to a simple way to terminate the recursive evaluation of transmittance. To see why, consider rewriting the second term of Equation (11.13) as the sum of two integrals that cover the range $[0, \infty)$:
 
-$$
-\int_0^d e^{-\sigma_{\mathrm{maj}} t}\,
-  \sigma_n(\mathrm{p}+t\omega)\,
-  T_r(\mathrm{p}+t\omega\to\mathrm{p}')\,\mathrm{d}t
-+ \int_d^{\infty} 0\,\mathrm{d}t.
-\tag{11.14}
-$$
+$$\int_0^d e^{-\sigma_{\mathrm{maj}} t}\, \sigma_n(\mathrm{p}+t\omega)\, T_r(\mathrm{p}+t\omega\to\mathrm{p}')\,\mathrm{d}t + \int_d^{\infty} 0\,\mathrm{d}t. \quad\text{(11.14)}$$
 
 If the Monte Carlo estimator is applied to this sum, we can see that the value of $t'$ with respect to $d$ determines which integrand is evaluated and thus that sampling $t' > d$ can be conveniently interpreted as a condition for ending the recursive estimation of Equation (11.13).
 
 Given the decision to sample from $p_{\mathrm{maj}}$, perhaps the most obvious approach for estimating the value of Equation (11.13) is to sample $t'$ in this way and to directly apply the Monte Carlo estimator, which gives
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}') \approx
-e^{-\sigma_{\mathrm{maj}} d}
-+ \begin{cases}
-\dfrac{\sigma_n(\mathrm{p}+t'\omega)}{\sigma_{\mathrm{maj}}}
-  \,T_r(\mathrm{p}+t'\omega\to\mathrm{p}') & t' < d,\\[6pt]
-0 & \text{otherwise}.
-\end{cases}
-\tag{11.15}
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') \approx e^{-\sigma_{\mathrm{maj}} d} + \begin{cases} \dfrac{\sigma_n(\mathrm{p}+t'\omega)}{\sigma_{\mathrm{maj}}} \,T_r(\mathrm{p}+t'\omega\to\mathrm{p}') & t' < d,\\[6pt] 0 & \text{otherwise}. \end{cases} \quad\text{(11.15)}$$
 
 This estimator is known as the *next-flight estimator*. It has the advantage that it has zero variance for homogeneous media, although interestingly it is often not as efficient as other estimators for inhomogeneous media.
 
 Other estimators randomly choose between the two terms of Equation (11.13) and only evaluate one of them. If we define $p_e$ as the discrete probability of evaluating the first term, transmittance can be estimated by
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}') \approx
-\begin{cases}
-\dfrac{e^{-\sigma_{\mathrm{maj}} d}}{p_e}
-  & \text{with probability } p_e,\\[8pt]
-\dfrac{1}{1-p_e}\displaystyle\int_0^d e^{-\sigma_{\mathrm{maj}} t}\,
-  \sigma_n(\mathrm{p}+t\omega)\,
-  T_r(\mathrm{p}+t\omega\to\mathrm{p}')\,\mathrm{d}t
-  & \text{otherwise}.
-\end{cases}
-\tag{11.16}
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') \approx \begin{cases} \dfrac{e^{-\sigma_{\mathrm{maj}} d}}{p_e} & \text{with probability } p_e,\\[8pt] \dfrac{1}{1-p_e}\displaystyle\int_0^d e^{-\sigma_{\mathrm{maj}} t}\, \sigma_n(\mathrm{p}+t\omega)\, T_r(\mathrm{p}+t\omega\to\mathrm{p}')\,\mathrm{d}t & \text{otherwise}. \end{cases} \quad\text{(11.16)}$$
 
 The *ratio tracking* estimator is the result from setting $p_e = e^{-\sigma_{\mathrm{maj}} d}$. Then, the first case of Equation (11.16) yields a value of 1. We can further combine the choice between the two cases with sampling $t'$ using the fact that the probability that $t' > d$ is equal to $e^{-\sigma_{\mathrm{maj}} d}$. (This can be seen using $p_{\mathrm{maj}}$'s cumulative distribution function (CDF), Equation (A.1).) After simplifying, the resulting estimator works out to be:
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}') \approx
-\begin{cases}
-1 & t' > d,\\[4pt]
-\dfrac{\sigma_n(\mathrm{p}+t'\omega)}{\sigma_{\mathrm{maj}}}
-  \,T_r(\mathrm{p}+t'\omega\to\mathrm{p}') & \text{otherwise}.
-\end{cases}
-\tag{11.17}
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') \approx \begin{cases} 1 & t' > d,\\[4pt] \dfrac{\sigma_n(\mathrm{p}+t'\omega)}{\sigma_{\mathrm{maj}}} \,T_r(\mathrm{p}+t'\omega\to\mathrm{p}') & \text{otherwise}. \end{cases} \quad\text{(11.17)}$$
 
 If the recursive evaluations are expanded out, ratio tracking leads to an estimator of the form
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}') \approx \prod_{i}^{n}
-\frac{\sigma_n(\mathrm{p}+t_i\omega)}{\sigma_{\mathrm{maj}}},
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') \approx \prod_{i}^{n} \frac{\sigma_n(\mathrm{p}+t_i\omega)}{\sigma_{\mathrm{maj}}},$$
 
 where $t_i$ are the series of $t$ values that are sampled from $p_{\mathrm{maj}}$ and where successive $t_i$ values are sampled starting from the previous one until one is sampled past the endpoint. Ratio tracking is the technique that is implemented to compute transmittance in pbrt's light transport routines in Chapter 14.
 
 A disadvantage of ratio tracking is that it continues to sample the medium even after the transmittance has become very small. Russian roulette can be used to terminate recursive evaluation to avoid this problem. If the Russian roulette termination probability at each sampled point is set to be equal to the ratio of $\sigma_n$ and $\sigma_{\mathrm{maj}}$, then the scaling cancels and the estimator becomes
 
-$$
-T_r(\mathrm{p}\to\mathrm{p}') \approx
-\begin{cases}
-1 & t' > d,\\[4pt]
-T_r(\mathrm{p}+t'\omega\to\mathrm{p}')
-  & t' \le d \text{ and with probability }
-    \dfrac{\sigma_n(\mathrm{p}+t'\omega)}{\sigma_{\mathrm{maj}}},\\[10pt]
-0 & \text{otherwise}.
-\end{cases}
-\tag{11.18}
-$$
+$$T_r(\mathrm{p}\to\mathrm{p}') \approx \begin{cases} 1 & t' > d,\\[4pt] T_r(\mathrm{p}+t'\omega\to\mathrm{p}') & t' \le d \text{ and with probability } \dfrac{\sigma_n(\mathrm{p}+t'\omega)}{\sigma_{\mathrm{maj}}},\\[10pt] 0 & \text{otherwise}. \end{cases} \quad\text{(11.18)}$$
 
 Thus, recursive estimation of transmittance continues either until termination due to Russian roulette or until the sampled point is past the endpoint. This approach is the *track-length transmittance estimator*, also known as *delta tracking*.
 
@@ -608,9 +481,7 @@ In anisotropic media that consist of particles arranged in a coherent structure,
 
 In a slightly confusing overloading of terminology, phase functions themselves can be isotropic or anisotropic as well. Thus, we might have an anisotropic phase function in an isotropic medium. An isotropic phase function describes equal scattering in all directions and is thus independent of either of the two directions. Because phase functions are normalized, there is only one such function:
 
-$$
-p(\omega_o,\omega_i) = \frac{1}{4\pi}.
-$$
+$$p(\omega_o,\omega_i) = \frac{1}{4\pi}.$$
 
 The `PhaseFunction` class defines the `PhaseFunction` interface. Only a single phase function is currently provided in pbrt, but we have used the `TaggedPointer` machinery to make it easy to add others. Its implementation is in the file `base/medium.h`. The interface and its sample structure translate naturally to a Rust enum plus a plain data struct:
 
@@ -655,11 +526,7 @@ An accompanying `PDF()` method returns the value of the phase function sampling 
 
 A widely used phase function was developed by Henyey and Greenstein (1941). This phase function was specifically designed to be easy to fit to measured scattering data. A single parameter $g$ (called the asymmetry parameter) controls the distribution of scattered light:[^fn4]
 
-$$
-p_{HG}(\cos\theta)
-= \frac{1}{4\pi}\,
-  \frac{1 - g^2}{\bigl(1 + g^2 + 2g(\cos\theta)\bigr)^{3/2}}.
-$$
+$$p_{HG}(\cos\theta) = \frac{1}{4\pi}\, \frac{1 - g^2}{\bigl(1 + g^2 + 2g(\cos\theta)\bigr)^{3/2}}.$$
 
 The `henyey_greenstein()` function implements this computation; in WGSL form, suitable for a compute shader:
 
@@ -684,11 +551,7 @@ fn henyey_greenstein(cos_theta: f32, g: f32) -> f32 {
 
 The asymmetry parameter $g$ in the Henyey–Greenstein model has a precise meaning. It is the integral of the product of the given phase function and the cosine of the angle between $\omega'$ and $\omega$ and is referred to as the mean cosine. Given an arbitrary phase function $p$, the value of $g$ can be computed as[^fn5]
 
-$$
-g = \int_{\mathcal{S}^2} p(-\omega,\omega')\,(\omega\cdot\omega')\,\mathrm{d}\omega'
-  = 2\pi\int_0^{\pi} p(-\cos\theta)\,\cos\theta\,\sin\theta\,\mathrm{d}\theta.
-\tag{11.19}
-$$
+$$g = \int_{\mathcal{S}^2} p(-\omega,\omega')\,(\omega\cdot\omega')\,\mathrm{d}\omega' = 2\pi\int_0^{\pi} p(-\cos\theta)\,\cos\theta\,\sin\theta\,\mathrm{d}\theta. \quad\text{(11.19)}$$
 
 Thus, an isotropic phase function gives $g = 0$, as expected. Any number of phase functions can satisfy this equation; the $g$ value alone is not enough to uniquely describe a scattering distribution. Nevertheless, the convenience of being able to easily convert a complex scattering distribution into a simple parameterized model is often more important than this potential loss in accuracy.
 
@@ -722,9 +585,7 @@ Because pbrt uses the same direction convention for BSDFs and phase functions, t
 
 More complex phase functions that are not described well with a single asymmetry parameter can often be modeled by a weighted sum of phase functions like Henyey–Greenstein, each with different parameter values:
 
-$$
-p(\omega,\omega') = \sum_{i=1}^n w_i\,p_i(\omega\to\omega'),
-$$
+$$p(\omega,\omega') = \sum_{i=1}^n w_i\,p_i(\omega\to\omega'),$$
 
 where the weights $w_i$ sum to one to maintain normalization. This generalization is not provided in pbrt but would be easy to add. Figure 11.14 shows plots of the Henyey–Greenstein phase function with varying asymmetry parameters. The value of $g$ for this model must be in the range $(-1, 1)$. Negative values of $g$ correspond to back-scattering, where light is mostly scattered back toward the incident direction, and positive values correspond to forward-scattering. The greater the magnitude of $g$, the more scattering occurs close to the $\omega$ or $-\omega$ directions (for back-scattering and forward-scattering, respectively). See Figure 11.15 to compare the visual effect of forward- and back-scattering.
 
@@ -773,10 +634,7 @@ fn sample_henyey_greenstein(
 
 The PDF for the Henyey–Greenstein phase function is separable into $\theta$ and $\phi$ components, with $p(\phi) = 1/(2\pi)$ as usual. The main task is to sample $\cos\theta$. With pbrt's convention for the orientation of direction vectors, the distribution for $\theta$ is
 
-$$
-\cos\theta = -\frac{1}{2g}\left[1+g^2
-  - \left(\frac{1-g^2}{1+g-2g\xi}\right)^2\right],
-$$
+$$\cos\theta = -\frac{1}{2g}\left[1+g^2 - \left(\frac{1-g^2}{1+g-2g\xi}\right)^2\right],$$
 
 if $g \ne 0$; otherwise, $\cos\theta = 1 - 2\xi$ gives a uniform sampling over the sphere of directions. The $(\cos\theta,\phi)$ values specify a direction with respect to a coordinate system where $\omega_o$ is along the $+z$ axis. Therefore, it is necessary to transform the sampled vector to $\omega_o$'s coordinate system before returning it.
 

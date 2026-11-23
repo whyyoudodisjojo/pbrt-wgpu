@@ -210,10 +210,7 @@ Directly inverting $f$ is possible in some cases, though doing so tends to invol
 
 The function $f$ that is computed by a physically based renderer like pbrt is beyond the reach of such an explicit inversion. Furthermore, a scene that perfectly reproduces images seen from a given set of viewpoints may not exist at all. Inverse rendering methods therefore pursue a relaxed minimization problem of the form
 
-$$
-\min_{x \in X} \; g(f(x)),
-\tag{16.1}
-$$
+$$\min_{x \in X} \; g(f(x)), \quad\text{(16.1)}$$
 
 where $g : Y \to \mathbb{R}$ refers to a loss function that quantifies the quality of a rendered image of the scene $x$. For example, the definition $g(y') = \|y' - y\|_2$ could be used to measure the $L_2$ distance to a reference image $y$. This type of optimization is often called *analysis-by-synthesis* due to the reliance on repeated simulation (synthesis) to gain understanding about an inverse problem. The approach easily generalizes to simultaneous optimization of multiple viewpoints. An extra regularization term $R(x)$ depending only on the scene parameters is often added on the right-hand side to encode prior knowledge about reasonable parameter ranges—that is, one minimizes $g(f(x)) + R(x)$. Composition with further computation is also possible: for example, we could alternatively optimize $g(f(N(w)))$, where $x = N(w)$ is a neural network that produces the scene $x$ from learned parameters $w$.
 
@@ -223,17 +220,11 @@ Realistic scene descriptions are composed of millions of floating-point values t
 
 Let us consider the most basic gradient descent update equation for this problem:
 
-$$
-x_{i+1} = x_i - \alpha \, \nabla_x g(f(x_i)),
-\tag{16.2}
-$$
+$$x_{i+1} = x_i - \alpha \, \nabla_x g(f(x_i)), \quad\text{(16.2)}$$
 
 where $\alpha$ denotes the step size. A single iteration of this optimization can be split into four individually simpler steps via the chain rule:
 
-$$
-\delta y = J_g, \qquad \delta x = \delta y \cdot J_f = \nabla_x g(f(x)) = J_f^{\mathsf{T}} \, \delta y,
-\tag{16.3}
-$$
+$$\delta y = J_g, \qquad \delta x = \delta y \cdot J_f = \nabla_x g(f(x)) = J_f^{\mathsf{T}} \, \delta y, \quad\text{(16.3)}$$
 
 where $J_f \in \mathbb{R}^{m \times n}$ and $J_g \in \mathbb{R}^{1 \times m}$ are the Jacobian matrices of the rendering algorithm and loss function, and $n$ and $m$ respectively denote the number of scene parameters and rendered pixels. These four steps correspond to:
 
@@ -256,9 +247,7 @@ Besides the restriction to volumetric representations, a shared limitation of th
 
 Of particular note is the groundbreaking work by Li et al. (2018) along with their redner reference implementation, which performs reverse-mode derivative propagation using a hand-crafted implementation of the necessary derivatives. In the paper, the authors make the important observation that 3D scenes are generally riddled with visibility-induced discontinuities at object silhouettes, where the radiance function undergoes sudden changes. These are normally no problem in a Monte Carlo renderer, but they cause a severe problem following differentiation. To see why, consider a hypothetical integral that computes the average incident illumination at some position $p$. When computing the derivative of such a calculation, it is normally fine to exchange the order of differentiation and integration:
 
-$$
-\frac{\partial}{\partial x} \int L_i(p, \omega) \, \mathrm{d}\omega \;=\; \int \frac{\partial L_i(p, \omega)}{\partial x} \, \mathrm{d}\omega .
-$$
+$$\frac{\partial}{\partial x} \int L_i(p, \omega) \, \mathrm{d}\omega \;=\; \int \frac{\partial L_i(p, \omega)}{\partial x} \, \mathrm{d}\omega .$$
 
 The left-hand side is the desired answer, while the right-hand side represents the result of differentiating the simulation code. Unfortunately, the equality generally no longer holds when $L_i(p, \omega)$ is discontinuous in the $\omega$ argument being integrated. Li et al. recognized that an extra correction term must be added to account for how perturbations of the scene parameters $x$ cause the discontinuities to shift. They resolved primary visibility by integrating out discontinuities via the pixel reconstruction filter and used a hierarchical data structure to place additional edge samples on silhouettes to correct for secondary visibility.
 
@@ -691,12 +680,7 @@ Throughout the implementation of pbrt we have found it useful to draw samples fr
 
 `SampleTent()` uses `SampleLinear()` to sample the "tent" function with radius $r$,
 
-$$
-f(x) = \begin{cases}
-    \dfrac{1}{r}\left(1 - \dfrac{|x|}{r}\right), & |x| < r,\\[6pt]
-    0, & \text{otherwise}.
-\end{cases}
-$$
+$$f(x) = \begin{cases} \dfrac{1}{r}\left(1 - \dfrac{|x|}{r}\right), & |x| < r,\\[6pt] 0, & \text{otherwise}. \end{cases}$$
 
 The sampling algorithm first uses the provided uniform sample $u$ with `SampleDiscrete()` to choose whether to sample a value greater than or less than zero, with each possibility having equal probability. Note the use of `SampleDiscrete()`'s capability of returning a new uniform random sample here, overwriting $u$'s original value. In turn, one of the two linear functions is sampled, with the result scaled so that the interval $[-r, r]$ is sampled. One thing to note in this function is that the cases and expressions have been carefully crafted so that $u=0$ maps to $-r$ and then as $u$ increases, the sampled value increases monotonically until $u=1$ maps to $r$, without any jumps or reversals. This property is helpful for preserving well-distributed sample points (e.g., if they have low discrepancy).
 
@@ -749,9 +733,7 @@ Sqr() 1034
 
 Sampling the transmittance function when rendering images with participating media often requires samples from a distribution $p(x) \propto e^{-ax}$. As before, the first step is to find a constant $c$ that normalizes this distribution so that it integrates to one. In this case, we will assume for now that the range of values $x$ we'd like the generated samples to cover is $[0, \infty)$ rather than $[0, 1]$, so
 
-$$
-\int_0^\infty e^{-ax}\,\mathrm{d}x = \frac{1}{a}.
-$$
+$$\int_0^\infty e^{-ax}\,\mathrm{d}x = \frac{1}{a}.$$
 
 Thus, $c = a$ and our PDF is $p(x) = a\,e^{-ax}$:
 
@@ -763,15 +745,11 @@ pub fn exponential_pdf(x: Float, a: Float) -> Float {
 
 We can integrate to find $P(x)$:
 
-$$
-P(x) = \int_0^x a\,e^{-at}\,\mathrm{d}t = 1 - e^{-ax},
-$$
+$$P(x) = \int_0^x a\,e^{-at}\,\mathrm{d}t = 1 - e^{-ax},$$
 
 which gives a function that is easy to invert:
 
-$$
-X = P^{-1}(\xi) = -\frac{\ln(1-\xi)}{a}.
-$$
+$$X = P^{-1}(\xi) = -\frac{\ln(1-\xi)}{a}.$$
 
 Therefore, we can draw samples using:
 
@@ -805,9 +783,7 @@ InvertLinearSample() 73
 
 The Gaussian function is parameterized by its center $\mu$ and standard deviation $\sigma$:
 
-$$
-f(x) = \frac{1}{\sigma\sqrt{2\pi}}\,\exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right).
-$$
+$$f(x) = \frac{1}{\sigma\sqrt{2\pi}}\,\exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right).$$
 
 The probability distribution it defines is called the *normal distribution*. The Gaussian is already normalized, so the PDF follows directly:
 
@@ -819,15 +795,11 @@ pub fn normal_pdf(x: Float, mu: Float, sigma: Float) -> Float {
 
 However, the Gaussian's CDF cannot be expressed with elementary functions. It is
 
-$$
-P(x) = \frac{1}{2}\left[1 + \operatorname{erf}\!\left(\frac{x-\mu}{\sigma\sqrt{2}}\right)\right],
-$$
+$$P(x) = \frac{1}{2}\left[1 + \operatorname{erf}\!\left(\frac{x-\mu}{\sigma\sqrt{2}}\right)\right],$$
 
 where $\operatorname{erf}(x)$ is the error function. If we equate $\xi = P(x)$ and solve, we find that
 
-$$
-x = \mu + \sqrt{2}\,\sigma\,\operatorname{erf}^{-1}(2\xi - 1).
-$$
+$$x = \mu + \sqrt{2}\,\sigma\,\operatorname{erf}^{-1}(2\xi - 1).$$
 
 The inverse error function $\operatorname{erf}^{-1}$ can be well approximated with a polynomial, which in turn gives a sampling technique:
 
@@ -869,10 +841,7 @@ Sqrt2 1033
 
 The logistic function is shaped similarly to the Gaussian, but can be sampled directly. It is therefore useful in cases where a distribution similar to the Gaussian is useful but an exact Gaussian is not needed. (It is used, for example, in the implementation of pbrt's scattering model for hair.) The logistic function centered at the origin is
 
-$$
-f(x) = \frac{e^{-x/s}}{s\left(1 + e^{-x/s}\right)^2},
-\tag{A.4}
-$$
+$$f(x) = \frac{e^{-x/s}}{s\left(1 + e^{-x/s}\right)^2}, \quad\text{(A.4)}$$
 
 where $s$ is a parameter that controls its rate of falloff similar to $\sigma$ in the Gaussian.
 
@@ -889,9 +858,7 @@ pub fn logistic_pdf(x: Float, s: Float) -> Float {
 
 Its CDF,
 
-$$
-P(x) = \frac{1}{1 + e^{-x/s}},
-$$
+$$P(x) = \frac{1}{1 + e^{-x/s}},$$
 
 is easily found, and can be inverted to derive a sampling routine. The result is implemented in `SampleLogistic()`:
 
@@ -924,12 +891,7 @@ Sqr() 1034
 
 It is sometimes useful to sample from a function's distribution over a specified interval $[a, b]$. It turns out that this is easy to do if we are able to evaluate the function's CDF. We will use the logistic function as an example here, though the underlying technique applies more generally. First consider the task of finding the PDF of the function limited to the interval, $p_{[a,b]}(x)$: we need to renormalize it. Doing so requires being able to integrate $p(x)$, which is otherwise known as finding its CDF:
 
-$$
-p_{[a,b]}(x) = \begin{cases}
-    \dfrac{p(x)}{P(b) - P(a)}, & a \le x \le b,\\[6pt]
-    0, & \text{otherwise}.
-\end{cases}
-$$
+$$p_{[a,b]}(x) = \begin{cases} \dfrac{p(x)}{P(b) - P(a)}, & a \le x \le b,\\[6pt] 0, & \text{otherwise}. \end{cases}$$
 
 The function to evaluate the PDF follows directly. Here we have wrapped a call to `InvertLogisticSample()` in a simple closure in order to make the relationship to Equation (A.5) more clear.
 
@@ -943,16 +905,11 @@ pub fn trimmed_logistic_pdf(x: Float, s: Float, a: Float, b: Float) -> Float {
 
 Next, consider sampling using the inversion method. Following the definition of $p_{[a,b]}(x)$, we can see that the CDF associated with $p_{[a,b]}(x)$ is
 
-$$
-P_{[a,b]}(x) = \frac{P(x) - P(a)}{P(b) - P(a)}.
-\tag{A.6}
-$$
+$$P_{[a,b]}(x) = \frac{P(x) - P(a)}{P(b) - P(a)}. \quad\text{(A.6)}$$
 
 Setting $\xi = P_{[a,b]}(X)$ and solving for $X$, we have
 
-$$
-X = P^{-1}\!\left(\xi\,\big(P(b) - P(a)\big) + P(a)\right).
-$$
+$$X = P^{-1}\!\left(\xi\,\big(P(b) - P(a)\big) + P(a)\right).$$
 
 Thus, if we compute a new $\xi$ value (that, in a slight abuse of notation, is not between 0 and 1) by using $\xi$ to linearly interpolate between $P(a)$ and $P(b)$ and then apply the original sampling algorithm, we will generate a sample from the distribution over the interval $[a, b]$:
 
@@ -994,9 +951,7 @@ SampleLogistic() 1005
 
 It was not possible to invert the normal distribution's CDF to derive a sampling technique, so there we used a polynomial approximation of the inverse CDF. In cases like that, another option is to use numerical root-finding techniques. We will demonstrate that approach using the smoothstep function as an example. Smoothstep defines an s-shaped curve based on a third-degree polynomial that goes from zero to one starting at a point $a$ and ending at a point $b$. It is zero for values $x < a$ and one for values $x > b$. Otherwise, it is defined as
 
-$$
-f(x) = 3t^2 - 2t^3, \qquad t = \frac{x-a}{b-a}.
-$$
+$$f(x) = 3t^2 - 2t^3, \qquad t = \frac{x-a}{b-a}.$$
 
 In pbrt the smoothstep function is used to define the falloff at the edges of a spotlight.
 
@@ -1013,9 +968,7 @@ pub fn smooth_step_pdf(x: Float, a: Float, b: Float) -> Float {
 
 Integrating the PDF is also easy; the resulting CDF is
 
-$$
-P(x) = 2t^3 - t^4, \qquad t = \frac{x-a}{b-a}.
-$$
+$$P(x) = 2t^3 - t^4, \qquad t = \frac{x-a}{b-a}.$$
 
 The challenge in sampling $f$ is evident: doing so requires solving a fourth-degree polynomial. The sampling task can be expressed as a zero-finding problem: to apply the inversion method, we would like to solve $\xi = P(X)$ for $X$. Doing so is equivalent to finding the value $X$ such that $P(X) - \xi = 0$. The `SampleSmoothStep()` function below uses a Newton–bisection solver that is defined in Section B.2.10 to do this. That function takes a callback that returns the value of the function and its derivative at a given point; these values are easily computed given the equations derived so far.
 
@@ -1059,22 +1012,15 @@ SmoothStepPDF() 1007
 
 The inversion method can also be applied to tabularized functions; in this section, we will consider piecewise-constant functions defined over $[0, 1]$. The algorithms described here will provide the foundation for sampling piecewise-constant 2D functions, used in multiple parts of pbrt to sample from distributions defined by images. Assume that the 1D function's domain is split into $n$ equal-sized pieces of size $\Delta = 1/n$. These regions start and end at points $x_i = i\Delta$, where $i$ ranges from 0 to $n$, inclusive. Within each region, the value of the function $f(x)$ is a constant $v_i$ (Figure A.5(a)):
 
-$$
-f(x) = v_i \quad \text{for } x \in [x_i, x_{i+1}).
-$$
+$$f(x) = v_i \quad \text{for } x \in [x_i, x_{i+1}).$$
 
 The function need not always be positive, though its PDF must be. Therefore, the absolute value of the function is taken to define its PDF. The integral $\int |f(x)|\,\mathrm{d}x$ is
 
-$$
-c = \sum_{i=0}^{n-1} \frac{|v_i|}{n},
-$$
+$$c = \sum_{i=0}^{n-1} \frac{|v_i|}{n},$$
 
 and so it is easy to construct the PDF $p(x) = |f(x)|/c$ for $f(x)$. By direct application of the relevant formulae, the CDF $P(x)$ is a piecewise-linear function defined at points $x_i$ by
 
-$$
-P(x_i) = \frac{1}{c}\sum_{j=0}^{i-1} \frac{|v_j|}{n}.
-\tag{A.7}
-$$
+$$P(x_i) = \frac{1}{c}\sum_{j=0}^{i-1} \frac{|v_j|}{n}. \quad\text{(A.7)}$$
 
 **Figure A.5 — (a) Probability density function for a piecewise-constant 1D function and (b) cumulative distribution function defined by this PDF** (page-scan figure, transcribed). In (a), the PDF is a staircase of $n$ horizontal steps of width $\Delta = 1/n$ and height $|v_i|/c$. In (b), the CDF is the corresponding monotone piecewise-linear polygon, starting at $(0,0)$ and ending at $(1,1)$, with each segment's slope equal to $|v_i|/c$.
 
@@ -1169,17 +1115,11 @@ Multidimensional sampling is also common in pbrt, most frequently when sampling 
 
 Uniformly sampling a unit disk can be tricky because it has an incorrect intuitive solution. The wrong approach is the seemingly obvious one of sampling its polar coordinates uniformly: $r = \xi_1$, $\theta = 2\pi\xi_2$. Although the resulting point is both random and inside the disk, it is not uniformly distributed; it actually clumps samples near the center of the disk. Figure A.6(a) shows a plot of samples on the unit disk when this mapping was used for a set of uniform random samples $(\xi_1, \xi_2)$. Figure A.6(b) shows uniformly distributed samples resulting from the following correct approach. Since we would like to sample uniformly with respect to area, the PDF $p(x,y)$ must be a constant. By the normalization constraint, $p(x,y) = 1/\pi$. If we transform into polar coordinates, we have $p(r,\theta) = r/\pi$ given the relationship between probability densities in Cartesian coordinates and polar coordinates that was derived in Section 2.4.1, Equation (2.22). We can now compute the marginal and conditional densities:
 
-$$
-p(r) = \int_0^{2\pi} \frac{r}{\pi}\,\mathrm{d}\theta = 2r,
-\qquad
-p(\theta \mid r) = \frac{p(r,\theta)}{p(r)} = \frac{1}{2\pi}.
-$$
+$$p(r) = \int_0^{2\pi} \frac{r}{\pi}\,\mathrm{d}\theta = 2r, \qquad p(\theta \mid r) = \frac{p(r,\theta)}{p(r)} = \frac{1}{2\pi}.$$
 
 The fact that $p(\theta \mid r)$ is a constant should make sense because of the symmetry of the disk. Integrating and inverting to find $P(r)$, $P^{-1}(r)$, $P(\theta)$, and $P^{-1}(\theta)$, we can find that the correct solution to generate uniformly distributed samples on a disk is
 
-$$
-r = \sqrt{\xi_1}, \qquad \theta = 2\pi\xi_2.
-$$
+$$r = \sqrt{\xi_1}, \qquad \theta = 2\pi\xi_2.$$
 
 Taking the square root of $\xi_1$ effectively pushes the samples back toward the edge of the disk, counteracting the clumping referred to earlier.
 
@@ -1199,11 +1139,7 @@ The inversion method, `InvertUniformDiskPolarSample()`, is straightforward and i
 
 The mapping turns wedges of the square into slices of the disk. For example, points in the shaded area in Figure A.8 are mapped to $(r,\theta)$ by
 
-$$
-r = u_x, \qquad \theta = \frac{\pi}{4}\,\frac{u_y}{u_x} \quad (|u_x| > |u_y|),
-\qquad
-r = u_y, \qquad \theta = \frac{\pi}{2} - \frac{\pi}{4}\,\frac{u_x}{u_y} \quad (\text{otherwise}),
-$$
+$$r = u_x, \qquad \theta = \frac{\pi}{4}\,\frac{u_y}{u_x} \quad (|u_x| > |u_y|), \qquad r = u_y, \qquad \theta = \frac{\pi}{2} - \frac{\pi}{4}\,\frac{u_x}{u_y} \quad (\text{otherwise}),$$
 
 where $u_x, u_y \in [-1,1]$ are the remapped sample coordinates.
 
@@ -1248,26 +1184,15 @@ SampleUniformDiskPolar() 1013
 
 The area of a unit hemisphere is $2\pi$, and thus the PDF for uniform sampling must be $p(\omega) = 1/(2\pi)$. We will use spherical coordinates to derive a sampling algorithm. Using Equation (2.23) from Section 2.4.1, we have $p(\theta,\phi) = \sin\theta/(2\pi)$. This density function is separable. Because $\phi$ ranges from $0$ to $2\pi$ and must have a constant PDF, $p(\phi) = 1/(2\pi)$ and therefore $p(\theta) = \sin\theta$. The two CDFs follow:
 
-$$
-P(\theta) = \int_0^\theta \sin\theta'\,\mathrm{d}\theta' = 1 - \cos\theta,
-\qquad
-P(\phi) = \int_0^\phi \frac{1}{2\pi}\,\mathrm{d}\phi' = \frac{\phi}{2\pi}.
-$$
+$$P(\theta) = \int_0^\theta \sin\theta'\,\mathrm{d}\theta' = 1 - \cos\theta, \qquad P(\phi) = \int_0^\phi \frac{1}{2\pi}\,\mathrm{d}\phi' = \frac{\phi}{2\pi}.$$
 
 Inverting these functions is straightforward, and in this case we can tidy the result by replacing $1-\xi$ with $\xi$, giving
 
-$$
-\theta = \cos^{-1}\xi_1, \qquad \phi = 2\pi\xi_2.
-\tag{A.8}
-$$
+$$\theta = \cos^{-1}\xi_1, \qquad \phi = 2\pi\xi_2. \quad\text{(A.8)}$$
 
 Converting back to Cartesian coordinates, we get the final sampling formulae:
 
-$$
-x = \sin\theta\cos\phi = \sqrt{1-z^2}\cos\phi,\quad
-y = \sin\theta\sin\phi = \sqrt{1-z^2}\sin\phi,\quad
-z = \cos\theta = \xi_1.
-$$
+$$x = \sin\theta\cos\phi = \sqrt{1-z^2}\cos\phi,\quad y = \sin\theta\sin\phi = \sqrt{1-z^2}\sin\phi,\quad z = \cos\theta = \xi_1.$$
 
 This sampling strategy is implemented in the following code. Two uniform random numbers are provided in `u`, and a vector on the hemisphere is returned.
 
@@ -1343,21 +1268,15 @@ Vector3f 86
 
 As we saw in the discussion of importance sampling (Section 2.2.2), it is often useful to sample from a distribution that has a shape similar to that of the integrand being estimated. Many light transport integrals include a cosine factor, and therefore it is useful to have a method that generates directions according to a cosine-weighted distribution on the hemisphere. Such a method gives samples that are more likely to be close to the top of the hemisphere, where the cosine term has a large value, rather than near the bottom, where the cosine term is small. Mathematically, this means that we would like to sample directions $\omega$ from a PDF
 
-$$
-p(\omega) \propto \cos\theta.
-$$
+$$p(\omega) \propto \cos\theta.$$
 
 Normalizing as usual:
 
-$$
-\int_H \cos\theta\,\mathrm{d}\omega = \int_0^{2\pi}\int_0^{\pi/2} \cos\theta\,\sin\theta\,\mathrm{d}\theta\,\mathrm{d}\phi = \pi,
-$$
+$$\int_H \cos\theta\,\mathrm{d}\omega = \int_0^{2\pi}\int_0^{\pi/2} \cos\theta\,\sin\theta\,\mathrm{d}\theta\,\mathrm{d}\phi = \pi,$$
 
 Thus,
 
-$$
-p(\omega) = \frac{\cos\theta}{\pi}.
-$$
+$$p(\omega) = \frac{\cos\theta}{\pi}.$$
 
 We could compute the marginal and conditional densities as before, but instead we can use a technique known as *Malley's method* to generate these cosine-weighted points. The idea behind Malley's method is that if we choose points uniformly from the unit disk and then generate directions by projecting the points on the disk up to the hemisphere above it, the result will have a cosine-weighted distribution of directions (Figure A.10).
 
@@ -1365,15 +1284,11 @@ We could compute the marginal and conditional densities as before, but instead w
 
 Why does this work? Let $(r,\phi)$ be the polar coordinates of the point chosen on the disk (note that we are using $\phi$ instead of the usual $\theta$ for the polar angle here). From Section A.5.1, we know that the joint density $p(r,\phi) = r/\pi$ gives the density of a point sampled on the disk. Now, we map this point to the hemisphere. The vertical projection gives $\sin\theta = r$, which is easily seen from Figure A.10. To complete the $(r,\phi) = (\sin\theta,\phi) \to (\theta,\phi)$ transformation, we need the determinant of the Jacobian
 
-$$
-\left|\frac{\partial(r,\phi)}{\partial(\theta,\phi)}\right| = \cos\theta = \sqrt{1-r^2}.
-$$
+$$\left|\frac{\partial(r,\phi)}{\partial(\theta,\phi)}\right| = \cos\theta = \sqrt{1-r^2}.$$
 
 Therefore,
 
-$$
-p(\theta,\phi) = \frac{r}{\pi}\cos\theta = \frac{\sin\theta\cos\theta}{\pi},
-$$
+$$p(\theta,\phi) = \frac{r}{\pi}\cos\theta = \frac{\sin\theta\cos\theta}{\pi},$$
 
 which is exactly what we wanted: with respect to solid angle, $p(\omega) = \cos\theta/\pi$. We have used the transformation method to prove that Malley's method generates directions with a cosine-weighted distribution. Note that this technique works with any uniform disk sampling approach, so we can use the earlier concentric mapping just as well as the simpler method.
 
@@ -1420,9 +1335,7 @@ Vector3f 86
 
 It is sometimes useful to be able to uniformly sample rays in a cone of directions. This distribution is separable in $(\theta,\phi)$, with $p(\phi) = 1/(2\pi)$, and so we therefore need to derive a method to sample a direction $\theta$ up to the maximum angle of the cone, $\theta_{\max}$. Incorporating the $\sin\theta$ term from the measure on the unit sphere from Equation (4.8), we have
 
-$$
-\int_0^{\theta_{\max}} \sin\theta\,\mathrm{d}\theta = 1 - \cos\theta_{\max},
-$$
+$$\int_0^{\theta_{\max}} \sin\theta\,\mathrm{d}\theta = 1 - \cos\theta_{\max},$$
 
 so $p(\theta) = \dfrac{\sin\theta}{1-\cos\theta_{\max}}$ and $p(\omega) = \dfrac{1}{2\pi(1-\cos\theta_{\max})}$:
 
@@ -1434,9 +1347,7 @@ pub fn uniform_cone_pdf(cos_theta_max: Float) -> Float {
 
 The PDF can be integrated to find the CDF and the sampling technique for $\theta$ follows:
 
-$$
-\cos\theta = (1-\xi) + \xi\cos\theta_{\max}.
-$$
+$$\cos\theta = (1-\xi) + \xi\cos\theta_{\max}.$$
 
 The following code samples a canonical cone around the $(0,0,1)$ axis; the sample can be transformed to cones with other orientations using the `Frame` class:
 
@@ -1474,29 +1385,19 @@ Building on the approach for sampling piecewise-constant 1D distributions in Sec
 
 Consider a 2D function $f(u,v)$ defined by a set of $n_u \times n_v$ values $f[u_i,v_j]$ where $u_i \in \{0,1,\dots,n_u-1\}$, $v_j \in \{0,1,\dots,n_v-1\}$, and $f[u_i,v_j]$ gives the constant value of $f$ over the range $[i/n_u,(i+1)/n_u) \times [j/n_v,(j+1)/n_v)$. Given continuous values $(u,v)$, we will use $(\tilde{u},\tilde{v})$ to denote the corresponding discrete $(u_i,v_j)$ indices, with $\tilde{u} = \lfloor n_u u \rfloor$ and $\tilde{v} = \lfloor n_v v \rfloor$ so that $f(u,v) = f[\tilde{u},\tilde{v}]$. Integrals of $f$ are sums of $f[u_i,v_j]$, so that, for example, the integral of $f$ over the domain is
 
-$$
-\int f(u,v)\,\mathrm{d}u\,\mathrm{d}v = \frac{1}{n_u n_v}\sum_{i=0}^{n_u-1}\sum_{j=0}^{n_v-1} f[u_i,v_j].
-$$
+$$\int f(u,v)\,\mathrm{d}u\,\mathrm{d}v = \frac{1}{n_u n_v}\sum_{i=0}^{n_u-1}\sum_{j=0}^{n_v-1} f[u_i,v_j].$$
 
 Using the definition of the PDF and the integral of $f$, we can find $f$'s PDF:
 
-$$
-p(u,v) = \frac{f[u,v]}{\int f(u,v)\,\mathrm{d}u\,\mathrm{d}v}.
-$$
+$$p(u,v) = \frac{f[u,v]}{\int f(u,v)\,\mathrm{d}u\,\mathrm{d}v}.$$
 
 Recalling Equation (2.24), the marginal density $p(v)$ can be computed as a sum of $f[u_i,v_j]$ values
 
-$$
-p(v) = \frac{1}{n_u}\sum_{i=0}^{n_u-1}\frac{f[u_i,v]}{\int f(u,v)\,\mathrm{d}u\,\mathrm{d}v}.
-\tag{A.9}
-$$
+$$p(v) = \frac{1}{n_u}\sum_{i=0}^{n_u-1}\frac{f[u_i,v]}{\int f(u,v)\,\mathrm{d}u\,\mathrm{d}v}. \quad\text{(A.9)}$$
 
 Because this function only depends on $\tilde{v}$, it is thus itself a piecewise-constant 1D function, $p[\tilde{v}]$, defined by $n_v$ values. The 1D sampling machinery from Section A.4.7 can be applied to sampling from its distribution. Given a $v$ sample, the conditional density $p(u \mid v)$ is then
 
-$$
-p(u \mid v) = \frac{f[u,v]}{\sum_{i=0}^{n_u-1} f[u_i,v]}.
-\tag{A.10}
-$$
+$$p(u \mid v) = \frac{f[u,v]}{\sum_{i=0}^{n_u-1} f[u_i,v]}. \quad\text{(A.10)}$$
 
 Note that, given a particular value of $\tilde{v}$, $p[\tilde{u} \mid \tilde{v}]$ is a piecewise-constant 1D function of $\tilde{u}$ that can be sampled with the usual 1D approach. There are $n_v$ such distinct 1D conditional densities, one for each possible value of $\tilde{v}$. Putting this all together, the `PiecewiseConstant2D` class provides functionality similar to `PiecewiseConstant1D`, except that it generates samples from piecewise-constant 2D distributions.
 
@@ -1588,10 +1489,7 @@ WindowedPiecewiseConstant2D 1025
 
 `WindowedPiecewiseConstant2D` generalizes the `PiecewiseConstant2D` class to allow the caller to specify a window that limits the sampling domain to a given rectangular subset of it. (This capability was key for the implementation of the `PortalImageInfiniteLight` in Section 12.5.3.) Before going into its implementation, we will start with the `SummedAreaTable` class, which provides some capabilities that make it easier to implement. We have encapsulated them in a stand-alone class, as they can be useful in other settings as well. In 2D, a summed-area table is a 2D array where each element $(x,y)$ stores a sum of values from another array $a$:
 
-$$
-s(x,y) = \sum_{x'=0}^{x}\sum_{y'=0}^{y} a[x',y'],
-\tag{A.11}
-$$
+$$s(x,y) = \sum_{x'=0}^{x}\sum_{y'=0}^{y} a[x',y'], \quad\text{(A.11)}$$
 
 where here we have used zero-based array indexing. Summed-area tables can be used to compute the sum of array values over rectangular regions of the original array in constant time. If the array $a$ is interpreted as samples of a function, a summed-area table can efficiently compute integrals over arbitrary rectangular regions in a similar fashion. (Summed-area tables are therefore sometimes referred to as *integral images*.) They have a straightforward generalization to higher dimensions, though two of them suffice for pbrt's needs.
 
@@ -1689,17 +1587,11 @@ The first step is to check whether the function's integral is zero over the spec
 
 As discussed in Section 2.4.2, multidimensional distributions can be sampled by first integrating out all of the dimensions but one, sampling the resulting function, and then using that sample value in sampling the corresponding conditional distribution. Windowed `PiecewiseConstant2D` applies that very same idea, taking advantage of the fact that the summed-area table can efficiently evaluate the necessary integrals as needed. For a 2D continuous function $f(x,y)$ defined over a rectangular domain from $(x_0,y_0)$ to $(x_1,y_1)$, the marginal distribution in $x$ is defined by
 
-$$
-p(x) = \frac{\displaystyle\int_{y_0}^{y_1} f(x,y)\,\mathrm{d}y}
-              {\displaystyle\int_{x_0}^{x_1}\int_{y_0}^{y_1} f(x,y)\,\mathrm{d}y\,\mathrm{d}x},
-$$
+$$p(x) = \frac{\displaystyle\int_{y_0}^{y_1} f(x,y)\,\mathrm{d}y} {\displaystyle\int_{x_0}^{x_1}\int_{y_0}^{y_1} f(x,y)\,\mathrm{d}y\,\mathrm{d}x},$$
 
 and the marginal's cumulative distribution is
 
-$$
-P(x) = \frac{\displaystyle\int_{x_0}^{x}\int_{y_0}^{y_1} f(x',y)\,\mathrm{d}y\,\mathrm{d}x'}
-              {\displaystyle\int_{x_0}^{x_1}\int_{y_0}^{y_1} f(x,y)\,\mathrm{d}y\,\mathrm{d}x}.
-$$
+$$P(x) = \frac{\displaystyle\int_{x_0}^{x}\int_{y_0}^{y_1} f(x',y)\,\mathrm{d}y\,\mathrm{d}x'} {\displaystyle\int_{x_0}^{x_1}\int_{y_0}^{y_1} f(x,y)\,\mathrm{d}y\,\mathrm{d}x}.$$
 
 The integrals in both the numerator and denominator of $P(x)$ can be evaluated using a summed-area table. The Rust implementation evaluates $P(x)$ with a closure, using a cached normalization factor for the denominator in `b_int` to improve performance, as it will be necessary to repeatedly evaluate $P(x)$ in order to sample from the distribution.
 
@@ -2064,10 +1956,7 @@ pub const fn pow<const N: i32>(v: f32) -> f32 {
 
 `EvaluatePolynomial()` evaluates a provided polynomial using Horner's method, which is based on the equivalence
 
-$$
-a_0 + t\left(a_1 + t\left(a_2 + \cdots + t\,a_n\right)\right)
-   = a_0 + a_1 t + a_2 t^2 + \cdots + a_n t^n .
-$$
+$$a_0 + t\left(a_1 + t\left(a_2 + \cdots + t\,a_n\right)\right) = a_0 + a_1 t + a_2 t^2 + \cdots + a_n t^n .$$
 
 This formulation both gives good numerical accuracy and is amenable to use of fused multiply-add operations. The Rust version takes a slice of coefficients from highest to lowest order and folds them with `mul_add`:
 
@@ -2095,9 +1984,7 @@ SpotLight 748
 
 The function $\sin(x)/x$ is used in multiple places in pbrt, including in the implementation of the `LanczosSincFilter`. It is undefined at $x=0$ and suffers from poor numerical accuracy if directly evaluated at nearby values. A robust computation of its value is possible by considering the power series expansion
 
-$$
-\frac{\sin x}{x} = 1 - \frac{x^2}{3!} + \frac{x^4}{5!} - \frac{x^6}{7!} + \cdots .
-$$
+$$\frac{\sin x}{x} = 1 - \frac{x^2}{3!} + \frac{x^4}{5!} - \frac{x^6}{7!} + \cdots .$$
 
 If $x$ is small and $1 - x^2/3!$ rounds to 1, then $\sin(x)/x$ also rounds to 1. The following function uses a slightly more conservative variant of that test, which is close enough for our purposes:
 
@@ -2211,9 +2098,7 @@ Significand() 365
 
 `Gaussian()` evaluates the Gaussian function
 
-$$
-f(x) = \frac{1}{\sigma\sqrt{2\pi}}\,\exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right):
-$$
+$$f(x) = \frac{1}{\sigma\sqrt{2\pi}}\,\exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right):$$
 
 ```rust
 pub fn gaussian(x: Float, mu: Float, sigma: Float) -> Float {
@@ -2233,9 +2118,7 @@ pub fn gaussian_integral(x0: Float, x1: Float, mu: Float, sigma: Float) -> Float
 
 The logistic distribution takes a scale factor $s$, which controls its width:
 
-$$
-f(x) = \frac{e^{-x/s}}{s\left(1 + e^{-x/s}\right)^2}.
-$$
+$$f(x) = \frac{e^{-x/s}}{s\left(1 + e^{-x/s}\right)^2}.$$
 
 It has a generally similar shape to the Gaussian—it is symmetric and smoothly falls off from its peak—but it can be integrated in closed form. Evaluating the logistic is straightforward, though it is worth taking the absolute value of $x$ to avoid numerical instability for when the ratio $x/s$ is relatively large. (The function is symmetric around the origin, so this is mathematically equivalent.)
 
@@ -2538,11 +2421,7 @@ If $a$ is zero, then the caller has actually specified a linear function. That c
 
 The usual version of the quadratic equation can give poor numerical accuracy when due to cancellation error. It can be rewritten algebraically into a more stable form:
 
-$$
-q = -\frac{1}{2}\left(b + \operatorname{sign}(b)\sqrt{b^2-4ac}\right),
-\qquad
-t_0 = \frac{q}{a},\quad t_1 = \frac{c}{q}.
-$$
+$$q = -\frac{1}{2}\left(b + \operatorname{sign}(b)\sqrt{b^2-4ac}\right), \qquad t_0 = \frac{q}{a},\quad t_1 = \frac{c}{q}.$$
 
 The implementation uses `copysign()` in place of an `if` test for the condition on $b$, setting the sign of the square root of the discriminant to be the same as the sign of $b$, which is equivalent. This micro-optimization does not meaningfully affect pbrt's performance, but it is a trick that is worth being aware of.
 
@@ -2603,23 +2482,15 @@ One problem with computing the sample variance using Equation (2.11) is that doi
 
 Welford's algorithm computes two quantities: the sample mean $\overline{X}$ and the sum of squares of differences between the samples and the sample mean, $S$. In turn, $S/(n-1)$ gives the sample variance. Both of these quantities can be computed incrementally. First, if $\overline{X}_{n-1}$ is the sample mean of the first $n-1$ samples, then given an additional sample $X_n$, the updated sample mean $\overline{X}_n$ is
 
-$$
-\overline{X}_n = \overline{X}_{n-1} + \frac{X_n - \overline{X}_{n-1}}{n}.
-\tag{B.1}
-$$
+$$\overline{X}_n = \overline{X}_{n-1} + \frac{X_n - \overline{X}_{n-1}}{n}. \quad\text{(B.1)}$$
 
 Next, if $S_n$ is the sum of squares of differences from the current mean,
 
-$$
-S_n = \sum_{i=1}^{n}\left(X_i - \overline{X}_n\right)^2,
-$$
+$$S_n = \sum_{i=1}^{n}\left(X_i - \overline{X}_n\right)^2,$$
 
 then consider the difference $M_n = S_n - S_{n-1}$, which is the quantity that when added to $S_{n-1}$ gives $S_n$: after some algebraic manipulation, this can be found to be equal to
 
-$$
-M_n = \left(X_n - \overline{X}_{n-1}\right)\left(X_n - \overline{X}_n\right),
-\tag{B.2}
-$$
+$$M_n = \left(X_n - \overline{X}_{n-1}\right)\left(X_n - \overline{X}_n\right), \quad\text{(B.2)}$$
 
 which is comprised of quantities that are all readily available. The implementation of the `VarianceEstimator::add()` method is then just a matter of applying Equations (B.1) and (B.2).
 
@@ -2769,14 +2640,7 @@ Bézier curves, first introduced in Section 6.7 with the `Curve` shape, are poly
 
 They are commonly defined using polynomial basis functions called the Bernstein basis functions, though here we will focus on them through an approach called *blossoming*. The blossom $b(u_0,u_1,u_2)$ of a cubic Bézier is defined by three stages of linear interpolation, starting with the original control points $p_i$:
 
-$$
-\begin{aligned}
-p_i^{(1)} &= (1-u_0)p_i + u_0 p_{i+1}, \quad & i &= 0,1,2,\\
-p_i^{(2)} &= (1-u_1)p_i^{(1)} + u_1 p_{i+1}^{(1)}, \quad & i &= 0,1,\\
-b(u_0,u_1,u_2) &= (1-u_2)p_0^{(2)} + u_2 p_1^{(2)}.
-\end{aligned}
-\tag{B.3}
-$$
+$$\begin{aligned} p_i^{(1)} &= (1-u_0)p_i + u_0 p_{i+1}, \quad & i &= 0,1,2,\\ p_i^{(2)} &= (1-u_1)p_i^{(1)} + u_1 p_{i+1}^{(1)}, \quad & i &= 0,1,\\ b(u_0,u_1,u_2) &= (1-u_2)p_0^{(2)} + u_2 p_1^{(2)}. \end{aligned} \quad\text{(B.3)}$$
 
 `BlossomBezier()` implements this computation, which we will see has a variety of uses. The type `P` of the control point is a generic parameter, which makes it possible to call this function with any type for which a `Lerp()` function is defined.
 
@@ -2837,15 +2701,7 @@ pub fn subdivide_cubic_bezier(cp: &[Point3f; 4]) -> [Point3f; 7] {
 
 More generally, the four control points for the curve segment over the range $u_{\min}$ to $u_{\max}$ are given by the blossoms
 
-$$
-\begin{aligned}
-&\left(u_{\min},u_{\min},u_{\min}\right),\quad
-\left(u_{\min},u_{\min},u_{\max}\right),\\
-&\left(u_{\min},u_{\max},u_{\max}\right),\quad
-\left(u_{\max},u_{\max},u_{\max}\right).
-\end{aligned}
-\tag{B.4}
-$$
+$$\begin{aligned} &\left(u_{\min},u_{\min},u_{\min}\right),\quad \left(u_{\min},u_{\min},u_{\max}\right),\\ &\left(u_{\min},u_{\max},u_{\max}\right),\quad \left(u_{\max},u_{\max},u_{\max}\right). \end{aligned} \quad\text{(B.4)}$$
 
 **Figure B.5 — Blossoming to Find Control Points for a Segment of a Bézier Curve** (page-scan figure, transcribed). The four blossoms in Equation (B.4) give the control points for the curve from $u_{\min}$ to $u_{\max}$. Blossoming provides an elegant method to compute the Bézier control points of the curve that represent a subset of the overall curve.
 
@@ -3016,11 +2872,7 @@ Interval arithmetic is a technique that can be used to reason about the range of
 
 When implemented in floating-point arithmetic, interval operations can be defined so that they result in intervals that bound the true value. Given a function `RoundDown` that rounds a value that cannot exactly be represented as a floating-point value down to the next lower floating-point value and `RoundUp` that similarly rounds up, interval addition can be defined as
 
-$$
-[a,b] + [c,d] \subset
-\big[\text{RoundDown}(a+c),\; \text{RoundUp}(b+d)\big].
-\tag{B.5}
-$$
+$$[a,b] + [c,d] \subset \big[\text{RoundDown}(a+c),\; \text{RoundUp}(b+d)\big]. \quad\text{(B.5)}$$
 
 Performing a series of floating-point calculations in this manner is the basis of running error analysis, which was described in Section 6.8.1. pbrt uses interval arithmetic to compute error bounds for ray intersections with quadrics and also uses the interval-based `Point3i` class to store computed ray intersection points on surfaces. The zero-finding method used to find the extrema of moving bounding boxes in `AnimatedTransform::BoundPointMotion()` (included in the online edition) is also based on interval arithmetic. The `Interval` class provides interval arithmetic capabilities using operator overloading to make it fairly easy to switch existing regular floating-point computations over to be interval-based.
 
@@ -4379,21 +4231,11 @@ The `LinearColorEncoding` class is trivial: it divides 8-bit values by 255 to co
 
 `sRGBColorEncoding` implements the encoding specified by the sRGB color space. It combines a linear segment for small values with a power curve for larger ones. A linear value $x$ is converted to an sRGB-encoded value $x_e$ by
 
-$$
-x_e = \begin{cases}
-    12.92\,x, & x \le 0.0031308,\\
-    1.055\,x^{1/2.4} - 0.055, & \text{otherwise}.
-\end{cases}
-$$
+$$x_e = \begin{cases} 12.92\,x, & x \le 0.0031308,\\ 1.055\,x^{1/2.4} - 0.055, & \text{otherwise}. \end{cases}$$
 
 The work of conversion is handled by `LinearToSRGB8()`, which is not included here. It uses a rational polynomial approximation to avoid the cost of a power call in computing the encoded value. The inverse transformation is
 
-$$
-x = \begin{cases}
-    x_e / 12.92, & x_e \le 0.04045,\\
-    \left(\dfrac{x_e + 0.055}{1.055}\right)^{2.4}, & \text{otherwise}.
-\end{cases}
-$$
+$$x = \begin{cases} x_e / 12.92, & x_e \le 0.04045,\\ \left(\dfrac{x_e + 0.055}{1.055}\right)^{2.4}, & \text{otherwise}. \end{cases}$$
 
 For 8-bit encoded values, `SRGB8ToLinear()` uses a precomputed 256-entry lookup table. A separate `SRGBToLinear()` uses a rational polynomial approximation for arbitrary floating-point values between 0 and 1.
 
@@ -4431,9 +4273,7 @@ As improvements in the performance of single processing cores have slowed over t
 
 One of the biggest challenges with parallel ray tracing is the impact of nonparallel phases of computation. For example, it is not as easy to effectively parallelize the construction of many types of acceleration structure while the scene is being constructed as it is to parallelize rendering. While this may seem like a minor issue, Amdahl's law, which describes the speedup of a workload that has both serial and parallel phases, points to the challenge. Given $n$ cores performing computation and a workload where the fraction $s$ of its overall computation is inherently serial, the maximum speedup then possible is
 
-$$
-\text{speedup} = \frac{1}{\,s + \dfrac{1-s}{n}\,}.
-$$
+$$\text{speedup} = \frac{1}{\,s + \dfrac{1-s}{n}\,}.$$
 
 Thus, even with an infinite number of cores, the maximum speedup is $1/s$. If, for example, a seemingly innocuous 5% of the run time is spent in a serial phase of parsing the scene file and building acceleration structures, the maximum speedup possible is $1/0.05 = 20\times$, no matter how quickly the parallel phase executes. We experienced the impact of Amdahl's law as we brought pbrt's GPU rendering path to life: it was often the case that it took longer to parse the scene description and to prepare the scene for rendering than it took to render the image, even at high sampling rates! This led to more attention to parallelizing parsing and creating the objects that represent the scene. (See Section C.3 for further discussion of this topic.)
 

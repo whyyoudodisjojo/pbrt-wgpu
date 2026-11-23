@@ -558,14 +558,7 @@ The orthographic viewing transformation leaves $x$ and $y$ coordinates unchanged
 
 $\mathbf{P}_{\text{ortho}} = \mathbf{S}\!\left(1, 1, \tfrac{1}{z_f - z_n}\right)\,\mathbf{T}(0, 0, -z_n)$, i.e.
 
-$$
-\begin{pmatrix}
-1 & 0 & 0 & 0 \\
-0 & 1 & 0 & 0 \\
-0 & 0 & \frac{1}{z_f - z_n} & -\frac{z_n}{z_f - z_n} \\
-0 & 0 & 0 & 1
-\end{pmatrix}
-$$
+$$\begin{pmatrix} 1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & \frac{1}{z_f - z_n} & -\frac{z_n}{z_f - z_n} \\ 0 & 0 & 0 & 1 \end{pmatrix}$$
 
 `⟨Transform Function Definitions⟩ +≡`
 
@@ -741,15 +734,7 @@ $$x' = \frac{x}{z}, \qquad y' = \frac{y}{z}, \qquad z' = \frac{f}{f-n} - \frac{f
 
 All of this computation can be encoded in a $4 \times 4$ matrix that can then be applied to homogeneous coordinates:
 
-$$
-\mathbf{P}_{\text{persp}} =
-\begin{pmatrix}
-1 & 0 & 0 & 0 \\
-0 & 1 & 0 & 0 \\
-0 & 0 & \frac{f}{f-n} & -\frac{fn}{f-n} \\
-0 & 0 & 1 & 0
-\end{pmatrix}
-$$
+$$\mathbf{P}_{\text{persp}} = \begin{pmatrix} 1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & \frac{f}{f-n} & -\frac{fn}{f-n} \\ 0 & 0 & 1 & 0 \end{pmatrix}$$
 
 2. The angular field of view (`fov`) specified by the user is accounted for by scaling the $(x, y)$ values on the projection plane so that points inside the field of view project to coordinates between $[-1, 1]$ on the view plane. For square images, both $x$ and $y$ lie between $[-1, 1]$ in screen space. Otherwise, the direction in which the image is narrower maps to $[-1, 1]$, and the wider direction maps to a proportionally larger range of screen space values. Recall that the tangent is equal to the ratio of the opposite side of a right triangle to the adjacent side. Here the adjacent side has length 1, so the opposite side has the length $\tan(\text{fov}/2)$. Scaling by the reciprocal of this length maps the field of view to the range $[-1, 1]$. `⟨Scale canonical perspective view to specified field of view⟩ ≡ 220`
 
@@ -868,13 +853,13 @@ flowchart LR
 
 For points in the scene at a depth $z$ from a thin lens with focal length $f$, the Gaussian lens equation relates the distances from the object to the lens and from the lens to the image of the point:
 
-$$\frac{1}{z'} - \frac{1}{z} = \frac{1}{f}. \tag{5.1}$$
+$$\frac{1}{z'} - \frac{1}{z} = \frac{1}{f}. \quad\text{(5.1)}$$
 
 Note that for $z = -\infty$, we have $z' = f$, as expected.
 
 We can use the Gaussian lens equation to solve for the distance between the lens and the film that sets the plane of focus at some $z$, the focal distance (Figure 5.9):
 
-$$z' = \frac{zf}{z + f}. \tag{5.2}$$
+$$z' = \frac{zf}{z + f}. \quad\text{(5.2)}$$
 
 *Figure 5.9: To focus a thin lens at a depth $z$ in the scene, Equation (5.2) can be used to compute the distance $z'$ on the film side of the lens that points at $z$ focus to. Focusing is performed by adjusting the distance between the lens and the film plane.* (The scanned diagram was a missing-art placeholder; the relation is given by Equation (5.2).)
 
@@ -1149,7 +1134,7 @@ $$E(\mathbf{p}) = \int_{A_e} L(\mathbf{p}', \mathbf{p}-\mathbf{p}')\,\frac{\cos\
 
 Figure 5.18 shows the geometry of the situation. Because the film plane is perpendicular to the lens’s plane, $\theta = \theta'$. We can further take advantage of the fact that the distance between $\mathbf{p}$ and $\mathbf{p}'$ is equal to the axial distance from the film plane to the lens (which we will denote here by $z$) divided by $\cos\theta$. Putting this all together, we have
 
-$$E(\mathbf{p}) = \frac{1}{z^2}\int_{A_e} L(\mathbf{p}', \mathbf{p}-\mathbf{p}')\cos^4\theta\,dA'. \tag{5.3}$$
+$$E(\mathbf{p}) = \frac{1}{z^2}\int_{A_e} L(\mathbf{p}', \mathbf{p}-\mathbf{p}')\cos^4\theta\,dA'. \quad\text{(5.3)}$$
 
 For cameras where the extent of the film is relatively large with respect to the distance $z$, the $\cos^4\theta$ term can meaningfully reduce the incident irradiance—this factor also contributes to vignetting. Most modern digital cameras correct for this effect with preset correction factors that increase pixel values toward the edges of the sensor.
 
@@ -1172,11 +1157,11 @@ flowchart LR
 
 Integrating irradiance at a point on the film over the time that the shutter is open gives radiant exposure, which is the radiometric unit for energy per area, $\mathrm{J/m^2}$:
 
-$$H(\mathbf{p}) = \int_{t_{\text{open}}}^{t_{\text{close}}} E(\mathbf{p}, t)\,dt. \tag{5.4}$$
+$$H(\mathbf{p}) = \int_{t_{\text{open}}}^{t_{\text{close}}} E(\mathbf{p}, t)\,dt. \quad\text{(5.4)}$$
 
 (Radiant exposure is also known as fluence.) Measuring radiant exposure at a point captures the effect that the amount of energy received on the film plane is partially related to the length of time the camera shutter is open. Photographic film (or CCD or CMOS sensors in digital cameras) measures radiant energy over a small area. Taking Equation (5.4) and also integrating over sensor pixel area, $A_p$, we have
 
-$$J = \int_{A_p} H(\mathbf{p})\,dA_p = \int_{A_p}\int_{t_{\text{open}}}^{t_{\text{close}}}\int_{A_e}\frac{L\cos^4\theta}{z^2}\,dA'\,dt\,dA_p, \tag{5.5}$$
+$$J = \int_{A_p} H(\mathbf{p})\,dA_p = \int_{A_p}\int_{t_{\text{open}}}^{t_{\text{close}}}\int_{A_e}\frac{L\cos^4\theta}{z^2}\,dA'\,dt\,dA_p, \quad\text{(5.5)}$$
 
 the Joules arriving at a pixel; this is called the camera measurement equation. Although these factors apply to all of the camera models introduced in this chapter, they are only included in the implementation of the `RealisticCamera`. The reason is purely pragmatic: most renderers do not model this effect, so omitting it from the simpler camera models makes it easier to compare images rendered by pbrt with those rendered by other systems.
 
@@ -1186,7 +1171,7 @@ Traditional film is based on a chemical process where silver halide crystals pro
 
 For both film and digital sensors, color measurements at pixels can be modeled using spectral response curves that characterize the color filter or film’s chemical response to light as a function of wavelength. These functions are defined such that, for example, given an incident spectral distribution $s(\lambda)$, a pixel’s red component is given by
 
-$$r = \int_{\lambda_{\min}}^{\lambda_{\max}} \bar{r}(\lambda)\,s(\lambda)\,d\lambda. \tag{5.6}$$
+$$r = \int_{\lambda_{\min}}^{\lambda_{\max}} \bar{r}(\lambda)\,s(\lambda)\,d\lambda. \quad\text{(5.6)}$$
 
 Digital sensor pixels are typically arranged in a mosaic, with twice as many green pixels as red and blue, due to the human visual system’s greater sensitivity to green. One implication of pixel mosaics is that a demosaicing algorithm must be used to convert these sensor pixels to image pixels where the red, green, and blue color components are colocated. The naive approach of taking quads of mosaiced pixels and using their color values as is does not work well, since the constituent sensor pixels are at slightly different locations. There are many challenges in designing digital sensors, most of them stemming from the small size of pixels, which is a result of demand for high-resolution images. The smaller a pixel is, the fewer photons it is exposed to given a lens and exposure time, and in turn, the harder it is to accurately measure the light. Pixel arrays suffer from a variety of types of noise, of which shot noise is generally the most significant. It is due to the discrete nature of photons: there is random fluctuation in the number of photons that are counted, which matters more the fewer of them that are captured. Shot noise can be modeled using a Poisson distribution.
 
@@ -1251,7 +1236,7 @@ imaging_ratio: f32,
 
 The `RGB` color space in which a sensor pixel records light is generally not the same as the `RGB` color space that the user has specified for the final image. The former is generally specific to a camera and is determined by the physical properties of its pixel color filters, and the latter is generally a device-independent color space like sRGB or one of the other color spaces described in Section 4.6.3. Therefore, the `PixelSensor` constructor computes a $3 \times 3$ matrix that converts from its `RGB` space to `XYZ`. From there, it is easy to convert to a particular output color space. This matrix is found by solving an optimization problem. It starts with over twenty spectral distributions, representing the reflectance of patches with a variety of colors from a standardized color chart. The constructor computes the `RGB` colors of those patches under the camera’s illuminant in the camera’s color space as well as their `XYZ` colors under the illuminant of the output color space. If these colors are respectively denoted by column vectors, then we can consider the problem of finding a $3 \times 3$ matrix $\mathbf{M}$:
 
-$$\mathbf{M} = \arg\min_{\mathbf{M}} \sum_{i=1}^{n}\left\|\mathbf{M}\,\mathbf{rgb}_i - \mathbf{xyz}_i\right\|^2. \tag{5.7}$$
+$$\mathbf{M} = \arg\min_{\mathbf{M}} \sum_{i=1}^{n}\left\|\mathbf{M}\,\mathbf{rgb}_i - \mathbf{xyz}_i\right\|^2. \quad\text{(5.7)}$$
 
 As long as there are more than three reflectances, this is an over-constrained problem that can be solved using linear least squares. `⟨Compute XYZ from camera RGB matrix⟩ ≡ 234`
 
@@ -1343,7 +1328,7 @@ if let Some(sensor_illum) = sensor_illum {
 
 The main functionality provided by the `PixelSensor` is the `to_sensor_rgb()` method, which converts a point-sampled spectral distribution $L(\lambda_i)$ in a `SampledSpectrum` to `RGB` coefficients in the sensor’s color space. It does so via Monte Carlo evaluation of the sensor response integral, Equation (5.6), giving estimators of the form
 
-$$\hat{r} = \frac{1}{n}\sum_{i=1}^{n}\frac{\bar{r}(\lambda_i)\,L(\lambda_i)}{p(\lambda_i)}, \tag{5.8}$$
+$$\hat{r} = \frac{1}{n}\sum_{i=1}^{n}\frac{\bar{r}(\lambda_i)\,L(\lambda_i)}{p(\lambda_i)}, \quad\text{(5.8)}$$
 
 where $n$ is equal to `NSpectrumSamples`. The associated PDF values are available from the `SampledWavelengths` and the sum over wavelengths and division by $n$ is handled using `SampledSpectrum::Average()`. These coefficients are scaled by the imaging ratio, which completes the conversion. `⟨PixelSensor Public Methods⟩ +≡ 234`
 
@@ -1422,7 +1407,7 @@ Figure 5.20 shows an image rendered with a yellowish illuminant and the image af
 
 However, choosing a distribution to use for sampling is challenging since the goal is minimizing error perceived by humans rather than strictly minimizing numeric error. Figure 5.21(a) shows the plots of both the CIE Y matching function and the sum of X, Y, and Z matching functions, both of which could be used. In practice, sampling according to Y alone gives excessive chromatic noise, but sampling by the sum of all three matching functions devotes too many samples to wavelengths between 400 nm and 500 nm, which are relatively unimportant visually. A parametric probability distribution function that balances these concerns and works well for sampling the visible wavelengths is
 
-$$p_v(\lambda) = \frac{c}{\cosh^2\!\big(A(\lambda - B)\big)}, \tag{5.9}$$
+$$p_v(\lambda) = \frac{c}{\cosh^2\!\big(A(\lambda - B)\big)}, \quad\text{(5.9)}$$
 
 with $A = 0.0072\ \mathrm{nm}^{-1}$ and $B = 538\ \mathrm{nm}$, and normalization constant $c$. Figure 5.21(b) shows a plot of $p_v(\lambda)$.
 
@@ -1495,15 +1480,15 @@ Using this distribution for sampling in place of a uniform distribution is worth
 
 The main responsibility of `Film` implementations is to aggregate multiple spectral samples at each pixel in order to compute a final value for it. In a physical camera, each pixel integrates light over a small area. Its response may have some spatial variation over that area that depends on the physical design of the sensor. In Chapter 8 we will consider this operation from the perspective of signal processing and will see that the details of where the image function is sampled and how those samples are weighted can significantly affect the final image quality. Pending those details, for now we will assume that some filter function $f$ is used to define the spatial variation in sensor response around each image pixel. These filter functions quickly go to zero, encoding the fact that pixels only respond to light close to them on the film. They also encode any further spatial variation in the pixel’s response. With this approach, if we have an image function $r(x,y)$ that gives the red color at an arbitrary position on the film (e.g., as measured using a sensor response function $\bar{r}$ with Equation (5.6)), then the filtered red value $r_f$ at a position $(x,y)$ is given by
 
-$$r_f(x,y) = \iint f(x - x', y - y')\,r(x',y')\,dx'\,dy', \tag{5.10}$$
+$$r_f(x,y) = \iint f(x - x', y - y')\,r(x',y')\,dx'\,dy', \quad\text{(5.10)}$$
 
 where the filter function $f$ is assumed to integrate to 1. As usual, we will estimate this integral using point samples of the image function. The estimator is
 
-$$\left\langle r_f(x,y)\right\rangle = \frac{1}{n}\sum_{i=1}^{n}\frac{f(x - x_i, y - y_i)}{p(x_i, y_i)}\,r(x_i,y_i). \tag{5.11}$$
+$$\left\langle r_f(x,y)\right\rangle = \frac{1}{n}\sum_{i=1}^{n}\frac{f(x - x_i, y - y_i)}{p(x_i, y_i)}\,r(x_i,y_i). \quad\text{(5.11)}$$
 
 Two approaches have been used in graphics to sample the integrand. The first, which was used in all three previous versions of pbrt, is to sample the image uniformly. Each image sample may then contribute to multiple pixels’ final values, depending on the extent of the filter function being used. This approach gives the estimator
 
-$$\left\langle r_f(x,y)\right\rangle = \frac{A}{n}\sum_{i=1}^{n} f(x - x_i, y - y_i)\,r(x_i,y_i), \tag{5.12}$$
+$$\left\langle r_f(x,y)\right\rangle = \frac{A}{n}\sum_{i=1}^{n} f(x - x_i, y - y_i)\,r(x_i,y_i), \quad\text{(5.12)}$$
 
 where $A$ is the film area. Figure 5.23 illustrates the approach; it shows a pixel at location $(x,y)$ that has a pixel filter with extent `radius.x` in the $x$ direction and `radius.y` in the $y$ direction. All the samples at positions $(x_i,y_i)$ inside the box given by the filter extent may contribute to the pixel’s value, depending on the filter function’s value for $f(x - x_i, y - y_i)$.
 
@@ -1529,7 +1514,7 @@ $$\left\langle r_f(x,y)\right\rangle = \frac{1}{n}\sum_{i=1}^{n}\operatorname{si
 
 where $\operatorname{sign}(x)$ is 1 if $x > 0$, 0 if it is 0, and $-1$ otherwise. However, this estimator has the same problem as Equation (5.12): even with a constant function $r$, the estimates will have variance depending on how many of the sign function evaluations give 1 and how many give $-1$. Therefore, this version of pbrt continues to use the weighted importance sampling estimator, computing pixel values as
 
-$$\left\langle r_f(x,y)\right\rangle = \frac{\sum_i w(x_i,y_i)\,r(x_i,y_i)}{\sum_i w(x_i,y_i)}, \qquad w(x,y) = \frac{f(x,y)}{p(x,y)}. \tag{5.13}$$
+$$\left\langle r_f(x,y)\right\rangle = \frac{\sum_i w(x_i,y_i)\,r(x_i,y_i)}{\sum_i w(x_i,y_i)}, \qquad w(x,y) = \frac{f(x,y)}{p(x,y)}. \quad\text{(5.13)}$$
 
 The first of these two approaches has the advantage that each image sample can contribute to multiple pixels’ final filtered values. This can be beneficial for rendering efficiency, as all the computation involved in computing the radiance for an image sample can be used to improve the accuracy of multiple pixels. However, using samples generated for other pixels is not always helpful: some of the sample generation algorithms implemented in Chapter 8 carefully position samples in ways that ensure good coverage of the sampling domain in a pixel. If samples from other pixels are mixed in with those, the full set of samples for a pixel may no longer have that same structure, which in turn can increase error. By not sharing samples across pixels, filter importance sampling does not have this problem. Filter importance sampling has further advantages. It makes parallel rendering easier: if the renderer is parallelized in a way that has different threads working on different pixels, there is never a chance that multiple threads will need to concurrently modify the same pixel’s value. A final advantage is that if there are any samples that are much brighter than the others due to a variance spike from a poorly sampled integrand, then those samples only contribute to a single pixel, rather than being smeared over multiple pixels. It is easier to fix up the resulting single-pixel artifacts than a neighborhood of them that have been affected by such a sample.
 
@@ -2088,6 +2073,4 @@ McCool (1999) used the depth, surface normal, and color at each pixel to determi
 6. These reflectance measurements are courtesy of Danny Pascale and are used with permission.
 
 [↑ Back to top](#contents)
-
-
 

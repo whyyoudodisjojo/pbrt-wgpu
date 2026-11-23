@@ -212,9 +212,7 @@ One implication of thread groups is that techniques like Russian roulette may ha
 
 **Memory Hierarchy.** Large differences in the memory system architectures of CPUs and GPUs further affect how a system should be structured to run efficiently on each type of processor. Table 15.1 summarizes some relevant quantities for a representative modern CPU and GPU that at the time of this writing have roughly the same cost. Two differences are immediately apparent: the peak memory bandwidth and number of TFLOPS (trillions of floating point operations per second) are both approximately ten times higher on the GPU. It is also clear that neither processor is able to reach its peak performance solely by operating on values stored in memory. For example, the 3.8 TFLOPS that the CPU is capable of would require 15.2 TB/s of memory bandwidth if each 4-byte floating-point value operated on was to be read from memory:
 
-$$
-\frac{3.8\times10^{12}\ \text{FLOP/s}}{4\ \text{byte}} = 15.2\times10^{12}\ \text{byte/s} = 15.2\ \text{TB/s}.
-$$
+$$\frac{3.8\times10^{12}\ \text{FLOP/s}}{4\ \text{byte}} = 15.2\times10^{12}\ \text{byte/s} = 15.2\ \text{TB/s}.$$
 
 Consequently, we can see that the performance of a computation such as iterating over a large array, reading each value, squaring it, and writing the result back to memory would not be limited by the processor's computational capabilities but would be limited by the memory bandwidth. We say that such computations are *bandwidth limited*. A useful measurement of a computation is its *arithmetic intensity*, which is usually measured as the number of floating-point operations performed per byte of memory accessed. Dividing peak TFLOPS by peak memory bandwidth gives a measurement of how much arithmetic intensity a processor requires to achieve its peak performance. For this CPU, we can see that it is roughly 38 floating-point operations (FLOPS) per byte, or 152 FLOPS for every 4-byte float read from memory. For the GPU, the values are 38.5 and 154, respectively—remarkably, almost exactly the same. Given such arithmetic intensity requirements, it is easy to become bandwidth limited.
 

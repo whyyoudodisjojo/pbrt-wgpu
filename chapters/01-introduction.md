@@ -263,23 +263,17 @@ Each time the camera generates a ray, the first task of the renderer is to deter
 
 Given a ray $\mathbf{r}$, we first start by writing it in *parametric form*:
 
-$$
-\mathbf{r}(t) = \mathbf{o} + t\mathbf{d},
-$$
+$$\mathbf{r}(t) = \mathbf{o} + t\mathbf{d},$$
 
 where $\mathbf{o}$ is the ray's origin, $\mathbf{d}$ is its direction vector, and $t$ is a parameter whose legal range is $[0, \infty)$. We can obtain a point along the ray by specifying its parametric $t$ value and evaluating the above equation.
 
 It is often easy to find the intersection between the ray $\mathbf{r}$ and a surface defined by an implicit function $F(x, y, z) = 0$. We first substitute the ray equation into the implicit equation, producing a new function whose only parameter is $t$. We then solve this function for $t$ and substitute the smallest positive root into the ray equation to find the desired point. For example, the implicit equation of a sphere centered at the origin with radius $r$ is
 
-$$
-x^2 + y^2 + z^2 - r^2 = 0.
-$$
+$$x^2 + y^2 + z^2 - r^2 = 0.$$
 
 Substituting the ray equation, we have
 
-$$
-(o_x + t d_x)^2 + (o_y + t d_y)^2 + (o_z + t d_z)^2 - r^2 = 0,
-$$
+$$(o_x + t d_x)^2 + (o_y + t d_y)^2 + (o_z + t d_z)^2 - r^2 = 0,$$
 
 where subscripts denote the corresponding component of a point or vector. For a given ray and a given sphere, all the values besides $t$ are known, giving us an easily solved quadratic equation in $t$. If there are no real roots, the ray misses the sphere; if there are roots, the smallest positive one gives the intersection point. On the GPU this same quadratic is evaluated in a WGSL intersection pass over a storage buffer of rays:
 
@@ -328,9 +322,7 @@ We frequently would like to know the amount of light power being deposited on th
 
 If we consider two such spheres (Figure 1.6), it is clear that the power per area at a point on the larger sphere must be less than the power at a point on the smaller sphere because the same total power is distributed over a larger area. Specifically, the power per area arriving at a point on a sphere of radius $r$ is proportional to $1/r^2$. Furthermore, it can be shown that if the tiny surface patch $dA$ is tilted by an angle $\theta$ away from the vector from the surface point to the light, the amount of power deposited on $dA$ is proportional to $\cos\theta$. Putting this all together, the differential power per area $dE$ (the *differential irradiance*) is
 
-$$
-dE = \frac{\Phi \cos\theta}{4\pi r^2}.
-$$
+$$dE = \frac{\Phi \cos\theta}{4\pi r^2}.$$
 
 Readers already familiar with basic lighting in computer graphics will notice two familiar laws encoded in this equation: the cosine falloff of light for tilted surfaces mentioned above, and the one-over-$r$-squared falloff of light with distance.
 
@@ -363,9 +355,7 @@ We are now able to compute two pieces of information that are vital for proper s
 
 Each object in the scene provides a *material*, which is a description of its appearance properties at each point on the surface. This description is given by the *bidirectional reflectance distribution function* (`BRDF`). This function tells us how much energy is reflected from an incoming direction $\omega_i$ to an outgoing direction $\omega_o$. We will write the `BRDF` at $p$ as
 
-$$
-f_r(p, \omega_o, \omega_i).
-$$
+$$f_r(p, \omega_o, \omega_i).$$
 
 (By convention, directions $\omega$ are unit vectors.)
 
@@ -390,10 +380,7 @@ Turner Whitted's original paper on ray tracing (1980) emphasized its *recursive*
 
 In general, the amount of light that reaches the camera from a point on an object is given by the sum of light emitted by the object (if it is itself a light source) and the amount of reflected light. This idea is formalized by the *light transport equation* (also often known as the *rendering equation*), which measures light with respect to *radiance*, a radiometric unit that will be defined in Section 4.1. It says that the outgoing radiance $L_o(p, \omega_o)$ from a point $p$ in direction $\omega_o$ is the emitted radiance at that point in that direction, $L_e(p, \omega_o)$, plus the incident radiance from all directions on the sphere $S^2$ around $p$ scaled by the `BSDF` $f(p, \omega_o, \omega_i)$ and a cosine term:
 
-$$
-L_o(p, \omega_o) = L_e(p, \omega_o) + \int_{S^2} f(p, \omega_o, \omega_i)\, L_i(p, \omega_i)\, |\cos\theta_i|\, d\omega_i.
-\tag{1.1}
-$$
+$$L_o(p, \omega_o) = L_e(p, \omega_o) + \int_{S^2} f(p, \omega_o, \omega_i)\, L_i(p, \omega_i)\, |\cos\theta_i|\, d\omega_i. \quad\text{(1.1)}$$
 
 We will show a more complete derivation of this equation in Sections 4.3.1 and 13.1.1. Solving this integral analytically is not possible except for the simplest of scenes, so we must either make simplifying assumptions or use numerical integration techniques.
 
@@ -1212,12 +1199,7 @@ let le = isect.le(wo, lambda);
 
 Evaluating the second term of the light transport equation requires computing an integral over the sphere of directions around the intersection point $p$. Application of the principles of Monte Carlo integration can be used to show that if directions $\omega'$ are chosen with equal probability over all possible directions, then an estimate of the integral can be computed as a weighted product of the `BSDF` $f$, which describes the light scattering properties of the material at $p$, the incident lighting, $L_i$, and a cosine factor:
 
-$$
-\int_{S^2} f(p, \omega_o, \omega_i)\, L_i(p, \omega_i)\, |\cos\theta_i|\, d\omega_i
-\approx
-\frac{f(p, \omega_o, \omega')\, L_i(p, \omega')\, |\cos\theta'| }{1 / (4\pi)}.
-\tag{1.2}
-$$
+$$\int_{S^2} f(p, \omega_o, \omega_i)\, L_i(p, \omega_i)\, |\cos\theta_i|\, d\omega_i \approx \frac{f(p, \omega_o, \omega')\, L_i(p, \omega')\, |\cos\theta'| }{1 / (4\pi)}. \quad\text{(1.2)}$$
 
 In other words, given a random direction $\omega'$, estimating the value of the integral requires evaluating the terms in the integrand for that direction and then scaling by a factor of $4\pi$. (This factor, which is derived in Section A.5.2, relates to the surface area of a unit sphere.) Since only a single direction is considered, there is almost always error in the Monte Carlo estimate compared to the true value of the integral. However, it can be shown that estimates like this one are correct *in expectation*: informally, that they give the correct result on average. Averaging multiple independent estimates generally reduces this error—hence, the practice of taking multiple samples per pixel.
 
@@ -1539,7 +1521,7 @@ While the radiosity approach was based on physical units and conservation of ene
 During the radiosity years, a small group of researchers pursued physically based approaches to rendering that were based on ray tracing and Monte Carlo integration. At the time, many looked at their work with skepticism; objectionable noise in images due to Monte Carlo integration error seemed unavoidable, while radiosity-based methods quickly gave visually pleasing results, at least on relatively simple scenes.
 
 - **Cook, Porter, and Carpenter (1984)** introduced distributed ray tracing, which generalized Whitted's algorithm to compute motion blur and defocus blur from cameras, blurry reflection from glossy surfaces, and illumination from area light sources (Cook et al. 1984), showing that ray tracing was capable of generating a host of important soft lighting effects.
-- **Kajiya (1986)** introduced path tracing; he set out a rigorous formulation of the rendering problem (the light transport integral equation) and showed how to apply Monte Carlo integration to solve it. This work required immense amounts of computation: to render a $256 \times 256$ pixel image of two spheres with path tracing required 7 hours of computation on an IBM 4341 computer, which cost roughly $280,000 when it was first released (Farmer 1981). With von Herzen, Kajiya also introduced the volume-rendering equation to graphics (Kajiya and von Herzen 1984); this equation describes the scattering of light in participating media.
+- **Kajiya (1986)** introduced path tracing; he set out a rigorous formulation of the rendering problem (the light transport integral equation) and showed how to apply Monte Carlo integration to solve it. This work required immense amounts of computation: to render a $256 \times 256$ pixel image of two spheres with path tracing required 7 hours of computation on an IBM 4341 computer, which cost roughly 280,000 USD when it was first released (Farmer 1981). With von Herzen, Kajiya also introduced the volume-rendering equation to graphics (Kajiya and von Herzen 1984); this equation describes the scattering of light in participating media.
 - Both Cook et al.'s and Kajiya's work once again led to images unlike any that had been seen before, demonstrating the value of physically based methods.
 
 In subsequent years, important work on Monte Carlo for realistic image synthesis was described in papers by Arvo and Kirk (1990) and Kirk and Arvo (1991). Shirley's Ph.D. dissertation (1990) and follow-on work by Shirley et al. (1996) were important contributions to Monte Carlo–based efforts. Hall's book, *Illumination and Color in Computer Generated Imagery* (1989), was one of the first books to present rendering in a physically based framework, and Andrew Glassner's *Principles of Digital Image Synthesis* laid out foundations of the field (1995). Ward's Radiance rendering system was an early open source physically based rendering system, focused on lighting design (Ward 1994), and Slusallek's Vision renderer was designed to bridge the gap between physically based approaches and the then widely used RenderMan interface, which was not physically based (Slusallek 1996).

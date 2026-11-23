@@ -57,7 +57,6 @@ Surface reflection models come from a number of sources:
 
 </details>
 
-
 This chapter discusses the implementation of a number of such models along with the associated theory. See also Section 14.3, which introduces a reflection model based on the simulation of light scattering in layered materials. The “Further Reading” section at the end of this chapter gives pointers to a wide variety of additional reflection models.
 
 An important component of surface appearance is the spatial variation of reflection and transmission properties over the surface. The texture and material classes of Chapter 10 will address that problem, while the abstractions presented here will only consider scattering at a single point on a surface. Further, BRDFs and BTDFs explicitly only model scattering from light that enters and exits a surface at a single point. For surfaces that exhibit meaningful subsurface light transport, a more complete simulation of light scattering inside the material is necessary—for example, by applying the volumetric light transport algorithms of Chapter 14.
@@ -94,7 +93,6 @@ flowchart LR
 ```
 
 *Figure 9.2 (redrawn as Mermaid). The Basic BSDF Coordinate Setting. The shading coordinate system is defined by the orthonormal basis vectors (s, t, n). We will orient these vectors such that they lie along the x, y, and z axes in this coordinate system. Direction vectors ω in rendering space are transformed into the shading coordinate system before any of the BRDF or BTDF methods are called.*
-
 
 ```text
     BSDF 544
@@ -318,9 +316,7 @@ A first variant of `BxDF::rho()` computes the reflectance function ρhd. Its cal
 
 Each term of the estimator
 
-$$\rho_{hd}(\omega_o)=\int_{H^2} f_r(\omega_o,\omega_i)\,|\cos\theta_i|\,\mathrm{d}\omega_i
- \;\approx\;\frac{1}{N}\sum_{i=1}^{N}\frac{f_r(\omega_o,\omega_i)\,|\cos\theta_i|}{p(\omega_i)}.$$
-
+$$\rho_{hd}(\omega_o)=\int_{H^2} f_r(\omega_o,\omega_i)\,|\cos\theta_i|\,\mathrm{d}\omega_i \;\approx\;\frac{1}{N}\sum_{i=1}^{N}\frac{f_r(\omega_o,\omega_i)\,|\cos\theta_i|}{p(\omega_i)}.$$
 
 is easily evaluated.
 
@@ -392,12 +388,7 @@ However, sampling alone is not enough: two methods (`Sample_f()` and `PDF`) also
 
 To resolve this conflict, BSDFs may only contain matched pairs of delta functions in their `fr` function and `PDF`. For example, suppose that the PDF factors into a remainder term and a delta function involving a particular direction ω′: p(ωi) = prem(ωi) δ(ω′ − ωi). If the same holds true for fr, then a Monte Carlo estimator that divides fr by the PDF will never require evaluation of the delta function:
 
-$$\int f(x)\,\mathrm{d}x=\int\frac{f(x)}{p(x)}\,p(x)\,\mathrm{d}x
- \;\approx\;\frac{1}{N}\sum_{i=1}^{N}\frac{f(x_i)}{p(x_i)},
-\qquad
- \frac{f_{\mathrm{pre}}(x)\,\delta(\omega^{\prime}-\omega_i)}{p_{\mathrm{pre}}(x)\,\delta(\omega^{\prime}-\omega_i)}
- =\frac{f_{\mathrm{pre}}(x)}{p_{\mathrm{pre}}(x)}.$$
-
+$$\int f(x)\,\mathrm{d}x=\int\frac{f(x)}{p(x)}\,p(x)\,\mathrm{d}x \;\approx\;\frac{1}{N}\sum_{i=1}^{N}\frac{f(x_i)}{p(x_i)}, \qquad \frac{f_{\mathrm{pre}}(x)\,\delta(\omega^{\prime}-\omega_i)}{p_{\mathrm{pre}}(x)\,\delta(\omega^{\prime}-\omega_i)} =\frac{f_{\mathrm{pre}}(x)}{p_{\mathrm{pre}}(x)}.$$
 
 Implementations of perfect specular materials will thus return a constant PDF of 1 when `Sample_f()` generates a direction associated with a delta function, with the understanding that the delta function will cancel in the estimator.
 
@@ -420,7 +411,6 @@ flowchart TB
 ```
 
 *Figure 9.3 (redrawn as Mermaid). The geometric normal, ng, defined by the surface geometry, and the shading normal, ns, given by per-vertex normals and/or bump mapping, will generally define different hemispheres for integrating incident illumination to compute surface reflection. It is important to handle this inconsistency carefully since it can otherwise lead to artifacts in images.*
-
 
 〈BSDF Definition〉 ≡ struct BSDF { 〈BSDF Public Methods 544〉  〈BSDF Private Members 544〉 };
 
@@ -735,7 +725,6 @@ The `PDF()` method just needs to ensure that the caller has included reflection 
 
 </details>
 
-
 ## 9.3 SPECULAR REFLECTION AND TRANSMISSION
 
 Following the discussion of diffuse surfaces with their perfectly uniform reflectance, we now turn to the opposite extreme: specular materials that only reflect light into a discrete set of directions. Following a review of the physical principles underlying such materials in this section, we will introduce concrete `BxDF` implementations in Sections 9.4 and 9.5.
@@ -789,7 +778,6 @@ Light waves undergo significant reflection when they encounter boundaries with a
 
 </details>
 
-
 *Table 9.1 provides IOR values for a number of dielectric materials and Figure 9.5 shows plots of the wavelength-dependent IOR for a few materials. pbrt also includes wavelength-dependent IORs for various materials that can be referred to by name in scene description files; see the file format documentation for more information.*
 
 In the following, we assume that the IOR on both sides of the surface in question is known. We first review in which direction(s) light travels following an interaction, which is described by the law of specular reflection and Snell’s law. Subsequently, we discuss how much of the scattered light travels in those directions, which is given by the Fresnel equations.
@@ -808,7 +796,6 @@ flowchart LR
 
 *Figure 9.6 (redrawn as Mermaid). The parallel projection of a vector ω on to the normal n is given by ω‖ = (cos θ)n = (n · ω)n. The perpendicular component is given by ω⊥ = (sin θ)n but is more easily computed by ω⊥ = ω − ω‖.*
 
-
 ```mermaid
 flowchart LR
     O["Outgoing ωo"] --> RP["ωr∥ = ωo∥ (same)"]
@@ -820,14 +807,11 @@ flowchart LR
 
 *Figure 9.7 (redrawn as Mermaid). Because the angles θo and θr are equal, the parallel component of the perfect reflection direction ωr‖ is the same as the incident direction’s: ωr‖ = ωo‖. Its perpendicular component is just the incident direction’s perpendicular component, negated.*
 
-
 This direction can also be computed using vectorial arithmetic instead of angles, which is more convenient in subsequent implementation. For this, note that surface normal, incident, and outgoing directions all lie in the same plane.
 
 We can decompose vectors ω that lie in a plane into a sum of two components: one parallel to n, which we will denote by ω‖, and one perpendicular to it, denoted ω⊥. These vectors are easily computed: if n and ω are normalized, then ω‖ is (cos θ)n = (n · ω)n (Figure 9.6). Because ω‖ + ω⊥ = ω, ω⊥ = ω − ω‖ = ω − (n · ω)n. Figure 9.7 shows the setting for computing the reflected direction ωr. We can see that both vectors have the same ω‖ component, and the value of ωr⊥ is the negation of ωo⊥. Therefore, we have
 
-$$\boldsymbol\omega_r=\operatorname{Reflect}(\boldsymbol\omega_o,\mathbf n)
- =-\boldsymbol\omega_o+2\,(\mathbf n\cdot\boldsymbol\omega_o)\,\mathbf n. \tag{9.1}$$
-
+$$\boldsymbol\omega_r=\operatorname{Reflect}(\boldsymbol\omega_o,\mathbf n) =-\boldsymbol\omega_o+2\,(\mathbf n\cdot\boldsymbol\omega_o)\,\mathbf n. \quad\text{(9.1)}$$
 
 The `Reflect()` function implements this computation.
 
@@ -839,8 +823,7 @@ At a specular interface, incident light with direction (θi, ϕi) about the surf
 
 Snell’s law states that
 
-$$\eta_i\,\sin\theta_i=\eta_t\,\sin\theta_t. \tag{9.2}$$
-
+$$\eta_i\,\sin\theta_i=\eta_t\,\sin\theta_t. \quad\text{(9.2)}$$
 
 If the target medium is optically denser (i.e., ηt > ηi), this means that the refracted light bends toward the surface normal. Snell’s law can be derived using Fermat’s principle, which is the subject of one of the exercises at the end of this chapter. Figure 9.8 shows the effect of perfect specular reflection and transmission.
 
@@ -848,8 +831,7 @@ The index of refraction normally varies with respect to wavelength; hence light 
 
 One useful observation about Snell’s law is that it technically does not depend on the precise values of ηi and ηt, but rather on their ratio. In other words, the law can be rewritten as
 
-$$\sin\theta_i=\eta\,\sin\theta_t,\qquad \eta=\frac{\eta_t}{\eta_i}. \tag{9.3}$$
-
+$$\sin\theta_i=\eta\,\sin\theta_t,\qquad \eta=\frac{\eta_t}{\eta_i}. \quad\text{(9.3)}$$
 
 where the relative index of refraction specifies the proportional slowdown incurred when light passes through the interface. We will generally follow the convention that relevant laws and implementations are based on this relative quantity.
 
@@ -864,7 +846,6 @@ As with the law of specular reflection, we shall now derive a more convenient ve
 
 </details>
 
-
 *Index: `Dot()` 89, `Vector3f` 86.*
 
 <details>
@@ -875,7 +856,6 @@ As with the law of specular reflection, we shall now derive a more convenient ve
 *Figure 9.9: The Effect of Dispersion When Rendering Glass. (a) Rendered using a constant index of refraction, and (b) rendered using a wavelength-dependent index of refraction based on measurements of glass, which causes different wavelengths of light to be scattered in different directions. As a result, white colors are separated, making their individual wavelengths of light distinct. (Scene courtesy of Beeple.)*
 
 </details>
-
 
 ```mermaid
 flowchart LR
@@ -888,13 +868,13 @@ flowchart LR
 
 *Figure 9.10 (redrawn as Mermaid). The Geometry of Specular Transmission. Given an incident direction ωi and surface normal n with angle θi between them, the specularly transmitted direction makes an angle θt with the surface normal. This direction, ωt, can be computed by using Snell’s law to find its perpendicular component ωt⊥ and then computing the ωt‖ that gives a normalized result ωt.*
 
-
 The trigonometric expressions above are closely related to the parallel and perpendicular components of the incident and transmitted directions. For example, the magnitudes of the perpendicular components equal the sines of the corresponding elevation angles. Since these directions all lie in a
 
 common reflection plane, Equation (9.3) can be rewritten as
 
-$$\sin\theta_t=\frac{\sin\theta_i}{\eta},\qquad
-\boldsymbol\omega_{t\perp}=\frac{\boldsymbol\omega_{i\perp}}{\eta}.$$ Equivalently, because $\boldsymbol\omega_\perp=\boldsymbol\omega-\boldsymbol\omega_\parallel$,
+$$\sin\theta_t=\frac{\sin\theta_i}{\eta},\qquad \boldsymbol\omega_{t\perp}=\frac{\boldsymbol\omega_{i\perp}}{\eta}.$$
+
+ Equivalently, because $\boldsymbol\omega_\perp=\boldsymbol\omega-\boldsymbol\omega_\parallel$,
 
 The parallel component points into the direction $-\mathbf n$, and its magnitude is given by $\cos\theta_t$—that is,
 
@@ -902,8 +882,7 @@ $$\boldsymbol\omega_{t\parallel}=-\cos\theta_t\,\mathbf n.$$
 
 Putting all the above together, then, the vector $\boldsymbol\omega_t$ equals
 
-$$\boldsymbol\omega_t=-\frac{\boldsymbol\omega_i}{\eta}
- +\left(\frac{\cos\theta_i}{\eta}-\cos\theta_t\right)\mathbf n. \tag{9.4}$$
+$$\boldsymbol\omega_t=-\frac{\boldsymbol\omega_i}{\eta} +\left(\frac{\cos\theta_i}{\eta}-\cos\theta_t\right)\mathbf n. \quad\text{(9.4)}$$
 
 The function `Refract()` computes the refracted direction wt via Equation (9.4) given an incident direction wi, surface normal n in the same hemisphere as wi, and the relative index of refraction `eta`. An adjusted relative IOR may be returned via `*etap`—we will discuss this detail shortly. The function returns a Boolean variable to indicate if the refracted direction was computed successfully.
 
@@ -929,7 +908,6 @@ flowchart LR
 
 *Figure 9.11 (redrawn as Mermaid). The cosine of the angle θ between a direction ω and the geometric surface normal indicates whether the direction is pointing outside the surface (in the same hemisphere as the normal) or inside the surface. In the standard reflection coordinate system, this test just requires checking the z component of the direction vector. Here, ω is in the upper hemisphere, with a positive-valued cosine, while ω′ is in the lower hemisphere.*
 
-
 〈Potentially flip interface orientation for Snell’s law〉 ≡ 554
 
 ```rust
@@ -951,9 +929,7 @@ It is sometimes useful for the caller of `Refract()` to know the relative IOR al
 
 We have not yet explained how the cosine of the transmitted angle θt should be computed. It can be derived from Equation (9.3) and the identity sin2 θ + cos2 θ = 1, which yields
 
-$$\cos\theta_t=\sqrt{1-\sin^2\theta_t}
- =\sqrt{1-\frac{\sin^2\theta_i}{\eta^2}}. \tag{9.5}$$
-
+$$\cos\theta_t=\sqrt{1-\sin^2\theta_t} =\sqrt{1-\frac{\sin^2\theta_i}{\eta^2}}. \quad\text{(9.5)}$$
 
 The following fragment implements this computation.
 
@@ -992,26 +968,19 @@ At surfaces, it is convenient to distinguish between waves, whose polarization i
 
 The Fresnel equations relate the amplitudes of the reflected wave (Er) given an incident wave with a known amplitude (Ei). The ratio of these amplitudes depends on the properties of the specular interface specified in terms of the IOR values ηi and ηt, and the angle θi of the incident ray. Furthermore, parallel and perpendicularly polarized waves have different amounts of reflectance, which is the reason there are two equations:
 
-$$r_\parallel=\frac{\eta_t\cos\theta_i-\eta_i\cos\theta_t}{\eta_t\cos\theta_i+\eta_i\cos\theta_t},
-\qquad
- r_\perp=\frac{\eta_i\cos\theta_i-\eta_t\cos\theta_t}{\eta_i\cos\theta_i+\eta_t\cos\theta_t}.$$
-
+$$r_\parallel=\frac{\eta_t\cos\theta_i-\eta_i\cos\theta_t}{\eta_t\cos\theta_i+\eta_i\cos\theta_t}, \qquad r_\perp=\frac{\eta_i\cos\theta_i-\eta_t\cos\theta_t}{\eta_i\cos\theta_i+\eta_t\cos\theta_t}.$$
 
 (The elevation angle of the transmitted light θt is determined by Snell’s law.)
 
 As with Snell’s law, only the relative index of refraction matters, and we therefore prefer the equivalent expressions
 
-$$r_\parallel=\frac{\eta\cos\theta_i-\cos\theta_t}{\eta\cos\theta_i+\cos\theta_t},
-\qquad
- r_\perp=\frac{\cos\theta_i-\eta\cos\theta_t}{\cos\theta_i+\eta\cos\theta_t}.$$
-
+$$r_\parallel=\frac{\eta\cos\theta_i-\cos\theta_t}{\eta\cos\theta_i+\cos\theta_t}, \qquad r_\perp=\frac{\cos\theta_i-\eta\cos\theta_t}{\cos\theta_i+\eta\cos\theta_t}.$$
 
 In the wave-optics framework, the quantities of interest are the amplitude and phase of the reflected wave. In contrast, pbrt simulates light geometrically, and we care about the overall power carried by the wave, which is given by the square of the amplitude.
 
 Combining this transformation together with the assumption of unpolarized light leads to the Fresnel reflectance, expressing an average of the parallel and perpendicular oscillations:
 
-$$F=\frac{\left|r_\parallel\right|^2+\left|r_\perp\right|^2}{2}. \tag{9.6}$$
-
+$$F=\frac{\left|r_\parallel\right|^2+\left|r_\perp\right|^2}{2}. \quad\text{(9.6)}$$
 
 Dielectrics, conductors, and semiconductors are all governed by the same Fresnel equations. In the common dielectric case, there are additional simplification opportunities; hence it makes sense to first define specialized dielectric evaluation routines. We discuss the more general case in Section 9.3.6.
 
@@ -1095,7 +1064,6 @@ refraction obtained using complex division.
 
 </details>
 
-
 <details>
 <summary>Figure 9.13 — Killeroo with a Gold Surface. The killeroo model is rendered here u…</summary>
 
@@ -1104,7 +1072,6 @@ refraction obtained using complex division.
 *Figure 9.13: Killeroo with a Gold Surface. The killeroo model is rendered here using the ConductorBxDF. See Figure 9.12 for a plot of the associated absorption coefficient and index of refraction that lead to its appearance. (Killeroo model courtesy of headus/Rezard.)*
 
 </details>
-
 
 〈Fresnel Inline Functions〉 +≡ Float FrComplex(Float cosTheta_i, Complex eta) { using Complex = Complex; cosTheta_i = Clamp(cosTheta_i, 0, 1); 〈Compute complex cos θt for Fresnel equations using Snell’s law 559〉 Complex r_parl = (eta * cosTheta_i - cosTheta_t) / (eta * cosTheta_i + cosTheta_t); Complex r_perp = (cosTheta_i - eta * cosTheta_t) / (cosTheta_i + eta * cosTheta_t); return (norm(r_parl) + norm(r_perp)) / 2; }
 
@@ -1188,13 +1155,11 @@ The conductor BRDF builds on two physical ideas: the law of specular reflection 
 
 Let Fr(ω) denote the unpolarized Fresnel reflectance of a given direction ω (which only depends on the angle θ that this direction makes with the surface normal n). Because the law of specular reflection states that θr = θo, we have Fr(ωr) = Fr(ωo). We thus require a BRDF fr such that
 
-$$\int_{H^2} f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)\,\cos\theta_i\,\mathrm{d}\omega_i=F_r(\boldsymbol\omega_o). \tag{9.7}$$
-
+$$\int_{H^2} f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)\,\cos\theta_i\,\mathrm{d}\omega_i=F_r(\boldsymbol\omega_o). \quad\text{(9.7)}$$
 
 where ωr = R(ωo, n) is the specular reflection vector for ωo reflected about the surface normal n. Such a BRDF can be constructed using the Dirac delta distribution that represents an infinitely peaked signal. Recall from Section 8.1 that the delta distribution has the useful property that
 
 $$\int f(x)\,\delta(x-x_0)\,\mathrm{d}x=f(x_0).$$
-
 
 A first guess might be to use delta functions to restrict the incident direction to the specular reflection direction ωr. This would yield a BRDF of fr(ωo, ωi) = δ(ωi − ωr) Fr(ωi). Although this seems appealing, plugging it into the scattering equation, Equation (4.14), reveals a problem:
 
@@ -1210,9 +1175,7 @@ A first guess might be to use delta functions to restrict the incident direction
 
 This is not correct because it contains an extra factor of cos θr. However, we can divide out this factor to find the correct BRDF for perfect specular reflection:
 
-$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)
- =\frac{F_r(\boldsymbol\omega_i)\,\delta(\boldsymbol\omega_i-\boldsymbol\omega_r)}{\cos\theta_i}. \tag{9.9}$$
-
+$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i) =\frac{F_r(\boldsymbol\omega_i)\,\delta(\boldsymbol\omega_i-\boldsymbol\omega_r)}{\cos\theta_i}. \quad\text{(9.9)}$$
 
 The `Sample_f()` method of the `ConductorBxDF` method implements Equation (9.9).
 
@@ -1307,7 +1270,6 @@ The missing three fragments—〈Sample rough conductor BRDF〉, 〈Evaluate rou
 *Figure 9.14: When the BRDF for specular reflection and the BTDF for specular transmission are modulated with the Fresnel formula for dielectrics, the realistic angle-dependent variation of the amount of reflection and transmission gives a visually accurate representation of the glass. (Scene courtesy of Beeple.)*
 
 </details>
-
 
 ## 9.5 DIELECTRIC BSDF
 
@@ -1417,7 +1379,6 @@ In the most common case where both reflection and transmission are sampled, the 
 
 </details>
 
-
 Putting all of this together, the only change in the following code compared to the analogous fragment 〈Sample perfect specular conductor BRDF〉 is the incorporation of the discrete probability of the sample.
 
 〈Sample perfect specular dielectric BRDF〉 ≡ 564, 568
@@ -1497,10 +1458,7 @@ The missing three fragments—〈Sample rough dielectric BSDF〉, 〈Evaluate ro
 
 Dielectric interfaces rarely occur in isolation: a particularly common configuration involves two nearby index of refraction changes that are smooth, locally parallel, and mutually reciprocal—that is,
 
-$$\eta_{\text{out}\to\text{in}}=\eta
-\quad\text{together with}\quad
-\eta_{\text{in}\to\text{out}}=\frac{1}{\eta}.$$
-
+$$\eta_{\text{out}\to\text{in}}=\eta \quad\text{together with}\quad \eta_{\text{in}\to\text{out}}=\frac{1}{\eta}.$$
 
 with relative IOR η and a corresponding interface with the inverse 1/η. Examples include plate- and acrylic glass in windows or plastic foil used to seal and preserve food.
 
@@ -1537,7 +1495,6 @@ flowchart LR
 
 *Figure 9.16 (redrawn as Mermaid). Light Paths in a Thin Plane-Parallel Dielectric Medium. An incident light ray (red) gives rise to an infinite internal scattering process that occurs within the glass plate (blue). At each scattering event, some fraction of the light manages to escape, causing a successive decay of the trapped energy.*
 
-
 ```text
     Float 23
     ThinDielectricBxDF 567
@@ -1545,8 +1502,7 @@ flowchart LR
 
 Consider the paths that are reflected out from the top layer. Their aggregate reflectance R is given by a geometric series that can be converted into an explicit form:
 
-$$R^{\prime}=R+\frac{(1-R)^2R}{1-R^2}=\frac{2R}{1+R},\qquad T^{\prime}=1-R^{\prime}. \tag{9.10}$$
-
+$$R^{\prime}=R+\frac{(1-R)^2R}{1-R^2}=\frac{2R}{1+R},\qquad T^{\prime}=1-R^{\prime}. \quad\text{(9.10)}$$
 
 <details>
 <summary>Figure 9.17 — Reflectance of a Fresnel Interface and a Thin Dielectric. This plot…</summary>
@@ -1556,7 +1512,6 @@ $$R^{\prime}=R+\frac{(1-R)^2R}{1-R^2}=\frac{2R}{1+R},\qquad T^{\prime}=1-R^{\pri
 *Figure 9.17: Reflectance of a Fresnel Interface and a Thin Dielectric. This plot compares the reflectance of a single dielectric interface with η = 1.5 as determined by the Fresnel equations (9.6) to that of a matching thin dielectric according to Equation (9.10).*
 
 </details>
-
 
 A similar series gives how much light is transmitted, but it can be just as easily computed as T′ = 1 − R′, due to energy conservation. Figure 9.17 plots R′ and R as a function of incident angle θ. The second interface has the effect of increasing the overall amount of reflection compared to a single Fresnel interaction.
 
@@ -1629,7 +1584,7 @@ All physically based BRDFs are symmetric: the incident and outgoing directions c
 
 More formally, consider incident radiance arriving at the boundary between two media, with indices of refraction ηi and ηo (Figure 9.19). Assuming for now that all the incident light is transmitted, the amount of transmitted differential flux is then d2Φo = d2Φi. If we use the definition of radiance, Equation (4.3), we equivalently have
 
-$$L_o\cos\theta_o\,\mathrm{d}A\,\mathrm{d}\omega_o =L_i\cos\theta_i\,\mathrm{d}A\,\mathrm{d}\omega_i. \tag{9.11}$$
+$$L_o\cos\theta_o\,\mathrm{d}A\,\mathrm{d}\omega_o =L_i\cos\theta_i\,\mathrm{d}A\,\mathrm{d}\omega_i. \quad\text{(9.11)}$$
 
 <details>
 <summary>Figure 9.18 — Snell’s Window. If one looks upward when underwater in a swimming p…</summary>
@@ -1639,7 +1594,6 @@ $$L_o\cos\theta_o\,\mathrm{d}A\,\mathrm{d}\omega_o =L_i\cos\theta_i\,\mathrm{d}A
 *Figure 9.18: Snell’s Window. If one looks upward when underwater in a swimming pool, the sky is only visible through a circular window because no light is refracted beyond the critical angle. Outside of the window, only the reflection of the pool bottom is seen.*
 
 </details>
-
 
 *Index: `AbsCosTheta()` 107, `BSDFSample` 541, `BxDFFlags::SpecularTransmission` 539, `DielectricBxDF` 563, `SampledSpectrum` 171, `Vector3f` 86.*
 
@@ -1652,7 +1606,6 @@ flowchart LR
 
 *Figure 9.19 (redrawn as Mermaid). The amount of transmitted radiance at the boundary between media with different indices of refraction is scaled by the squared ratio of the two indices of refraction. Intuitively, this can be understood as the result of the radiance’s differential solid angle being compressed or expanded as a result of transmission.*
 
-
 Expanding the solid angles to spherical angles gives
 
 Differentiating Snell’s law, Equation (9.2), with respect to θ gives the useful relation
@@ -1663,15 +1616,13 @@ or
 
 Substituting both Snell’s law and this relationship into Equation (9.11) and then simplifying, we have
 
-$$L_o=\left(\frac{\eta_o}{\eta_i}\right)^{2}L_i. \tag{9.12}$$
-
+$$L_o=\left(\frac{\eta_o}{\eta_i}\right)^{2}L_i. \quad\text{(9.12)}$$
 
 Finally, dϕi = dϕo, which gives the final relationship between incident and transmitted radiance:
 
 The symmetry relationship satisfied by a BTDF is thus
 
-$$\eta_o^{2}\,f_t(\mathbf p,\boldsymbol\omega_o,\boldsymbol\omega_i) =\eta_i^{2}\,f_t(\mathbf p,\boldsymbol\omega_i,\boldsymbol\omega_o). \tag{9.13}$$
-
+$$\eta_o^{2}\,f_t(\mathbf p,\boldsymbol\omega_o,\boldsymbol\omega_i) =\eta_i^{2}\,f_t(\mathbf p,\boldsymbol\omega_i,\boldsymbol\omega_o). \quad\text{(9.13)}$$
 
 Non-symmetric scattering can be particularly problematic for bidirectional light transport algorithms that sample light paths starting both from the camera and from the lights. If non-symmetry is not accounted for, then such algorithms may produce incorrect results, since the design of such algorithms is fundamentally based on the principle of symmetry.3
 
@@ -1689,8 +1640,7 @@ The `TransportMode` enumeration is used to inform such non-symmetric BSDFs about
 
 The adjoint BTDF is then
 
-$$f_t^{*}(\mathbf p,\boldsymbol\omega_o,\boldsymbol\omega_i) =f_t(\mathbf p,\boldsymbol\omega_i,\boldsymbol\omega_o) =\left(\frac{\eta_o}{\eta_i}\right)^{2}f_t(\mathbf p,\boldsymbol\omega_o,\boldsymbol\omega_i). \tag{9.14}$$
-
+$$f_t^{*}(\mathbf p,\boldsymbol\omega_o,\boldsymbol\omega_i) =f_t(\mathbf p,\boldsymbol\omega_i,\boldsymbol\omega_o) =\left(\frac{\eta_o}{\eta_i}\right)^{2}f_t(\mathbf p,\boldsymbol\omega_o,\boldsymbol\omega_i). \quad\text{(9.14)}$$
 
 which effectively cancels out the scale factor in Equation (9.12).
 
@@ -1762,7 +1712,6 @@ flowchart LR
 
 *Figure 9.20 (redrawn as Mermaid). Microfacet surface models are often described by a function that gives the distribution of microfacet normals ωm with respect to the surface normal n. (a) The greater the variation of microfacet normals, the rougher the surface is. (b) Smooth surfaces have relatively little variation of microfacet normals.*
 
-
 ```mermaid
 flowchart LR
     M["(a) Masking: facet hidden from viewer"]
@@ -1774,7 +1723,6 @@ flowchart LR
 ```
 
 *Figure 9.21 (redrawn as Mermaid). Three Important Geometric Effects to Consider with Microfacet Reflection Models. (a) Masking: the microfacet of interest is not visible to the viewer due to occlusion by another microfacet. (b) Shadowing: analogously, light does not reach the microfacet. (c) Interreflection: light bounces among the microfacets before reaching the viewer.*
-
 
 A key insight of microfacet theory is that large numbers of microfacets can be efficiently modeled statistically, since it is only their aggregate behavior that determines the observed scattering. (A
 
@@ -1790,8 +1738,7 @@ Microgeometry principally affects scattering via variation of the surface normal
 
 Let us denote a small region of a macrosurface as dA. The corresponding microsurface dAμ is obtained by displacing the macrosurface along its normal n, which means that perpendicular projection of the microsurface exactly covers the macrosurface:
 
-$$\mathrm{d}A=\int_{H^2(\mathbf n)}(\boldsymbol\omega_m\cdot\mathbf n)\,D(\boldsymbol\omega_m)\,\mathrm{d}\omega_m\,\mathrm{d}A \quad\Longleftrightarrow\quad \int_{H^2(\mathbf n)} D(\boldsymbol\omega_m)\cos\theta_m\,\mathrm{d}\omega_m=1. \tag{9.15}$$
-
+$$\mathrm{d}A=\int_{H^2(\mathbf n)}(\boldsymbol\omega_m\cdot\mathbf n)\,D(\boldsymbol\omega_m)\,\mathrm{d}\omega_m\,\mathrm{d}A \quad\Longleftrightarrow\quad \int_{H^2(\mathbf n)} D(\boldsymbol\omega_m)\cos\theta_m\,\mathrm{d}\omega_m=1. \quad\text{(9.15)}$$
 
 where ωm(p) specifies the microfacet normal at p. However, tracking the orientation of vast numbers of microfacets would be impractical as previously discussed.
 
@@ -1818,16 +1765,13 @@ flowchart LR
 
 </details>
 
-
-
 In contrast, an anisotropic microfacet distribution also depends on the azimuth ϕm to capture directional variation in the surface roughness. Many real-world materials are anisotropic: for example, rolled or milled steel surfaces feature grooves that are aligned with the direction of extrusion. Rotating a flat sheet of such material about the surface normal results in noticeable variation—for example, in the reflection profile of indirectly observed light sources. Brushed metal is an extreme case: its microfacet distribution varies from almost a single direction to almost uniform over the hemisphere.
 
 Many functional representations of microfacet distributions have been proposed over the years. Geometric analysis of a truncated ellipsoid leads to one of the most widely used distributions proposed by Trowbridge and Reitz (1975), in which the conceptual microsurface is composed of vast
 
 numbers of ellipsoidal bumps.4 Scaled along its different semi-axes, an ellipsoid can take on a variety of configurations including sphere-, pancake-, and cigar-shaped surfaces. It is enough to study the density of surface normals on a single representative ellipsoid, which has an analytic solution:
 
-$$D(\boldsymbol\omega_m)=\frac{1}{\pi\alpha_x\alpha_y\cos^4\theta_m\left(1+\tan^2\theta_m\left(\frac{\cos^2\phi_m}{\alpha_x^2}+\frac{\sin^2\phi_m}{\alpha_y^2}\right)\right)^2}. \tag{9.16}$$
-
+$$D(\boldsymbol\omega_m)=\frac{1}{\pi\alpha_x\alpha_y\cos^4\theta_m\left(1+\tan^2\theta_m\left(\frac{\cos^2\phi_m}{\alpha_x^2}+\frac{\sin^2\phi_m}{\alpha_y^2}\right)\right)^2}. \quad\text{(9.16)}$$
 
 This equation assumes that the semi-axes of the ellipsoid are aligned with the shading frame, and the reciprocals of the two variables 1/αx, 1/αy > 0 encode a scale transformation applied along the two tangential axes. When αx, αy ≈ 0, the ellipsoid has been stretched to such a degree that it essentially collapses into a flat surface, and the aggregate BSDF approximates a perfect specular material. For larger values (e.g., αx, αy ≈ 0.3), the ellipsoidal bumps introduce significant normal variation that blurs the directional distribution of reflected and transmitted light. When αx = αy, the azimuth dependence drops out, and the model becomes isotropic.
 
@@ -1921,8 +1865,7 @@ A microfacet distribution alone is not enough to construct a valid energy-conser
 
 Recall Equation (9.15), which stated that the micro- and macrosurfaces occupy the same area under perpendicular projection along the surface normal n. The masking function G1(ω, ωm) enables a generalization of this statement to other projection directions ω. We will shortly discuss how G1 is derived and simply postulate its existence for now. The function specifies the fraction of microfacets with normal ωm that are visible from direction ω, and it therefore satisfies 0 ≤ G1 (ω, ωm) ≤ 1 for all arguments.
 
-$$\int_{H^2(\mathbf n)} D(\boldsymbol\omega_m)\,G_1(\boldsymbol\omega,\boldsymbol\omega_m)\,\max(0,\boldsymbol\omega\cdot\boldsymbol\omega_m)\,\mathrm{d}\omega_m=\cos\theta. \tag{9.17}$$
-
+$$\int_{H^2(\mathbf n)} D(\boldsymbol\omega_m)\,G_1(\boldsymbol\omega,\boldsymbol\omega_m)\,\max(0,\boldsymbol\omega\cdot\boldsymbol\omega_m)\,\mathrm{d}\omega_m=\cos\theta. \quad\text{(9.17)}$$
 
 ```mermaid
 flowchart LR
@@ -1932,27 +1875,23 @@ flowchart LR
 
 *Figure 9.24 (redrawn as Mermaid). As seen from a viewer or a light source, a differential area on the surface has area dA cos θ, where cos θ is the angle of the incident direction with the surface normal. The projected surface area of visible microfacets (thick lines) must be equal to dA cos θ as well; the masking function G1 gives the fraction of the total microfacet area over dA that is visible in the given direction.*
 
-
 *Figure 9.24 illustrates the oblique generalization of Equation (9.15), whose left hand side integrates over microfacets and computes the area of their perpendicular projection along ω. A maximum is taken to ignore backfacing microfacets, and G1 accounts for masking by other facets. The right hand side captures the relative size of the macrosurface, which shrinks by a factor of cos θ.*
 
 We expect that physically plausible combinations of microfacet distribution D(ωm) (the Trowbridge– Reitz distribution in our case) and masking function G1(ω, ωm) should satisfy this equation. Unfortunately, the microfacet distribution alone does not impose enough conditions to imply a specific G1(ω, ωm); an infinite family of functions could fulfill the constraint in Equation (9.17). More information about the specific surface height profile is necessary to narrow down this large set of possibilities.
 
 At this point, an approximation is often taken: if the height and normals of different points on the surface are assumed to be statistically independent, the material conceptually turns from a connected surface into an opaque soup of little surface fragments that float in space (hence the name “microfacets”). A consequence of this simplification is that masking becomes independent of the microsurface normal ωm, except for the constraint that backfacing facets are ignored (ω · ωm > 0). The masking term can then be moved out of the integral of Equation (9.17):
 
-$$G_1(\boldsymbol\omega)\int D(\boldsymbol\omega_m)\max(0,\boldsymbol\omega\cdot\boldsymbol\omega_m)\,\mathrm{d}\omega_m=\cos\theta. \tag{9.18}$$
-
+$$G_1(\boldsymbol\omega)\int D(\boldsymbol\omega_m)\max(0,\boldsymbol\omega\cdot\boldsymbol\omega_m)\,\mathrm{d}\omega_m=\cos\theta. \quad\text{(9.18)}$$
 
 which can be rearranged to solve for G1(ω):
 
 $$G_1(\boldsymbol\omega)=\frac{\cos\theta}{\int D(\boldsymbol\omega_m)\max(0,\boldsymbol\omega\cdot\boldsymbol\omega_m)\,\mathrm{d}\omega_m}.$$
 
-
 This is Smith’s approximation. Despite the rather severe simplification, it has been found to be in good agreement with both brute-force simulation of scattering on randomly generated surface microstructures and real-world measurements.
 
 The integral in Equation (9.18) has analytic solutions for various common choices of micro-facet distributions D(ωm), including the Trowbridge–Reitz model. In practice, the masking function is often expressed in terms of an auxiliary function ∧(ω) that arises naturally when the derivation of masking is conducted in the slope domain. This has some benefits that we shall see shortly, and we therefore adopt the same approach that relates G1 and ∧ as follows:
 
-$$G_1(\boldsymbol\omega)=\frac{1}{1+\Lambda(\boldsymbol\omega)}. \tag{9.19}$$
-
+$$G_1(\boldsymbol\omega)=\frac{1}{1+\Lambda(\boldsymbol\omega)}. \quad\text{(9.19)}$$
 
 The `Lambda()` method computes this function.
 
@@ -1964,13 +1903,11 @@ The `Lambda()` method computes this function.
 
 Under the uncorrelated height assumption, ∧(ω) has the following analytic solution for the Trowbridge–Reitz distribution:
 
-$$\Lambda(\boldsymbol\omega)=\frac{\sqrt{1+\alpha^2\tan^2\theta}-1}{2}. \tag{9.20}$$
-
+$$\Lambda(\boldsymbol\omega)=\frac{\sqrt{1+\alpha^2\tan^2\theta}-1}{2}. \quad\text{(9.20)}$$
 
 where α denotes the isotropic surface roughness. An anisotropic generalization follows from the observation that anisotropy implies tangential scaling of the microsurface based on 1/αx and 1/αy. A 1-dimensional ray ω that is not aligned with the x- or y-axis will observe a different scaling amount that lies between these extremes. The associated interpolated roughness is given by
 
-$$\alpha(\boldsymbol\omega)=\sqrt{\cos^2\phi\,\alpha_x^2+\sin^2\phi\,\alpha_y^2}. \tag{9.21}$$
-
+$$\alpha(\boldsymbol\omega)=\sqrt{\cos^2\phi\,\alpha_x^2+\sin^2\phi\,\alpha_y^2}. \quad\text{(9.21)}$$
 
 Anisotropic masking reuses the isotropic ∧ with this definition of α. The “Further Reading” section at the end of this chapter provides more details on these steps. The `Lambda()` function implements Equation (9.20) in the general case.
 
@@ -2014,7 +1951,6 @@ Anisotropic masking reuses the isotropic ∧ with this definition of α. The “
 
 </details>
 
-
 <details>
 <summary>Figure 9.26 — The Masking Function G1(ω) for the Trowbridge–Reitz Distribution. I…</summary>
 
@@ -2023,7 +1959,6 @@ Anisotropic masking reuses the isotropic ∧ with this definition of α. The “
 *Figure 9.26: The Masking Function G1(ω) for the Trowbridge–Reitz Distribution. Increasing surface roughness (higher α values) causes the function to fall off to zero more quickly.*
 
 </details>
-
 
 *Figure 9.26 shows a plot of the Trowbridge–Reitz G1(ω) function for a few values of α. Observe how the function is close to one over much of the domain but falls to zero at grazing angles, where masking becomes dominant. Increasing the surface roughness (i.e., higher values of α) causes the function to fall off more quickly.*
 
@@ -2037,8 +1972,7 @@ We instead rely on an approximation that accounts for the property that a microf
 
 based correlation into account can be derived:
 
-$$G(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{1}{1+\Lambda(\boldsymbol\omega_o)+\Lambda(\boldsymbol\omega_i)}. \tag{9.22}$$
-
+$$G(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{1}{1+\Lambda(\boldsymbol\omega_o)+\Lambda(\boldsymbol\omega_i)}. \quad\text{(9.22)}$$
 
 The bidirectional form of G implements this equation based on the previously defined `Lambda()` function.
 
@@ -2062,13 +1996,11 @@ Efficient rendering using microfacet theory hinges on our ability to determine t
 
 Recall the normalization criterion from Equation (9.17), which stated that the set of visible microfacets (left hand side) occupy the same area as the underlying macrosurface (right hand side) when observed from given direction ω with elevation angle θ:
 
-$$\int D(\boldsymbol\omega_m)\,G_1(\boldsymbol\omega,\boldsymbol\omega_m)\,\max(0,\boldsymbol\omega\cdot\boldsymbol\omega_m)\,\mathrm{d}\omega_m=\cos\theta. \tag{9.17}$$
-
+$$\int D(\boldsymbol\omega_m)\,G_1(\boldsymbol\omega,\boldsymbol\omega_m)\,\max(0,\boldsymbol\omega\cdot\boldsymbol\omega_m)\,\mathrm{d}\omega_m=\cos\theta. \quad\text{(9.17)}$$
 
 The probability of a ray interacting with a particular microfacet is directly proportional to its visible area; hence this equation can be seen to encapsulate the distribution that should be used. Following division of both sides by cos θ, the integral on the left hand side equals one—in other words, it turns into a normalized density Dω(ωm) that we shall refer to as the distribution of visible normals:
 
-$$D_{\boldsymbol\omega}(\boldsymbol\omega_m)=\frac{G_1(\boldsymbol\omega)}{\cos\theta}\,D(\boldsymbol\omega_m)\,\max(0,\boldsymbol\omega\cdot\boldsymbol\omega_m). \tag{9.23}$$
-
+$$D_{\boldsymbol\omega}(\boldsymbol\omega_m)=\frac{G_1(\boldsymbol\omega)}{\cos\theta}\,D(\boldsymbol\omega_m)\,\max(0,\boldsymbol\omega\cdot\boldsymbol\omega_m). \quad\text{(9.23)}$$
 
 It describes the projected area of forward-facing normals, where the first term involving the masking function specifies an ω-dependent normalization factor. The method `D()` evaluates this density function.
 
@@ -2111,7 +2043,6 @@ flowchart LR
 
 *Figure 9.27 (redrawn as Mermaid). Sampling the distribution of visible normals Dω(ωm) is equivalent to casting rays against the surface microstructure that is composed of many truncated spherical or ellipsoidal bumps. It suffices to consider a single bump in this process.*
 
-
 ```mermaid
 flowchart LR
     AN["Anisotropic ellipsoid + incident ω"] -->|"apply inverse scaling (1/αx, 1/αy)"| IS["Isotropic hemisphere + ωh"]
@@ -2120,7 +2051,6 @@ flowchart LR
 ```
 
 *Figure 9.28 (redrawn as Mermaid). Sampling the anisotropic variant of the Trowbridge–Reitz distribution entails perpendicular projection of uniformly distributed points onto a truncated ellipsoid. Applying the inverse of the ellipsoid’s scaling transformation to all parts of this problem (ellipsoid and incident ray) reduces this problem to the easier hemispherical/isotropic case.*
-
 
 〈TrowbridgeReitzDistribution Public Methods〉 +≡ 575
 
@@ -2163,7 +2093,6 @@ flowchart LR
 ```
 
 *Figure 9.29 (redrawn as Mermaid). The perpendicular projection of a truncated hemisphere can be decomposed into the projection of two half-disks highlighted in red and blue. The size and shape of the projected tangential half-disk (blue) depends on the incident direction ω and vanishes at grazing incidence.*
-
 
 〈Find orthonormal basis for visible normal sampling〉 ≡ 580
 
@@ -2231,11 +2160,9 @@ Taking stock of the available information, we know that the probability density 
 
 $$p(\boldsymbol\omega_m)=D_{\boldsymbol\omega_o}(\boldsymbol\omega_m).$$
 
-
 , and that ωi is obtained from ωm and ωo using the law of specular reflection—that is,
 
-$$\boldsymbol\omega_i=\operatorname{Reflect}(\boldsymbol\omega_o,\boldsymbol\omega_m). \tag{9.24}$$
-
+$$\boldsymbol\omega_i=\operatorname{Reflect}(\boldsymbol\omega_o,\boldsymbol\omega_m). \quad\text{(9.24)}$$
 
 This reflection mapping also has an inverse: the normal responsible for a specific reflection can be determined via
 
@@ -2244,8 +2171,7 @@ which is known as the half-angle or half-direction transform
  
 , as it gives the unique direction vector that lies halfway between ωi and ωo.
 
-$$\boldsymbol\omega_m=\frac{\boldsymbol\omega_i+\boldsymbol\omega_o}{\|\boldsymbol\omega_i+\boldsymbol\omega_o\|}. \tag{9.25}$$
-
+$$\boldsymbol\omega_m=\frac{\boldsymbol\omega_i+\boldsymbol\omega_o}{\|\boldsymbol\omega_i+\boldsymbol\omega_o\|}. \quad\text{(9.25)}$$
 
 ```text
     ConductorBxDF 560
@@ -2259,8 +2185,7 @@ $$\boldsymbol\omega_m=\frac{\boldsymbol\omega_i+\boldsymbol\omega_o}{\|\boldsymb
 
 **The Half-Direction Transform.**  Transitioning between half- and incident directions is effectively a change of variables, and the Jacobian determinant dωi/dωm of the associated mapping enables the conversion of probability densities between these two spaces. The determinant is simple to find in flatland, as shown in Figure 9.30(a). In the two-dimensional setting, the half-direction mapping simplifies to
 
-$$\theta_m=\frac{\theta_i}{2}\qquad\text{(flatland)}. \tag{9.26}$$
-
+$$\theta_m=\frac{\theta_i}{2}\qquad\text{(flatland)}. \quad\text{(9.26)}$$
 
 ```mermaid
 flowchart LR
@@ -2274,13 +2199,11 @@ flowchart LR
 
 *Figure 9.30 (redrawn as Mermaid). Microfacet normals, incident directions, and outgoing directions satisfy an interesting geometric relationship. We hold the outgoing direction ωo fixed and visualize the set of microfacets (shaded in blue) that will yield a valid reflection from an arc/cone of directions around the incident direction (shaded in green). In the flatland setting shown in (a), the set of admissible microfacets is simply a smaller arc. The 3D case is more complex and involves spherical conic sections. In (b), with the center of the ωi cone aligned with ωo, the admissible microfacets form a spherical circle. (c) With a 140° angle between ωo and the central ωi direction, the microfacets form a spherical ellipse. (d) A spherical hyperbola is the result with a 170° angle. The Torrance–Sparrow model depends on the ratio of the surface area of these shaded sets, which has a succinct analytic solution in the infinitesimally small case.*
 
-
 A slight perturbation of the incident angle θi (shaded green region) while keeping θo fixed requires a corresponding change to the microfacet angle θm (shaded blue region) to ensure that the law of specular reflection continues to hold. However, this perturbation to θm is smaller—half as small, to be precise—which directly follows from Equation (9.26). Indeed, the derivative of Equation (9.26) yields dθm/dθi = 1/2 for the 2D case.
 
 The 3D case initially appears challenging due to the varied behavior shown in Figure 9.30(b–d). Fortunately, working with infinitesimal sets leads to a simple analytic expression that can be derived by expressing differential solid angles around ωm and ωr using spherical coordinates:
 
-$$\frac{\mathrm{d}\omega_m}{\mathrm{d}\omega_i}=\frac{1}{4\,(\boldsymbol\omega_i\cdot\boldsymbol\omega_m)}=\frac{1}{4\cos\theta_m}. \tag{9.27}$$
-
+$$\frac{\mathrm{d}\omega_m}{\mathrm{d}\omega_i}=\frac{1}{4\,(\boldsymbol\omega_i\cdot\boldsymbol\omega_m)}=\frac{1}{4\cos\theta_m}. \quad\text{(9.27)}$$
 
 The expression can be simplified by noting that the law of specular reflection implies θi = 2θm and ϕi = ϕm in a spherical coordinate system oriented around ωo:
 
@@ -2288,8 +2211,7 @@ The resulting Jacobian determinant can be thus conveniently expressed in terms o
 
 **Torrance–Sparrow PDF.**  With the relationship of Equation (9.27) at hand, we are now able to evaluate the probability per unit solid angle of the sampled incident directions ωi obtained through the combination of visible normal sampling and the reflection mapping:
 
-$$p(\boldsymbol\omega_i)=\frac{D_{\boldsymbol\omega_o}(\boldsymbol\omega_m)}{4\,(\boldsymbol\omega_o\cdot\boldsymbol\omega_m)}. \tag{9.28}$$
-
+$$p(\boldsymbol\omega_i)=\frac{D_{\boldsymbol\omega_o}(\boldsymbol\omega_m)}{4\,(\boldsymbol\omega_o\cdot\boldsymbol\omega_m)}. \quad\text{(9.28)}$$
 
 where ωm depends on ωi via the half-direction transform in Equation (9.25). The following previously undefined fragment incorporates these observations into `ConductorBxDF::PDF()`.
 
@@ -2306,20 +2228,17 @@ The sign-related differences between equation and implementation ensure correct 
 
 **Torrance–Sparrow BRDF.** The sampling routine of any BRDF model encodes a local strategy for importance sampling the scattering equation, (4.14). Here, we are dealing with an opaque surface, so the integral is only over the hemisphere. The single-sample Monte Carlo estimator is then
 
-$$\langle I\rangle=\frac{f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)\cos\theta_i}{p(\boldsymbol\omega_i)}. \tag{9.29}$$
-
+$$\langle I\rangle=\frac{f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)\cos\theta_i}{p(\boldsymbol\omega_i)}. \quad\text{(9.29)}$$
 
 where p(ωi) denotes the sample’s probability per unit solid angle.
 
 Recall our earlier introduction of the Torrance–Sparrow sampling routine as a composition of physically intuitive steps: intersecting a ray against the random microstructure via visible normal sampling, computation of ωi via the law of reflection, and attenuation of the incident radiance by the Fresnel and masking factors. The radiance computed in this way should agree with the Monte Carlo estimate from Equation (9.29), which means that fr must satisfy the identity
 
-$$\frac{f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)\cos\theta_i}{p(\boldsymbol\omega_i)}=F(\boldsymbol\omega_i)\,G_1(\boldsymbol\omega_i) \;\Longrightarrow\; f_r=\frac{p(\boldsymbol\omega_i)\,F(\boldsymbol\omega_i)\,G_1(\boldsymbol\omega_i)}{\cos\theta_i}. \tag{9.30}$$
-
+$$\frac{f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)\cos\theta_i}{p(\boldsymbol\omega_i)}=F(\boldsymbol\omega_i)\,G_1(\boldsymbol\omega_i) \;\Longrightarrow\; f_r=\frac{p(\boldsymbol\omega_i)\,F(\boldsymbol\omega_i)\,G_1(\boldsymbol\omega_i)}{\cos\theta_i}. \quad\text{(9.30)}$$
 
 We will simply solve this equation to obtain fr(p, ωo, ωi). Further substituting the PDF of the Torrance–Sparrow model from Equation (9.28) yields the BRDF
 
-$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{F(\boldsymbol\omega_i)\,D(\boldsymbol\omega_m)\,G_1(\boldsymbol\omega_o)\,G_1(\boldsymbol\omega_i)}{4\cos\theta_o\cos\theta_i}. \tag{9.31}$$
-
+$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{F(\boldsymbol\omega_i)\,D(\boldsymbol\omega_m)\,G_1(\boldsymbol\omega_o)\,G_1(\boldsymbol\omega_i)}{4\cos\theta_o\cos\theta_i}. \quad\text{(9.31)}$$
 
 ```text
     AbsDot() 90
@@ -2337,8 +2256,7 @@ Inserting the definition of the visible normal distribution from Equation (9.23)
 
 We will, however, make a small adjustment to the above expression: Section 9.6.3 introduced a more accurate bidirectional masking-shadowing factor G that accounts for height correlations on the microstructure. We use it to replace the product of unidirectional G1 factors:
 
-$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{F(\boldsymbol\omega_i)\,D(\boldsymbol\omega_m)\,G(\boldsymbol\omega_o,\boldsymbol\omega_i)}{4\cos\theta_o\cos\theta_i}. \tag{9.33}$$
-
+$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{F(\boldsymbol\omega_i)\,D(\boldsymbol\omega_m)\,G(\boldsymbol\omega_o,\boldsymbol\omega_i)}{4\cos\theta_o\cos\theta_i}. \quad\text{(9.33)}$$
 
 One of the nice things about the Torrance–Sparrow model is that the derivation does not depend on the particular microfacet distribution being used. Furthermore, it does not depend on a particular Fresnel function and can be used for both conductors and dielectrics. However, the relationship between dωm and dωo used in the derivation does depend on the assumption of specular reflection from microfacets, and the refractive variant of this model will require suitable modifications.
 
@@ -2433,7 +2351,6 @@ Visible normal sampling is still a relatively new development: for several decad
 
 </details>
 
-
 *Index: `ConductorBxDF::mfDistrib` 561, `ConductorBxDF::PDF()` 562, `Reflect()` 552, `SameHemisphere()` 538, `TrowbridgeReitzDistribution::Sample_wm()` 580, `Vector3f` 86.*
 
 <details>
@@ -2444,7 +2361,6 @@ Visible normal sampling is still a relatively new development: for several decad
 *Figure 9.32: Dragon models rendered with the Torrance–Sparrow microfacet model featuring both reflection (a) and transmission (b). (Model courtesy of Christian Schüller.)*
 
 </details>
-
 
 ## 9.7 ROUGH DIELECTRIC BSDF
 
@@ -2472,8 +2388,9 @@ A generalized half-direction vector builds on this observation by scaling and ad
 
 where η = ηi/ηo
 
-$$\boldsymbol\omega_m=\frac{\eta_i\boldsymbol\omega_i+\eta_o\boldsymbol\omega_o}{\|\eta_i\boldsymbol\omega_i+\eta_o\boldsymbol\omega_o\|}=\frac{\eta\,\boldsymbol\omega_i+\boldsymbol\omega_o}{\|\eta\,\boldsymbol\omega_i+\boldsymbol\omega_o\|}. \tag{9.34}$$
- is the relative index of refraction toward the sampled direction ωi. The reflective case is trivially subsumed, since ηi = ηo when no refraction takes place. The next fragment implements this
+$$\boldsymbol\omega_m=\frac{\eta_i\boldsymbol\omega_i+\eta_o\boldsymbol\omega_o}{\|\eta_i\boldsymbol\omega_i+\eta_o\boldsymbol\omega_o\|}=\frac{\eta\,\boldsymbol\omega_i+\boldsymbol\omega_o}{\|\eta\,\boldsymbol\omega_i+\boldsymbol\omega_o\|}. \quad\text{(9.34)}$$
+
+is the relative index of refraction toward the sampled direction ωi. The reflective case is trivially subsumed, since ηi = ηo when no refraction takes place. The next fragment implements this
 
 computation, including handling of invalid configurations (e.g., perfectly grazing incidence) where both the BSDF and its sampling density evaluate to zero.
 
@@ -2494,7 +2411,6 @@ computation, including handling of invalid configurations (e.g., perfectly grazi
 The last line reflects an important implementation detail: with the previous definition in Equation (9.34), ωm always points toward the denser medium, whereas pbrt uses the convention that micro-and macro-normal are consistently oriented (i.e., ωm · n > 0). In practice, we therefore compute the following modified half-direction vector, where n = (0, 0, 1) in local coordinates:
 
 $$\boldsymbol\omega_m\leftarrow\operatorname{FaceForward}(\boldsymbol\omega_m,\mathbf n)\quad\text{so that}\quad\boldsymbol\omega_m\cdot\mathbf n>0.$$
-
 
 Next, microfacets that are backfacing with respect to either the incident or outgoing direction do not contribute and must be discarded.
 
@@ -2547,17 +2463,15 @@ We now have the values necessary to compute the PDF for ωi, which depends on wh
 
 As before, the bijective mapping between ωm and ωi provides a change of variables whose Jacobian determinant is crucial so that we can correctly deduce the probability density of sampled directions ωi. The derivation is more involved in the refractive case; see the “Further Reading” section for pointers to its derivation. The final determinant is given by
 
-$$\frac{\mathrm{d}\omega_m}{\mathrm{d}\omega_i}=\frac{|\boldsymbol\omega_i\cdot\boldsymbol\omega_m|}{\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\dfrac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}. \tag{9.35}$$
-
+$$\frac{\mathrm{d}\omega_m}{\mathrm{d}\omega_i}=\frac{|\boldsymbol\omega_i\cdot\boldsymbol\omega_m|}{\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\dfrac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}. \quad\text{(9.35)}$$
 
 Once more, this relationship makes it possible to evaluate the probability per unit solid angle of the sampled incident directions ωi obtained through the combination of visible normal sampling and
 
 scattering: The following fragment implements this computation, while additionally accounting for the discrete probability pt / (pr + pt) of sampling the transmission component.
 
-$$p(\boldsymbol\omega_i)=D_{\boldsymbol\omega_o}(\boldsymbol\omega_m)\,\frac{|\boldsymbol\omega_i\cdot\boldsymbol\omega_m|}{\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\frac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}. \tag{9.36}$$
+$$p(\boldsymbol\omega_i)=D_{\boldsymbol\omega_o}(\boldsymbol\omega_m)\,\frac{|\boldsymbol\omega_i\cdot\boldsymbol\omega_m|}{\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\frac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}. \quad\text{(9.36)}$$
 
-$$p(\boldsymbol\omega_i)=D_{\boldsymbol\omega_o}(\boldsymbol\omega_m)\,\frac{|\boldsymbol\omega_i\cdot\boldsymbol\omega_m|}{\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\frac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}\,\frac{p_t}{p_r+p_t}. \tag{9.37}$$
-
+$$p(\boldsymbol\omega_i)=D_{\boldsymbol\omega_o}(\boldsymbol\omega_m)\,\frac{|\boldsymbol\omega_i\cdot\boldsymbol\omega_m|}{\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\frac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}\,\frac{p_t}{p_r+p_t}. \quad\text{(9.37)}$$
 
 〈Compute PDF of rough dielectric transmission〉 ≡ 589, 591
 
@@ -2617,16 +2531,15 @@ For the transmission component, we can again derive the effective scattering dis
 
 $$\frac{f_t(\boldsymbol\omega_o,\boldsymbol\omega_i)\cos\theta_i}{p(\boldsymbol\omega_i)}=(1-F)\,T\,G_1(\boldsymbol\omega_i)\,L_i\qquad\text{(single-sample estimate)}.$$
 
-
 Substituting the PDF from Equation (9.37) and solving for the BTDF ft(p, ωo, ωi) results in
 
 Finally, inserting
 
-$$f_t(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{(1-F)\,D(\boldsymbol\omega_m)\,G_1(\boldsymbol\omega_o)\,|\boldsymbol\omega_i\cdot\boldsymbol\omega_m\,\boldsymbol\omega_o\cdot\boldsymbol\omega_m|}{\cos\theta_i\cos\theta_o\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\frac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}. \tag{9.39}$$
- the definition of the visible normal distribution from Equation (9.23) and switching to the more accurate bidirectional masking-shadowing factor G yields
+$$f_t(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{(1-F)\,D(\boldsymbol\omega_m)\,G_1(\boldsymbol\omega_o)\,|\boldsymbol\omega_i\cdot\boldsymbol\omega_m\,\boldsymbol\omega_o\cdot\boldsymbol\omega_m|}{\cos\theta_i\cos\theta_o\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\frac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}. \quad\text{(9.39)}$$
 
-$$f_t(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{(1-F)\,D(\boldsymbol\omega_m)\,G(\boldsymbol\omega_o,\boldsymbol\omega_i)\,|\boldsymbol\omega_i\cdot\boldsymbol\omega_m\,\boldsymbol\omega_o\cdot\boldsymbol\omega_m|}{\cos\theta_i\cos\theta_o\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\frac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}. \tag{9.40}$$
+the definition of the visible normal distribution from Equation (9.23) and switching to the more accurate bidirectional masking-shadowing factor G yields
 
+$$f_t(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{(1-F)\,D(\boldsymbol\omega_m)\,G(\boldsymbol\omega_o,\boldsymbol\omega_i)\,|\boldsymbol\omega_i\cdot\boldsymbol\omega_m\,\boldsymbol\omega_o\cdot\boldsymbol\omega_m|}{\cos\theta_i\cos\theta_o\left(\boldsymbol\omega_i\cdot\boldsymbol\omega_m+\frac{\boldsymbol\omega_o\cdot\boldsymbol\omega_m}{\eta}\right)^2}. \quad\text{(9.40)}$$
 
 The next fragment implements this expression. It also incorporates the earlier orientation test and handling of non-symmetric scattering that was previously encountered in the perfect specular case (Section 9.5.2).
 
@@ -2794,7 +2707,6 @@ of specular reflection can drastically reduce the number of sample points that a
 
 </details>
 
-
 <details>
 <summary>Figure 9.34 — Adaptive BRDF Sample Placement. (a) Regular sampling of the inciden…</summary>
 
@@ -2803,7 +2715,6 @@ of specular reflection can drastically reduce the number of sample points that a
 *Figure 9.34: Adaptive BRDF Sample Placement. (a) Regular sampling of the incident and outgoing directions is a prohibitively expensive way of measuring and storing BRDFs due to the curse of dimensionality (here, only 2 of the 4 dimensions are shown). (b) A smaller number of samples can yield a more accurate interpolant if their placement is informed by the material’s reflectance behavior.*
 
 </details>
-
 
 <details>
 <summary>Figure 9.35 — The Effect of Surface Roughness on Adaptive BRDF Sample Placement. …</summary>
@@ -2814,13 +2725,11 @@ of specular reflection can drastically reduce the number of sample points that a
 
 </details>
 
-
 The MeasuredBxDF therefore builds on microfacet theory and the distribution of visible normals to create a more efficient physically informed sampling pattern. The rationale underlying this choice is that while microfacet theory may not perfectly predict the reflectance of a specific material, it can at least approximately represent how energy is (re-)distributed throughout the 4D domain. Applying it enables the use of a relatively coarse set of measurement locations that suffice to capture the function’s behavior.
 
 Concretely, the method works by transforming regular grid points using visible normal sampling (Section 9.6.4) and performing a measurement at each sampled position. If the microfacet sampling routine is given by a function R : S2 × [0, 1]2 → S2 and u(k) with k = 1, … , n denotes input samples arranged on a grid covering the 2D unit square, then we have a sequence of measurements M(k):
 
-$$M^{(k)}=f_r\!\left(\boldsymbol\omega_o,\boldsymbol\omega_i^{(k)}\right),\qquad \boldsymbol\omega_i^{(k)}=R(\boldsymbol\omega_o,\mathbf u^{(k)}). \tag{9.41}$$
-
+$$M^{(k)}=f_r\!\left(\boldsymbol\omega_o,\boldsymbol\omega_i^{(k)}\right),\qquad \boldsymbol\omega_i^{(k)}=R(\boldsymbol\omega_o,\mathbf u^{(k)}). \quad\text{(9.41)}$$
 
 where fr(ωo, ωi) refers to the real-world BRDF of a material sample, as measured by a goniophotometer (or similar device) in directions ωo and ωi = R(ωo, u(k)). This process must be repeated for different values of ωo to also capture variation in the other direction argument. Evaluating the BRDF requires the inverse R−1 of the transformation, which yields a position on [0, 1]2 that can be used to interpolate the measurements M(k). Figure 9.36 illustrates both directions of this mapping.
 
@@ -2834,13 +2743,11 @@ flowchart LR
 
 *Figure 9.36 (redrawn as Mermaid). Visible Normal Sampling as a Parameterization. The MeasuredBxDF leverages visible normal sampling as a parameterization R of the unit sphere. Here, it is used in a deterministic fashion to transform a set of grid points u(k) with k = 1, … , n into spherical directions to be measured. Evaluating the resulting BRDF representation requires the inverse R−1 followed by linear interpolation within the regular grid of measurements.*
 
-
 Another challenge is that parameterization guiding the measurement requires a microfacet approximation of the material, but such an approximation would normally be derived from an existing measurement. We will shortly show how to resolve this chicken-and-egg problem and assume for now that a suitable model is available.
 
 **Measurement Through a Parameterization.** A flaw of the reparameterized measurement sequence in Equation (9.41) is that the values M(k) may differ by many orders of magnitude, which means that simple linear interpolation between neighboring data points is unlikely to give satisfactory results. We instead use the following representation that transforms measurements prior to storage in an effort to reduce this variation:
 
-$$M^{(k)}=\frac{f_r(\boldsymbol\omega_o,\boldsymbol\omega_i^{(k)})}{p(\boldsymbol\omega_i^{(k)})}. \tag{9.42}$$
-
+$$M^{(k)}=\frac{f_r(\boldsymbol\omega_o,\boldsymbol\omega_i^{(k)})}{p(\boldsymbol\omega_i^{(k)})}. \quad\text{(9.42)}$$
 
 where ωi(k) = R(ωo, u(k)), and p(ωi(k)) denotes the density of direction ωi(k) according to visible normal sampling.
 
@@ -2859,13 +2766,11 @@ deviations otherwise. This can roughly be interpreted as measuring the differenc
 
 </details>
 
-
 **BRDF Evaluation.** Evaluating the data-driven BRDF requires the inverse of these steps. Suppose that M(·) implements an interpolation based on the grid of measurement points M(k). Furthermore, suppose that we have access to the inverse R−1(ωo, ωi) that returns the “random numbers” u that would cause visible normal sampling to generate a particular incident direction (i.e., R(ωo, u) = ωi). Accessing M(·) through R−1 then provides a spherical interpolation of the measurement data.
 
 We must additionally multiply by the density p(ωi), and divide by the cosine factor5 to undo corresponding transformations introduced in Equation (9.42), which yields the final form of the data-driven BRDF:
 
-$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{M\!\left(R^{-1}(\boldsymbol\omega_o,\boldsymbol\omega_i)\right)\,p(\boldsymbol\omega_i)}{|\cos\theta_i|}. \tag{9.43}$$
-
+$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{M\!\left(R^{-1}(\boldsymbol\omega_o,\boldsymbol\omega_i)\right)\,p(\boldsymbol\omega_i)}{|\cos\theta_i|}. \quad\text{(9.43)}$$
 
 **Generalized Microfacet Model.** A major difference between the microfacet model underlying the ConductorBxDF and the approximation used here is that we replace the Trowbridge–Reitz model with an arbitrary data-driven microfacet distribution. This improves the model’s ability to approximate the material being measured. At the same time, it implies that previously used simplifications and analytic solutions are no longer available and must be revisited.
 
@@ -2873,28 +2778,25 @@ We begin with the Torrance–Sparrow sampling density from Equation (9.28),
 
 $$p(\boldsymbol\omega_i)=\frac{D_{\boldsymbol\omega_o}(\boldsymbol\omega_m)}{4(\boldsymbol\omega_o\cdot\boldsymbol\omega_m)}.$$
 
-
 which references the visible normal sampling density Dω(ωm) from Equation (9.23). Substituting the
 
 definition of the masking function from Equation (9.18) into and rearranging terms yields
 
 $$D_{\boldsymbol\omega_o}(\boldsymbol\omega_m)=\frac{D(\boldsymbol\omega_m)\max(0,\boldsymbol\omega_o\cdot\boldsymbol\omega_m)}{\sigma(\boldsymbol\omega_o)}.$$
 
-
 where
 
 provides a direction-dependent normalization of the visible normal distribution.
 
 $$\sigma(\boldsymbol\omega_o)=\int_{H^2} D(\boldsymbol\omega_m)\max(0,\boldsymbol\omega_o\cdot\boldsymbol\omega_m)\,\mathrm{d}\omega_m.$$
- For valid reflection directions (ωo · ωm > 0), the PDF of generated samples then simplifies to
 
-$$p(\boldsymbol\omega_i)=\frac{D(\boldsymbol\omega_m)}{4\,\sigma(\boldsymbol\omega_o)}. \tag{9.44}$$
+For valid reflection directions (ωo · ωm > 0), the PDF of generated samples then simplifies to
 
+$$p(\boldsymbol\omega_i)=\frac{D(\boldsymbol\omega_m)}{4\,\sigma(\boldsymbol\omega_o)}. \quad\text{(9.44)}$$
 
 Substituting this density into the BRDF from Equation (9.43) produces
 
-$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{M\!\left(R^{-1}(\boldsymbol\omega_o,\boldsymbol\omega_i)\right)\,D(\boldsymbol\omega_m)}{4\,\sigma(\boldsymbol\omega_o)\,|\cos\theta_i|}. \tag{9.45}$$
-
+$$f_r(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{M\!\left(R^{-1}(\boldsymbol\omega_o,\boldsymbol\omega_i)\right)\,D(\boldsymbol\omega_m)}{4\,\sigma(\boldsymbol\omega_o)\,|\cos\theta_i|}. \quad\text{(9.45)}$$
 
 The MeasuredBxDF implements this expression using data-driven representations of D(·) and σ(·).
 
@@ -2906,15 +2808,13 @@ Suppose that the material being measured perfectly matches microfacet theory in 
 
 $$f_r(\boldsymbol\omega,\boldsymbol\omega)=\frac{F(\boldsymbol\omega)\,D(\boldsymbol\omega)\,G_1(\boldsymbol\omega)}{4\cos^2\theta}.$$
 
-
 ```text
     ConductorBxDF 560
 ```
 
 The last step of the above equation removes constant terms including the Fresnel reflectance and introduces the reasonable assumption that shadowing/masking is perfectly correlated given ωi = ωo and thus occurs only once. Substituting the definition of G1 from Equation (9.18) and rearranging yields the following relationship of proportionality:
 
-$$D(\boldsymbol\omega)\;\propto\;f_r(\boldsymbol\omega,\boldsymbol\omega)\,\cos^2\theta\,\left(1+\Lambda(\boldsymbol\omega)\right). \tag{9.46}$$
-
+$$D(\boldsymbol\omega)\;\propto\;f_r(\boldsymbol\omega,\boldsymbol\omega)\,\cos^2\theta\,\left(1+\Lambda(\boldsymbol\omega)\right). \quad\text{(9.46)}$$
 
 This integral equation can be solved by measuring fr(p, ωj, ωj) for n directions ωj and using those measurements for initial guesses of D(ωj). A more accurate estimate of D can then be found using an iterative solution procedure where the estimated values of D are used to estimate the integrals on the right hand side of Equation (9.46) for all of the ωjs. This process quickly converges within a few iterations.
 
@@ -2942,7 +2842,6 @@ The class is parameterized by a `Dimension` template parameter that extends the 
 *Figure 9.38: Three Measured BRDFs. (a) TeckWrap Amber Citrine vinyl wrapping film. (b) Purple acrylic felt. (c) Silk from an Indian sari with two colors of yarn.*
 
 </details>
-
 
 where `PLSample` is defined as struct PLSample { Point2f p; Float pdf; };
 
@@ -3089,7 +2988,6 @@ hair geometry.
 
 </details>
 
-
 ```text
     Curve 346
     DielectricBxDF 563
@@ -3111,7 +3009,6 @@ flowchart LR
 
 *Figure 9.40 (redrawn as Mermaid). At any parametric point along a Curve shape, the cross-section of the curve is defined by a circle. All of the circle’s surface normals (arrows) lie in a plane (dashed lines), dubbed the “normal plane.”*
 
-
 ```mermaid
 flowchart LR
     W["direction ω at curve point"] --> TH["θ: angle from normal plane (x = ∂p/∂u)"]
@@ -3119,7 +3016,6 @@ flowchart LR
 ```
 
 *Figure 9.41 (redrawn as Mermaid). (a) Given a direction ω at a point on a curve, the longitudinal angle θ is defined by the angle between ω and the normal plane at the point (thick line). The curve’s tangent vector at the point is aligned with the x axis in the BSDF coordinate system. (b) For a direction ω, the azimuthal angle ϕ is found by projecting the direction into the normal plane and computing its angle with the y axis, which corresponds to the curve’s ∂p/∂v in the BSDF coordinate system.*
-
 
 Throughout the implementation of this scattering model, we will find it useful to separately consider scattering in the longitudinal plane, effectively using a side view of the curve, and scattering in the azimuthal plane,
 
@@ -3131,7 +3027,6 @@ flowchart LR
 ```
 
 *Figure 9.42 (redrawn as Mermaid). Given an incident direction ω of a ray that intersected a Curve projected to the normal plane, we can parameterize the curve’s width with h ∈ [−1, 1]. Given the h for a ray that has intersected the curve, trigonometry shows how to compute the angle γ between ω and the surface normal on the curve’s surface at the intersection point. The two angles γ are equal, and because the circle’s radius is 1, sin γ = h.*
-
 
 In the BSDF coordinate system, the normal plane is spanned by the y and z coordinate axes. (y corresponds to ∂p/∂v for curves, which is always perpendicular to the curve’s ∂p/∂u, and z is aligned with the ribbon normal.)
 
@@ -3157,7 +3052,6 @@ flowchart LR
 
 *Figure 9.43 (redrawn as Mermaid). The surface of hair is formed by scales that deviate by a small angle α from the ideal cylinder. (α is generally around 2 − 4°; the angle shown here is larger for illustrative purposes.)*
 
-
 ```mermaid
 flowchart LR
     P0["p=0: R — reflect at cuticle"]
@@ -3168,16 +3062,13 @@ flowchart LR
 
 *Figure 9.44 (redrawn as Mermaid). Incident light arriving at a hair can be scattered in a variety of ways. p = 0 corresponds to light reflected from the surface of the cuticle. Light may also be transmitted through the hair and leave the other side: p = 1. It may be transmitted into the hair and reflected back into it again before being transmitted back out: p = 2, and so forth.*
 
-
 Incident light arriving at a hair may be scattered one or more times before leaving the hair; Figure 9.44 shows a few of the possible cases. We will use p to denote the number of path segments it follows inside the hair before being scattered back out to air. We will sometimes refer to terms with a shorthand that describes the corresponding scattering events at the boundary: p = 0 corresponds to R, for reflection, p = 1 is T T, for two transmissions p = 2 is TRT, p = 3 is TRRT, and so forth. In the following, we will find it useful to consider these scattering modes separately and so will write the hair BSDF as a sum over terms p:
 
-$$f(\boldsymbol\omega_o,\boldsymbol\omega_i)=\sum_{p=0}^{\infty}f_p(\boldsymbol\omega_o,\boldsymbol\omega_i). \tag{9.47}$$
-
+$$f(\boldsymbol\omega_o,\boldsymbol\omega_i)=\sum_{p=0}^{\infty}f_p(\boldsymbol\omega_o,\boldsymbol\omega_i). \quad\text{(9.47)}$$
 
 To make the scattering model evaluation and sampling easier, many hair scattering models factor f into terms where one depends only on the angles θ and another on ϕ, the difference between ϕo and ϕi. This semi-separable model is given by:
 
-$$f_p(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{M_p(\theta_i,\theta_o)\,N_p(\phi)\,A_p}{|\cos\theta_i|}. \tag{9.48}$$
-
+$$f_p(\boldsymbol\omega_o,\boldsymbol\omega_i)=\frac{M_p(\theta_i,\theta_o)\,N_p(\phi)\,A_p}{|\cos\theta_i|}. \quad\text{(9.48)}$$
 
 where we have a longitudinal scattering function `Mp`, an attenuation function `Ap`, and an azimuthal scattering function `Np`.7 The division by |cos θi| cancels out the corresponding factor in the reflection equation.
 
@@ -3234,10 +3125,9 @@ With these values available, we will consider in turn the factors of the `BSDF` 
 
 </details>
 
-
 The mathematical details of the derivation of the scattering model are complex, so we will not include them here; as always, the “Further Reading” section has references to the details. The design goals of the model implemented here were that it be normalized (ensuring both energy conservation and no energy loss) and that it could be sampled directly. Although this model is not directly based on a physical model of how hair scatters light, it matches measured data well and has parametric control of roughness v.8 The model is:
 
-$$M_p(\theta_i,\theta_o)=\frac{\exp\!\left(-\frac{\sin\theta_i\sin\theta_o}{v}\right)\,I_0\!\left(\frac{\cos\theta_i\cos\theta_o}{v}\right)}{2v\,\sinh(1/v)}. \tag{9.49}$$
+$$M_p(\theta_i,\theta_o)=\frac{\exp\!\left(-\frac{\sin\theta_i\sin\theta_o}{v}\right)\,I_0\!\left(\frac{\cos\theta_i\cos\theta_o}{v}\right)}{2v\,\sinh(1/v)}. \quad\text{(9.49)}$$
 
 where `I0` is the modified Bessel function of the first kind and `v` is the roughness variance. Figure 9.46 shows plots of Mp.
 
@@ -3262,7 +3152,6 @@ Float Mp(Float cosTheta_i, Float cosTheta_o, Float sinTheta_i, Float sinTheta_o,
 *Figure 9.46: Plots of the Longitudinal Scattering Function. The shape of Mp as a function of θi for three values of θo. In all cases a roughness variance of v = 0.02 was used. The peaks are slightly shifted from the perfect specular reflection directions (at θi = 1, 1.3, and 1.4, respectively). (After d’Eon et al. (2011), Figure 4.)*
 
 </details>
-
 
 One challenge with this model is choosing a roughness v to achieve a desired look. Here we have implemented a perceptually uniform mapping from roughness βm ∈ [0, 1] to v where a roughness of 0 is nearly perfectly smooth and 1 is extremely rough. Different roughness values are used for
 
@@ -3294,7 +3183,6 @@ The `Ap` factor describes how the incident light is affected by each of the scat
 
 </details>
 
-
 To compute these distances, we need the transmitted angles of the ray ωo, in the longitudinal and azimuthal planes, which we will denote by θt and γt, respectively. Application of Snell’s law using the hair’s index of refraction η allows us to compute sin θt and cos θt.
 
 〈Compute cos θt for refracted ray〉 ≡ 607, 618
@@ -3309,7 +3197,8 @@ For γt, although we could compute the transmitted direction ωt from ωo and th
 modified index of refraction is given by Given η′, we can compute
 
 $$\eta^{\prime}=\frac{\sqrt{\eta^2-\sin^2\theta_o}}{\cos\theta_o}.$$
- the refracted direction γt directly in the normal plane.9 Since h = sin γo, we can apply Snell’s law to compute γt.
+
+the refracted direction γt directly in the normal plane.9 Since h = sin γo, we can apply Snell’s law to compute γt.
 
 〈Compute γt for refracted ray〉 ≡ 607, 618, 619
 
@@ -3340,7 +3229,6 @@ flowchart LR
 
 *Figure 9.48 (redrawn as Mermaid). Computing the Transmitted Segment’s Distance. For a transmitted ray with angle γt with respect to the circle’s surface normal, half of the total distance la is given by cos γ, assuming a unit radius. Because γt is the same at both halves of the segment, la = 2 cos γt.*
 
-
 ```mermaid
 flowchart LR
     THETA["Longitudinal angle θt"] --> STRETCH["segment length scaled by 1 / cos θt"]
@@ -3349,13 +3237,11 @@ flowchart LR
 
 *Figure 9.49 (redrawn as Mermaid). The Effect of θt on the Transmitted Segment’s Length. The length of the transmitted segment through the cylinder is increased by a factor of 1/ cos θt versus a direct vertical path.*
 
-
 Now considering the longitudinal projection, we can see that the distance that a transmitted ray travels before exiting is scaled by a factor of 1/ cos θt as it passes through the cylinder (Figure 9.49). Putting these together, the
 
 total segment length in terms of the hair diameter is Given the segment length and the medium’s absorption coefficient, the fraction of light transmitted can be computed using Beer’s law, which is introduced in Section 11.2. Because the HairBxDF defined σa to be measured with respect to the hair diameter (so that adjusting the hair geometry’s width does not completely change its color), we do not consider the hair cylinder diameter when we apply Beer’s law, and the fraction of light remaining at the end of the segment is given by
 
 $$T=\exp\!\left(-\boldsymbol\sigma_a\,\frac{2\cos\gamma_t}{\cos\theta_t}\right).$$
-
 
 〈Compute the transmittance T of a single path through the cylinder〉 ≡ 607, 618
 
@@ -3407,7 +3293,6 @@ flowchart LR
 
 *Figure 9.50 (redrawn as Mermaid). When a transmitted ray undergoes specular reflection at the interior of the hair cylinder, it makes the same angle γt with the circle’s surface normal as the original transmitted ray did. From this, it follows that the lengths of all ray segments for a path inside the cylinder must be equal.*
 
-
 〈Compute attenuation terms up to p = pMax〉 ≡ 612
 
 for p in 2..pMax ap[p] = ap[p - 1] * T * f;
@@ -3415,7 +3300,6 @@ for p in 2..pMax ap[p] = ap[p - 1] * T * f;
 After pMax, a final term accounts for all further orders of scattering. The sum of the infinite series of remaining terms can fortunately be found in closed form, since both T < 1 and f < 1:
 
 $$A_{p_{\max}}=\frac{A_{p_{\max}-1}\,f\,T}{1-f\,T}.$$
-
 
 〈Compute attenuation term accounting for remaining orders of scattering〉 ≡ 612
 
@@ -3434,7 +3318,6 @@ flowchart LR
 
 *Figure 9.51 (redrawn as Mermaid). For specular reflection, with p = 0, the incident and reflected directions make the same angle γo with the surface normal. The net change in angle is thus −2γo. For p = 1, the ray is deflected from γo to γt when it enters the cylinder and then correspondingly on the way out. We can also see that when the ray is transmitted again out of the circle, it makes an angle γo with the surface normal there. Adding up the angles, the net deflection is 2γt − 2γo + π.*
 
-
 ```text
     HairBxDF::pMax 606
 ```
@@ -3448,7 +3331,6 @@ flowchart LR
 
 </details>
 
-
 <details>
 <summary>Figure 9.53 — Plots of the Trimmed Logistic Function over ±π. The curve for s = 0…</summary>
 
@@ -3458,7 +3340,6 @@ flowchart LR
 
 </details>
 
-
 (Recall that γo and γt are derived from h.) Figure 9.52 shows a plot of this function for p = 1. 〈HairBxDF Private Methods〉 +≡ 606
 
 Float Phi(int p, Float gamma_o, Float gamma_t) { return 2 * p * gamma_t - 2 * gamma_o + p * Pi; }
@@ -3466,7 +3347,6 @@ Float Phi(int p, Float gamma_o, Float gamma_t) { return 2 * p * gamma_t - 2 * ga
 Now that we know how to compute new angles in the normal plane after specular transmission and reflection, we need a way to represent surface roughness, so that a range of directions centered around the specular direction can contribute to scattering. The logistic distribution provides a good option: it is a generally useful one for rendering, since it has a similar shape to the Gaussian, while also being normalized and integrable in closed form (unlike the Gaussian); see Section B.2.5 for more information. In the following, we will find it useful to define a normalized logistic function over a range [a, b]; we will call this the trimmed logistic, lt.
 
 $$l(x;m,s)=\frac{e^{-(x-m)/s}}{s\left(1+e^{-(x-m)/s}\right)^2},\qquad l_t(x;m,s,a,b)=\frac{l(x;m,s)}{L\!\left(\frac{b-m}{s}\right)-L\!\left(\frac{a-m}{s}\right)},\quad L(u)=\frac{1}{1+e^{-u}}.$$
-
 
 ```text
    Float 23
@@ -3497,7 +3377,6 @@ Float s;
 *Figure 9.54: Polar plots of Np for p = 1, θo aligned with the −x axis, and with a low roughness, βn = 0.1, for (blue) h = −0.5 and (red) h = 0.3. We can see that Np varies rapidly over the width of the hair.*
 
 </details>
-
 
 ```text
    Float 23
@@ -3725,8 +3604,9 @@ Float phi_i = phi_o + dphi; Vector3f wi(sinTheta_i, cosTheta_i * f32::cos(phi_i)
 
 Because we could sample directly from the Mp and Np distributions, the overall PDF is
 
-$$p(\boldsymbol\omega_i)=\sum_{p=0}^{p_{\max}}\tilde A_p\,\frac{M_p(\theta_i,\theta_o)\,N_p(\phi)}{|\cos\theta_i|},$$ with $N_{p_{\max}}(\phi)=1/(2\pi)$.
+$$p(\boldsymbol\omega_i)=\sum_{p=0}^{p_{\max}}\tilde A_p\,\frac{M_p(\theta_i,\theta_o)\,N_p(\phi)}{|\cos\theta_i|},$$
 
+ with $N_{p_{\max}}(\phi)=1/(2\pi)$.
 
 where Ãp are the normalized PDF terms. Note that θo must be shifted to account for hair scales when evaluating the PDF; this is done in the same way (and with the same code fragment) as with BSDF evaluation.
 
@@ -3768,7 +3648,6 @@ The color of hair is determined by how pigments in the cortex absorb light, whic
 *Figure 9.55: The Importance of Multiple Scattering in Blonde Hair. (a) Blonde hair rendered with up to three bounces of light inside the hair. (b) Rendered with up to fifty bounces of light. In light-colored hair, light that has been scattered many times makes an important contribution to its visual appearance. Accurately rendering very blonde or white hair is consequently more computationally intensive than rendering dark hair. (Hair geometry courtesy of Cem Yuksel.)*
 
 </details>
-
 
 〈HairBxDF Method Definitions〉 +≡ RGBUnboundedSpectrum HairBxDF::SigmaAFromConcentration(Float ce, Float cp) { RGB eumelaninSigma_a(0.419f, 0.697f, 1.37f); RGB pheomelaninSigma_a(0.187f, 0.4f, 1.05f); RGB sigma_a = ce * eumelaninSigma_a + cp * pheomelaninSigma_a; return RGBUnboundedSpectrum(*RGBColorSpace::sRGB, sigma_a); }
 
@@ -3865,7 +3744,6 @@ flowchart LR
 
 *Figure 9.56 (redrawn as Mermaid). Derivation of Snell’s Law. Snell’s law can be derived using Fermat’s principle, which says that light will follow the path that takes the least amount of time to pass between two points. The angle of refraction θ at the boundary between two media can thus be shown to be the one that minimizes the time spent going from p1 to a point p on the boundary plus the time spent traveling the distance from that point to p2.*
 
-
 ## EXERCISES
 
 **➊ 9.1.** A consequence of Fermat’s principle from optics is that light traveling from a point p1 in
@@ -3924,7 +3802,6 @@ _________________ 1 It could be argued that a shortcoming of the `BxDF` sampling
 8 Note that this is a different usage of v than in earlier chapters when it was used for the parametric coordinate along the width of a curve.
 
 9 This is due to the Bravais properties of cylindrical scattering. See Appendix B of Marschner et al. (2003) for a derivation and further explanation. 10 This approach is applicable since the BSDF’s definition includes the product of `Mp` and `Np` and so their joint PDF is separable. 11 An area light and not a point or directional light is necessary due to subtleties in how lights are seen in specular surfaces. With the light transport algorithms used in pbrt, infinitesimal point sources are never visible in mirrored surfaces. This is a typical limitation of ray-tracing renderers and usually not bothersome in practice.
-
 
 ---
 

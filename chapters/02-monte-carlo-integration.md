@@ -61,25 +61,19 @@ We start by defining some terms and reviewing basic ideas from probability. We a
 
 **Discrete example.** The result of a roll of a die is a discrete random variable sampled from the set of events $X_i\in\{1,2,3,4,5,6\}$. Each event has probability
 
-$$
-p_i=\frac{1}{6},\qquad \sum_{i=1}^{6} p_i = 1.
-$$
+$$p_i=\frac{1}{6},\qquad \sum_{i=1}^{6} p_i = 1.$$
 
 A random variable like this one that has the same probability for all potential values is said to be *uniform*. A function $p(X)$ that gives a discrete random variable's probability is termed a *probability mass function* (PMF), so we could equivalently write $p(X_i=i)=1/6$ in this case.
 
 **Independence.** Two random variables are independent if the probability of one does not affect the probability of the other. In this case, the joint probability $p(X,Y)$ of two random variables is given by the product of their probabilities:
 
-$$
-p(X,Y)=p(X)\,p(Y).
-$$
+$$p(X,Y)=p(X)\,p(Y).$$
 
 For example, two random variables representing random samples of the six sides of a die are independent.
 
 **Dependence.** For dependent random variables, one's probability affects the other's. Consider a bag filled with some number of black balls and some number of white balls. If we randomly choose two balls from the bag, the probability of the second ball being white is affected by the color of the first ball, since its choice changes the number of balls of one type left in the bag. We say that the second ball's probability is *conditioned* on the choice of the first one. In this case, the joint probability for choosing two balls $X$ and $Y$ is given by
 
-$$
-p(X,Y)=p(X)\,p(Y\mid X), \tag{2.1}
-$$
+$$p(X,Y)=p(X)\,p(Y\mid X), \quad\text{(2.1)}$$
 
 where $p(Y\mid X)$ is the conditional probability of $Y$ given a value of $X$.
 
@@ -87,37 +81,27 @@ In the following, it will often be the case that a random variable's probability
 
 **The canonical uniform random variable.** A particularly important random variable is the canonical uniform random variable $\xi$. It takes on all values in its domain $[0,1)$ independently and with uniform probability. This particular variable is important for two reasons. First, it is easy to generate a variable with this distribution in software—most runtime libraries have a pseudo-random number generator that does just that.[^2] Second, we can take $\xi$ and map it to a discrete random variable, choosing $X_i$ if
 
-$$
-\sum_{j=1}^{i-1} p_j \;\le\; \xi \;<\; \sum_{j=1}^{i} p_j. \tag{2.2}
-$$
+$$\sum_{j=1}^{i-1} p_j \;\le\; \xi \;<\; \sum_{j=1}^{i} p_j. \quad\text{(2.2)}$$
 
 For lighting applications, we might want to define the probability of sampling illumination from each light in the scene based on its power $\Phi_i$ relative to the total power from all sources:
 
-$$
-p_i=\frac{\Phi_i}{\sum_j \Phi_j}.
-$$
+$$p_i=\frac{\Phi_i}{\sum_j \Phi_j}.$$
 
 Notice that these $p_i$ values also sum to 1. Given such per-light probabilities, $\xi$ could be used to select a light source from which to sample illumination.
 
 **The cumulative distribution function.** The *cumulative distribution function* (CDF) $P(x)$ of a random variable is the probability that a value from the variable's distribution is less than or equal to some value $x$:
 
-$$
-P(x)=\Pr\{X\le x\}. \tag{2.3}
-$$
+$$P(x)=\Pr\{X\le x\}. \quad\text{(2.3)}$$
 
 For the die example, $P(2)=\Pr\{X\le 2\}=2/6=1/3$, since two of the six possibilities are less than or equal to 2.
 
 **Continuous random variables.** These take on values over ranges of continuous domains (e.g., the real numbers, directions on the unit sphere, or the surfaces of shapes in the scene). Beyond $\xi$, another example is the random variable that ranges over the real numbers between 0 and 2, where the probability of its taking on any particular value $x$ is proportional to $2-x$: it is twice as likely for this random variable to take on a value around 0 as it is to take one around 1, and so forth. Normalizing so that the density integrates to 1 gives
 
-$$
-p(x)=\frac{2-x}{2},\qquad 0\le x\le 2.
-$$
+$$p(x)=\frac{2-x}{2},\qquad 0\le x\le 2.$$
 
 **The probability density function.** The *probability density function* (PDF) formalizes this idea: it describes the relative probability of a random variable taking on a particular value and is the continuous analog of the PMF. The PDF $p(x)$ is the derivative of the random variable's CDF,
 
-$$
-p(x)=\frac{dP(x)}{dx}=P'(x).
-$$
+$$p(x)=\frac{dP(x)}{dx}=P'(x).$$
 
 For uniform random variables, $p(x)$ is a constant; this is a direct consequence of uniformity. For $\xi$ we have $p(x)=1$ on $0\le x<1$ (and zero elsewhere).
 
@@ -125,9 +109,7 @@ PDFs are necessarily nonnegative and always integrate to 1 over their domains. N
 
 Given an interval $[a,b]$ in the domain, integrating the PDF gives the probability that a random variable lies inside the interval:
 
-$$
-\Pr\{a\le X\le b\}=\int_a^b p(x)\,dx = P(b)-P(a).
-$$
+$$\Pr\{a\le X\le b\}=\int_a^b p(x)\,dx = P(b)-P(a).$$
 
 This follows directly from the first fundamental theorem of calculus and the definition of the PDF.
 
@@ -137,28 +119,19 @@ This follows directly from the first fundamental theorem of calculus and the def
 
 The expected value $\mathbb{E}_p[f(x)]$ of a function $f$ is defined as the average value of the function over some distribution of values $p(x)$ over its domain $D$:
 
-$$
-\mathbb{E}_p[f(x)] = \int_D f(x)\,p(x)\,dx.
-$$
+$$\mathbb{E}_p[f(x)] = \int_D f(x)\,p(x)\,dx.$$
 
 As an example, consider finding the expected value of the cosine function between 0 and $\pi$, where $p$ is uniform. Because the PDF $p(x)$ must integrate to 1 over the domain, $p(x)=1/\pi$, so[^3]
 
-$$
-\mathbb{E}[\cos x]=\int_0^{\pi}\frac{\cos x}{\pi}\,dx
-= \frac{1}{\pi}\Big[\sin x\Big]_0^{\pi}=0,
-$$
+$$\mathbb{E}[\cos x]=\int_0^{\pi}\frac{\cos x}{\pi}\,dx = \frac{1}{\pi}\Big[\sin x\Big]_0^{\pi}=0,$$
 
 which is precisely the expected result. (Consider the graph of $\cos x$ over $[0,\pi]$ to see why this is so.)
 
 The expected value has a few useful properties that follow from its definition:
 
-$$
-\mathbb{E}[c\,f(x)] = c\,\mathbb{E}[f(x)], \tag{2.4}
-$$
+$$\mathbb{E}[c\,f(x)] = c\,\mathbb{E}[f(x)], \quad\text{(2.4)}$$
 
-$$
-\mathbb{E}[f(x)+g(x)] = \mathbb{E}[f(x)] + \mathbb{E}[g(x)]. \tag{2.5}
-$$
+$$\mathbb{E}[f(x)+g(x)] = \mathbb{E}[f(x)] + \mathbb{E}[g(x)]. \quad\text{(2.5)}$$
 
 We will repeatedly use these properties in derivations in the following sections.
 
@@ -166,53 +139,33 @@ We will repeatedly use these properties in derivations in the following sections
 
 We can now define the Monte Carlo estimator, which approximates the value of an arbitrary integral. Suppose that we want to evaluate a 1D integral $\int_a^b f(x)\,dx$. Given a supply of independent uniform random variables $X_i\in[a,b]$, the Monte Carlo estimator says that the expected value of the estimator
 
-$$
-F_n=\frac{b-a}{n}\sum_{i=1}^{n} f(X_i) \tag{2.6}
-$$
+$$F_n=\frac{b-a}{n}\sum_{i=1}^{n} f(X_i) \quad\text{(2.6)}$$
 
 — that is, $\mathbb{E}[F_n]$ — is equal to the integral. This fact can be demonstrated with just a few steps. First, note that the PDF $p(x)$ corresponding to the random variable $X_i$ must be equal to $1/(b-a)$, since $p$ must not only be a constant but also integrate to 1 over the domain $[a,b]$. Algebraic manipulation using the properties from Equations (2.4) and (2.5) then shows that
 
-$$
-\mathbb{E}[F_n]
-= \frac{b-a}{n}\sum_{i=1}^{n}\mathbb{E}[f(X_i)]
-= \frac{b-a}{n}\sum_{i=1}^{n}\int_a^b \frac{f(x)}{b-a}\,dx
-= \int_a^b f(x)\,dx.
-$$
+$$\mathbb{E}[F_n] = \frac{b-a}{n}\sum_{i=1}^{n}\mathbb{E}[f(X_i)] = \frac{b-a}{n}\sum_{i=1}^{n}\int_a^b \frac{f(x)}{b-a}\,dx = \int_a^b f(x)\,dx.$$
 
 Extending this estimator to multiple dimensions or complex integration domains is straightforward: $n$ independent samples $X_i$ are taken from a uniform multidimensional PDF, and the estimator is applied in the same way. For example, consider the 3D integral
 
-$$
-\int_{x_0}^{x_1}\int_{y_0}^{y_1}\int_{z_0}^{z_1} f(x,y,z)\,dz\,dy\,dx.
-$$
+$$\int_{x_0}^{x_1}\int_{y_0}^{y_1}\int_{z_0}^{z_1} f(x,y,z)\,dz\,dy\,dx.$$
 
 If samples $X_i=(x_i,y_i,z_i)$ are chosen uniformly from the cube $[x_0,x_1]\times[y_0,y_1]\times[z_0,z_1]$, then the PDF $p(X)$ is the constant value
 
-$$
-p(X)=\frac{1}{(x_1-x_0)(y_1-y_0)(z_1-z_0)},
-$$
+$$p(X)=\frac{1}{(x_1-x_0)(y_1-y_0)(z_1-z_0)},$$
 
 and the estimator is
 
-$$
-F_n=\frac{(x_1-x_0)(y_1-y_0)(z_1-z_0)}{n}\sum_{i=1}^{n} f(X_i).
-$$
+$$F_n=\frac{(x_1-x_0)(y_1-y_0)(z_1-z_0)}{n}\sum_{i=1}^{n} f(X_i).$$
 
 The restriction to uniform random variables can be relaxed with a small generalization. This is an important step, since carefully choosing the PDF from which samples are drawn leads to a key technique for reducing error in Monte Carlo that will be introduced in Section 2.2.2. If the random variables $X_i$ are drawn from a PDF $p(x)$, then the estimator
 
-$$
-\boxed{\;F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{f(X_i)}{p(X_i)}\;} \tag{2.7}
-$$
+$$\boxed{\;F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{f(X_i)}{p(X_i)}\;} \quad\text{(2.7)}$$
 
 can be used to estimate the integral instead. The only limitation on $p(x)$ is that it must be nonzero for all $x$ where $|f(x)|>0$.
 
 It is similarly not too hard to see that the expected value of this estimator is the desired integral of $f$:
 
-$$
-\mathbb{E}[F_n]
-=\frac{1}{n}\sum_{i=1}^{n}\mathbb{E}\!\left[\frac{f(X_i)}{p(X_i)}\right]
-=\frac{1}{n}\sum_{i=1}^{n}\int \frac{f(x)}{p(x)}\,p(x)\,dx
-=\int f(x)\,dx.
-$$
+$$\mathbb{E}[F_n] =\frac{1}{n}\sum_{i=1}^{n}\mathbb{E}\!\left[\frac{f(X_i)}{p(X_i)}\right] =\frac{1}{n}\sum_{i=1}^{n}\int \frac{f(x)}{p(x)}\,p(x)\,dx =\int f(x)\,dx.$$
 
 We can now understand the factor of $1/(4\pi)$ in the implementation of `RandomWalkIntegrator`: directions are uniformly sampled over the unit sphere, which has area $4\pi$. Because the PDF is normalized over the sampling domain, it must have the constant value $1/(4\pi)$. When the estimator of Equation (2.7) is applied, that value appears in the divisor.
 
@@ -222,27 +175,19 @@ With Monte Carlo, the number of samples $n$ can be chosen arbitrarily, regardles
 
 Showing that the Monte Carlo estimator converges to the right answer is not enough to justify its use; its rate of convergence is important too. Variance, the expected squared deviation of a function from its expected value, is a useful way to characterize Monte Carlo estimators' convergence.[^7] The variance of an estimator $F$ is defined as
 
-$$
-\mathrm{V}[F]=\mathbb{E}\!\left[(F-\mathbb{E}[F])^2\right], \tag{2.8}
-$$
+$$\mathrm{V}[F]=\mathbb{E}\!\left[(F-\mathbb{E}[F])^2\right], \quad\text{(2.8)}$$
 
 from which it follows that
 
-$$
-\mathrm{V}[F]=\mathbb{E}[F^2]-\big(\mathbb{E}[F]\big)^2. \tag{2.9}
-$$
+$$\mathrm{V}[F]=\mathbb{E}[F^2]-\big(\mathbb{E}[F]\big)^2. \quad\text{(2.9)}$$
 
 This property and Equation (2.5) yield an alternative expression for the variance; in particular, for the Monte Carlo estimator of Equation (2.7),
 
-$$
-\mathrm{V}[F_n]=\frac{1}{n}\,\mathrm{V}\!\left[\frac{f(X)}{p(X)}\right].
-$$
+$$\mathrm{V}[F_n]=\frac{1}{n}\,\mathrm{V}\!\left[\frac{f(X)}{p(X)}\right].$$
 
 If the estimator is a sum of independent random variables (like the Monte Carlo estimator $F_n$), then the variance of the sum is the sum of the individual random variables' variances:
 
-$$
-\mathrm{V}\!\left[\sum_i X_i\right]=\sum_i \mathrm{V}[X_i]. \tag{2.10}
-$$
+$$\mathrm{V}\!\left[\sum_i X_i\right]=\sum_i \mathrm{V}[X_i]. \quad\text{(2.10)}$$
 
 From Equation (2.10) it is easy to show that variance decreases linearly with the number of samples $n$. Because variance is squared error, the error in a Monte Carlo estimate therefore only goes down at a rate of $\mathcal{O}(n^{-1/2})$ in the number of samples. Although standard quadrature techniques converge at a faster rate in one dimension, their performance becomes exponentially worse as the dimensionality of the integrand increases, while Monte Carlo's convergence rate is independent of the dimension, making Monte Carlo the only practical numerical integration algorithm for high-dimensional integrals.
 
@@ -250,40 +195,29 @@ The $\mathcal{O}(n^{-1/2})$ characteristic of Monte Carlo's rate of error reduct
 
 The linear decrease in variance with increasing numbers of samples makes it easy to compare different Monte Carlo estimators. Consider two estimators, where the second has half the variance of the first but takes three times as long to compute an estimate; which of the two is better? In that case, the first is preferable: it could take three times as many samples in the time consumed by the second, in which case it would achieve a $3\times$ variance reduction. This concept can be encapsulated in the *efficiency* of an estimator $F$, which is defined as
 
-$$
-\varepsilon[F]=\frac{1}{\mathrm{V}[F]\,T[F]},
-$$
+$$\varepsilon[F]=\frac{1}{\mathrm{V}[F]\,T[F]},$$
 
 where $\mathrm{V}[F]$ is its variance and $T[F]$ is the running time to compute its value.
 
 Not all estimators of integrals have expected values that are equal to the value of the integral. Such estimators are said to be *biased*, where the difference
 
-$$
-\mathrm{b}[F]=\mathbb{E}[F]-\int f(x)\,dx
-$$
+$$\mathrm{b}[F]=\mathbb{E}[F]-\int f(x)\,dx$$
 
 is the amount of bias. Biased estimators may still be desirable if they are able to get close to the correct result more quickly than unbiased estimators. Kalos and Whitlock (1986, pp. 36–37) give the following example: consider the problem of computing an estimate of the mean value of a uniform distribution $X_i\sim p$ over the interval from 0 to 1. One could use the unbiased sample mean
 
-$$
-\bar X_n=\frac{1}{n}\sum_{i=1}^{n}X_i,
-$$
+$$\bar X_n=\frac{1}{n}\sum_{i=1}^{n}X_i,$$
 
 or one could use a deliberately biased estimator that shrinks toward a known constant. The first estimator is unbiased but has variance with order $\mathcal{O}(n^{-1})$. The second estimator's expected value approaches the true mean, so it is biased, although its variance is $\mathcal{O}(n^{-2})$, which is much better. This estimator has the useful property that its error goes to 0 in the limit as the number of samples $n$ goes to infinity; such estimators are *consistent*.[^4] Most of the Monte Carlo estimators used in pbrt are unbiased, with the notable exception of the `SPPMIntegrator`, which implements a photon mapping algorithm.
 
 Closely related to the variance is the *mean squared error* (MSE), which is defined as the expectation of the squared difference of an estimator and the true value,
 
-$$
-\mathrm{MSE}[F]=\mathbb{E}\!\left[\Big(F-\int f(x)\,dx\Big)^2\right]
-=\mathrm{V}[F]+\big(\mathrm{b}[F]\big)^2.
-$$
+$$\mathrm{MSE}[F]=\mathbb{E}\!\left[\Big(F-\int f(x)\,dx\Big)^2\right] =\mathrm{V}[F]+\big(\mathrm{b}[F]\big)^2.$$
 
 For an unbiased estimator, MSE is equal to the variance; otherwise it is the sum of variance and the squared bias of the estimator.
 
 It is possible to work out the variance and MSE of some simple estimators in closed form, but for most of the ones of interest in rendering, this is not possible. Yet it is still useful to be able to quantify these values. For this purpose, the sample variance can be computed using a set of independent random variables $X_i$. Equation (2.8) points at one way to compute the sample variance for a set of $n$ random variables $X_i$. If the sample mean is computed as their average, $\bar F=\frac{1}{n}\sum_i X_i$, then the sample variance is
 
-$$
-s^2=\frac{1}{n-1}\sum_{i=1}^{n}(X_i-\bar F)^2.
-$$
+$$s^2=\frac{1}{n-1}\sum_{i=1}^{n}(X_i-\bar F)^2.$$
 
 The division by $n-1$ rather than $n$ is Bessel's correction, and ensures that the sample variance is an unbiased estimate of the variance. (See also Section B.2.11, where a numerically stable approach for computing the sample variance is introduced.)
 
@@ -291,9 +225,7 @@ The sample variance is itself an estimate of the variance, so it has variance it
 
 If an accurate estimate of the integral $\int f(x)\,dx$ can be computed (for example, using a large number of samples), then the mean squared error can be estimated by averaging the squared deviations of individual estimates from that reference,
 
-$$
-\mathrm{MSE}\;\approx\;\frac{1}{n}\sum_{i=1}^{n}\big(F_i-F_{\mathrm{ref}}\big)^2.
-$$
+$$\mathrm{MSE}\;\approx\;\frac{1}{n}\sum_{i=1}^{n}\big(F_i-F_{\mathrm{ref}}\big)^2.$$
 
 The `imgtool` utility program that is provided in pbrt's distribution can compute an image's MSE with respect to a reference image via its `diff` option.
 
@@ -309,9 +241,7 @@ A classic and effective family of techniques for variance reduction is based on 
 
 Stratified sampling subdivides the integration domain $\Lambda$ into $n$ nonoverlapping regions $\Lambda_1,\Lambda_2,\ldots,\Lambda_n$. Each region is called a *stratum*, and they must completely cover the original domain:
 
-$$
-\Lambda=\bigcup_{i=1}^{n}\Lambda_i,\qquad \Lambda_i\cap\Lambda_j=\varnothing\;\;(i\ne j).
-$$
+$$\Lambda=\bigcup_{i=1}^{n}\Lambda_i,\qquad \Lambda_i\cap\Lambda_j=\varnothing\;\;(i\ne j).$$
 
 To draw samples from $\Lambda$, we draw $n_i$ samples from each $\Lambda_i$, according to densities $p_i$ inside each stratum. A simple example is supersampling a pixel. With stratified sampling, the area around a pixel is divided into a $k\times k$ grid, and a sample is drawn uniformly within each grid cell. This is better than taking $k^2$ random samples, since the sample locations are less likely to clump together. Here we show why this technique reduces variance.
 
@@ -325,43 +255,29 @@ flowchart LR
 
 Within a single stratum $\Lambda_i$, the Monte Carlo estimate is
 
-$$
-F_i=\frac{1}{n_i}\sum_{j=1}^{n_i}\frac{f(X_{i,j})}{p_i(X_{i,j})},
-$$
+$$F_i=\frac{1}{n_i}\sum_{j=1}^{n_i}\frac{f(X_{i,j})}{p_i(X_{i,j})},$$
 
 where $X_{i,j}$ is the $j$th sample drawn from density $p_i$. The overall estimate is $F=\sum_i v_i F_i$, where $v_i$ is the fractional volume of stratum $i$ ($v_i\in(0,1]$).
 
 The true value of the integrand in stratum $i$ is
 
-$$
-\mu_i=\mathbb{E}[F_i]=\int_{\Lambda_i} f(x)\,p_i(x)\,dx,
-$$
+$$\mu_i=\mathbb{E}[F_i]=\int_{\Lambda_i} f(x)\,p_i(x)\,dx,$$
 
 and the variance in this stratum is
 
-$$
-\sigma_i^2=\mathrm{V}\!\left[\frac{f(X_{i,j})}{p_i(X_{i,j})}\right].
-$$
+$$\sigma_i^2=\mathrm{V}\!\left[\frac{f(X_{i,j})}{p_i(X_{i,j})}\right].$$
 
 Thus, with $n_i$ samples in the stratum, the variance of the per-stratum estimator is $\sigma_i^2/n_i$. This shows that the variance of the overall estimator is
 
-$$
-\mathrm{V}[F]=\sum_{i=1}^{n} v_i^2\,\frac{\sigma_i^2}{n_i}.
-$$
+$$\mathrm{V}[F]=\sum_{i=1}^{n} v_i^2\,\frac{\sigma_i^2}{n_i}.$$
 
 If we make the reasonable assumption that the number of samples $n_i$ is proportional to the volume $v_i$, then we have $n_i=v_i n$, and the variance of the overall estimator is
 
-$$
-\mathrm{V}[F]=\frac{1}{n}\sum_{i=1}^{n} v_i\,\sigma_i^2.
-$$
+$$\mathrm{V}[F]=\frac{1}{n}\sum_{i=1}^{n} v_i\,\sigma_i^2.$$
 
 To compare this result to the variance without stratification, we note that choosing an unstratified sample is equivalent to choosing a random stratum $I$ according to the discrete probability distribution defined by the volumes $v_i$ and then choosing a random sample $X$ in $I$. In this sense, $X$ is chosen conditionally on $I$, so it can be shown using conditional probability that[^5]
 
-$$
-\mathrm{V}[F_{\text{unstrat}}]
-=\frac{1}{n}\sum_{i=1}^{n} v_i\,\sigma_i^2
-+\frac{1}{n}\sum_{i=1}^{n} v_i\,(\mu_i-Q)^2, \tag{2.12}
-$$
+$$\mathrm{V}[F_{\text{unstrat}}] =\frac{1}{n}\sum_{i=1}^{n} v_i\,\sigma_i^2 +\frac{1}{n}\sum_{i=1}^{n} v_i\,(\mu_i-Q)^2, \quad\text{(2.12)}$$
 
 where $Q=\sum_i v_i\mu_i$ is the mean of $f$ over the whole domain $\Lambda$.
 
@@ -387,44 +303,29 @@ The main downside of stratified sampling is that it suffers from the same "curse
 
 Importance sampling is a powerful variance reduction technique that exploits the fact that the Monte Carlo estimator
 
-$$
-F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{f(X_i)}{p(X_i)}
-$$
+$$F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{f(X_i)}{p(X_i)}$$
 
 converges more quickly if the samples are taken from a distribution $p(x)$ that is similar to the function $f(x)$ in the integrand. In this case, samples are more likely to be taken when the magnitude of the integrand is relatively large. Importance sampling is one of the most frequently used variance reduction techniques in rendering, since it is easy to apply and is very effective when good sampling distributions are used.
 
 To see why such sampling distributions reduce error, first consider the effect of using a distribution $p(x)\propto f(x)$, or $p(x)=c\,f(x)$.[^6] It is trivial to show that normalization of the PDF requires that
 
-$$
-c=\frac{1}{\displaystyle\int f(x)\,dx}.
-$$
+$$c=\frac{1}{\displaystyle\int f(x)\,dx}.$$
 
 Finding such a PDF requires that we know the value of the integral, which is what we were trying to estimate in the first place. Nonetheless, if we could sample from this distribution, each term of the sum in the estimator would have the value
 
-$$
-\frac{f(X_i)}{p(X_i)}=\frac{1}{c}=\int f(x)\,dx.
-$$
+$$\frac{f(X_i)}{p(X_i)}=\frac{1}{c}=\int f(x)\,dx.$$
 
 The variance of the estimator is zero! Of course, this is ludicrous since we would not bother using Monte Carlo if we could integrate $f$ directly. However, if a density $p(x)$ can be found that is similar in shape to $f(x)$, variance is reduced.
 
 As a more realistic example, consider a narrow Gaussian function
 
-$$
-f(x)\;\propto\;\exp\!\left(-\frac{(x-1/4)^2}{2\sigma^2}\right),\qquad \sigma\ \text{small},
-$$
+$$f(x)\;\propto\;\exp\!\left(-\frac{(x-1/4)^2}{2\sigma^2}\right),\qquad \sigma\ \text{small},$$
 
 plotted in Figure 2.2(a) over $[0,1]$. Its value is close to zero over most of the domain. Samples $X$ with $X<0.2$ or $X>0.3$ are of little help in estimating the value of the integral since they give no information about the magnitude of the bump in the function's value around $1/4$. With uniform sampling and the basic Monte Carlo estimator of Equation (2.6), variance is approximately $0.0365$.
 
 If samples are instead drawn from a piecewise-constant PDF that concentrates probability near the bump—schematically,
 
-$$
-p(x)=
-\begin{cases}
-p_{\text{low}}, & x\in[0,0.15)\cup[0.35,1],\\
-p_{\text{high}}, & x\in[0.15,0.35),
-\end{cases}
-\qquad 0.8\,p_{\text{low}}+0.2\,p_{\text{high}}=1,
-$$
+$$p(x)= \begin{cases} p_{\text{low}}, & x\in[0,0.15)\cup[0.35,1],\\ p_{\text{high}}, & x\in[0.15,0.35), \end{cases} \qquad 0.8\,p_{\text{low}}+0.2\,p_{\text{high}}=1,$$
 
 which is plotted in Figure 2.2(b), and the estimator from Equation (2.7) is used instead, then variance is reduced by a factor of approximately $6.7\times$. A representative set of 6 points from this distribution is shown in Figure 2.2(c); we can see that most of the evaluations of $f(x)$ are in the interesting region where it is not nearly zero.
 
@@ -439,14 +340,7 @@ flowchart LR
 
 Importance sampling can increase variance if a poorly chosen distribution is used, however. Consider instead using the distribution (recovered from the original printed page)
 
-$$
-p(x)=
-\begin{cases}
-1.2, & x\in[0,0.15),\\
-0.2, & x\in[0.15,0.35),\\
-1.2, & x\in[0.35,1],
-\end{cases}
-$$
+$$p(x)= \begin{cases} 1.2, & x\in[0,0.15),\\ 0.2, & x\in[0.15,0.35),\\ 1.2, & x\in[0.35,1], \end{cases}$$
 
 for estimating the integral of the Gaussian function. This PDF increases the probability of sampling the function where its value is close to zero and decreases the probability of sampling it where its magnitude is larger. (The three pieces are normalized: $0.15(1.2)+0.20(0.2)+0.65(1.2)=1$.)
 
@@ -458,10 +352,7 @@ We are frequently faced with integrals that are the product of two or more funct
 
 To understand the challenges involved with applying Monte Carlo to such products, assume for now the good fortune of having two sampling distributions $p_a$ and $p_b$ that match the distributions of $f_a$ and $f_b$ exactly. (In practice, this will not normally be the case.) With the Monte Carlo estimator of Equation (2.7), we have two options: we might draw samples using $p_a$, which gives the estimator
 
-$$
-F=\frac{1}{n}\sum_{i=1}^{n}\frac{f_a(X_i)\,f_b(X_i)}{p_a(X_i)}
-=\frac{1}{n}\sum_{i=1}^{n} c\,f_b(X_i),
-$$
+$$F=\frac{1}{n}\sum_{i=1}^{n}\frac{f_a(X_i)\,f_b(X_i)}{p_a(X_i)} =\frac{1}{n}\sum_{i=1}^{n} c\,f_b(X_i),$$
 
 where $c$ is a constant equal to the integral of $f_a$, since $p_a(x)\propto f_a(x)$. The variance of this estimator is proportional to the variance of $f_b$, which may itself be high.[^7] Conversely, we might sample from $p_b$, though doing so gives us an estimator with variance proportional to the variance of $f_a$, which may similarly be high. In the more common case where the sampling distributions only approximately match one of the factors, the situation is usually even worse.
 
@@ -480,17 +371,13 @@ flowchart LR
 
 With two sampling distributions $p_a$ and $p_b$ and a single sample taken from each one, $X\sim p_a$ and $Y\sim p_b$, the MIS Monte Carlo estimator is
 
-$$
-F=\frac{w_a(X)\,f(X)}{p_a(X)}+\frac{w_b(Y)\,f(Y)}{p_b(Y)}, \tag{2.13}
-$$
+$$F=\frac{w_a(X)\,f(X)}{p_a(X)}+\frac{w_b(Y)\,f(Y)}{p_b(Y)}, \quad\text{(2.13)}$$
 
 where $w_a$ and $w_b$ are weighting functions chosen such that the expected value of this estimator is the value of the integral of $f(x)$.
 
 More generally, given $n$ sampling distributions $p_i$ with $n_i$ samples $X_{i,j}$ taken from the $i$th distribution, the MIS Monte Carlo estimator is
 
-$$
-F=\sum_{i=1}^{n}\frac{1}{n_i}\sum_{j=1}^{n_i}\frac{w_i(X_{i,j})\,f(X_{i,j})}{p_i(X_{i,j})}.
-$$
+$$F=\sum_{i=1}^{n}\frac{1}{n_i}\sum_{j=1}^{n_i}\frac{w_i(X_{i,j})\,f(X_{i,j})}{p_i(X_{i,j})}.$$
 
 (The full set of conditions on the weighting functions for the estimator to be unbiased are that they sum to 1 when $f(x)\ne 0$, $\sum_i w_i(x)=1$, and that $w_i(x)=0$ if $p_i(x)=0$.)
 
@@ -498,15 +385,11 @@ Setting $w_i(X)=1/n$ corresponds to the case of summing the various estimators, 
 
 In practice, a good choice for the weighting functions is given by the *balance heuristic*, which attempts to fulfill this goal by taking into account all the different ways that a sample could have been generated, rather than just the particular one that was used to do so. The balance heuristic's weighting function for the $i$th sampling technique is
 
-$$
-w_i(x)=\frac{n_i\,p_i(x)}{\sum_j n_j\,p_j(x)}. \tag{2.14}
-$$
+$$w_i(x)=\frac{n_i\,p_i(x)}{\sum_j n_j\,p_j(x)}. \quad\text{(2.14)}$$
 
 With the balance heuristic and our example of taking a single sample from each of two sampling techniques, the estimator of Equation (2.13) works out to be
 
-$$
-F=\frac{f(X)}{p_a(X)+p_b(X)}+\frac{f(Y)}{p_a(Y)+p_b(Y)}.
-$$
+$$F=\frac{f(X)}{p_a(X)+p_b(X)}+\frac{f(Y)}{p_a(Y)+p_b(Y)}.$$
 
 Each evaluation of $f$ is divided by the sum of all PDFs for the corresponding sample rather than just the one that generated the sample. Thus, if $p_a$ generates a sample with low probability at a point where $p_b$ has a higher probability, then dividing by $p_a(X)+p_b(X)$ reduces the sample's contribution. Effectively, such samples are downweighted when sampled from $p_a$, recognizing that the sampling technique associated with $p_b$ is more effective at the corresponding point in the integration domain. As long as just one of the sampling techniques has a reasonable probability of sampling a point where the function's value is large, the MIS weights can lead to a significant reduction in variance.
 
@@ -547,9 +430,7 @@ pub fn balance_heuristic(nf: i32, f_pdf: Float, ng: i32, g_pdf: Float) -> Float 
 
 In practice, the power heuristic often reduces variance even further. For an exponent $\beta$, the power heuristic is
 
-$$
-w_i(x)=\frac{\big(n_i\,p_i(x)\big)^\beta}{\sum_j \big(n_j\,p_j(x)\big)^\beta}.
-$$
+$$w_i(x)=\frac{\big(n_i\,p_i(x)\big)^\beta}{\sum_j \big(n_j\,p_j(x)\big)^\beta}.$$
 
 Note that the power heuristic has a similar form to the balance heuristic, though it further reduces the contribution of relatively low probabilities. Our implementation has $\beta=2$ hard-coded; that parameter value usually works well in practice.
 
@@ -591,9 +472,7 @@ fn power_heuristic(nf: f32, f_pdf: f32, ng: f32, g_pdf: f32) -> f32 {
 
 Multiple importance sampling can be applied even without sampling from all the distributions. This approach is known as the *single sample model*. We will not include the derivation here, but it can be shown that given an integrand $f(x)$, if a sampling technique $p_i$ is chosen from a set of techniques with probability $q_i$ and a sample $X$ is drawn from $p_i$, then the single sample estimator
 
-$$
-F=\frac{w_i(X)\,f(X)}{p_i(X)},\qquad \text{with}\quad \sum_i q_i\,w_i(x)=1\ \text{wherever } f(x)\ne 0,
-$$
+$$F=\frac{w_i(X)\,f(X)}{p_i(X)},\qquad \text{with}\quad \sum_i q_i\,w_i(x)=1\ \text{wherever } f(x)\ne 0,$$
 
 gives an unbiased estimate of the integral. For the single sample model, the balance heuristic is provably optimal.
 
@@ -607,9 +486,7 @@ This observation led to the development of a technique called *MIS compensation*
 
 MIS compensation is based on the idea of sharpening one or more (but not all) the probability distributions—for example, by adjusting them to have zero probability in areas where they earlier had low probability. A new sampling distribution $p'$ can, for example, be defined by clipping and renormalizing with a fixed value $\delta$,
 
-$$
-p'(x)=\frac{\max\{p(x)-\delta,\,0\}}{\displaystyle\int \max\{p(x)-\delta,\,0\}\,dx},
-$$
+$$p'(x)=\frac{\max\{p(x)-\delta,\,0\}}{\displaystyle\int \max\{p(x)-\delta,\,0\}\,dx},$$
 
 for some fixed value $\delta$.
 
@@ -619,9 +496,7 @@ This technique is especially easy to apply in the case of tabularized sampling d
 
 Russian roulette is a technique that can improve the efficiency of Monte Carlo estimates by skipping the evaluation of samples that would make a small contribution to the final result. In rendering, we often have estimators of the form
 
-$$
-F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{f(X_i)\,v(X_i)}{p(X_i)},
-$$
+$$F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{f(X_i)\,v(X_i)}{p(X_i)},$$
 
 where the integrand consists of some factors $f(X)$ that are easily evaluated (e.g., those that relate to how the surface scatters light) and others that are more expensive to evaluate, such as a binary visibility factor $v(X)$ that requires tracing a ray. In these cases, most of the computational expense of evaluating the estimator lies in $v$.
 
@@ -639,20 +514,11 @@ flowchart TD
 
 We have the new estimator
 
-$$
-F'=
-\begin{cases}
-c, & \text{with probability } q,\\[2pt]
-\dfrac{f(X)\,v(X)}{(1-q)\,p(X)}, & \text{with probability } 1-q.
-\end{cases}
-$$
+$$F'= \begin{cases} c, & \text{with probability } q,\\[2pt] \dfrac{f(X)\,v(X)}{(1-q)\,p(X)}, & \text{with probability } 1-q. \end{cases}$$
 
 It is easy to see that its expected value is the same as the expected value of the original estimator:
 
-$$
-\mathbb{E}[F']=q\,c+(1-q)\,\mathbb{E}\!\left[\frac{f(X)\,v(X)}{(1-q)\,p(X)}\right]
-=q\,c+\mathbb{E}[F],
-$$
+$$\mathbb{E}[F']=q\,c+(1-q)\,\mathbb{E}\!\left[\frac{f(X)\,v(X)}{(1-q)\,p(X)}\right] =q\,c+\mathbb{E}[F],$$
 
 which equals $\mathbb{E}[F]$ when $c=0$.
 
@@ -662,22 +528,15 @@ Russian roulette never reduces variance. In fact, unless somehow $c=F$, it will 
 
 While Russian roulette reduces the number of samples, splitting increases the number of samples in some dimensions of multidimensional integrals in order to improve efficiency. As an example, consider an integral of the general form
 
-$$
-\int_A\int_B f(x,y)\,dy\,dx. \tag{2.17}
-$$
+$$\int_A\int_B f(x,y)\,dy\,dx. \quad\text{(2.17)}$$
 
 With the standard importance sampling estimator, we might draw $n$ samples from independent distributions, $X_i\sim p_x$ and $Y_i\sim p_y$, and compute
 
-$$
-F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{f(X_i,Y_i)}{p_x(X_i)\,p_y(Y_i)}. \tag{2.18}
-$$
+$$F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{f(X_i,Y_i)}{p_x(X_i)\,p_y(Y_i)}. \quad\text{(2.18)}$$
 
 Splitting allows us to formalize the idea of taking more than one sample for the integral over $B$ for each sample taken in $A$. With splitting, we might take $m$ samples $Y_{i,j}$ for each sample $X_i$, giving the estimator
 
-$$
-F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{1}{p_x(X_i)}
-\left(\frac{1}{m}\sum_{j=1}^{m}\frac{f(X_i,Y_{i,j})}{p_y(Y_{i,j})}\right).
-$$
+$$F_n=\frac{1}{n}\sum_{i=1}^{n}\frac{1}{p_x(X_i)} \left(\frac{1}{m}\sum_{j=1}^{m}\frac{f(X_i,Y_{i,j})}{p_y(Y_{i,j})}\right).$$
 
 If it is possible to partially evaluate $f(X_i,\cdot)$ for each $X_i$, then we can compute a total of $nm$ samples more efficiently than we had taken $nm$ independent $X_i$ values using Equation (2.18).
 
@@ -713,9 +572,7 @@ xychart-beta
 
 There is a direct connection between the sums in Equation (2.2) and the definition of the CDF. The discrete CDF is given by
 
-$$
-P(i)=\sum_{j=1}^{i} p_j,
-$$
+$$P(i)=\sum_{j=1}^{i} p_j,$$
 
 which can be interpreted graphically by stacking the bars of the PMF on top of each other, starting at the left. This idea is shown in Figure 2.4.
 
@@ -731,17 +588,13 @@ flowchart LR
 
 The sampling operation of Equation (2.2) can be expressed as finding $i$ such that
 
-$$
-\sum_{j=1}^{i-1} p_j \;\le\; \xi \;<\;\sum_{j=1}^{i} p_j. \tag{2.19}
-$$
+$$\sum_{j=1}^{i-1} p_j \;\le\; \xi \;<\;\sum_{j=1}^{i} p_j. \quad\text{(2.19)}$$
 
 This can be interpreted as inverting the CDF $P$, and thus, the name of the technique. Continuing the graphical interpretation, this sampling operation can be considered in terms of projecting the events' probabilities onto the vertical axis where they cover the range $[0,1]$ and using a random variable $\xi$ to select among them (see Figure 2.5). It should be clear that this draws from the correct distribution—the probability of the uniform sample hitting any particular bar is exactly equal to the height of that bar.
 
 The `SampleDiscrete()` function implements this algorithm. It takes a not-necessarily normalized set of nonnegative weights, a uniform random sample $u$, and returns the index of one of the weights with probability proportional to its weight. The sampling operation it performs corresponds to finding $i$ such that
 
-$$
-\sum_{j=1}^{i-1} w_j \;\le\; u\sum_j w_j \;<\;\sum_{j=1}^{i} w_j, \tag{2.20}
-$$
+$$\sum_{j=1}^{i-1} w_j \;\le\; u\sum_j w_j \;<\;\sum_{j=1}^{i} w_j, \quad\text{(2.20)}$$
 
 which corresponds to multiplying Equation (2.19) by $\sum_j w_j$. (Not requiring a normalized PMF is a convenience for calling code and not much more work in the function's implementation.) Two optional parameters are provided to return the value of the PMF for the sample as well as a new uniform random sample that is derived from $u$.
 
@@ -879,9 +732,7 @@ pub fn lerp(x: Float, a: Float, b: Float) -> Float {
 
 The function's integral is $\int_0^1 f(x)\,dx=(a+b)/2$, which gives the normalization constant $2/(a+b)$ to define its PDF,
 
-$$
-p(x)=\frac{2\big((1-x)a+xb\big)}{a+b}=\frac{2\,\operatorname{lerp}(x,a,b)}{a+b}.
-$$
+$$p(x)=\frac{2\big((1-x)a+xb\big)}{a+b}=\frac{2\,\operatorname{lerp}(x,a,b)}{a+b}.$$
 
 > *Printed-edition index: `Float` (p. 23).*
 
@@ -899,23 +750,15 @@ pub fn linear_pdf(x: Float, a: Float, b: Float) -> Float {
 
 Integrating the PDF gives the CDF, which is the quadratic function
 
-$$
-P(x)=\int_0^x \frac{2\big((1-t)a+tb\big)}{a+b}\,dt
-=\frac{2ax+(b-a)x^2}{a+b}
-=\frac{x\big(a(2-x)+bx\big)}{a+b}.
-$$
+$$P(x)=\int_0^x \frac{2\big((1-t)a+tb\big)}{a+b}\,dt =\frac{2ax+(b-a)x^2}{a+b} =\frac{x\big(a(2-x)+bx\big)}{a+b}.$$
 
 Inverting $\xi=P(X)$ gives a sampling recipe
 
-$$
-X=\frac{-a+\sqrt{a^2+(b^2-a^2)\,\xi}}{b-a},
-$$
+$$X=\frac{-a+\sqrt{a^2+(b^2-a^2)\,\xi}}{b-a},$$
 
 though note that in this form, the case $a=b$ gives an indeterminate result. The more stable formulation (Muller's method, as applied by Heitz 2020)
 
-$$
-X=\frac{\xi\,(a+b)}{a+\sqrt{(1-\xi)\,a^2+\xi\,b^2}}
-$$
+$$X=\frac{\xi\,(a+b)}{a+\sqrt{(1-\xi)\,a^2+\xi\,b^2}}$$
 
 computes the same result and is implemented here.
 
@@ -962,46 +805,31 @@ In describing the inversion method, we introduced a technique that generates sam
 
 Suppose we are given a random variable $X$ drawn from some PDF $p(x)$ with CDF $P(x)$. Given a function $f(x)$ with $y=f(x)$, if we compute $Y=f(X)$, we would like to find the distribution of the new random variable $Y$. In this case, the function $f(x)$ must be a one-to-one transformation; if multiple values of $x$ mapped to the same $y$ value, then it would be impossible to unambiguously describe the probability density of a particular $y$ value. A direct consequence of $f$ being one-to-one is that its derivative must either be strictly greater than 0 or strictly less than 0, which implies that for a given $x$,
 
-$$
-\Pr\{Y\le f(x)\}=\Pr\{X\le x\}.
-$$
+$$\Pr\{Y\le f(x)\}=\Pr\{X\le x\}.$$
 
 From the definition of the CDF, Equation (2.3), we can see that
 
-$$
-P_f(y)=P_f(f(x))=P(x).
-$$
+$$P_f(y)=P_f(f(x))=P(x).$$
 
 This relationship between CDFs leads directly to the relationship between their PDFs. If we assume that $f$'s derivative is greater than 0, differentiating gives
 
-$$
-p_f(f(x))\,f'(x)=p(x),
-$$
+$$p_f(f(x))\,f'(x)=p(x),$$
 
 and so
 
-$$
-p_f(y)=\frac{p(x)}{f'(x)}\quad\text{with } x=f^{-1}(y).
-$$
+$$p_f(y)=\frac{p(x)}{f'(x)}\quad\text{with } x=f^{-1}(y).$$
 
 In general, $f$'s derivative is either strictly positive or strictly negative, and the relationship between the densities is
 
-$$
-p_y(y)=\frac{p_x(x)}{\left|\dfrac{dy}{dx}\right|}\qquad\big(x=f^{-1}(y)\big).
-$$
+$$p_y(y)=\frac{p_x(x)}{\left|\dfrac{dy}{dx}\right|}\qquad\big(x=f^{-1}(y)\big).$$
 
 How can we use this formula? Suppose that $p(x)=2x$ over the domain $[0,1]$, and let $f(x)=\sin x$. What is the PDF of the random variable $Y=f(X)$? Because we know that $df/dx=\cos x$,
 
-$$
-p_y(y)=\frac{2x}{\cos x}\bigg|_{x=\arcsin y}
-=\frac{2\arcsin y}{\sqrt{1-y^2}}.
-$$
+$$p_y(y)=\frac{2x}{\cos x}\bigg|_{x=\arcsin y} =\frac{2\arcsin y}{\sqrt{1-y^2}}.$$
 
 This procedure may seem backward—usually we have some PDF that we want to sample from, not a given transformation. For example, we might have $X$ drawn from some $p(x)$ and would like to compute $Y$ from some distribution $p_f(y)$. What transformation should we use? All we need is for the CDFs to be equal, or $P_f(y)=P(x)$, which immediately gives the transformation
 
-$$
-y=f(x)=P_f^{-1}\big(P(x)\big).
-$$
+$$y=f(x)=P_f^{-1}\big(P(x)\big).$$
 
 This is a generalization of the inversion method, since if $X$ were uniformly distributed over $[0,1)$ then $P(x)=x$, and we have the same procedure as was introduced previously.
 
@@ -1009,49 +837,29 @@ This is a generalization of the inversion method, since if $X$ were uniformly di
 
 In the general $d$-dimensional case, a similar derivation gives the analogous relationship between different densities. We will not show the derivation here; it follows the same form as the 1D case. Suppose we have a $d$-dimensional random variable $\mathbf{X}$ with density function $p_x(\mathbf{x})$. Now let $\mathbf{Y}=T(\mathbf{X})$, where $T$ is a bijection. In this case, the densities are related by
 
-$$
-p_y(\mathbf{y})=\frac{p_x(\mathbf{x})}{\left|J_T(\mathbf{x})\right|}, \tag{2.21}
-$$
+$$p_y(\mathbf{y})=\frac{p_x(\mathbf{x})}{\left|J_T(\mathbf{x})\right|}, \quad\text{(2.21)}$$
 
 where $|J_T|$ is the absolute value of the determinant of $T$'s Jacobian matrix, which is
 
-$$
-J_T(\mathbf{x})=
-\begin{pmatrix}
-\partial T_1/\partial x_1 & \partial T_1/\partial x_2 & \cdots & \partial T_1/\partial x_d\\
-\partial T_2/\partial x_1 & \partial T_2/\partial x_2 & \cdots & \partial T_2/\partial x_d\\
-\vdots & \vdots & \ddots & \vdots\\
-\partial T_d/\partial x_1 & \partial T_d/\partial x_2 & \cdots & \partial T_d/\partial x_d
-\end{pmatrix},
-$$
+$$J_T(\mathbf{x})= \begin{pmatrix} \partial T_1/\partial x_1 & \partial T_1/\partial x_2 & \cdots & \partial T_1/\partial x_d\\ \partial T_2/\partial x_1 & \partial T_2/\partial x_2 & \cdots & \partial T_2/\partial x_d\\ \vdots & \vdots & \ddots & \vdots\\ \partial T_d/\partial x_1 & \partial T_d/\partial x_2 & \cdots & \partial T_d/\partial x_d \end{pmatrix},$$
 
 where subscripts index dimensions of $T(\mathbf{x})$ and $\mathbf{x}$.
 
 For a 2D example of the use of Equation (2.21), the polar transformation relates Cartesian $(x,y)$ coordinates to a polar radius and angle,
 
-$$
-x=r\cos\theta,\qquad y=r\sin\theta.
-$$
+$$x=r\cos\theta,\qquad y=r\sin\theta.$$
 
 Suppose we draw samples from some density $p(r,\theta)$. What is the corresponding density $p(x,y)$? The Jacobian of this transformation is
 
-$$
-J=\begin{pmatrix}\cos\theta & -r\sin\theta\\ \sin\theta & r\cos\theta\end{pmatrix},
-$$
+$$J=\begin{pmatrix}\cos\theta & -r\sin\theta\\ \sin\theta & r\cos\theta\end{pmatrix},$$
 
 and the determinant is $r(\cos^2\theta+\sin^2\theta)=r$. So, $p(x,y)=p(r,\theta)/r$. Of course, this is backward from what we usually want—typically we start with a sampling strategy in Cartesian coordinates and want to transform it to one in polar coordinates. In that case, we would have
 
-$$
-p(r,\theta)=r\,p(x,y),\qquad r=\sqrt{x^2+y^2},\quad \theta=\operatorname{atan2}(y,x).
-$$
+$$p(r,\theta)=r\,p(x,y),\qquad r=\sqrt{x^2+y^2},\quad \theta=\operatorname{atan2}(y,x).$$
 
 In 3D, given the spherical coordinate representation of directions, Equation (3.7), the Jacobian of this transformation has determinant $|J_T|=r^2\sin\theta$, so the corresponding density function is
 
-$$
-p(x,y,z)=\frac{p(r,\theta,\phi)}{r^2\sin\theta},
-\qquad
-p(r,\theta,\phi)=r^2\sin\theta\;p(x,y,z).
-$$
+$$p(x,y,z)=\frac{p(r,\theta,\phi)}{r^2\sin\theta}, \qquad p(r,\theta,\phi)=r^2\sin\theta\;p(x,y,z).$$
 
 This transformation is important since it helps us represent directions as points $(x,y,z)$ on the unit sphere.
 
@@ -1059,39 +867,29 @@ This transformation is important since it helps us represent directions as point
 
 Suppose we have a 2D joint density function $p(x,y)$ that we wish to draw samples $(X,Y)$ from. If the densities are independent, they can be expressed as the product of 1D densities
 
-$$
-p(x,y)=p_x(x)\,p_y(y),
-$$
+$$p(x,y)=p_x(x)\,p_y(y),$$
 
 and random variables $(X,Y)$ can be found by independently sampling $X$ from $p_x$ and $Y$ from $p_y$. Many useful densities are not separable, however, so we introduce the theory of how to sample from multidimensional distributions in the general case.
 
 Given a 2D density function, the marginal density function $p(x)$ is obtained by "integrating out" one of the dimensions:
 
-$$
-p(x)=\int p(x,y)\,dy.
-$$
+$$p(x)=\int p(x,y)\,dy.$$
 
 This can be thought of as the density function for $X$ alone. More precisely, it is the average density for a particular $x$ over all possible $y$ values.
 
 If we can draw a sample $X\sim p(x)$, then—using Equation (2.1)—we can see that in order to sample $Y$, we need to sample from the conditional probability density, $Y\sim p(y\mid x)$, which is given by
 
-$$
-p(y\mid x)=\frac{p(x,y)}{p(x)}.
-$$
+$$p(y\mid x)=\frac{p(x,y)}{p(x)}.$$
 
 Sampling from higher-dimensional distributions can be performed in a similar fashion, integrating out all but one of the dimensions, sampling that one, and then applying the same technique to the remaining conditional distribution, which has one fewer dimension.
 
 **Sampling the Bilinear Function.** The bilinear function
 
-$$
-f(x,y)=(1-x)(1-y)w_0+x(1-y)w_1+(1-x)y\,w_2+xy\,w_3
-$$
+$$f(x,y)=(1-x)(1-y)w_0+x(1-y)w_1+(1-x)y\,w_2+xy\,w_3$$
 
 interpolates between four values $w_i$ at the four corners of $[0,1]^2$ ($w_0$ at $(0,0)$, $w_1$ at $(1,0)$, $w_2$ at $(0,1)$, and $w_3$ at $(1,1)$). After integration and normalization, we find that its PDF is
 
-$$
-p(x,y)=\frac{4\,f(x,y)}{w_0+w_1+w_2+w_3}.
-$$
+$$p(x,y)=\frac{4\,f(x,y)}{w_0+w_1+w_2+w_3}.$$
 
 ```rust
 // Fragment: Sampling Inline Functions
@@ -1136,18 +934,13 @@ pub fn sample_bilinear(u: Point2f, w: &[Float; 4]) -> Point2f {
 
 We can choose either $x$ or $y$ to be the marginal distribution. If we choose $y$ and integrate out $x$, we find that
 
-$$
-p(y)=\frac{2\big[(1-y)(w_0+w_1)+y(w_2+w_3)\big]}{w_0+w_1+w_2+w_3}.
-$$
+$$p(y)=\frac{2\big[(1-y)(w_0+w_1)+y(w_2+w_3)\big]}{w_0+w_1+w_2+w_3}.$$
 
 $p(y)$ performs linear interpolation between two constant values, and so we can use `sample_linear()` to sample from the simplified proportional function since it normalizes the associated PDF.
 
 Applying Equation (2.1) and again canceling out common factors, we have
 
-$$
-p(x\mid y)=\frac{2\big[(1-x)\operatorname{lerp}(y,w_0,w_2)+x\operatorname{lerp}(y,w_1,w_3)\big]}
-{\operatorname{lerp}(y,w_0,w_2)+\operatorname{lerp}(y,w_1,w_3)},
-$$
+$$p(x\mid y)=\frac{2\big[(1-x)\operatorname{lerp}(y,w_0,w_2)+x\operatorname{lerp}(y,w_1,w_3)\big]} {\operatorname{lerp}(y,w_0,w_2)+\operatorname{lerp}(y,w_1,w_3)},$$
 
 which can also be sampled in $x$ using `sample_linear()`.
 

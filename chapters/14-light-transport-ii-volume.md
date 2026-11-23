@@ -65,39 +65,21 @@ flowchart LR
 
 In its most basic form, the equation of transfer is an integro-differential equation that describes how the radiance along a beam changes at a point in space. It can be derived by subtracting the effects of the scattering processes that reduce energy along a beam (absorption and out scattering) from the processes that increase energy along it (emission and in scattering). To start, recall the source function $L_s$ from Section 11.1.4: it gives the change in radiance at a point $\mathrm{p}$ in a direction $\omega$ due to emission and in-scattered light from other points in the medium:
 
-$$
-L_s(\mathrm{p}, \omega)
-= L_e(\mathrm{p}, \omega)
-+ \sigma_s(\mathrm{p}, \omega) \int_{\mathcal{S}^2} p(\omega, \omega')\, L_i(\mathrm{p}, \omega')\, \mathrm{d}\omega'.
-\tag{11.3}
-$$
+$$L_s(\mathrm{p}, \omega) = L_e(\mathrm{p}, \omega) + \sigma_s(\mathrm{p}, \omega) \int_{\mathcal{S}^2} p(\omega, \omega')\, L_i(\mathrm{p}, \omega')\, \mathrm{d}\omega'. \quad\text{(11.3)}$$
 
 The source function accounts for all the processes that add radiance to a ray. The attenuation coefficient, $\sigma_t(\mathrm{p},\omega)$, accounts for all processes that reduce radiance at a point: absorption and out scattering. The differential equation that describes its effect, Equation (11.4), is
 
-$$
-\mathrm{d}L_o(\mathrm{p},\omega) = -\,\sigma_t(\mathrm{p},\omega)\, L_i(\mathrm{p},-\omega)\, \mathrm{d}t.
-\tag{11.4}
-$$
+$$\mathrm{d}L_o(\mathrm{p},\omega) = -\,\sigma_t(\mathrm{p},\omega)\, L_i(\mathrm{p},-\omega)\, \mathrm{d}t. \quad\text{(11.4)}$$
 
 The overall differential change in radiance at a point $\mathrm{p}' = \mathrm{p} + t\omega$ along a ray is found by adding these two effects together to get the integro-differential form of the equation of transfer:[^14-1]
 
-$$
-\frac{\mathrm{d}L(\mathrm{p},\omega)}{\mathrm{d}t}
-= -\sigma_t(\mathrm{p},\omega)\, L(\mathrm{p},\omega)
-  + \sigma_t(\mathrm{p},\omega)\, L_s(\mathrm{p},\omega).
-\tag{14.1}
-$$
+$$\frac{\mathrm{d}L(\mathrm{p},\omega)}{\mathrm{d}t} = -\sigma_t(\mathrm{p},\omega)\, L(\mathrm{p},\omega) + \sigma_t(\mathrm{p},\omega)\, L_s(\mathrm{p},\omega). \quad\text{(14.1)}$$
 
 (The $\sigma_t$ modulation of the source function accounts for the medium's density at the point.)
 
 With suitable boundary conditions, this equation can be transformed to a pure integral equation that describes the effect of participating media from the infinite number of points along a ray. For example, if we assume that there are no surfaces in the scene so that the rays are never blocked and have an infinite length, the integral equation of transfer is
 
-$$
-L_i(\mathrm{p}, \omega)
-= \int_0^{\infty} T_r(\mathrm{p}' \to \mathrm{p})\, \sigma_t(\mathrm{p}')\, L_s(\mathrm{p}', -\omega)\, \mathrm{d}t',
-\qquad \mathrm{p}' = \mathrm{p} + t'\omega.
-\tag{14.2a}
-$$
+$$L_i(\mathrm{p}, \omega) = \int_0^{\infty} T_r(\mathrm{p}' \to \mathrm{p})\, \sigma_t(\mathrm{p}')\, L_s(\mathrm{p}', -\omega)\, \mathrm{d}t', \qquad \mathrm{p}' = \mathrm{p} + t'\omega. \quad\text{(14.2a)}$$
 
 (See Figure 14.1.) The meaning of this equation is reasonably intuitive: it just says that the radiance arriving at a point from a given direction is determined by accumulating the radiance added at all points along the ray. The amount of added radiance at each point along the ray that reaches the ray's origin is reduced by the beam transmittance to the point.
 
@@ -112,18 +94,11 @@ flowchart LR
 
 More generally, if there are reflecting or emitting surfaces in the scene, rays do not necessarily have infinite length and the first surface that a ray hits affects its radiance, adding outgoing radiance from the surface at the point and preventing radiance from points along the ray beyond the intersection point from contributing to radiance at the ray's origin. If a ray $(\mathrm{p},\omega)$ intersects a surface at some point $\mathrm{p}_s$ at a parametric distance $t$ along the ray, then the integral equation of transfer is
 
-$$
-L_i(\mathrm{p}, \omega)
-= T_r(\mathrm{p}_s \to \mathrm{p})\, L_o(\mathrm{p}_s, -\omega)
-  + \int_0^{t} T_r(\mathrm{p}' \to \mathrm{p})\, \sigma_t(\mathrm{p}')\, L_s(\mathrm{p}', -\omega)\, \mathrm{d}t',
-\tag{14.2}
-$$
+$$L_i(\mathrm{p}, \omega) = T_r(\mathrm{p}_s \to \mathrm{p})\, L_o(\mathrm{p}_s, -\omega) + \int_0^{t} T_r(\mathrm{p}' \to \mathrm{p})\, \sigma_t(\mathrm{p}')\, L_s(\mathrm{p}', -\omega)\, \mathrm{d}t', \quad\text{(14.2)}$$
 
 where $\mathrm{p}' = \mathrm{p} + t'\omega$ are points along the ray (Figure 14.2). This equation describes the two effects that contribute to radiance along the ray. First, reflected radiance back along the ray from the surface is given by
 
-$$
-T_r(\mathrm{p}_s \to \mathrm{p})\, L_o(\mathrm{p}_s, -\omega),
-$$
+$$T_r(\mathrm{p}_s \to \mathrm{p})\, L_o(\mathrm{p}_s, -\omega),$$
 
 the $L_o$ term, which gives the emitted and reflected radiance from the surface. This radiance may be attenuated by the participating media; the beam transmittance from the ray origin to the point $\mathrm{p}_s$ accounts for this. The second term accounts for the added radiance along the ray due to volumetric scattering and emission up to the point where the ray intersects the surface; points beyond that one do not affect the radiance along the ray.
 
@@ -131,33 +106,15 @@ the $L_o$ term, which gives the emitted and reflected radiance from the surface.
 
 In Section 11.2.1 we saw the value of null scattering, which made it possible to sample from a modified transmittance equation and to compute unbiased estimates of the transmittance between two points using algorithms like delta tracking and ratio tracking. Null scattering can be applied in a similar way to the equation of transfer, giving similar benefits. In order to simplify notation in the following, we will assume that the various scattering coefficients $\sigma$ do not vary as a function of direction. As before, we will also assume that the null-scattering coefficient $\sigma_n$ is nonnegative and has been set to homogenize the medium's density to a fixed majorant $\sigma_{\mathrm{maj}} = \sigma_n + \sigma_t$. Neither of these simplifications affect the course of the following derivations; both generalizations could be easily reintroduced. A null-scattering generalization of the equation of transfer can be found using the relationship $\sigma_t = \sigma_{\mathrm{maj}} - \sigma_n$ from Equation (11.11). If that substitution is made in the integro-differential equation of transfer, Equation (14.1), and the boundary condition of a surface at distance $t$ along the ray is applied, then the result can be transformed into the pure integral equation
 
-$$
-L_i(\mathrm{p}, \omega)
-= T_{\mathrm{maj}}(\mathrm{p}_s \to \mathrm{p})\, L_o(\mathrm{p}_s, -\omega)
-  + \int_0^{t} T_{\mathrm{maj}}(\mathrm{p}' \to \mathrm{p})\, \sigma_{\mathrm{maj}}\, L_n(\mathrm{p}', -\omega)\, \mathrm{d}t',
-\tag{14.3}
-$$
+$$L_i(\mathrm{p}, \omega) = T_{\mathrm{maj}}(\mathrm{p}_s \to \mathrm{p})\, L_o(\mathrm{p}_s, -\omega) + \int_0^{t} T_{\mathrm{maj}}(\mathrm{p}' \to \mathrm{p})\, \sigma_{\mathrm{maj}}\, L_n(\mathrm{p}', -\omega)\, \mathrm{d}t', \quad\text{(14.3)}$$
 
 where $\mathrm{p}' = \mathrm{p} + t'\omega$, as before, and we have introduced $T_{\mathrm{maj}}$ to denote the majorant transmittance that accounts for both regular attenuation and null scattering. Using the same convention as before that $d = \|\mathrm{p} - \mathrm{p}'\|$ is the distance between points $\mathrm{p}$ and $\mathrm{p}'$, it is
 
-$$
-T_{\mathrm{maj}}(\mathrm{p} \to \mathrm{p}')
-= \exp\!\left(-\int_0^{d} \sigma_{\mathrm{maj}}(\mathrm{p} + s\omega)\, \mathrm{d}s\right).
-\tag{14.4}
-$$
+$$T_{\mathrm{maj}}(\mathrm{p} \to \mathrm{p}') = \exp\!\left(-\int_0^{d} \sigma_{\mathrm{maj}}(\mathrm{p} + s\omega)\, \mathrm{d}s\right). \quad\text{(14.4)}$$
 
 The null-scattering source function $L_n$ is the source function $L_s$ from Equation (11.3) plus a new third term:
 
-$$
-\begin{aligned}
-L_n(\mathrm{p}, \omega)
-&= L_s(\mathrm{p},\omega) + \sigma_n(\mathrm{p})\, L_i(\mathrm{p},\omega) \\
-&= L_e(\mathrm{p},\omega)
-   + \sigma_s(\mathrm{p}) \int_{\mathcal{S}^2} p(\omega,\omega')\, L_i(\mathrm{p},\omega')\, \mathrm{d}\omega'
-   + \sigma_n(\mathrm{p})\, L_i(\mathrm{p},\omega).
-\end{aligned}
-\tag{14.5}
-$$
+$$\begin{aligned} L_n(\mathrm{p}, \omega) &= L_s(\mathrm{p},\omega) + \sigma_n(\mathrm{p})\, L_i(\mathrm{p},\omega) \\ &= L_e(\mathrm{p},\omega) + \sigma_s(\mathrm{p}) \int_{\mathcal{S}^2} p(\omega,\omega')\, L_i(\mathrm{p},\omega')\, \mathrm{d}\omega' + \sigma_n(\mathrm{p})\, L_i(\mathrm{p},\omega). \end{aligned} \quad\text{(14.5)}$$
 
 Because it includes attenuation due to null scattering, $T_{\mathrm{maj}}$ is always less than or equal to the actual transmittance. Thus, the product $T_{\mathrm{maj}}L_o$ in Equation (14.3) may be less than the actual contribution of radiance leaving the surface, $T_r L_o$. However, any such deficiency is made up for by the last term of Equation (14.5).
 
@@ -165,26 +122,15 @@ Because it includes attenuation due to null scattering, $T_{\mathrm{maj}}$ is al
 
 The $T_{\mathrm{maj}}$ factor in the null-scattering equation of transfer gives a convenient distribution for sampling distances $t$ along the ray in the medium that leads to the volumetric path-tracing algorithm, which we will now describe. (The algorithm we will arrive at is sometimes described as using delta tracking to solve the equation of transfer, since that is the sampling technique it uses for finding the locations of absorption and scattering events.) If we assume for now that there is no geometry in the scene, then the null-scattering equation of transfer, Equation (14.3), simplifies to
 
-$$
-L_i(\mathrm{p},\omega)
-= \int_0^{\infty} \sigma_{\mathrm{maj}}\, T_{\mathrm{maj}}(\mathrm{p}'\to\mathrm{p})\, L_n(\mathrm{p}',-\omega)\, \mathrm{d}t'.
-\tag{14.6}
-$$
+$$L_i(\mathrm{p},\omega) = \int_0^{\infty} \sigma_{\mathrm{maj}}\, T_{\mathrm{maj}}(\mathrm{p}'\to\mathrm{p})\, L_n(\mathrm{p}',-\omega)\, \mathrm{d}t'. \quad\text{(14.6)}$$
 
 Thanks to null scattering having made the majorant medium homogeneous, $\sigma_{\mathrm{maj}}T_{\mathrm{maj}}$ can be sampled exactly. The first step in the path-tracing algorithm is to sample a point $\mathrm{p}'$ from its distribution, giving the estimator
 
-$$
-\left\langle L_i(\mathrm{p},\omega)\right\rangle
-= \frac{\sigma_{\mathrm{maj}}\, T_{\mathrm{maj}}(\mathrm{p}'\to\mathrm{p})\, L_n(\mathrm{p}',-\omega)}
-        {p(\mathrm{p}')},
-\qquad \mathrm{p}' \sim \sigma_{\mathrm{maj}}T_{\mathrm{maj}}.
-$$
+$$\left\langle L_i(\mathrm{p},\omega)\right\rangle = \frac{\sigma_{\mathrm{maj}}\, T_{\mathrm{maj}}(\mathrm{p}'\to\mathrm{p})\, L_n(\mathrm{p}',-\omega)} {p(\mathrm{p}')}, \qquad \mathrm{p}' \sim \sigma_{\mathrm{maj}}T_{\mathrm{maj}}.$$
 
 From Section A.4.2, we know that the probability density function (PDF) for sampling a distance $t$ from the exponential distribution is $p(t) = \sigma_{\mathrm{maj}} e^{-\sigma_{\mathrm{maj}} t} = \sigma_{\mathrm{maj}}T_{\mathrm{maj}}$, and so the estimator simplifies to
 
-$$
-\left\langle L_i(\mathrm{p},\omega)\right\rangle = L_n(\mathrm{p}',-\omega).
-$$
+$$\left\langle L_i(\mathrm{p},\omega)\right\rangle = L_n(\mathrm{p}',-\omega).$$
 
 What is left is to evaluate $L_n$.
 
@@ -196,35 +142,15 @@ Because $\sigma_{\mathrm{maj}} = \sigma_a + \sigma_s + \sigma_n$, the initial $\
 
 For the full equation of transfer that includes scattering from surfaces, both the surface-scattering term and the integral over the ray's extent lead to recursive evaluation of the equation of transfer. In the context of path tracing, however, we would like to only evaluate one of the terms in order to avoid an exponential increase in work. We will therefore start by defining a probability $q$ of estimating the surface-scattering term; volumetric scattering is evaluated otherwise. Given such a $q$, the Monte Carlo estimator
 
-$$
-L_i(\mathrm{p},\omega) \approx
-\begin{cases}
-\dfrac{T_{\mathrm{maj}}(\mathrm{p}_s\to\mathrm{p})}{q}\, L_o(\mathrm{p}_s,-\omega),
-    & \text{with probability } q,\\[6pt]
-\dfrac{1}{1-q}\displaystyle\int_0^{t}
-    \sigma_{\mathrm{maj}} T_{\mathrm{maj}}(\mathrm{p}'\to\mathrm{p})\,
-    L_n(\mathrm{p}',-\omega)\,\mathrm{d}t',
-    & \text{otherwise},
-\end{cases}
-$$
+$$L_i(\mathrm{p},\omega) \approx \begin{cases} \dfrac{T_{\mathrm{maj}}(\mathrm{p}_s\to\mathrm{p})}{q}\, L_o(\mathrm{p}_s,-\omega), & \text{with probability } q,\\[6pt] \dfrac{1}{1-q}\displaystyle\int_0^{t} \sigma_{\mathrm{maj}} T_{\mathrm{maj}}(\mathrm{p}'\to\mathrm{p})\, L_n(\mathrm{p}',-\omega)\,\mathrm{d}t', & \text{otherwise}, \end{cases}$$
 
 gives $L_i(\mathrm{p},\omega)$ in expectation. A good choice for $q$ is that it be equal to $T_{\mathrm{maj}}(\mathrm{p}_s\to\mathrm{p})$. Surface scattering is then evaluated with a probability proportional to the transmittance to the surface and the ratio $T_{\mathrm{maj}}/q$ is equal to 1, leaving just the $L_o$ factor. Furthermore, a sampling trick can be used to choose between the two terms: if a sample $t' \in [0,\infty)$ is taken from $\sigma_{\mathrm{maj}}T_{\mathrm{maj}}$'s distribution, then the probability that $t' > t$ is equal to $T_{\mathrm{maj}}(\mathrm{p}_s\to\mathrm{p})$. (This can be shown by integrating $T_{\mathrm{maj}}$'s PDF to find its cumulative distribution function (CDF) and then considering the value of its CDF at $t$.) Using this technique and
 
-$$
-q = T_{\mathrm{maj}}(\mathrm{p}_s\to\mathrm{p}),
-$$
+$$q = T_{\mathrm{maj}}(\mathrm{p}_s\to\mathrm{p}),$$
 
 then making the same simplifications that brought us to Equation (14.6), we arrive at the estimator
 
-$$
-L_i(\mathrm{p},\omega) \approx
-\begin{cases}
-L_o(\mathrm{p}_s,-\omega), & t' > t \quad\text{(surface)},\\[4pt]
-L_n(\mathrm{p}',-\omega),   & t' \le t \quad\text{(medium)},
-\end{cases}
-\qquad \mathrm{p}' = \mathrm{p} + t'\omega,\quad t'\sim \sigma_{\mathrm{maj}}T_{\mathrm{maj}}.
-\tag{14.7}
-$$
+$$L_i(\mathrm{p},\omega) \approx \begin{cases} L_o(\mathrm{p}_s,-\omega), & t' > t \quad\text{(surface)},\\[4pt] L_n(\mathrm{p}',-\omega), & t' \le t \quad\text{(medium)}, \end{cases} \qquad \mathrm{p}' = \mathrm{p} + t'\omega,\quad t'\sim \sigma_{\mathrm{maj}}T_{\mathrm{maj}}. \quad\text{(14.7)}$$
 
 From this point, outgoing radiance from a surface can be estimated using techniques that were introduced in Chapter 13, and $L_n$ can be estimated as described earlier.
 
@@ -234,10 +160,7 @@ We have so far presented volumetric path tracing with the assumption that $\sigm
 
 **Figure 14.3.** Given piecewise-constant majorants defined over segments along a ray, the corresponding optical thickness $\tau$ is a piecewise-linear function; exponentiating $-\tau$ gives the transmittance at each point along the ray. The transmittance function is continuous and strictly decreasing, with a first-derivative discontinuity at transitions between segments. If integration starts at $t=0$ and the $i$th segment's majorant is denoted $\sigma_{\mathrm{maj},i}$ with endpoint $\mathrm{p}_i$, then
 
-$$
-T_{\mathrm{maj}}(0 \to \mathrm{p}') =
-\prod_{i=1}^{n-1} T_{\mathrm{maj},i}\;\cdot\;T_{\mathrm{maj},n}(\mathrm{p}_n \to \mathrm{p}'),
-$$
+$$T_{\mathrm{maj}}(0 \to \mathrm{p}') = \prod_{i=1}^{n-1} T_{\mathrm{maj},i}\;\cdot\;T_{\mathrm{maj},n}(\mathrm{p}_n \to \mathrm{p}'),$$
 
 where $T_{\mathrm{maj},i}$ is the transmittance function for the $i$th segment and $\mathrm{p}'$ is the endpoint of the $n$th segment. This relationship uses the multiplicative property of transmittance from Equation (11.6).
 
@@ -266,46 +189,27 @@ The key relations behind the curves are $\tau(t) = \int_0^t \sigma_{\mathrm{maj}
 
 Given the general task of estimating an integral of the form
 
-$$
-\int_0^{t} f(\mathrm{p}')\, \sigma_{\mathrm{maj}}(\mathrm{p}')\,
-        T_{\mathrm{maj}}(\mathrm{p}'\to\mathrm{p})\, \mathrm{d}t',
-\qquad \mathrm{p}' = \mathrm{p} + t'\omega,
-$$
+$$\int_0^{t} f(\mathrm{p}')\, \sigma_{\mathrm{maj}}(\mathrm{p}')\, T_{\mathrm{maj}}(\mathrm{p}'\to\mathrm{p})\, \mathrm{d}t', \qquad \mathrm{p}' = \mathrm{p} + t'\omega,$$
 
 with $\mathrm{p}' = \mathrm{p} + t'\omega$ and $f$ the remaining integrand, it is useful to rewrite the integral to be over the individual majorant segments, which gives
 
-$$
-\int_0^{t}\! f\,\sigma_{\mathrm{maj}}T_{\mathrm{maj}}\,\mathrm{d}t'
-= \sum_{i=1}^{n} \left(\prod_{j=1}^{i-1} T_{\mathrm{maj},j}\right)
-    \int_{t_{i-1}}^{t_i} \sigma_{\mathrm{maj},i}\,
-      T_{\mathrm{maj},i}(\mathrm{p}'\to\mathrm{p}_i)\, f(\mathrm{p}')\, \mathrm{d}t'
-  + \left(\prod_{j=1}^{n} T_{\mathrm{maj},j}\right) f(\mathrm{p}_n).
-\tag{14.8}
-$$
+$$\int_0^{t}\! f\,\sigma_{\mathrm{maj}}T_{\mathrm{maj}}\,\mathrm{d}t' = \sum_{i=1}^{n} \left(\prod_{j=1}^{i-1} T_{\mathrm{maj},j}\right) \int_{t_{i-1}}^{t_i} \sigma_{\mathrm{maj},i}\, T_{\mathrm{maj},i}(\mathrm{p}'\to\mathrm{p}_i)\, f(\mathrm{p}')\, \mathrm{d}t' + \left(\prod_{j=1}^{n} T_{\mathrm{maj},j}\right) f(\mathrm{p}_n). \quad\text{(14.8)}$$
 
 Note that each term's contribution is modulated by the transmittances and majorants from the previous segments. The form of Equation (14.8) hints at a sampling strategy: we start by sampling a value from distribution $p_1$, where
 
-$$
-p_1(\mathrm{p}') = \sigma_{\mathrm{maj},1}\, T_{\mathrm{maj},1}(\mathrm{p}'\to\mathrm{p}_1),
-$$
+$$p_1(\mathrm{p}') = \sigma_{\mathrm{maj},1}\, T_{\mathrm{maj},1}(\mathrm{p}'\to\mathrm{p}_1),$$
 
 and if $t'$ is less than $t_1$, then we evaluate the estimator at the sampled point $\mathrm{p}'$:
 
-$$
-\frac{f(\mathrm{p}')}{p_1(\mathrm{p}')} = f(\mathrm{p}').
-$$
+$$\frac{f(\mathrm{p}')}{p_1(\mathrm{p}')} = f(\mathrm{p}').$$
 
 Applying the same ideas that led to Equation (14.7), we otherwise continue and consider the second term, drawing a sample starting at $t_1$ from the distribution
 
-$$
-p_2(\mathrm{p}') = \sigma_{\mathrm{maj},2}\, T_{\mathrm{maj},2}(\mathrm{p}'\to\mathrm{p}_2).
-$$
+$$p_2(\mathrm{p}') = \sigma_{\mathrm{maj},2}\, T_{\mathrm{maj},2}(\mathrm{p}'\to\mathrm{p}_2).$$
 
 If the sampled point is before the segment's endpoint, $t' < t_2$, then we have the estimator
 
-$$
-\frac{f(\mathrm{p}')}{p_2(\mathrm{p}')} = f(\mathrm{p}').
-$$
+$$\frac{f(\mathrm{p}')}{p_2(\mathrm{p}')} = f(\mathrm{p}').$$
 
 Because the probability that $t' < t_2$ is equal to $\prod_{j=1}^{1} T_{\mathrm{maj},j}$, the estimator for the second term again simplifies to $f(\mathrm{p}')$. Otherwise, following this sampling strategy for subsequent segments similarly leads to the same simplified estimator in the end. It can furthermore be shown that the probability that no sample is generated in any of the segments is equal to the full majorant transmittance from $0$ to $t$, which is exactly the probability required for the surface/volume estimator of Equation (14.7).
 
@@ -622,83 +526,45 @@ fn sample_t_maj_wgsl(
 
 Just as it was helpful to express the light transport equation (LTE) as a sum over paths of scattering events, it is also helpful to express the null-scattering integral equation of transfer in this form. Doing so makes it possible to apply variance reduction techniques like multiple importance sampling and is a prerequisite for constructing participating medium-aware bidirectional integrators. Recall how, in Section 13.1.4, the surface form of the LTE was repeatedly substituted into itself to derive the path space contribution function for a path of length $n$
 
-$$
-P(\mathrm{p}_n)
-= \left[\prod_{i=1}^{n-1} f(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1})\,
-      G(\mathrm{p}_{i+1}\leftrightarrow\mathrm{p}_i)\right]
-  L_e(\mathrm{p}_n\to\mathrm{p}_{n-1}),
-$$
+$$P(\mathrm{p}_n) = \left[\prod_{i=1}^{n-1} f(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1})\, G(\mathrm{p}_{i+1}\leftrightarrow\mathrm{p}_i)\right] L_e(\mathrm{p}_n\to\mathrm{p}_{n-1}),$$
 
 where the throughput $T(\mathrm{p}_n)$ was defined as
 
-$$
-T(\mathrm{p}_n)
-= \prod_{i=1}^{n-1} f(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1})\,
-      G(\mathrm{p}_{i+1}\leftrightarrow\mathrm{p}_i).
-$$
+$$T(\mathrm{p}_n) = \prod_{i=1}^{n-1} f(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1})\, G(\mathrm{p}_{i+1}\leftrightarrow\mathrm{p}_i).$$
 
 This previous definition only works for surfaces, but using a similar approach of substituting the integral equation of transfer, a medium-aware path integral can be derived. The derivation is laborious and we will just present the final result here. (The "Further Reading" section has a pointer to the full derivation.)
 
 Previously, integration occurred over a Cartesian product of surface locations $\mathcal{A}^n$. Now, we will need a formal way of writing down an integral over an arbitrary sequence of each of 2D surface locations $\mathcal{A}$, 3D positions in a participating medium $\mathcal{V}$ where actual scattering occurs, and 3D positions in a participating medium $\mathcal{V}_\varnothing$ where null scattering occurs. (The two media $\mathcal{V}$ and $\mathcal{V}_\varnothing$ represent the same volume of space with the same scattering properties, but we will find it handy to distinguish between them in the following.) First, we will focus only on a specific arrangement of $n$ surface and medium vertices encoded in a configuration vector $\mathbf c$. The associated set of paths is given by a Cartesian product of surface locations and medium locations,
 
-$$
-\mathcal{P}_n^{\mathbf c}
-= \mathcal{X}_{c_0}\times\mathcal{X}_{c_1}\times\cdots\times\mathcal{X}_{c_n},
-\qquad \mathcal{X}_{c_i}\in\{\mathcal{A},\,\mathcal{V},\,\mathcal{V}_\varnothing\}.
-$$
+$$\mathcal{P}_n^{\mathbf c} = \mathcal{X}_{c_0}\times\mathcal{X}_{c_1}\times\cdots\times\mathcal{X}_{c_n}, \qquad \mathcal{X}_{c_i}\in\{\mathcal{A},\,\mathcal{V},\,\mathcal{V}_\varnothing\}.$$
 
 The set of all paths of length $n$ is the union of the above sets over all possible configuration vectors:
 
-$$
-\mathcal{P}_n = \bigcup_{\mathbf c}\,\mathcal{P}_n^{\mathbf c}.
-$$
+$$\mathcal{P}_n = \bigcup_{\mathbf c}\,\mathcal{P}_n^{\mathbf c}.$$
 
 Next, we define a measure, which provides an abstract notion of the "volume" of a subset $D\subseteq\mathcal{P}_n$ that is essential for integration. The measure we will use simply sums up the product of surface area and volume associated with the individual vertices in each of the path spaces of specific configurations:
 
-$$
-\mu(D) = \sum_{\mathbf c}\int_{\mathcal{P}_n^{\mathbf c}\,\cap\, D}
-         \mathrm{d}\mu(\mathbf c),
-\qquad
-\mathrm{d}\mu(\mathbf c) = \prod_{i=0}^{n}\mathrm{d}\mathcal{X}_{c_i}.
-$$
+$$\mu(D) = \sum_{\mathbf c}\int_{\mathcal{P}_n^{\mathbf c}\,\cap\, D} \mathrm{d}\mu(\mathbf c), \qquad \mathrm{d}\mu(\mathbf c) = \prod_{i=0}^{n}\mathrm{d}\mathcal{X}_{c_i}.$$
 
 The measure for null-scattering vertices $\mathrm{d}V_\varnothing$ incorporates a Dirac delta distribution to limit integration to be along the line between successive real-scattering vertices:
 
-$$
-\mathrm{d}V_\varnothing(\mathrm{p})
-= \delta^{\perp}\!\left(\mathrm{p} - \overline{\mathrm{r_i r_{i+1}}}\right)
-  \,\mathrm{d}V(\mathrm{p}),
-$$
+$$\mathrm{d}V_\varnothing(\mathrm{p}) = \delta^{\perp}\!\left(\mathrm{p} - \overline{\mathrm{r_i r_{i+1}}}\right) \,\mathrm{d}V(\mathrm{p}),$$
 
 where $\delta^\perp$ constrains $\mathrm{p}$ to the segment connecting two successive real-scattering vertices.
 
 The generalized path contribution can now be written as
 
-$$
-F(\mathrm{p}_n)
-= \int_{\mathcal{P}_n} \left[\prod_{i=1}^{n}\bar S_i\,\hat G_i\right]
-  L_e^{\mathrm{path}}(\mathrm{p}_{n+1}\to\mathrm{p}_n)\,
-  \mathrm{d}\mu(\mathrm{p}_n),
-$$
+$$F(\mathrm{p}_n) = \int_{\mathcal{P}_n} \left[\prod_{i=1}^{n}\bar S_i\,\hat G_i\right] L_e^{\mathrm{path}}(\mathrm{p}_{n+1}\to\mathrm{p}_n)\, \mathrm{d}\mu(\mathrm{p}_n),$$
 
 where
 
-$$
-L_e^{\mathrm{path}}(\mathrm{p}\to\mathrm{q}) = \sigma_a(\mathrm{p})\, L_e(\mathrm{p}\to\mathrm{q}).
-\tag{14.10}
-$$
+$$L_e^{\mathrm{path}}(\mathrm{p}\to\mathrm{q}) = \sigma_a(\mathrm{p})\, L_e(\mathrm{p}\to\mathrm{q}). \quad\text{(14.10)}$$
 
 Due to the measure defined earlier, the generalized path contribution is a sum of many integrals considering all possible sequences of surface, volume, and null-scattering events. The full set of path vertices $\mathrm{p}_i$ include both null- and real-scattering events. We will find it useful to use $\mathrm{r}_i$ to denote the subset of them that represent real scattering (see Figure 14.5). Note a given real-scattering vertex $\mathrm{r}_i$ will generally have a different index value in the full path.
 
 The path throughput function can then be defined as:
 
-$$
-T(\mathrm{p}_n)
-= \left[\prod_{i=1}^{n}\bar S(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1})\right]
-  \left[\prod_{i=1}^{n}\hat G(\mathrm{p}_{i+1}\leftrightarrow\mathrm{p}_i)\right]
-  \left[\prod_{i=1}^{m} \sigma_a(\mathrm{r}_i)\, L_e(\mathrm{r}_i\to\mathrm{r}_{i-1})\right].
-\tag{14.11}
-$$
+$$T(\mathrm{p}_n) = \left[\prod_{i=1}^{n}\bar S(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1})\right] \left[\prod_{i=1}^{n}\hat G(\mathrm{p}_{i+1}\leftrightarrow\mathrm{p}_i)\right] \left[\prod_{i=1}^{m} \sigma_a(\mathrm{r}_i)\, L_e(\mathrm{r}_i\to\mathrm{r}_{i-1})\right]. \quad\text{(14.11)}$$
 
 It now refers to a generalized scattering distribution function and generalized geometric term $\hat G$. The former simply falls back to the `BSDF`, phase function (multiplied by $\sigma_s$), or a factor that enforces the ordering of null-scattering vertices, depending on the type of the vertex $\mathrm{p}_i$. Note that the first two products in Equation (14.11) are over all vertices but the third is only over real-scattering vertices.
 
@@ -718,65 +584,29 @@ flowchart LR
 
 The scattering distribution function is defined by
 
-$$
-\bar S(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1}) =
-\begin{cases}
-f(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1}),
-    & \mathrm{p}_i\in\mathcal A,\\[4pt]
-\sigma_s(\mathrm{p}_i)\, p(\omega_{i-1},\omega_i),
-    & \mathrm{p}_i\in\mathcal V,\\[4pt]
-\sigma_n(\mathrm{p}_i)\, H\!\left(
-    (\mathrm{p}_i-\mathrm{p}_{i-1})\cdot(\mathrm{p}_{i+1}-\mathrm{p}_i)\right),
-    & \mathrm{p}_i\in\mathcal V_\varnothing.
-\end{cases}
-\tag{14.12}
-$$
+$$\bar S(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1}) = \begin{cases} f(\mathrm{p}_{i+1}\to\mathrm{p}_i\to\mathrm{p}_{i-1}), & \mathrm{p}_i\in\mathcal A,\\[4pt] \sigma_s(\mathrm{p}_i)\, p(\omega_{i-1},\omega_i), & \mathrm{p}_i\in\mathcal V,\\[4pt] \sigma_n(\mathrm{p}_i)\, H\!\left( (\mathrm{p}_i-\mathrm{p}_{i-1})\cdot(\mathrm{p}_{i+1}-\mathrm{p}_i)\right), & \mathrm{p}_i\in\mathcal V_\varnothing. \end{cases} \quad\text{(14.12)}$$
 
 Here, $H$ is the Heaviside function, which is 1 if its parameter is positive and 0 otherwise. Equation (13.2) in Section 13.1.3 originally defined the geometric term $G$
 
-$$
-G(\mathrm{p}\leftrightarrow\mathrm{q})
-= V(\mathrm{p}\leftrightarrow\mathrm{q})\,
-  \frac{|\cos\theta_{\mathrm p}|\,|\cos\theta_{\mathrm q}|}{\|\mathrm{p}-\mathrm{q}\|^2}.
-$$
+$$G(\mathrm{p}\leftrightarrow\mathrm{q}) = V(\mathrm{p}\leftrightarrow\mathrm{q})\, \frac{|\cos\theta_{\mathrm p}|\,|\cos\theta_{\mathrm q}|}{\|\mathrm{p}-\mathrm{q}\|^2}.$$
 
 A generalized form of this geometric term is given by
 
-$$
-\hat G(\mathrm{p}\leftrightarrow\mathrm{q})
-= \frac{C_{\mathrm p}\, C_{\mathrm q}}{\|\mathrm{p}-\mathrm{q}\|^2}\,
-  V(\mathrm{p}\leftrightarrow\mathrm{q}),
-\tag{14.13}
-$$
+$$\hat G(\mathrm{p}\leftrightarrow\mathrm{q}) = \frac{C_{\mathrm p}\, C_{\mathrm q}}{\|\mathrm{p}-\mathrm{q}\|^2}\, V(\mathrm{p}\leftrightarrow\mathrm{q}), \quad\text{(14.13)}$$
 
 where
 
-$$
-C_{\mathrm p} =
-\begin{cases}
-|\cos\theta_{\mathrm p}|, & \mathrm{p}\in\mathcal A,\\
-1,                        & \mathrm{p}\in\mathcal V,
-\end{cases}
-$$
+$$C_{\mathrm p} = \begin{cases} |\cos\theta_{\mathrm p}|, & \mathrm{p}\in\mathcal A,\\ 1, & \mathrm{p}\in\mathcal V, \end{cases}$$
 
 incorporates the absolute angle cosine between the connection segment and the normal direction when the underlying vertex $\mathrm{p}$ is located on a surface. Note that $C_{\mathrm p}$ is only evaluated for real-scattering vertices $\mathrm{r}_i$, so the case of $\mathrm{p}\in\mathcal V_\varnothing$ does not need to be considered.
 
 Similar to integrating over the path space for surface scattering, the Monte Carlo estimator for the path contribution function can be defined for a path $\mathrm{p}_n$ of $n$ path vertices $\mathrm{p}_i$. The resulting Monte Carlo estimator is
 
-$$
-\left\langle F(\mathrm{p}_n)\right\rangle
-= \frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)},
-\tag{14.14}
-$$
+$$\left\langle F(\mathrm{p}_n)\right\rangle = \frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)}, \quad\text{(14.14)}$$
 
 where $p(\mathrm{p}_n)$ is the probability of sampling the path $\mathrm{p}_n$ with respect to the generalized path space measure. Following Equation (13.8), we will also find it useful to define the volumetric path throughput weight
 
-$$
-\beta(\mathrm{p}_n)
-= \frac{1}{p(\mathrm{p}_n)}
-  \prod_{i=1}^{n}\bar S_i\,\hat G_i.
-\tag{14.15}
-$$
+$$\beta(\mathrm{p}_n) = \frac{1}{p(\mathrm{p}_n)} \prod_{i=1}^{n}\bar S_i\,\hat G_i. \quad\text{(14.15)}$$
 
 Reference / index entries from the page margin: `FastExp()` 1036, `Float` 23, `Medium::SamplePoint()` 717, `MediumProperties` 718, `RayMajorantSegment::sigma_maj` 718, `RayMajorantSegment::t_max` 718, `SampledSpectrum` 171.
 
@@ -790,62 +620,27 @@ The Monte Carlo estimator of the null-scattering path integral from Equation (14
 
 For an $n$ vertex path with $m$ real-scattering vertices, the resulting estimator is
 
-$$
-\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)}
-= \frac{\left[\prod_{i=1}^{n}\bar S_i\,\hat G_i\right]
-        L_e^{\mathrm{path}}(\mathrm{p}_{n+1}\to\mathrm{p}_n)}
-       {\left[\prod_{i=1}^{n} p_{\mathrm{maj},i}\, p_{e,i}\right]
-        \left[\prod_{i=1}^{m} p_{\omega,i}\right]}.
-\tag{14.16}
-$$
+$$\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)} = \frac{\left[\prod_{i=1}^{n}\bar S_i\,\hat G_i\right] L_e^{\mathrm{path}}(\mathrm{p}_{n+1}\to\mathrm{p}_n)} {\left[\prod_{i=1}^{n} p_{\mathrm{maj},i}\, p_{e,i}\right] \left[\prod_{i=1}^{m} p_{\omega,i}\right]}. \quad\text{(14.16)}$$
 
 Here $\omega_i$ denotes the direction from $\mathrm{p}_i$ to $\mathrm{p}_{i+1}$, and the $\hat G$ factor in the denominator accounts for the change of variables from sampling with respect to solid angle to sampling with respect to the path space measure. We consider each of the three sampling operations in turn, starting with distance sampling, which has density $p_{\mathrm{maj}}$. Assuming a single majorant $\sigma_{\mathrm{maj}}$, we find that $p_{\mathrm{maj}}$ has density
 
-$$
-p_{\mathrm{maj}}(\mathrm{p}_{i+1}\mid\mathrm{p}_i,\omega_i)
-= \sigma_{\mathrm{maj}}\, e^{-\sigma_{\mathrm{maj}} d_i},
-\qquad d_i = \|\mathrm{p}_{i+1}-\mathrm{p}_i\|,
-$$
+$$p_{\mathrm{maj}}(\mathrm{p}_{i+1}\mid\mathrm{p}_i,\omega_i) = \sigma_{\mathrm{maj}}\, e^{-\sigma_{\mathrm{maj}} d_i}, \qquad d_i = \|\mathrm{p}_{i+1}-\mathrm{p}_i\|,$$
 
 and the exponential factors cancel out the $T_{\mathrm{maj}}$ factors in $\hat G$, each one leaving behind a $1/\sigma_{\mathrm{maj}}$ factor. Expanding out and simplifying, including eliminating the $\hat G$ factors, all of which also cancel out, we have the estimator
 
-$$
-\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)}
-= \frac{\sigma_{\mathrm{maj}}^{n}\, L_e^{\mathrm{path}}(\mathrm{p}_{n+1}\to\mathrm{p}_n)}
-       {\left[\prod_{i=1}^{n} p_{e,i}\right]\left[\prod_{i=1}^{m} p_{\omega,i}\right]}
-  \prod_{i=1}^{m}\frac{p(\omega_i)}{\sigma_{\mathrm{maj}}}.
-\tag{14.17}
-$$
+$$\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)} = \frac{\sigma_{\mathrm{maj}}^{n}\, L_e^{\mathrm{path}}(\mathrm{p}_{n+1}\to\mathrm{p}_n)} {\left[\prod_{i=1}^{n} p_{e,i}\right]\left[\prod_{i=1}^{m} p_{\omega,i}\right]} \prod_{i=1}^{m}\frac{p(\omega_i)}{\sigma_{\mathrm{maj}}}. \quad\text{(14.17)}$$
 
 Consider next the discrete choice among the three types of scattering event. The probabilities $p_e$ are all of the form $\sigma_{\{a,s,n\}}/\sigma_{\mathrm{maj}}$, according to which type of scattering event was chosen at each vertex. The $(\sigma_{\mathrm{maj}})^n$ factor in Equation (14.17) cancels, leaving us with
 
-$$
-\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)}
-= \frac{L_e^{\mathrm{path}}(\mathrm{p}_{n+1}\to\mathrm{p}_n)}
-       {\left[\prod_{i=1}^{n} \sigma_{\{a,s,n\}}(\mathrm{p}_i)\right]
-        \left[\prod_{i=1}^{m} p_{\omega,i}\right]}
-  \prod_{i=1}^{m} p(\omega_i).
-\tag{14.18}
-$$
+$$\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)} = \frac{L_e^{\mathrm{path}}(\mathrm{p}_{n+1}\to\mathrm{p}_n)} {\left[\prod_{i=1}^{n} \sigma_{\{a,s,n\}}(\mathrm{p}_i)\right] \left[\prod_{i=1}^{m} p_{\omega,i}\right]} \prod_{i=1}^{m} p(\omega_i). \quad\text{(14.18)}$$
 
 The first $n-1$ $\sigma_{\{a,s,n\}}$ factors must be either real or null scattering, and the last must be $\sigma_a$, given how the path was sampled. Thus, the estimator is equivalent to
 
-$$
-\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)}
-= \frac{L_e(\mathrm{p}_{n+1}\to\mathrm{p}_n)}
-       {\left[\prod_{i=1}^{n-1} \sigma_{\{s,n\}}(\mathrm{p}_i)\right]
-        \left[\prod_{i=1}^{m} p_{\omega,i}\right]}
-  \prod_{i=1}^{m} p(\omega_i).
-$$
+$$\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)} = \frac{L_e(\mathrm{p}_{n+1}\to\mathrm{p}_n)} {\left[\prod_{i=1}^{n-1} \sigma_{\{s,n\}}(\mathrm{p}_i)\right] \left[\prod_{i=1}^{m} p_{\omega,i}\right]} \prod_{i=1}^{m} p(\omega_i).$$
 
 Because we are for now neglecting surface scattering, $\bar S$ represents either regular volumetric scattering or null scattering. Recall from Equation (14.12) that $\bar S$ includes a $\sigma_s$ or $\sigma_n$ factor in those respective cases, which cancels out all the corresponding factors in the $\sigma_{\{s,n\}}$ product in the denominator. Further, note that the Heaviside function for null scattering's $\bar S$ function is always 1 given how vertices are sampled with path tracing, so we can also restrict ourselves to the remaining $m$ real-scattering events in the numerator. Our estimator simplifies to
 
-$$
-\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)}
-= L_e(\mathrm{p}_n\to\mathrm{p}_{n-1})
-  \prod_{i=1}^{m}\frac{p(\omega_i)}{p_{\omega}(\omega_i)}.
-\tag{14.19}
-$$
+$$\frac{F(\mathrm{p}_n)}{p(\mathrm{p}_n)} = L_e(\mathrm{p}_n\to\mathrm{p}_{n-1}) \prod_{i=1}^{m}\frac{p(\omega_i)}{p_{\omega}(\omega_i)}. \quad\text{(14.19)}$$
 
 The $\sigma_a$ factor in the path space emission function, Equation (14.10), cancels the remaining $\sigma_a(\mathrm{p}_n)$. We are left with the emission $L_e(\mathrm{p}_n\to\mathrm{p}_{n-1})$ at the last vertex scaled by the product of ratios of phase function values and sampling probabilities as the estimator's value, just as we saw in Section 14.1.2.
 
@@ -1152,9 +947,7 @@ The `VolPathIntegrator` adds three significant improvements to the approach impl
 
 The problem with spectrally varying medium properties comes from sampling. Consider a wavelength-dependent function $f_\lambda(x)$ that we would like to integrate at $n$ wavelengths $\lambda_i$. If we draw samples from a wavelength-dependent PDF based on the first wavelength and then evaluate $f$ at all the wavelengths, we have the estimators
 
-$$
-\left\langle I_{\lambda_i}\right\rangle = \frac{f_{\lambda_i}(x)}{p_{\lambda_1}(x)}.
-$$
+$$\left\langle I_{\lambda_i}\right\rangle = \frac{f_{\lambda_i}(x)}{p_{\lambda_1}(x)}.$$
 
 Even if the PDF that was used for sampling matches well, it may be a poor match for $f$ at the other wavelengths. It may not even be a valid PDF for them, if it is zero-valued where the function is nonzero. However, falling back to integrating a single wavelength at a time would be unfortunately inefficient, as shown in Section 4.5.4.
 
@@ -1162,27 +955,17 @@ Reference / index entries: `BSDF` 544, `SampledSpectrum` 171, `ShapeIntersection
 
 This problem of a single sampling PDF possibly mismatched with a wavelength-dependent function comes up repeatedly in volumetric path tracing. For example, sampling the majorant transmittance at one wavelength may be a poor approach for sampling it at others. That could be handled by selecting a majorant that bounds all wavelengths' extinction coefficients, but such a majorant would lead to many null-scattering events at wavelengths that could have used a much lower majorant, which would harm performance. The path tracer's choice among absorption, real scattering, and null scattering at a sampled point cannot be sidestepped in a similar way: different wavelengths may have quite different probabilities for each of these types of medium interaction, yet with path tracing the integrator must choose only one of them. Splitting up the computation to let each wavelength choose individually would be nearly as inefficient as only considering a single wavelength at a time. However, if a single type of interaction is chosen based on a single wavelength and we evaluate the modified path contribution function for all wavelengths, we could have arbitrarily high variance in the other wavelengths. To see why, note how all the $\sigma_{\{s,n\}}$ factors that came from the $p_e(\mathrm{p}_i)$ factors in Equation (14.18) canceled out to give the delta-tracking estimator, Equation (14.19). In the spectral case, if, for example, real scattering is chosen based on a wavelength $\lambda$'s scattering coefficient $\sigma_{s,\lambda}$ and if a wavelength $\lambda'$ has scattering coefficient $\sigma_{s,\lambda'}$, then the final estimator for $\lambda'$ will include a factor of $\sigma_{s,\lambda'}/\sigma_{s,\lambda}$ that can be arbitrarily large. The fact that `SampleT_maj()` nevertheless samples according to a single wavelength's majorant transmittance suggests that there is a solution to this problem. That solution, yet again, is multiple importance sampling. In this case, we are using a single sampling technique rather than MIS-weighting multiple techniques, so we use the single-sample MIS estimator from Equation (2.16), which here gives
 
-$$
-\left\langle I_\lambda\right\rangle = \frac{1}{q}\,\frac{f_\lambda(x)}{p_{\lambda_1}(x)},
-$$
+$$\left\langle I_\lambda\right\rangle = \frac{1}{q}\,\frac{f_\lambda(x)}{p_{\lambda_1}(x)},$$
 
 where $q$ is the discrete probability of sampling using the wavelength $\lambda_1$, here uniform at $1/n$ with $n$ the number of spectral samples.
 
 The balance heuristic is optimal for single-sample MIS. It gives the MIS weight
 
-$$
-w_{\lambda_1}(x) = \frac{q\,p_{\lambda_1}(x)}{\sum_{j=1}^{n} q_j\, p_{\lambda_j}(x)}
-                = \frac{p_{\lambda_1}(x)}{\sum_{j=1}^{n} p_{\lambda_j}(x)},
-$$
+$$w_{\lambda_1}(x) = \frac{q\,p_{\lambda_1}(x)}{\sum_{j=1}^{n} q_j\, p_{\lambda_j}(x)} = \frac{p_{\lambda_1}(x)}{\sum_{j=1}^{n} p_{\lambda_j}(x)},$$
 
 which gives the estimator
 
-$$
-\left\langle I_\lambda\right\rangle
-= \frac{1}{n}\sum_{i=1}^{n} \frac{p_{\lambda_i}(x)}{\sum_j p_{\lambda_j}(x)}\,
-  \frac{f_\lambda(x)}{p_{\lambda_i}(x)}
-= \frac{f_\lambda(x)}{\frac{1}{n}\sum_{j=1}^{n} p_{\lambda_j}(x)}.
-$$
+$$\left\langle I_\lambda\right\rangle = \frac{1}{n}\sum_{i=1}^{n} \frac{p_{\lambda_i}(x)}{\sum_j p_{\lambda_j}(x)}\, \frac{f_\lambda(x)}{p_{\lambda_i}(x)} = \frac{f_\lambda(x)}{\frac{1}{n}\sum_{j=1}^{n} p_{\lambda_j}(x)}.$$
 
 See Figure 14.7 for an example that shows the benefits of MIS for chromatic media.
 
@@ -1216,61 +999,29 @@ flowchart LR
 
 For the full PDF for unidirectional path sampling, at the last scattering vertex we have the probability of scattering, $\sigma_s(\mathrm{p}_{n-1})/\sigma_{\mathrm{maj}}$, times the directional probability for sampling the new direction $p_\omega(\omega_n)$, which is given by the sampling strategy used for the `BSDF` or phase function. Then, for the path to find an emitter at the vertex $\mathrm{p}_n$, it must have only sampled null-scattering vertices between $\mathrm{p}_{n-1}$ and $\mathrm{p}_n$; absorption or a real-scattering vertex preclude making it to $\mathrm{p}_n$. Using the results from Section 14.1.5, we can find that the path PDF between two points $\mathrm{p}_i$ and $\mathrm{p}_j$ with $m$ intermediate null-scattering vertices indexed by $k$ is given by the product of $\sigma_n(\mathrm{p}_k)/\sigma_{\mathrm{maj}}$ for all null-scattering vertices. The $\sigma_{\mathrm{maj}}$ factors cancel and the null-scattering path probability is
 
-$$
-p_{\mathrm{null}}(\mathrm{p}_i\to\mathrm{p}_j)
-= \left[\prod_{k=1}^{m} \sigma_n(\mathrm{p}_k)\right]\,
-  T_{\mathrm{maj}}(\mathrm{p}_j\to\mathrm{p}_i).
-\tag{14.20}
-$$
+$$p_{\mathrm{null}}(\mathrm{p}_i\to\mathrm{p}_j) = \left[\prod_{k=1}^{m} \sigma_n(\mathrm{p}_k)\right]\, T_{\mathrm{maj}}(\mathrm{p}_j\to\mathrm{p}_i). \quad\text{(14.20)}$$
 
 The full unidirectional path probability is then given by
 
-$$
-p_u(\mathrm{p}_n)
-= p_u(\mathrm{p}_{n-1})\,
-  \frac{\sigma_s(\mathrm{p}_{n-1})}{\sigma_{\mathrm{maj}}}\,
-  p_\omega(\omega_n)\,
-  p_{\mathrm{null}}(\mathrm{p}_{n-1}\to\mathrm{p}_n).
-\tag{14.21}
-$$
+$$p_u(\mathrm{p}_n) = p_u(\mathrm{p}_{n-1})\, \frac{\sigma_s(\mathrm{p}_{n-1})}{\sigma_{\mathrm{maj}}}\, p_\omega(\omega_n)\, p_{\mathrm{null}}(\mathrm{p}_{n-1}\to\mathrm{p}_n). \quad\text{(14.21)}$$
 
 For light sampling, we again have the discrete probability $\sigma_s(\mathrm{p}_{n-1})/\sigma_{\mathrm{maj}}$ for scattering at $\mathrm{p}_{n-1}$ but the directional PDF at the vertex is determined by the light's sampling distribution, which we will denote by $p_{l,\omega}(\omega_n)$. The only missing piece is the PDF of the last segment (the shadow ray), where ratio tracking is used. In that case, points are sampled according to the majorant transmittance and so the PDF for a path sampled between points $\mathrm{p}_i$ and $\mathrm{p}_j$ with $m$ intermediate vertices is
 
-$$
-p_{\mathrm{ratio}}(\mathrm{p}_i\to\mathrm{p}_j)
-= \left[\prod_{k=1}^{m} \frac{\sigma_n(\mathrm{p}_k)}{\sigma_{\mathrm{maj}}}\right]\,
-  T_{\mathrm{maj}}(\mathrm{p}_j\to\mathrm{p}_i)\,\sigma_{\mathrm{maj}},
-\tag{14.22}
-$$
+$$p_{\mathrm{ratio}}(\mathrm{p}_i\to\mathrm{p}_j) = \left[\prod_{k=1}^{m} \frac{\sigma_n(\mathrm{p}_k)}{\sigma_{\mathrm{maj}}}\right]\, T_{\mathrm{maj}}(\mathrm{p}_j\to\mathrm{p}_i)\,\sigma_{\mathrm{maj}}, \quad\text{(14.22)}$$
 
 and the full light sampling path PDF is given by
 
-$$
-p_l(\mathrm{p}_n)
-= p_u(\mathrm{p}_{n-1})\,
-  \frac{\sigma_s(\mathrm{p}_{n-1})}{\sigma_{\mathrm{maj}}}\,
-  p_{l,\omega}(\omega_n)\,
-  p_{\mathrm{ratio}}(\mathrm{p}_{n-1}\to\mathrm{p}_n).
-\tag{14.23}
-$$
+$$p_l(\mathrm{p}_n) = p_u(\mathrm{p}_{n-1})\, \frac{\sigma_s(\mathrm{p}_{n-1})}{\sigma_{\mathrm{maj}}}\, p_{l,\omega}(\omega_n)\, p_{\mathrm{ratio}}(\mathrm{p}_{n-1}\to\mathrm{p}_n). \quad\text{(14.23)}$$
 
 The `VolPathIntegrator` samples both types of paths according to the first wavelength $\lambda_1$ but evaluates these PDFs at all wavelengths so that MIS over wavelengths can be used. Given the path $\mathrm{p}_n$ sampled using unidirectional path sampling and then the path sampled using light path sampling, the two-sample MIS estimator is
 
-$$
-I = \frac{F(\mathrm{p}_n)\, w_u(\mathrm{p}_n)}{p_u(\mathrm{p}_n)}
-  + \frac{F(\mathrm{p}_n^l)\, w_l(\mathrm{p}_n^l)}{p_l(\mathrm{p}_n^l)}.
-\tag{14.24}
-$$
+$$I = \frac{F(\mathrm{p}_n)\, w_u(\mathrm{p}_n)}{p_u(\mathrm{p}_n)} + \frac{F(\mathrm{p}_n^l)\, w_l(\mathrm{p}_n^l)}{p_l(\mathrm{p}_n^l)}. \quad\text{(14.24)}$$
 
 Note that because the paths share the same vertices for all of $\mathrm{p}_{n-1}$, not only do the two factors share common factors, but $p_u$ and $p_l$ do as well, following Equations (14.21) and (14.23).
 
 In this case, the MIS weights can account not only for the differences between unidirectional and light path sampling but also for the different per-wavelength probabilities for each sampling strategy. For example, with the balance heuristic, the MIS weight for the unidirectional strategy works out to be
 
-$$
-w_u(\mathrm{p}_n) = \frac{p_u(\mathrm{p}_n)}
-                         {p_u(\mathrm{p}_n) + p_l(\mathrm{p}_n)},
-\tag{14.25}
-$$
+$$w_u(\mathrm{p}_n) = \frac{p_u(\mathrm{p}_n)} {p_u(\mathrm{p}_n) + p_l(\mathrm{p}_n)}, \quad\text{(14.25)}$$
 
 with $m$ the number of spectral samples. The MIS weight for light sampling is equivalent, but with the function in the numerator replaced with $p_l$.
 
@@ -1341,26 +1092,15 @@ Reference / index entries: `RayDifferential` 96, `SampledSpectrum` 171, `Sampled
 
 There is a common factor of $p_u(\mathrm{p}_n)$ in the denominator of the first term of the two-sample MIS estimator, Equation (14.24), and the numerator of the MIS weights, Equation (14.25). There is a corresponding factor in the second term of the estimator and in the $w_l$ weight. It is tempting to cancel these out; in that case, the path state to be tracked by the integrator would consist of $F(\mathrm{p}_n)/p_u(\mathrm{p}_n)$ and the wavelength-dependent probabilities $p_u(\mathrm{p}_n)$ and $p_l(\mathrm{p}_n)$. Doing so is mathematically valid and would provide all the quantities necessary to evaluate Equation (14.24), but suffers from the problem that the quantities involved may overflow or underflow the range of representable floating-point values. To understand the problem, consider a highly specular surface—the `BSDF` will have a large value for directions around its peak, but the PDF for sampling those directions will also be large. That causes no problems in the `PathIntegrator`, since its `beta` variable tracks their ratio, which ends up being close to 1. However, with $F/p_u$ maintained independently, a series of specular bounces could lead to overflow. (Many null-scattering events along a path can cause similar problems.) Therefore, the `VolPathIntegrator` tracks the path throughput weight for the sampled path
 
-$$
-\beta(\mathrm{p}_n) = \frac{F(\mathrm{p}_n)}
-                           {L_e^{\mathrm{path}}\, p_{\mathrm{path}}(\mathrm{p}_n)},
-$$
+$$\beta(\mathrm{p}_n) = \frac{F(\mathrm{p}_n)} {L_e^{\mathrm{path}}\, p_{\mathrm{path}}(\mathrm{p}_n)},$$
 
 which is numerically well behaved. Directly tracking the probabilities $p_u(\mathrm{p}_n)$ and $p_l(\mathrm{p}_n)$ would also stress the range of floating-point numbers, so instead it tracks the rescaled path probabilities
 
-$$
-r_u(\mathrm{p}_n) = \beta(\mathrm{p}_n)\, p_u(\mathrm{p}_n),
-\qquad
-r_l(\mathrm{p}_n) = \beta(\mathrm{p}_n)\, p_l(\mathrm{p}_n).
-\tag{14.26}
-$$
+$$r_u(\mathrm{p}_n) = \beta(\mathrm{p}_n)\, p_u(\mathrm{p}_n), \qquad r_l(\mathrm{p}_n) = \beta(\mathrm{p}_n)\, p_l(\mathrm{p}_n). \quad\text{(14.26)}$$
 
 Here $p_{\mathrm{path}}(\mathrm{p}_n)$ is the probability for sampling the current path. It is equal to the light path probability for paths that end with a shadow ray from light path sampling and the unidirectional path probability otherwise. (Later in the implementation, we will take advantage of the fact that these two probabilities are the same until the last scattering vertex, which in turn implies that whichever of them is chosen for $p_{\mathrm{path}}$ does not affect the values of $r_u$ and $r_l$.) These rescaled path probabilities are all easily incrementally updated during path sampling. If $\beta=0$, then MIS weights like those in Equation (14.25) can be found with
 
-$$
-w_u = \frac{r_u}{r_u + r_l},
-\tag{14.27}
-$$
+$$w_u = \frac{r_u}{r_u + r_l}, \quad\text{(14.27)}$$
 
 and similarly for $w_l$ when $r_l=0$.
 
@@ -1429,21 +1169,13 @@ if depth < self.max_depth && mp.le != 0.0 {
 
 Here we use the notation $[\mathrm{p}_n + \mathrm{p}']$ to denote the path $\mathrm{p}_n$ with the vertex $\mathrm{p}'$ appended to it. Thus, for example, $\mathrm{p}_n = [\mathrm{p}_{n-1} + \mathrm{p}_n]$. The estimator that gives the contribution for volumetric emission at $\mathrm{p}'$ is then
 
-$$
-\left\langle L_e\right\rangle
-= \frac{\beta'\,\sigma_a(\mathrm{p}')\, L_e(\mathrm{p}')}
-        {r_e},\qquad
-\beta' = \beta\,\frac{T_{\mathrm{maj}}}{p_{\mathrm{maj}}}.
-\tag{14.28}
-$$
+$$\left\langle L_e\right\rangle = \frac{\beta'\,\sigma_a(\mathrm{p}')\, L_e(\mathrm{p}')} {r_e},\qquad \beta' = \beta\,\frac{T_{\mathrm{maj}}}{p_{\mathrm{maj}}}. \quad\text{(14.28)}$$
 
 Reference / index entries: `Float` 23, `Infinity` 361, `MediumProperties` 718, `MediumProperties::Le` 718, `Point3f` 92, `RNG` 1054, `SampledSpectrum` 171, `Sampler::Get1D()` 470, `SampleT_maj()` 859, `ShapeIntersection::tHit` 266, `SimpleVolPathIntegrator` 868, `VolPathIntegrator::maxDepth` 877.
 
 `beta` holds $\beta(\mathrm{p}_n)$, so we can incrementally compute $\beta([\mathrm{p}_n + \mathrm{p}'])$ by
 
-$$
-\beta' = \beta\,\frac{T_{\mathrm{maj}}}{p_{\mathrm{maj}}}.
-$$
+$$\beta' = \beta\,\frac{T_{\mathrm{maj}}}{p_{\mathrm{maj}}}.$$
 
 From Section 14.1.5, we know that $p_{\mathrm{maj}} = \sigma_{\mathrm{maj}}T_{\mathrm{maj}}$. Because we are always sampling absorption (at least as far as including emission goes), $p_e$ is 1 here.
 
@@ -1462,10 +1194,7 @@ let r_e = r_u * sigma_maj * t_maj / pdf;
 
 Here we have a single-sample MIS estimator with balance heuristic weights given by
 
-$$
-w_e = \frac{r_e}{\frac{1}{n}\sum_{j=1}^{n} r_{e,j}}.
-\tag{14.29}
-$$
+$$w_e = \frac{r_e}{\frac{1}{n}\sum_{j=1}^{n} r_{e,j}}. \quad\text{(14.29)}$$
 
 The absorption coefficient and emitted radiance for evaluating Equation (14.28) are available in `MediumProperties` and the `SampledSpectrum::average()` method conveniently computes the average of rescaled probabilities in the denominator of Equation (14.29).
 
@@ -1976,11 +1705,7 @@ Given plane-parallel 3D scattering media where the scattering properties are hom
 
 In this setting, the various quantities are more conveniently expressed as functions of depth $z$ rather than of distance $t$ along a ray. For example, if the extinction coefficient is given by $\sigma_t(z)$, then the transmittance between two depths $z_0$ and $z_1$ for a ray with direction $\omega$ is
 
-$$
-T(z_0\to z_1)
-= \exp\!\left(-\int_{z_0}^{z_1}\frac{\sigma_t(z)}{|\omega_z|}\,\mathrm{d}z\right).
-\tag{14.30}
-$$
+$$T(z_0\to z_1) = \exp\!\left(-\int_{z_0}^{z_1}\frac{\sigma_t(z)}{|\omega_z|}\,\mathrm{d}z\right). \quad\text{(14.30)}$$
 
 Reference / index entries: `BxDF` 538.
 
@@ -1997,38 +1722,21 @@ flowchart LR
 
 In the case of a homogeneous medium,
 
-$$
-T(z_0\to z_1) = \exp\!\left(-\frac{\sigma_t\,|z_1-z_0|}{|\omega_z|}\right).
-$$
+$$T(z_0\to z_1) = \exp\!\left(-\frac{\sigma_t\,|z_1-z_0|}{|\omega_z|}\right).$$
 
 The 1D equation of transfer can be found in a similar fashion. It says that at points inside the medium the incident radiance at a depth $z$ in direction $\omega$ is given by
 
-$$
-L_i(z,\omega)
-= T(z\to z_i)\, L_o(z_i,\omega)
-  + \int_{z}^{z_i} \sigma_t(z')\, T(z'\to z)\, L_s(z',\omega)\, \mathrm{d}z',
-\tag{14.31}
-$$
+$$L_i(z,\omega) = T(z\to z_i)\, L_o(z_i,\omega) + \int_{z}^{z_i} \sigma_t(z')\, T(z'\to z)\, L_s(z',\omega)\, \mathrm{d}z', \quad\text{(14.31)}$$
 
 where $z_i$ is the depth of the medium interface that the ray from $z$ in direction $\omega$ intersects. (See Figure 14.14.) At boundaries, the incident radiance function is given by Equation (14.31) for directions $\omega$ that point into the medium. For directions that point outside it, incident radiance is found by integrating illumination from the scene.
 
 The scattering from an interface at a boundary of the medium is given by the incident radiance modulated by the boundary's `BSDF`,
 
-$$
-L_o(\omega_o)
-= \int_{\mathcal{H}^2} f(\omega_o,\omega_i)\,
-    L_i(\omega_i)\, |\cos\theta_i|\, \mathrm{d}\omega_i.
-\tag{14.32}
-$$
+$$L_o(\omega_o) = \int_{\mathcal{H}^2} f(\omega_o,\omega_i)\, L_i(\omega_i)\, |\cos\theta_i|\, \mathrm{d}\omega_i. \quad\text{(14.32)}$$
 
 If we also assume there is no volumetric emission (as we will do in the `LayeredBxDF`), the source function in Equation (14.31) simplifies to
 
-$$
-L_s(z,\omega)
-= \sigma_s(z) \int_{\mathcal{S}^2} p(\omega,\omega')\,
-    L_i(z,\omega')\, \mathrm{d}\omega'.
-\tag{14.33}
-$$
+$$L_s(z,\omega) = \sigma_s(z) \int_{\mathcal{S}^2} p(\omega,\omega')\, L_i(z,\omega')\, \mathrm{d}\omega'. \quad\text{(14.33)}$$
 
 The `LayeredBxDF` further assumes that $\sigma_t$ is constant over all wavelengths in the medium, which means that null scattering is not necessary for sampling distances in the medium. Null scattering is easily included in the 1D simplification of the equation of transfer if necessary, though we will not do so here. For similar reasons, we will also not derive its path integral form in 1D, though it too can be found with suitable simplifications to the approach that was used in Section 14.1.4. The "Further Reading" section has pointers to more details.
 
@@ -2038,10 +1746,7 @@ Reference / index entries: `LayeredBxDF` 895.
 
 The equation of transfer describes the equilibrium distribution of radiance, though our interest here is in evaluating and sampling the `BSDF` that represents all the scattering from the layered medium. Fortunately, these two things can be connected. If we would like to evaluate the `BSDF` for a pair of directions $\omega_o$ and $\omega_i$, then we can define an incident radiance function from a virtual light source from $\omega_i$ as
 
-$$
-L_i(\omega') = \frac{\delta(\omega' - \omega_i)}{|\cos\theta_i|}.
-\tag{14.34}
-$$
+$$L_i(\omega') = \frac{\delta(\omega' - \omega_i)}{|\cos\theta_i|}. \quad\text{(14.34)}$$
 
 **Figure 14.15 — virtual light source.** If a medium is illuminated with a virtual light source of the form of Equation (14.34), then the radiance leaving the surface in the direction $\omega_o$ is equivalent to the layered surface's `BSDF`, $f(\omega_o,\omega_i)$.
 
@@ -2053,11 +1758,7 @@ flowchart LR
 
 If a 1D medium is illuminated by such a light, then the outgoing radiance $L_o(\omega_o)$ at the medium's interface is equivalent to the value of the `BSDF`, $f(\omega_o,\omega_i)$ (see Figure 14.15). One way to understand why this is so is to consider using such a light with the surface reflection equation:
 
-$$
-L_o(\omega_o) = \int_{\mathcal{H}^2} f(\omega_o,\omega_i)\,
-    L_i(\omega_i)\,|\cos\theta_i|\, \mathrm{d}\omega_i
-              = f(\omega_o,\omega_i).
-$$
+$$L_o(\omega_o) = \int_{\mathcal{H}^2} f(\omega_o,\omega_i)\, L_i(\omega_i)\,|\cos\theta_i|\, \mathrm{d}\omega_i = f(\omega_o,\omega_i).$$
 
 Thus, integrating the equation of transfer with such a light allows us to evaluate and sample the corresponding `BSDF`. However, this means that unlike all the `BxDF` implementations from Chapter 9, the values that `LayeredBxDF` returns from methods like `f()` and `PDF()` are stochastic. This is perfectly fine in the context of all of pbrt's Monte Carlo–based techniques and does not affect the correctness of other estimators that use these values; it is purely one more source of error that can be controlled in a predictable way by increasing the number of samples. The `LayeredBxDF` allows the specification of only two interfaces and a homogeneous participating medium between them. Figure 14.16 illustrates the geometric setting. Surfaces with more layers can be modeled using a `LayeredBxDF` where one or both of its layers are themselves `LayeredBxDF`s. (An exercise at the end of the chapter discusses a more efficient approach for supporting additional layers.) The types of `BxDF`s at both interfaces can be provided as template parameters. While the user of a `LayeredBxDF` is free to provide a `BxDF` for both of these types (in which case pbrt's regular dynamic dispatch mechanism will be used), performance is better if they are specific `BxDF`s and the compiler can generate a specialized implementation. This approach is used for the `CoatedDiffuseBxDF` and the `CoatedConductorBxDF` that are defined in Section 14.3.3. (The meaning of the `twoSided` template parameter will be explained in a few pages, where it is used.)
 
@@ -2252,12 +1953,7 @@ let r = || std::cmp::min(rng.uniform::<f32>(), ONE_MINUS_EPSILON);
 
 In order to find the radiance leaving the interface in the direction $\omega_o$, we need to integrate the product of the cosine-weighted `BTDF` at the interface with the incident radiance from inside the medium,
 
-$$
-L_o(\omega_o)
-= \int_{\mathcal{H}^2} f_{BTDF}(\omega_o,\omega')\,
-    L_i(\omega')\,|\cos\theta'|\, \mathrm{d}\omega',
-\tag{14.35}
-$$
+$$L_o(\omega_o) = \int_{\mathcal{H}^2} f_{BTDF}(\omega_o,\omega')\, L_i(\omega')\,|\cos\theta'|\, \mathrm{d}\omega', \quad\text{(14.35)}$$
 
 where $\mathcal{H}^2$ is the hemisphere inside the medium (see Figure 14.19). The implementation uses the standard Monte Carlo estimator, taking a sample $\omega'$ from the `BTDF` and then proceeding to estimate $L_i$.
 
@@ -2357,10 +2053,7 @@ beta *= self.tr_fn(self.thickness, w);   // Tr(thickness, w)
 
 If the medium is scattering, we only sample one of the two terms of the 1D equation of transfer, choosing between taking a sample inside the medium and scattering at the other interface. A change in depth $\Delta z$ can be perfectly sampled from the 1D beam transmittance, Equation (14.30). Since $\sigma_t = 1$, the PDF is
 
-$$
-p(\Delta z) = \frac{1}{|\omega_z|}\,
-             \exp\!\left(-\frac{\Delta z}{|\omega_z|}\right).
-$$
+$$p(\Delta z) = \frac{1}{|\omega_z|}\, \exp\!\left(-\frac{\Delta z}{|\omega_z|}\right).$$
 
 Given a depth $z'$ found by adding or subtracting $\Delta z$ from the current depth $z$ according to the ray's direction, medium scattering is chosen if $z'$ is inside the medium and surface scattering is chosen otherwise. (The sampling scheme is thus similar to how the `VolPathIntegrator` chooses between medium and surface scattering.) In the case of scattering from an interface, the `Clamp()` call effectively forces $z$ to lie on whichever of the two interfaces the ray intersects next.
 
@@ -2378,10 +2071,7 @@ z = clamp(zp, 0.0, self.thickness);
 
 If $z'$ is inside the medium, we have the estimator
 
-$$
-\left\langle L_s(z',\omega)\, T(z'\to z)\, \frac{1}{p(\Delta z)}\right\rangle
-= L_s(z',\omega),
-$$
+$$\left\langle L_s(z',\omega)\, T(z'\to z)\, \frac{1}{p(\Delta z)}\right\rangle = L_s(z',\omega),$$
 
 since the exponential factors and $|\omega_z|$ factors in $T$ and $p(\Delta z)$ cancel, leaving simply the source function $L_s(z',-\omega)$, which should be scaled by the path throughput. The following fragment adds an estimate of its value to the sum in `f`.
 
@@ -2473,19 +2163,7 @@ With this approach, it can be shown that the ratio of the path throughput to the
 
 **PDF Evaluation.** The PDF $p(\omega_o,\omega_i)$ that corresponds to a `LayeredBxDF`'s `BSDF` can be expressed as an infinite sum. For example, consider the case of having a bottom layer that reflects light with `BRDF` $f_r^b$ and a top layer that both reflects light with `BRDF` $f_r^t$ and transmits it with `BTDF` $f_t^t$, with an overall `BSDF` $f$. If those `BSDFs` have associated PDFs $p$, and if scattering in the medium is neglected, then the overall PDF is
 
-$$
-\begin{aligned}
-p(\omega_o,\omega_i)
-&= p_r^t(\omega_o,\omega_i)\\
-&\quad + \int_{\mathcal{H}^2}\!\!\int_{\mathcal{H}^2}
-   p_t^t(\omega_o,\omega')\,
-   p_r^b(\omega',\omega'')\,
-   p_t^t(\omega'',\omega_i)\,
-   \mathrm{d}\omega''\,\mathrm{d}\omega'
-   + \cdots
-\end{aligned}
-\tag{14.36}
-$$
+$$\begin{aligned} p(\omega_o,\omega_i) &= p_r^t(\omega_o,\omega_i)\\ &\quad + \int_{\mathcal{H}^2}\!\!\int_{\mathcal{H}^2} p_t^t(\omega_o,\omega')\, p_r^b(\omega',\omega'')\, p_t^t(\omega'',\omega_i)\, \mathrm{d}\omega''\,\mathrm{d}\omega' + \cdots \end{aligned} \quad\text{(14.36)}$$
 
 The first term gives the contribution for the PDF at the top interface and the second is the PDF for directions $\omega_i$ that were sampled via transmission through the top interface, scattering at the bottom, and then transmission back out in direction $\omega_i$. Note the coupling of directions between the PDF factors in the integrand: the negation of the initial transmitted direction $\omega'$ gives the first direction for evaluation of the base PDF, and so forth (see Figure 14.21). Subsequent terms of this sum account for light that is reflected back downward at the top interface instead of exiting the layers, and expressions of a similar form can be found for the PDF if the base layer is also transmissive.
 
@@ -2505,12 +2183,7 @@ flowchart TB
 
 It is possible to compute a stochastic estimate of the PDF by applying Monte Carlo to the integrals and by terminating the infinite sum using Russian roulette. For example, for the integral in Equation (14.36), we have
 
-$$
-\langle p\rangle
-= \frac{p_t^t(\omega_o,\omega')\,p_r^b(\omega',\omega'')\,p_t^t(\omega'',\omega_i)}
-       {p_1(\omega')\,p_2(\omega'')},
-\tag{14.37}
-$$
+$$\langle p\rangle = \frac{p_t^t(\omega_o,\omega')\,p_r^b(\omega',\omega'')\,p_t^t(\omega'',\omega_i)} {p_1(\omega')\,p_2(\omega'')}, \quad\text{(14.37)}$$
 
 the estimator where $\omega'$ is sampled from some distribution $p_1$ and $\omega''$ from a distribution $p_2$. There is great freedom in choosing the distributions $p_1$ and $p_2$. However, as with algorithms like path tracing, care must be taken if some of the PDFs are Dirac delta distributions. For example, if the bottom layer is perfect specular, then $p_r^b$ will always be zero unless $\omega''$ was sampled according to its PDF.
 
@@ -2584,10 +2257,7 @@ let (mut r_interface, mut t_interface) =
 
 We will apply two sampling strategies. The first is sampling both directions via `tInterface`, once conditioned on $\omega_o$ and once on $\omega_i$—effectively a bidirectional approach. The second is sampling one direction via `tInterface` conditioned on $\omega_o$ and the other via `rInterface` conditioned on the first sampled direction. These are then combined using multiple importance sampling. After canceling factors and introducing an MIS weight $w(\omega'')$, Equation (14.37) simplifies to
 
-$$
-\langle p\rangle \approx p_r^t(-\omega',-\omega'')\, w(\omega''),
-\tag{14.38}
-$$
+$$\langle p\rangle \approx p_r^t(-\omega',-\omega'')\, w(\omega''), \quad\text{(14.38)}$$
 
 which is the estimator for both strategies.
 
