@@ -43,9 +43,9 @@
 
 ```mermaid
 flowchart LR
-    A[pbrt History] --> B[Hardware Trends]
-    B --> C[Design Alternatives]
-    C --> D[Future Directions]
+    A["pbrt History"] --> B["Hardware Trends"]
+    B --> C["Design Alternatives"]
+    C --> D["Future Directions"]
 ```
 
 In this concluding chapter, we begin with a review of how pbrt has changed over the years and discuss how improvements in computer hardware have affected its design and performance. We then outline some alternative architectures for rendering systems before we conclude with a brief retrospective of the system's adoption and impact.
@@ -188,14 +188,14 @@ Rendering research continues to be a vibrant field, as should be evident by the 
 
 ```mermaid
 flowchart TD
-    R[Rendering research] --> I[Inverse &amp; differentiable rendering]
-    R --> M[Machine learning in image synthesis]
-    I --> IF[Forward: f(x) = y]
-    I --> II[Inverse: f⁻¹(y) = x]
-    II --> OPT[Analysis by synthesis: min g(f(x))]
-    M --> M1[Learned data structures]
-    M --> M2[Improve rendered images]
-    M --> M3[Direct synthesis]
+    R["Rendering research"] --> I["Inverse &amp; differentiable rendering"]
+    R --> M["Machine learning in image synthesis"]
+    I --> IF["Forward: f(x) = y"]
+    I --> II["Inverse: f⁻¹(y) = x"]
+    II --> OPT["Analysis by synthesis: min g(f(x))"]
+    M --> M1["Learned data structures"]
+    M --> M2["Improve rendered images"]
+    M --> M3["Direct synthesis"]
 ```
 
 ### 16.3.1 Inverse and differentiable rendering
@@ -341,14 +341,14 @@ Chapter 2 provided an introduction to the principles of sampling and Monte Carlo
 
 ```mermaid
 flowchart TD
-    S[Sampling algorithms] --> AM[Alias method: O(1) discrete]
-    S --> RS[Reservoir sampling: streaming]
-    S --> RJ[Rejection sampling: no CDF inversion]
-    S --> I1[1D inversion recipes]
-    S --> I2[Multidimensional inversion recipes]
-    I1 --> PC1[PiecewiseConstant1D]
-    I2 --> PC2[PiecewiseConstant2D]
-    I2 --> WPC2[WindowedPiecewiseConstant2D]
+    S["Sampling algorithms"] --> AM["Alias method: O(1) discrete"]
+    S --> RS["Reservoir sampling: streaming"]
+    S --> RJ["Rejection sampling: no CDF inversion"]
+    S --> I1["1D inversion recipes"]
+    S --> I2["Multidimensional inversion recipes"]
+    I1 --> PC1["PiecewiseConstant1D"]
+    I2 --> PC2["PiecewiseConstant2D"]
+    I2 --> WPC2["WindowedPiecewiseConstant2D"]
 ```
 
 <a id="a1"></a>
@@ -623,8 +623,8 @@ This procedure repeatedly chooses a pair of random variables $(X, \xi)$. If the 
 
 ```mermaid
 flowchart TD
-    A[Draw X from p and uniform xi] --> B{xi < f(X) / (c p(X))?}
-    B -- yes --> C[Accept X]
+    A["Draw X from p and uniform xi"] --> B{"xi < f(X) / (c p(X))?"}
+    B -- yes --> C["Accept X"]
     B -- no --> A
 ```
 
@@ -1575,7 +1575,7 @@ flowchart TD
         A["s(x1,y1) — everything"] --> B["− s(x0,y1) — drop left strip"]
         B --> C["− s(x1,y0) — drop bottom strip"]
         C --> D["+ s(x0,y0) — restore double-subtracted corner"]
-        D --> E[Integral over rectangle]
+        D --> E["Integral over rectangle"]
     end
 ```
 
@@ -1757,12 +1757,12 @@ In addition to all the graphics-related code presented thus far, pbrt makes use 
 
 ```mermaid
 flowchart TD
-    U[Utilities] --> M[Math & numeric routines]
-    U --> UI[User interaction]
-    U --> C[Containers & memory]
-    U --> IM[Images]
-    U --> P[Parallelism]
-    U --> ST[Statistics]
+    U["Utilities"] --> M["Math & numeric routines"]
+    U --> UI["User interaction"]
+    U --> C["Containers & memory"]
+    U --> IM["Images"]
+    U --> P["Parallelism"]
+    U --> ST["Statistics"]
 ```
 
 <a id="b1"></a>
@@ -2462,15 +2462,15 @@ where F: Fn(Float) -> (Float, Float)
 
 ```mermaid
 flowchart TD
-    A[Endpoint is a root?] -- yes --> Z[Return endpoint]
-    A -- no --> B[Initial guess: linear interpolation]
-    B --> C{mid inside bracket?}
-    C -- no --> D[mid = (x0+x1)/2 — bisection]
-    C -- yes --> E[Evaluate f(mid) and derivative]
+    A["Endpoint is a root?"] -- yes --> Z["Return endpoint"]
+    A -- no --> B["Initial guess: linear interpolation"]
+    B --> C{"mid inside bracket?"}
+    C -- no --> D["mid = (x0+x1)/2 — bisection"]
+    C -- yes --> E["Evaluate f(mid) and derivative"]
     D --> E
-    E --> F[Narrow bracket; converged?]
-    F -- yes --> G[Return mid]
-    F -- no --> H[Newton step: mid -= f/f']
+    E --> F["Narrow bracket; converged?"]
+    F -- yes --> G["Return mid"]
+    F -- no --> H["Newton step: mid -= f/f'"]
     H --> C
 ```
 
@@ -4863,12 +4863,12 @@ The scene description is processed in three stages, each of which is described i
 
 ```mermaid
 flowchart LR
-    T[Scene description text] --> P[Tokenizer / Parser]
-    P --> PT[ParserTarget methods]
-    PT --> B[BasicSceneBuilder: graphics state]
-    B --> E[SceneEntity objects]
-    E --> BS[BasicScene: final creation]
-    BS --> R[RenderCPU / RenderWavefront]
+    T["Scene description text"] --> P["Tokenizer / Parser"]
+    P --> PT["ParserTarget methods"]
+    PT --> B["BasicSceneBuilder: graphics state"]
+    B --> E["SceneEntity objects"]
+    E --> BS["BasicScene: final creation"]
+    BS --> R["RenderCPU / RenderWavefront"]
 ```
 
 Once the `BasicScene` is complete, it is passed to either `RenderCPU()` or `RenderWavefront()`, as appropriate. Those functions then create the final representation of the scene that they will use for rendering. For most types of scene objects (e.g., the `Sampler`), both call a `BasicScene` method that returns the object that corresponds to what was specified in the scene description. Those two functions diverge in how they represent the intersectable scene geometry. In `RenderCPU()` as well as when the wavefront renderer is running on the CPU, the primitives and accelerators defined in Chapter 7 are used to represent it. With GPU rendering, shapes are converted to the representation expected by the GPU's ray-tracing API—in the `wgpu` port, this means uploading instance and geometry buffers that are consumed by the WGSL traversal shaders.

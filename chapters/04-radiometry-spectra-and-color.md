@@ -41,11 +41,11 @@
 
 ```mermaid
 flowchart LR
-    A[Spectrum S(λ)] --> B[XYZ Tristimulus]
-    B --> C[RGB Color]
-    C --> D[Display / Film]
-    A --> E[BRDF Evaluation]
-    A --> F[SampledSpectrum / SampledWavelengths]
+    A["Spectrum S(λ)"] --> B["XYZ Tristimulus"]
+    B --> C["RGB Color"]
+    C --> D["Display / Film"]
+    A --> E["BRDF Evaluation"]
+    A --> F["SampledSpectrum / SampledWavelengths"]
     F --> B
 ```
 
@@ -106,8 +106,8 @@ Total emission from light sources is generally described in terms of flux. Figur
 
 ```mermaid
 flowchart LR
-    L((Point light source)) -->|emits flux Phi| S1[Small sphere radius r1]
-    L -->|same total flux Phi| S2[Large sphere radius r2]
+    L((Point light source)) -->|emits flux Phi| S1["Small sphere radius r1"]
+    L -->|same total flux Phi| S2["Large sphere radius r2"]
     S1 --> E1["Local irradiance E1 = Phi / (4 pi r1^2)"]
     S2 --> E2["Local irradiance E2 = Phi / (4 pi r2^2)"]
     E1 --> N["Total flux is identical on both spheres"]
@@ -1040,16 +1040,16 @@ The two conversion paths between spectra and color are summarized below.
 ```mermaid
 flowchart TD
     subgraph SpectraToRGB["Spectrum → RGB (well-defined)"]
-        S1[Spectral radiance S(λ)] --> XYZ["XYZ curves X(λ), Y(λ), Z(λ)<br/>Eq. (4.22)"]
+        S1["Spectral radiance S(λ)"] --> XYZ["XYZ curves X(λ), Y(λ), Z(λ)<br/>Eq. (4.22)"]
         XYZ --> XYZval["Tristimulus xλ, yλ, zλ"]
         XYZval --> MAT["RGBColorSpace<br/>XYZFromRGB matrix"]
         MAT --> RGB["RGB triplet"]
     end
     subgraph RGBToSpectra["RGB → Spectrum (ambiguous)"]
-        R1[RGB triplet] --> LUT["RGBSigmoidPolynomial<br/>precomputed coefficient tables"]
+        R1["RGB triplet"] --> LUT["RGBSigmoidPolynomial<br/>precomputed coefficient tables"]
         LUT --> POLY["S(λ) = s(c₀λ² + c₁λ + c₂)"]
     end
-    RGB --> DISPLAY[Display / Film]
+    RGB --> DISPLAY["Display / Film"]
 ```
 
 ### 4.6.1 XYZ COLOR

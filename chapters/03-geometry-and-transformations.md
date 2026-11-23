@@ -27,11 +27,11 @@ Almost all nontrivial graphics programs are built on a foundation of geometric c
 
 ```mermaid
 flowchart TD
-    A[Point / Vector / Normal] --> B[Transform Matrix]
-    B --> C[Apply to Ray]
-    C --> D[Intersect Scene]
-    D --> E[SurfaceInteraction]
-    E --> F[Shade and write to storage buffer]
+    A["Point / Vector / Normal"] --> B["Transform Matrix"]
+    B --> C["Apply to Ray"]
+    C --> D["Intersect Scene"]
+    D --> E["SurfaceInteraction"]
+    E --> F["Shade and write to storage buffer"]
 ```
 
 > **wgpu orientation.** In this edition the C++ templates are expressed as idiomatic Rust types in the spirit of `glam`/`nalgebra`: `Vec2`, `Vec3`, `Point3`, `Normal3`, `Mat3`, `Mat4`, and `Quat`. On the GPU the same objects become WGSL `vec3<f32>`, `vec4<f32>`, `mat4x4<f32>`, and `mat3x3<f32>`. Remember that a WGSL `vec3<f32>` occupies 16 bytes in a uniform/storage buffer, so geometric data is usually padded to `vec4` when laid out for a shader.

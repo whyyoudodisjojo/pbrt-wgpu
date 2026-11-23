@@ -21,10 +21,10 @@
 
 ```mermaid
 flowchart LR
-    A[Shape] --> B[Intersect Ray]
-    B --> C[Surface Point]
-    C --> D[Normal and UV]
-    D --> E[Area / Bounds]
+    A["Shape"] --> B["Intersect Ray"]
+    B --> C["Surface Point"]
+    C --> D["Normal and UV"]
+    D --> E["Area / Bounds"]
 ```
 
 In this chapter we present pbrt's abstraction for geometric primitives such as spheres and triangles. Careful abstraction of geometric shapes in a ray tracer is a key component of clean system design, and shapes are the ideal candidate for an object-oriented approach: all geometric primitives implement a common interface, and the rest of the renderer uses that interface without needing any details about the underlying shape. This makes it possible to separate the geometric and shading subsystems of pbrt.
@@ -37,16 +37,16 @@ pbrt hides details about primitives behind a two-level abstraction. The `Shape` 
 
 ```mermaid
 flowchart TD
-    R[Ray in rendering space] --> BB{Bounds3::IntersectP?}
-    BB -- no --> M[Miss]
-    BB -- yes --> SP[Transform ray to object space<br/>where needed]
-    SP --> I[BasicIntersect / IntersectTriangle<br/>solve for parametric t]
-    I --> CLIP{Inside clipping<br/>z / phi / barycentric?}
+    R["Ray in rendering space"] --> BB{"Bounds3::IntersectP?"}
+    BB -- no --> M["Miss"]
+    BB -- yes --> SP["Transform ray to object space<br/>where needed"]
+    SP --> I["BasicIntersect / IntersectTriangle<br/>solve for parametric t"]
+    I --> CLIP{"Inside clipping<br/>z / phi / barycentric?"}
     CLIP -- no --> M
-    CLIP -- yes --> CMP{Closer than<br/>current tMax?}
+    CLIP -- yes --> CMP{"Closer than<br/>current tMax?"}
     CMP -- no --> M
-    CMP -- yes --> SI[InteractionFromIntersection<br/>p, n, dpdu, dpdv, uv]
-    SI --> OUT[ShapeIntersection in<br/>rendering space]
+    CMP -- yes --> SI["InteractionFromIntersection<br/>p, n, dpdu, dpdv, uv"]
+    SI --> OUT["ShapeIntersection in<br/>rendering space"]
 ```
 
 ## 6.1 Basic Shape Interface

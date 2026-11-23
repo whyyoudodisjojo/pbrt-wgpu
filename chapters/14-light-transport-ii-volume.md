@@ -27,17 +27,17 @@
 
 ```mermaid
 flowchart TD
-    A[Camera ray] --> B[Intersect scene geometry]
-    B --> C{Ray passes through a medium?}
-    C -- no --> H[Surface / environment contribution]
-    C -- yes --> D[Sample distance from majorant transmittance T_maj]
-    D --> E{Select event}
-    E -- absorption --> F[Add emission L_e; terminate path]
-    E -- real scattering --> G[Sample phase function; spawn new ray]
+    A["Camera ray"] --> B["Intersect scene geometry"]
+    B --> C{"Ray passes through a medium?"}
+    C -- no --> H["Surface / environment contribution"]
+    C -- yes --> D["Sample distance from majorant transmittance T_maj"]
+    D --> E{"Select event"}
+    E -- absorption --> F["Add emission L_e; terminate path"]
+    E -- real scattering --> G["Sample phase function; spawn new ray"]
     E -- null scattering --> D
     E -- past t_max --> H
     G --> B
-    F --> P[Accumulate into pixel]
+    F --> P["Accumulate into pixel"]
     H --> P
 ```
 

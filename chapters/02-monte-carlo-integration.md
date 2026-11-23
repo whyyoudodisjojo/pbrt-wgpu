@@ -31,12 +31,12 @@
 
 ```mermaid
 flowchart LR
-    A[Sample the domain] --> B[Evaluate the weighted integrand f/p]
-    B --> C[Accumulate the sum]
-    C --> D{More samples?}
+    A["Sample the domain"] --> B["Evaluate the weighted integrand f/p"]
+    B --> C["Accumulate the sum"]
+    C --> D{"More samples?"}
     D -- yes --> A
-    D -- no --> E[Divide by n]
-    E --> F[Integral estimate]
+    D -- no --> E["Divide by n"]
+    E --> F["Integral estimate"]
 ```
 
 Rendering is full of integration problems. In addition to the light transport equation (1.1), the following chapters show that integral equations also describe a variety of additional quantities related to light, including the sensor response in a camera, the attenuation and scattering of light in participating media, and scattering from materials like skin. These integral equations generally do not have analytic solutions, so we must turn to numerical methods. Although standard numerical integration techniques like trapezoidal integration or Gaussian quadrature are effective at solving low-dimensional smooth integrals, their rate of convergence is poor for the higher dimensional and discontinuous integrals that are common in rendering. Monte Carlo integration techniques provide one solution to this problem: they use random sampling to evaluate integrals with a convergence rate that is independent of the dimensionality of the integrand.
@@ -247,10 +247,10 @@ To draw samples from $\Lambda$, we draw $n_i$ samples from each $\Lambda_i$, acc
 
 ```mermaid
 flowchart LR
-    A[Integration domain Λ] --> B[Partition into strata Λ_i]
-    B --> C[Draw n_i samples per stratum]
-    C --> D[Estimate each stratum]
-    D --> E[Weight by v_i and sum]
+    A["Integration domain Λ"] --> B["Partition into strata Λ_i"]
+    B --> C["Draw n_i samples per stratum"]
+    C --> D["Estimate each stratum"]
+    D --> E["Weight by v_i and sum"]
 ```
 
 Within a single stratum $\Lambda_i$, the Monte Carlo estimate is
@@ -286,10 +286,10 @@ where $Q=\sum_i v_i\mu_i$ is the mean of $f$ over the whole domain $\Lambda$.
 ```mermaid
 flowchart TB
     subgraph ind["(a) Independent random sampling"]
-        A1[Sample positions can clump and leave gaps] --> A2[Higher variance, noisier image]
+        A1["Sample positions can clump and leave gaps"] --> A2["Higher variance, noisier image"]
     end
     subgraph str["(b) Stratified sampling of sample directions"]
-        B1[One or more samples per stratum] --> B2[Lower variance, cleaner image]
+        B1["One or more samples per stratum"] --> B2["Lower variance, cleaner image"]
     end
 ```
 
@@ -335,7 +335,7 @@ which is plotted in Figure 2.2(b), and the estimator from Equation (2.7) is used
 flowchart LR
     A["(a) f(x): narrow bump near x = 1/4"] --> B["(b) p(x): mass concentrated near the bump"]
     B --> C["(c) samples land mostly where f(x) is large"]
-    C --> D[Lower estimator variance]
+    C --> D["Lower estimator variance"]
 ```
 
 Importance sampling can increase variance if a poorly chosen distribution is used, however. Consider instead using the distribution (recovered from the original printed page)
@@ -362,11 +362,11 @@ Multiple importance sampling (MIS) addresses exactly this issue, with an easy-to
 
 ```mermaid
 flowchart LR
-    F[Integrand f = fa · fb] --> PA[Sample from pa, a good match to fa]
-    F --> PB[Sample from pb, a good match to fb]
-    PA --> W[Weight samples with wa, wb]
+    F["Integrand f = fa · fb"] --> PA["Sample from pa, a good match to fa"]
+    F --> PB["Sample from pb, a good match to fb"]
+    PA --> W["Weight samples with wa, wb"]
     PB --> W
-    W --> S[Sum weighted contributions]
+    W --> S["Sum weighted contributions"]
 ```
 
 With two sampling distributions $p_a$ and $p_b$ and a single sample taken from each one, $X\sim p_a$ and $Y\sim p_b$, the MIS Monte Carlo estimator is
@@ -506,10 +506,10 @@ To apply Russian roulette, we select some termination probability $q$. This valu
 
 ```mermaid
 flowchart TD
-    S[Sample with cheap factor f X] --> Q{Draw ξ uniform: ξ < q?}
-    Q -- yes --> C[Terminate: substitute constant c, e.g. 0]
-    Q -- no --> K[Evaluate expensive factor v X, trace ray]
-    K --> W[Weight contribution by 1 / 1-q]
+    S["Sample with cheap factor f X"] --> Q{"Draw ξ uniform: ξ < q?"}
+    Q -- yes --> C["Terminate: substitute constant c, e.g. 0"]
+    Q -- no --> K["Evaluate expensive factor v X, trace ray"]
+    K --> W["Weight contribution by 1 / 1-q"]
 ```
 
 We have the new estimator
@@ -548,8 +548,8 @@ To evaluate the Monte Carlo estimator in Equation (2.7), it is necessary to be a
 
 ```mermaid
 flowchart LR
-    U[Canonical uniform ξ ∈ 0,1) --> INV[Invert the CDF: X = P⁻¹ ξ]
-    INV --> OUT[Sample X drawn from p x]
+    U[Canonical uniform ξ ∈ 0,1) --> INV["Invert the CDF: X = P⁻¹ ξ"]
+    INV --> OUT["Sample X drawn from p x"]
 ```
 
 ### 2.3.1 Discrete Case
@@ -580,10 +580,10 @@ which can be interpreted graphically by stacking the bars of the PMF on top of e
 
 ```mermaid
 flowchart LR
-    Z[0] -->|p1| A[p1]
-    A -->|p2| B[p1 + p2]
-    B -->|p3| C[p1 + p2 + p3]
-    C -->|p4| D[1]
+    Z["0"] -->|p1| A["p1"]
+    A -->|p2| B["p1 + p2"]
+    B -->|p3| C["p1 + p2 + p3"]
+    C -->|p4| D["1"]
 ```
 
 The sampling operation of Equation (2.2) can be expressed as finding $i$ such that
@@ -701,10 +701,10 @@ fn sample_discrete(weights: ptr<storage, array<f32>, read>,
 
 ```mermaid
 flowchart LR
-    XI[Draw ξ uniform on 0,1] --> AXIS[Plot ξ on the vertical axis]
-    AXIS --> HIT[Extend horizontally to the stacked PMF bars]
-    HIT --> PICK[Intersect bar i with probability p_i]
-    PICK --> OUT[Outcome i ~ PMF]
+    XI["Draw ξ uniform on 0,1"] --> AXIS["Plot ξ on the vertical axis"]
+    AXIS --> HIT["Extend horizontally to the stacked PMF bars"]
+    HIT --> PICK["Intersect bar i with probability p_i"]
+    PICK --> OUT["Outcome i ~ PMF"]
 ```
 
 ### 2.3.2 Continuous Case

@@ -17,10 +17,10 @@
 
 ```mermaid
 flowchart TD
-    A[Camera Parameters] --> B[Generate Ray]
-    B --> C[Ray Differential]
-    C --> D[Sample Film]
-    D --> E[Filter and Tone Map]
+    A["Camera Parameters"] --> B["Generate Ray"]
+    B --> C["Ray Differential"]
+    C --> D["Sample Film"]
+    D --> E["Filter and Tone Map"]
 ```
 
 In Chapter 1, we described the pinhole camera model that is commonly used in computer graphics. This model is easy to describe and simulate, but it neglects important effects that physical lenses have on light passing through them. For example, everything rendered with a pinhole camera is in sharp focus—a state of affairs not possible with real lens systems. Such images often look computer generated for their perfection. More generally, the distribution of radiance leaving a lens system is quite different from the distribution entering it; modeling this effect of lenses is important for accurately simulating the radiometry of image formation.
@@ -431,12 +431,12 @@ The relationships among these spaces are summarized below (redrawn from the scan
 
 ```mermaid
 flowchart LR
-    OS[Object space] -->|worldFromObject| WS[World space]
-    RS[Rendering space] -->|worldFromRender| WS
-    CS[Camera space: origin at eye, +z forward] -->|renderFromCamera| RS
-    SS[Screen space: film plane, z=near..far mapped to 0..1] -->|screenFromCamera| CS
-    NDC[NDC space: x,y in 0..1] -->|ndcFromScreen| SS
-    RAS[Raster space: x,y in 0..resolution] -->|rasterFromNDC| NDC
+    OS["Object space"] -->|worldFromObject| WS["World space"]
+    RS["Rendering space"] -->|worldFromRender| WS
+    CS["Camera space: origin at eye, +z forward"] -->|renderFromCamera| RS
+    SS["Screen space: film plane, z=near..far mapped to 0..1"] -->|screenFromCamera| CS
+    NDC["NDC space: x,y in 0..1"] -->|ndcFromScreen| SS
+    RAS["Raster space: x,y in 0..resolution"] -->|rasterFromNDC| NDC
 ```
 
 The orthographic and perspective projections both require the specification of two planes perpendicular to the viewing direction: the near and far planes. When rasterization is used for rendering, objects that are not between those two planes are culled and not included in the final image. (Culling objects in front of the near plane is particularly important in order to avoid a singularity at the depth 0 and because otherwise the projection matrices map points behind the camera to appear to be in front of it.) In a ray tracer, the projection matrices are used purely to determine rays leaving the camera and these concerns do not apply; there is therefore less need to worry about setting those planes’ depths carefully in this context.
@@ -596,15 +596,15 @@ We can now go through the code that takes a sample point in raster space and tur
 
 ```mermaid
 flowchart LR
-    A[Sample pFilm in raster space] --> B[pFilm = Point3f(pFilm.x, pFilm.y, 0)]
-    B --> C[pCamera = cameraFromRaster pFilm on near plane]
-    C --> D[Ray origin = pCamera, direction = 0 0 1]
-    D --> E{lensRadius > 0?}
-    E -->|yes| F[Modify ray for depth of field]
-    E -->|no| G[Keep ray]
-    F --> H[RenderFromCamera ray]
+    A["Sample pFilm in raster space"] --> B["pFilm = Point3f(pFilm.x, pFilm.y, 0)"]
+    B --> C["pCamera = cameraFromRaster pFilm on near plane"]
+    C --> D["Ray origin = pCamera, direction = 0 0 1"]
+    D --> E{"lensRadius > 0?"}
+    E -->|yes| F["Modify ray for depth of field"]
+    E -->|no| G["Keep ray"]
+    F --> H["RenderFromCamera ray"]
     G --> H
-    H --> I[CameraRay with spectral weight]
+    H --> I["CameraRay with spectral weight"]
 ```
 
 `⟨OrthographicCamera Method Definitions⟩ ≡`

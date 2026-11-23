@@ -31,15 +31,15 @@ The diagram below summarizes the volume-scattering sampling loop that a wgpu pat
 
 ```mermaid
 flowchart TD
-    R[Ray through participating medium] --> S[Sample free path: SampleExponential with sigma_maj]
-    S --> E{Event type at p + t*omega}
-    E -->|True scattering| P[Apply phase function p(omega, omega')]
-    E -->|Null scattering| N[Ignore event; continue from sampled point]
-    E -->|Sampled past endpoint| T[Accumulate transmittance / exit]
-    P --> A[Accumulate in-scattered radiance]
+    R["Ray through participating medium"] --> S["Sample free path: SampleExponential with sigma_maj"]
+    S --> E{"Event type at p + t*omega"}
+    E -->|True scattering| P["Apply phase function p(omega, omega')"]
+    E -->|Null scattering| N["Ignore event; continue from sampled point"]
+    E -->|Sampled past endpoint| T["Accumulate transmittance / exit"]
+    P --> A["Accumulate in-scattered radiance"]
     A --> R
     N --> R
-    T --> O[Final radiance or shadow factor]
+    T --> O["Final radiance or shadow factor"]
 ```
 
 We have assumed so far that scenes are made up of collections of surfaces in a vacuum, which means that radiance is constant along rays between surfaces. However, there are many real-world situations where this assumption is inaccurate: fog and smoke attenuate and scatter light, and scattering from particles in the atmosphere makes the sky blue and sunsets red. This chapter introduces the mathematics that describe how light is affected as it passes through participating media—large numbers of very small particles distributed throughout a region of 3D space. These volume scattering models in computer graphics are based on the assumption that there are so many particles that scattering is best modeled as a probabilistic process rather than directly accounting for individual interactions with particles. Simulating the effect of participating media makes it possible to render images with atmospheric haze, beams of light through clouds, light passing through cloudy water, and subsurface scattering, where light exits a solid object at a different place than where it entered.
@@ -58,12 +58,12 @@ There are three main physical processes that affect the distribution of radiance
 
 ```mermaid
 flowchart LR
-    I[Incident radiance Li p −ω] --> V[Differential volume at p]
-    V --> A[Absorption: −sigma_a Li dt]
-    V --> EM[Emission: +sigma_a Le dt]
-    V --> OS[Out-scattering: −sigma_s Li dt]
-    V --> IS[In-scattering: +sigma_s integral p Li dω]
-    A --> O[Exitant radiance Lo p ω]
+    I["Incident radiance Li p −ω"] --> V["Differential volume at p"]
+    V --> A["Absorption: −sigma_a Li dt"]
+    V --> EM["Emission: +sigma_a Le dt"]
+    V --> OS["Out-scattering: −sigma_s Li dt"]
+    V --> IS["In-scattering: +sigma_s integral p Li dω"]
+    A --> O["Exitant radiance Lo p ω"]
     EM --> O
     OS --> O
     IS --> O
@@ -1076,9 +1076,9 @@ The first two values are updated as the ray steps through the grid, while the la
 ```mermaid
 flowchart TD
     A["Ray in [0,1]³ grid space"] --> B["Current voxel (x,y,z) at t_min"]
-    B --> C["nextCrossingT[x], nextCrossingT[y], nextCrossingT[z]"]
+    B --> C["nextCrossingT["x"], nextCrossingT["y"], nextCrossingT["z"]"]
     C --> D["Pick axis with smallest crossing = t_voxel_exit"]
-    D --> E["voxel[axis] += step[axis]<br/>nextCrossingT[axis] += deltaT[axis]"]
+    D --> E["voxel["axis"] += step["axis"]<br/>nextCrossingT["axis"] += deltaT["axis"]"]
     E --> B
     D --> F["Emit RayMajorantSegment<br/>[t_min, t_voxel_exit)"]
 ```

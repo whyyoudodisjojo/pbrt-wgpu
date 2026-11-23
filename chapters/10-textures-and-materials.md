@@ -38,11 +38,11 @@
 
 ```mermaid
 flowchart LR
-    A[UV / 3D Coordinates] --> B[Texture Mapping]
-    B --> C[Texture Evaluation + Filtering]
-    C --> D[Material Parameters]
-    D --> E[BSDF / BxDF]
-    E --> F[Scattered Radiance]
+    A["UV / 3D Coordinates"] --> B["Texture Mapping"]
+    B --> C["Texture Evaluation + Filtering"]
+    C --> D["Material Parameters"]
+    D --> E["BSDF / BxDF"]
+    E --> F["Scattered Radiance"]
 ```
 
 The BRDFs and BTDFs introduced in the previous chapter address only part of the problem of describing how a surface scatters light. Although they describe how light is scattered at a particular point on a surface, the renderer needs to determine which BRDFs and BTDFs are present at a point on a surface and what their parameters are. In this chapter, we describe a procedural shading mechanism that addresses this issue.
@@ -1968,7 +1968,7 @@ flowchart LR
     TEX["Candidate texel at (ss, tt)"] --> R2["r² = A·ss² + B·ss·tt + C·tt²"]
     R2 --> INSIDE{"r² < 1?"}
     INSIDE -->|yes| LUT["index = min(r² · LUTSize, LUTSize − 1)"]
-    LUT --> W["weight = MIPFilterLUT[index]"]
+    LUT --> W["weight = MIPFilterLUT["index"]"]
     INSIDE -->|no| SKIP["discard texel"]
 ```
 

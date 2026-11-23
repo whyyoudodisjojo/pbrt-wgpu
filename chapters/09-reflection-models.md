@@ -22,10 +22,10 @@
 
 ```mermaid
 flowchart TD
-    A[Incident Direction] --> B[Microfacet Distribution]
-    B --> C[Fresnel]
-    C --> D[Shadowing-Masking]
-    D --> E[Scattered Radiance]
+    A["Incident Direction"] --> B["Microfacet Distribution"]
+    B --> C["Fresnel"]
+    C --> D["Shadowing-Masking"]
+    D --> E["Scattered Radiance"]
 ```
 
 > **Reading the code in this chapter.** The `rust` listings are Rust-flavored pseudocode that uses

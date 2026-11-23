@@ -24,12 +24,12 @@
 
 ```mermaid
 flowchart TD
-    A[Ray] --> B[BVH Node]
-    B --> C{Leaf?}
-    C -- no --> D[Test Children]
+    A["Ray"] --> B["BVH Node"]
+    B --> C{"Leaf?"}
+    C -- no --> D["Test Children"]
     D --> B
-    C -- yes --> E[Test Primitives]
-    E --> F[Closest Hit]
+    C -- yes --> E["Test Primitives"]
+    E --> F["Closest Hit"]
 ```
 
 The classes described in the last chapter focus exclusively on representing the geometric properties of 3D objects. Although the `Shape` interface provides a convenient abstraction for geometric operations such as intersection and bounding, it is not sufficiently expressive to fully describe an object in a scene. For example, it is necessary to bind material properties to each shape in order to specify its appearance.
@@ -447,11 +447,11 @@ The page diagram is redrawn below: each bounding box becomes a node, and the sol
 
 ```mermaid
 flowchart TD
-    R[Root: whole scene] --> A[Box: sphere + triangle]
-    R --> B[Box: skinny triangle]
-    A --> S[Sphere]
-    A --> T[Equilateral triangle]
-    B --> K[Skinny triangle]
+    R["Root: whole scene"] --> A["Box: sphere + triangle"]
+    R --> B["Box: skinny triangle"]
+    A --> S["Sphere"]
+    A --> T["Equilateral triangle"]
+    B --> K["Skinny triangle"]
 ```
 
 <details>
@@ -751,10 +751,10 @@ Redrawn from the page diagram — the centroids (filled dots) span a much wider 
 
 ```mermaid
 flowchart TB
-    C[Five primitives — bounding boxes with centroid dots] --> X["x-axis: narrow centroid interval"]
+    C["Five primitives — bounding boxes with centroid dots"] --> X["x-axis: narrow centroid interval"]
     C --> Y["y-axis: wide centroid interval (largest extent)"]
     Y --> D["split dimension dim = y"]
-    X --> N[rejected]
+    X --> N["rejected"]
 ```
 
 ```rust
@@ -954,7 +954,7 @@ The bucketing scheme from the page diagram, redrawn as a chain of equal-width bu
 
 ```mermaid
 flowchart LR
-    B0[b0] --- B1[b1] --- B2[b2] --- B3[b3] --- B4[b4] --- B5[b5] --- B6[b6] --- B7[b7] --- B8[b8] --- B9[b9] --- B10[b10] --- B11[b11]
+    B0["b0"] --- B1["b1"] --- B2["b2"] --- B3["b3"] --- B4["b4"] --- B5["b5"] --- B6["b6"] --- B7["b7"] --- B8["b8"] --- B9["b9"] --- B10["b10"] --- B11["b11"]
     SPLIT{{minimum-cost split boundary}} -.-> B5
 ```
 
@@ -1159,12 +1159,12 @@ The overall pipeline is naturally expressed as a sequence of passes — a shape 
 
 ```mermaid
 flowchart LR
-    A[Primitive centroids] --> B[Quantize + Morton encode]
-    B --> C[Radix sort by Morton code]
-    C --> D[Find treelet intervals<br/>high 12 bits]
-    D --> E[Build LBVH treelets in parallel]
-    E --> F[Build upper SAH BVH<br/>over treelet roots]
-    F --> G[Root node]
+    A["Primitive centroids"] --> B["Quantize + Morton encode"]
+    B --> C["Radix sort by Morton code"]
+    C --> D["Find treelet intervals<br/>high 12 bits"]
+    D --> E["Build LBVH treelets in parallel"]
+    E --> F["Build upper SAH BVH<br/>over treelet roots"]
+    F --> G["Root node"]
 ```
 
 ```rust
@@ -1374,7 +1374,7 @@ flowchart TB
     R1 --> T1
     R2 --> T2["Treelet B — contiguous Morton segment"]
     R3 --> T3["Treelet C — contiguous Morton segment"]
-    T1 --> P[Build LBVHs in parallel]
+    T1 --> P["Build LBVHs in parallel"]
     T2 --> P
     T3 --> P
 ```
@@ -1590,10 +1590,10 @@ The page diagram, redrawn as a tree plus its flattened array:
 flowchart TB
     subgraph T["BVH tree"]
         direction TB
-        A[A] --> B[B]
-        A --> C[C]
-        B --> D[D]
-        B --> E[E]
+        A["A"] --> B["B"]
+        A --> C["C"]
+        B --> D["D"]
+        B --> E["E"]
     end
     subgraph M["Linear array in memory — depth-first order"]
         direction LR
@@ -1750,17 +1750,17 @@ The traversal state machine, including the explicit stack and the front-to-back 
 
 ```mermaid
 flowchart TD
-    START[currentNodeIndex = 0 — root] --> HIT{ray hits node bounds?}
-    HIT -- no --> POP{stack empty?}
-    POP -- no --> NEXT[pop nodesToVisit → currentNodeIndex] --> HIT
-    POP -- yes --> DONE[return closest hit]
-    HIT -- yes --> LEAF{leaf?}
-    LEAF -- yes --> PRIMS[test all primitives in leaf<br/>update tMax on hit]
+    START["currentNodeIndex = 0 — root"] --> HIT{"ray hits node bounds?"}
+    HIT -- no --> POP{"stack empty?"}
+    POP -- no --> NEXT["pop nodesToVisit → currentNodeIndex"] --> HIT
+    POP -- yes --> DONE["return closest hit"]
+    HIT -- yes --> LEAF{"leaf?"}
+    LEAF -- yes --> PRIMS["test all primitives in leaf<br/>update tMax on hit"]
     PRIMS --> POP
-    LEAF -- no --> ORDER{dirIsNeg[splitAxis]?}
-    ORDER -- false --> NEAR[near = first child = index+1<br/>far = secondChildOffset]
-    ORDER -- true --> NEAR2[near = secondChildOffset<br/>far = first child = index+1]
-    NEAR --> PUSH[push far onto stack; descend near]
+    LEAF -- no --> ORDER{dirIsNeg["splitAxis"]?}
+    ORDER -- false --> NEAR["near = first child = index+1<br/>far = secondChildOffset"]
+    ORDER -- true --> NEAR2["near = secondChildOffset<br/>far = first child = index+1"]
+    NEAR --> PUSH["push far onto stack; descend near"]
     NEAR2 --> PUSH
     PUSH --> HIT
 ```

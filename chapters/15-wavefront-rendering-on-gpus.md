@@ -78,15 +78,15 @@ The overall flow through the wavefront integrator, and the way the host drives i
 
 ```mermaid
 flowchart TD
-    A[Generate Camera Rays] --> B[Intersect Queue]
-    B --> C[BVH Traversal Compute Shader]
-    C --> D[Hit / Miss Classification]
-    D --> E[Material Evaluation Compute Shader]
-    E --> F[Shadow / NEE Compute Shader]
-    F --> G[Compact Active Rays]
-    G --> H{Queue empty?}
+    A["Generate Camera Rays"] --> B["Intersect Queue"]
+    B --> C["BVH Traversal Compute Shader"]
+    C --> D["Hit / Miss Classification"]
+    D --> E["Material Evaluation Compute Shader"]
+    E --> F["Shadow / NEE Compute Shader"]
+    F --> G["Compact Active Rays"]
+    G --> H{"Queue empty?"}
     H -- no --> B
-    H -- yes --> I[Resolve & Tone Map]
+    H -- yes --> I["Resolve & Tone Map"]
 ```
 
 ```mermaid
@@ -99,20 +99,20 @@ flowchart LR
         H5["Buffer::map_async() → read back Film"]
     end
     subgraph Pipelines["WGSL compute pipelines (one per stage)"]
-        P1[generate_camera_rays]
-        P2[generate_ray_samples]
-        P3[intersect_closest]
-        P4[medium_sample / medium_scatter]
-        P5[handle_escaped / handle_emissive]
-        P6[evaluate_material_and_bsdf]
-        P7[trace_shadow_rays]
-        P8[update_film]
+        P1["generate_camera_rays"]
+        P2["generate_ray_samples"]
+        P3["intersect_closest"]
+        P4["medium_sample / medium_scatter"]
+        P5["handle_escaped / handle_emissive"]
+        P6["evaluate_material_and_bsdf"]
+        P7["trace_shadow_rays"]
+        P8["update_film"]
     end
     subgraph Memory["GPU buffers — SOA arrays + work queues"]
-        B1[Ray queues ×2]
-        B2[Work queues with atomic size]
-        B3[PixelSampleState SOA]
-        B4[Film / radiance output]
+        B1["Ray queues ×2"]
+        B2["Work queues with atomic size"]
+        B3["PixelSampleState SOA"]
+        B4["Film / radiance output"]
     end
     H1 --> B3
     H2 --> H3
@@ -286,16 +286,16 @@ This version of pbrt adopts the wavefront approach for its GPU rendering path, a
 
 ```mermaid
 flowchart TD
-    A[Generate Camera Rays] --> B[Generate Samples]
-    B --> C[Intersect Closest]
-    C --> E[Handle Escaped]
-    C --> F[Handle Emissive Geometry]
-    C --> G[Sample Medium Interaction]
-    C --> H[Sample Surface Scattering]
+    A["Generate Camera Rays"] --> B["Generate Samples"]
+    B --> C["Intersect Closest"]
+    C --> E["Handle Escaped"]
+    C --> F["Handle Emissive Geometry"]
+    C --> G["Sample Medium Interaction"]
+    C --> H["Sample Surface Scattering"]
     G --> H
-    G --> I[Sample Medium Scattering]
+    G --> I["Sample Medium Scattering"]
     H --> I
-    H --> J[Trace Shadow Rays]
+    H --> J["Trace Shadow Rays"]
     I --> J
     E -.->|next wavefront depth| B
     H -.->|indirect rays| B
@@ -536,8 +536,8 @@ Now consider a shader that takes a queue of `SimpleRay`s as input. Such a shader
 flowchart LR
     subgraph AOS["Array of Structures — SimpleRay[] (24-byte stride)"]
         direction LR
-        R0["ray[0]"] --> OX0["o.x"] --> OY0["o.y"] --> OZ0["o.z"] --> DX0["d.x"] --> DY0["d.y"] --> DZ0["d.z"]
-        DZ0 --> R1["ray[1]"] --> OX1["o.x"] --> OY1["o.y"] --> OZ1["o.z"] --> DX1["d.x"] --> DY1["d.y"] --> DZ1["d.z"]
+        R0["ray["0"]"] --> OX0["o.x"] --> OY0["o.y"] --> OZ0["o.z"] --> DX0["d.x"] --> DY0["d.y"] --> DZ0["d.z"]
+        DZ0 --> R1["ray["1"]"] --> OX1["o.x"] --> OY1["o.y"] --> OZ1["o.z"] --> DX1["d.x"] --> DY1["d.y"] --> DZ1["d.z"]
         DZ1 --> MORE["…"]
     end
 ```
@@ -563,12 +563,12 @@ If the threads in a thread group want to load the `x` component of their ray's o
 flowchart TB
     subgraph AOSREAD["(a) AOS: strided reads of o.x"]
         direction TB
-        T["threads t0 … t3"] --> P0["ray[0].o.x"] & P1["ray[1].o.x"] & P2["ray[2].o.x"] & P3["ray[3].o.x"]
+        T["threads t0 … t3"] --> P0["ray["0"].o.x"] & P1["ray["1"].o.x"] & P2["ray["2"].o.x"] & P3["ray["3"].o.x"]
         P0 & P1 & P2 & P3 --> CL["24-byte stride ⇒ several 128-byte cache lines"]
     end
-    subgraph SOAREAD["(b) SOA: contiguous reads of ox[i]"]
+    subgraph SOAREAD["(b) SOA: contiguous reads of ox["i"]"]
         direction TB
-        U["threads t0 … t3"] --> Q0["ox[0]"] & Q1["ox[1]"] & Q2["ox[2]"] & Q3["ox[3]"]
+        U["threads t0 … t3"] --> Q0["ox["0"]"] & Q1["ox["1"]"] & Q2["ox["2"]"] & Q3["ox["3"]"]
         Q0 & Q1 & Q2 & Q3 --> CL2["1 or at most 2 cache lines"]
     end
 ```
@@ -1362,11 +1362,11 @@ Alpha testing adds an additional complication (recall the discussion of alpha te
 ```mermaid
 flowchart LR
     subgraph OptiX["Original OptiX stages"]
-        RG[Ray generation] --> TR[Traversal]
-        TR --> IS[Intersection shader<br/>compact hit / t value]
-        TR --> AH[Any-hit shader<br/>stochastic alpha test]
-        TR --> MS[Miss shader]
-        TR --> CH[Closest-hit shader]
+        RG["Ray generation"] --> TR["Traversal"]
+        TR --> IS["Intersection shader<br/>compact hit / t value"]
+        TR --> AH["Any-hit shader<br/>stochastic alpha test"]
+        TR --> MS["Miss shader"]
+        TR --> CH["Closest-hit shader"]
         IS --> CH
     end
     subgraph WGSL["wgpu / WGSL compute shader"]

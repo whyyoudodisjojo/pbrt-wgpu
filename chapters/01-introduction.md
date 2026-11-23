@@ -30,16 +30,16 @@ The GPU port of pbrt keeps the same conceptual stages as the CPU renderer, but r
 
 ```mermaid
 flowchart LR
-    A[Scene Description] --> B[Acceleration Structure BVH]
-    B --> C[Camera Ray Generation]
-    C --> D[Ray-Object Intersection]
-    D --> E[Material Scattering]
-    E --> F[Light Sampling]
-    F --> G[Accumulate Radiance]
-    G --> H{More bounces?}
+    A["Scene Description"] --> B["Acceleration Structure BVH"]
+    B --> C["Camera Ray Generation"]
+    C --> D["Ray-Object Intersection"]
+    D --> E["Material Scattering"]
+    E --> F["Light Sampling"]
+    F --> G["Accumulate Radiance"]
+    G --> H{"More bounces?"}
     H -- yes --> D
-    H -- no --> I[Write Pixel to Storage Buffer]
-    I --> J[Present via wgpu Surface]
+    H -- no --> I["Write Pixel to Storage Buffer"]
+    I --> J["Present via wgpu Surface"]
 ```
 
 The ray payload itself can be expressed directly in WGSL. A storage buffer holds one pending path per image sample; a compute shader traces a batch of them, writes the scattered ray back, and accumulates radiance into an output image (see Sections 1.3.5 and 1.3.6 for the CPU counterparts):
@@ -239,9 +239,9 @@ Nearly everyone has used a camera and is familiar with its basic functionality: 
 
 ```mermaid
 flowchart LR
-    S[Scene point] -->|light through pinhole| F[Film at back of box]
-    E[Eye = pinhole] -->|defines viewing volume| V[Double pyramid into scene]
-    P[Point on image plane] -->|origin at eye, direction toward P| R[Generated camera ray]
+    S["Scene point"] -->|light through pinhole| F["Film at back of box"]
+    E["Eye = pinhole"] -->|defines viewing volume| V["Double pyramid into scene"]
+    P["Point on image plane"] -->|origin at eye, direction toward P| R["Generated camera ray"]
     R --> V
 ```
 
@@ -338,11 +338,11 @@ The lighting distribution described in the previous section ignores one very imp
 
 ```mermaid
 flowchart LR
-    P[Shading point p] -->|unblocked| L1[Light on the left: contributes]
-    P -->|blocked by object| L2[Light on the right: no contribution]
-    P -->|cast shadow ray toward light| T{Closest hit t < light distance?}
-    T -- yes --> B[Occluded: skip light]
-    T -- no --> C[Visible: include light]
+    P["Shading point p"] -->|unblocked| L1["Light on the left: contributes"]
+    P -->|blocked by object| L2["Light on the right: no contribution"]
+    P -->|cast shadow ray toward light| T{"Closest hit t < light distance?"}
+    T -- yes --> B["Occluded: skip light"]
+    T -- no --> C["Visible: include light"]
 ```
 
 Fortunately, in a ray tracer it is easy to determine if the light is visible from the point being shaded. We simply construct a new ray whose origin is at the surface point and whose direction points toward the light. These special rays are called *shadow rays*. If we trace this ray through the environment, we can check to see whether any intersections are found between the ray's origin and the light source by comparing the parametric $t$ value of any intersections found to the parametric $t$ value along the ray of the light source position. If there is no blocking object between the light and the surface, the light's contribution is included.
@@ -440,11 +440,11 @@ The main differences between the CPU and GPU rendering paths in pbrt are in thei
 
 ```mermaid
 flowchart TD
-    SC[Scene description file] --> P[Phase 1: Parse into BasicScene]
-    P --> O[Phase 2: Create concrete objects e.g. PerspectiveCamera]
-    O --> R[Phase 3: Main rendering loop]
-    R --> RC[CPU path: Integrator implementations, Chapters 13-14]
-    R --> RG[GPU/wgpu path: wavefront pipeline, Chapter 15]
+    SC["Scene description file"] --> P["Phase 1: Parse into BasicScene"]
+    P --> O["Phase 2: Create concrete objects e.g. PerspectiveCamera"]
+    O --> R["Phase 3: Main rendering loop"]
+    R --> RC["CPU path: Integrator implementations, Chapters 13-14"]
+    R --> RG["GPU/wgpu path: wavefront pipeline, Chapter 15"]
 ```
 
 While pbrt can render many scenes well with its current implementation, it has frequently been extended by students, researchers, and developers. Throughout this section are a number of notable images from those efforts. Figures 1.13, 1.14, and 1.15 were each created by students in a rendering course where the final class project was to extend pbrt with new functionality in order to render an image that it could not have rendered before. These images are among the best from that course.
@@ -948,9 +948,9 @@ fn new(
 
 ```mermaid
 flowchart LR
-    A[Sampler: sample values] --> B[Camera: ray from film plane]
-    B --> C[Li: radiance along ray]
-    C --> D[Film: store sample contribution]
+    A["Sampler: sample values"] --> B["Camera: ray from film plane"]
+    B --> C["Li: radiance along ray"]
+    C --> D["Film: store sample contribution"]
     A --> D
 ```
 
@@ -1109,16 +1109,16 @@ pub struct RandomWalkIntegrator {
 
 ```mermaid
 flowchart TD
-    A[Li: start recursion at depth 0] --> B[LiRandomWalk]
-    B --> C{Intersection found?}
-    C -- no --> D[Return radiance from infinite lights]
-    C -- yes --> E[Add emitted radiance Le]
-    E --> F{depth == maxDepth?}
-    F -- yes --> G[Return accumulated radiance]
-    F -- no --> H[Compute BSDF and sample direction omega prime]
-    H --> I[f * cos theta; zero?]
+    A["Li: start recursion at depth 0"] --> B["LiRandomWalk"]
+    B --> C{"Intersection found?"}
+    C -- no --> D["Return radiance from infinite lights"]
+    C -- yes --> E["Add emitted radiance Le"]
+    E --> F{"depth == maxDepth?"}
+    F -- yes --> G["Return accumulated radiance"]
+    F -- no --> H["Compute BSDF and sample direction omega prime"]
+    H --> I["f * cos theta; zero?"]
     I -- yes --> G
-    I -- no --> J[Spawn ray; recurse at depth + 1]
+    I -- no --> J["Spawn ray; recurse at depth + 1"]
     J --> B
 ```
 
@@ -1504,12 +1504,12 @@ Physically based approaches to rendering started to be seriously considered by g
 
 ```mermaid
 flowchart LR
-    A[Whitted 1980: recursive ray tracing] --> B[Cook & Torrance 1981-82: microfacet reflection]
-    B --> C[Goral et al. 1984: radiosity / finite elements]
-    C --> D[Cook, Porter & Carpenter 1984: distributed ray tracing]
-    D --> E[Kajiya 1986: path tracing + Monte Carlo]
-    E --> F[Veach 1997: MIS, bidirectional path tracing, MLT]
-    F --> G[Wald et al. 2001: real-time ray tracing]
+    A["Whitted 1980: recursive ray tracing"] --> B["Cook & Torrance 1981-82: microfacet reflection"]
+    B --> C["Goral et al. 1984: radiosity / finite elements"]
+    C --> D["Cook, Porter & Carpenter 1984: distributed ray tracing"]
+    D --> E["Kajiya 1986: path tracing + Monte Carlo"]
+    E --> F["Veach 1997: MIS, bidirectional path tracing, MLT"]
+    F --> G["Wald et al. 2001: real-time ray tracing"]
 ```
 
 - **Whitted (1980)** introduced the idea of using ray tracing for global lighting effects, opening the door to accurately simulating the distribution of light in scenes. The rendered images his approach produced were markedly different from any that had been seen before, which spurred excitement about this approach.
