@@ -19,13 +19,9 @@ This chapter first describes the basic physical processes that affect the radian
 
 There are three main physical processes that affect the distribution of radiance in an environment with participating media:
 
-```text
-            Absorption: the reduction in radiance due to the conversion of light to another form of
-            energy, such as heat.
-            Emission: radiance that is added to the environment from luminous particles.
-            Scattering: radiance heading in one direction that is scattered to other directions due to
-            collisions with particles.
-```
+- Absorption: the reduction in radiance due to the conversion of light to another form of energy, such as heat.
+- Emission: radiance that is added to the environment from luminous particles.
+- Scattering: radiance heading in one direction that is scattered to other directions due to collisions with particles.
 
 ```text
     Integrator 22
@@ -62,11 +58,7 @@ Absorption is described by the medium’s absorption coefficient, σa, which is 
 
 *Figure 11.3 shows the effect of absorption along a very short segment of a ray. Some amount of radiance Li(p, −ω) is arriving at point p, and we would like to find the exitant radiance Lo(p, ω) after absorption in the differential volume. This change in radiance along the differential ray length dt is described by the differential equation1*
 
-Lo(p, ω) − Li(p, −ω) = dLo(p, ω) = −σa(p, ω) Li(p, −ω) dt, which says that the differential reduction in radiance along the beam is a linear function of its initial radiance. (This is another instance of the linearity assumption in radiometry: the fraction of light absorbed does not vary based on the ray’s radiance, but is always a fixed fraction.) This differential equation can be solved to give the integral equation describing the total fraction of light absorbed for a ray. If we assume that the ray travels a distance d in direction ω through the medium starting at point p, the surviving portion of the original
-
-```text
-                                 radiance is given by
-```
+Lo(p, ω) − Li(p, −ω) = dLo(p, ω) = −σa(p, ω) Li(p, −ω) dt, which says that the differential reduction in radiance along the beam is a linear function of its initial radiance. (This is another instance of the linearity assumption in radiometry: the fraction of light absorbed does not vary based on the ray’s radiance, but is always a fixed fraction.) This differential equation can be solved to give the integral equation describing the total fraction of light absorbed for a ray. If we assume that the ray travels a distance d in direction ω through the medium starting at point p, the surviving portion of the original radiance is given by
 
 ### 11.1.2 EMISSION
 
@@ -334,14 +326,7 @@ distribution for θ is
 if g ≠ 0; otherwise, cos θ = 1 − 2ξ gives a uniform sampling over the sphere of directions. 〈Compute cos θ for Henyey–Greenstein sample〉 ≡ 713
 
 Float cosTheta; if (std::abs(g) < 1e-3f) cosTheta = 1 - 2 * u[0];
-
-```rust
-   else {
-          cos_theta = -1.0 / (2.0 * g) *
-                      (1.0 + g * g - ((1.0 - g * g) / (1.0 + g - 2.0 *
-                      g * u[0])).powi(2));
-   }
-```
+else cosTheta = -1.0f / (2.0f * g) * (1.0f + g * g - Sqr((1.0f - g * g) / (1.0f + g - 2.0f * g * u[0])));
 
 The (cos θ, ϕ) values specify a direction with respect to a coordinate system where wo is along the +z axis. Therefore, it is necessary to transform the sampled vector to wo’s coordinate system before returning it.
 
@@ -420,12 +405,7 @@ Instead of simply copying the value of the primitive’s MediumInterface into th
 participating media. Otherwise, the Ray::medium field takes precedence. Setting the SurfaceInteraction’s mediumInterface field in this way greatly simplifies the specification of scenes containing media: in particular, it is not necessary to provide corresponding Mediums at every scene surface that is in contact with a medium. Instead, only non-opaque surfaces that have different media on each side require an explicit medium interface. In the simplest case where a scene containing opaque objects is filled with a participating medium (e.g., haze), it is enough for the camera and light sources to have their media specified accordingly. 〈Set medium properties at surface intersection〉 ≡ 398
 
 if (primMediumInterface && primMediumInterface->IsMediumTransition()) mediumInterface = primMediumInterface;
-
-```rust
-   else {
-          medium = ray_medium;
-   }
-```
+else medium = ray_medium;
 
 Once mediumInterface or medium is set, it is possible to implement methods that return information about the local media. For surface interactions, a direction w can be specified to select a side of the surface. If a MediumInterface has been stored, the dot product with the surface normal determines whether the inside or outside medium should be returned. Otherwise, medium is returned.
 
@@ -745,11 +725,7 @@ Some of the DDA state values for each dimension are always computed in the same 
 
 The integer coordinates of the initial voxel are easily found using the grid intersection point. Because it is with respect to the [0, 1]3 cube, all that is necessary is to scale by the resolution in each dimension and take the integer component of that value. It is, however, important to clamp this value to the valid range in case round-off error leads to an out-of-bounds value. Next, deltaT is found by dividing the voxel width, which is one over its resolution since we are working in [0, 1]3, by the absolute value of the ray’s direction component for the current axis. (The absolute value is taken since t only increases as the DDA visits successive voxels.) Finally, a rare and subtle case related to the IEEE floating-point representation must be handled. Recall from Section 6.8.1 that both “positive” and “negative” zero values can be represented as floats. Normally there is no need to distinguish between them as the distinction is mostly not evident—for example, comparing a negative zero to a positive zero gives a true result. However, the fragment after this one will take advantage of the fact that it is legal to compute 1 ⊘ 0 in floating point, which gives an infinite value. There, we would always like the positive infinity, and thus negative zeros are cleaned up here. 〈Compute current voxel for axis and handle negative zero direction〉 ≡ 724
 
-voxel[axis] = Clamp(gridIntersect[axis] * grid->res[axis], 0, grid->res[axis] - 1); deltaT[axis] = 1 / (std::abs(rayGrid.d[axis]) * grid->res[axis]); if (rayGrid.d[axis] == -0.f)
-
-```rust
-        ray_grid.d[axis] = 0.0;
-```
+voxel[axis] = Clamp(gridIntersect[axis] * grid->res[axis], 0, grid->res[axis] - 1); deltaT[axis] = 1 / (std::abs(rayGrid.d[axis]) * grid->res[axis]); if (rayGrid.d[axis] == -0.f) rayGrid.d[axis] = 0.0;
 
 The parametric t value where the ray exits the current voxel, nextCrossingT[axis], is found with the ray–slab intersection algorithm from Section 6.1.2, using the plane that passes through the corresponding voxel face. Given a zero-valued direction component, nextCrossingT ends up with the positive floating-point ∞ value. The voxel stepping logic will always decide to step in one of the other directions and will correctly never step in this direction. For positive directions, rays exit at the upper end of a voxel’s extent and therefore advance plus one voxel in each dimension. Traversal completes when the upper limit of the grid is reached. 〈Handle ray with positive direction for voxel stepping〉 ≡ 724
 
@@ -785,11 +761,7 @@ pstd::optional<RayMajorantSegment> Next() { if (tMin >= tMax) return {}; 〈Find
 
 The first order of business when Next() executes is to figure out which axis to step along to visit the next voxel. This gives the t value at which the ray exits the current voxel, tVoxelExit. Determining this axis requires finding the smallest of three numbers—the parametric t values where the ray enters the next voxel in each dimension, which is a straightforward task. However, in this case an optimization is possible because we do not care about the value of the smallest number, just its corresponding index in the nextCrossingT array. It is possible to compute this index in straight-line code without any branches, which can be beneficial to performance. The following tricky bit of code determines which of the three nextCrossingT values is the smallest and sets stepAxis accordingly. It encodes this logic by setting each of the three low-order bits in an integer to the results of three comparisons between pairs of nextCrossingT values. It then uses a table (cmpToAxis) to map the resulting integer to the direction with the smallest value. 〈Find stepAxis for stepping to next voxel and exit point tVoxelExit〉 ≡ 726
 
-int bits = ((nextCrossingT[0] < nextCrossingT[1]) << 2) + ((nextCrossingT[0] < nextCrossingT[2]) << 1) + ((nextCrossingT[1] < nextCrossingT[2])); const int cmpToAxis[8] = {2, 1, 2, 1, 2, 2, 0, 0}; int stepAxis = cmpToAxis[bits];
-
-```rust
-   let t_voxel_exit = t_max.min(next_crossing_t[step_axis]);
-```
+int bits = ((nextCrossingT[0] < nextCrossingT[1]) << 2) + ((nextCrossingT[0] < nextCrossingT[2]) << 1) + ((nextCrossingT[1] < nextCrossingT[2])); const int cmpToAxis[8] = {2, 1, 2, 1, 2, 2, 0, 0}; int stepAxis = cmpToAxis[bits]; Float tVoxelExit = std::min(tMax, nextCrossingT[stepAxis]);
 
 Computing the majorant for the current voxel is a matter of multiplying sigma_t with the maximum density value over the voxel’s volume.
 
@@ -888,10 +860,7 @@ Initial values of σa and σs are found by sampling the baseline values.
 
 〈Sample spectra for grid medium σa and σs〉 ≡ 729, 731
 
-```rust
-   let sigma_a: SampledSpectrum = sigma_a_spec.sample(lambda);
-   let sigma_s: SampledSpectrum = sigma_s_spec.sample(lambda);
-```
+SampledSpectrum sigma_a = sigma_a_spec.Sample(lambda); SampledSpectrum sigma_s = sigma_s_spec.Sample(lambda);
 
 Next, σa and σs are scaled by the interpolated density at p. The provided point must be transformed from rendering space to the medium’s space and then remapped to [0, 1]3 before the grid’s Lookup() method is called to interpolate the density.
 
@@ -933,11 +902,7 @@ The GridMedium constructor concludes with the following fragment, which initiali
 
 〈Initialize majorantGrid for GridMedium〉 ≡ for (int z = 0; z < majorantGrid.res.z; ++z) for (int y = 0; y < majorantGrid.res.y; ++y) for (int x = 0; x < majorantGrid.res.x; ++x) {
 
-```rust
-                      let bounds = majorant_grid.voxel_bounds(x, y, z);
-                      majorant_grid.set(x, y, z,
-                      density_grid.max_value(bounds));
-```
+Bounds3f bounds = majorantGrid.VoxelBounds(x, y, z); majorantGrid.Set(x, y, z, densityGrid.MaxValue(bounds)); }
 
 〈GridMedium Private Members〉 +≡ 728
 
@@ -1032,13 +997,7 @@ HGPhaseFunction phase;
 
 The absorption and scattering coefficients are stored using the RGBUnboundedSpectrum class. However, this class does not support the arithmetic operations that are necessary to perform trilinear interpolation in the SampledGrid::Lookup() method. For such cases, SampledGrid allows passing a callback function that converts the in-memory values to another type that does support them. Here, the implementation provides one that converts to SampledSpectrum, which does allow arithmetic and matches the type to be returned in MediumProperties as well. 〈Compute σa and σs for RGBGridMedium〉 ≡ 732
 
-```rust
-   let convert = |s: RGBUnboundedSpectrum| s.sample(lambda);
-   let sigma_a = sigma_scale *
-       (if let Some(grid) = &sigma_a_grid { grid.lookup(p, convert) } else { SampledSpectrum::from(1.0) });
-   let sigma_s = sigma_scale *
-       (if let Some(grid) = &sigma_s_grid { grid.lookup(p, convert) } else { SampledSpectrum::from(1.0) });
-```
+auto convert = [=](RGBUnboundedSpectrum s) { return s.Sample(lambda); }; SampledSpectrum sigma_a = sigma_scale * (sigma_aGrid ? sigma_aGrid->Lookup(p, convert) : SampledSpectrum(1)); SampledSpectrum sigma_s = sigma_scale * (sigma_sGrid ? sigma_sGrid->Lookup(p, convert) : SampledSpectrum(1));
 
 Because sigmaScale is applied to both σa and σs, it provides a convenient way to fine-tune the density of a medium without needing to update all of its individual RGB values. 〈RGBGridMedium Private Members〉 +≡ 731
 
@@ -1104,12 +1063,7 @@ given trilinear interpolation) give bounds on the sampled spectral values that a
 
 One nit in how the majorants are computed is that the following code effectively assumes that the values in the σa and σs grids are independent. Although it computes a valid majorant, it is unable to account for cases like the two being defined such that σs = c − σa for some constant c. Then, the bound will be looser than it could be. 〈Initialize majorantGrid voxel for RGB σa and σs〉 ≡ 733
 
-```rust
-   let max = |s: RGBUnboundedSpectrum| s.max_value();
-   let max_sigma_t = (if let Some(grid) = &sigma_a_grid { grid.max_value(bounds, max) } else { 1.0 })
-       + (if let Some(grid) = &sigma_s_grid { grid.max_value(bounds, max) } else { 1.0 });
-   majorant_grid.set(x, y, z, sigma_scale * max_sigma_t);
-```
+auto max = [](RGBUnboundedSpectrum s) { return s.MaxValue(); }; Float maxSigmaT = (sigma_aGrid ? sigma_aGrid->MaxValue(bounds, max) : 1) + (sigma_sGrid ? sigma_sGrid->MaxValue(bounds, max) : 1); majorantGrid.Set(x, y, z, sigmaScale * maxSigmaT);
 
 〈RGBGridMedium Private Members〉 +≡ 731
 
@@ -1165,12 +1119,7 @@ have used a simple triangle filter to reconstruct densities at intermediate posi
 
 ## EXERCISES
 
-➋ 11.1 The GridMedium and RGBGridMedium classes use a relatively large amount of memory for complex volume densities. Determine their memory requirements when used with complex medium densities and modify their implementations to reduce memory use. One approach might be to detect regions of space with constant (or relatively constant) density values using an octree data structure and to only refine the octree in regions where the densities are changing. Another possibility is to use less memory to record each density value—for example, by computing the minimum and maximum densities and then using 8 or 16 bits per density value to interpolate between them. What sorts of errors appear when either of these approaches is pushed too far? ➋ 11.2 Improve GridMedium to allow specifying grids of arbitrary Spectrum values to define emission. How much more memory does your approach use for blackbody emission distributions than the current implementation, which only stores floating-point temperatures in that case? How much memory does it use when other spectral representations are provided? Can you find ways of reducing memory use—for example, by detecting equal spectra and only storing them in memory once? ➌ 11.3 One shortcoming of the majorants computed by the RGBGridMedium is that they do not account for spectral variation in the scattering coefficients—although conservative, they may give a loose bound for wavelengths where the coefficients are much lower than the maximum values. Computing tighter majorants is not straightforward in a spectral renderer: in a renderer that used RGB color for rendering, it is easy to maintain a majorant grid of RGB values instead of Floats, though doing so is more difficult with a spectral renderer, for reasons related to why RGBUnboundedSpectrum values are stored in the grids for σa and σs and not RGB. (See the discussion of this topic before the 〈Initialize majorantGrid voxel for RGB σaand σs〉 fragment.) Investigate this issue and develop an approach that better accounts for spectral variation in the scattering coefficients to return wavelength-varying majorants when RGBGridMedium::SampleRay() is called. You might, for example, find a way to compute RGBUnboundedSpectrum values that bound the maximum of two or more others. How much overhead does your representation introduce? How much is rendering time improved for scenes with colored media due to more efficient sampling when it is used? ➋ 11.4 The Medium implementations that use the MajorantGrid all currently use fixed grid resolutions for it, regardless of the amount of variation in density in their underlying media. Read the paper by Yue et al. (2011) and use their approach to choose those resolutions adaptively. Then, measure performance over a sweep of grid sizes with a variety of volume densities. Are there any cases where there is a significant performance benefit from a different grid resolution? Considering their assumptions and pbrt’s implementation, can you explain any discrepancies between grid sizes set with their heuristics versus the most efficient resolution in pbrt? ➋ 11.5 Read Wrenninge’s paper (2016) on a time-varying density representation for motion blur in volumes and implement this approach in pbrt. One challenge will be to
-
-```text
-                    generate volumes in this representation; you may need to implement a physical
-                    simulation system in order to make some yourself.
-```
+➋ 11.1 The GridMedium and RGBGridMedium classes use a relatively large amount of memory for complex volume densities. Determine their memory requirements when used with complex medium densities and modify their implementations to reduce memory use. One approach might be to detect regions of space with constant (or relatively constant) density values using an octree data structure and to only refine the octree in regions where the densities are changing. Another possibility is to use less memory to record each density value—for example, by computing the minimum and maximum densities and then using 8 or 16 bits per density value to interpolate between them. What sorts of errors appear when either of these approaches is pushed too far? ➋ 11.2 Improve GridMedium to allow specifying grids of arbitrary Spectrum values to define emission. How much more memory does your approach use for blackbody emission distributions than the current implementation, which only stores floating-point temperatures in that case? How much memory does it use when other spectral representations are provided? Can you find ways of reducing memory use—for example, by detecting equal spectra and only storing them in memory once? ➌ 11.3 One shortcoming of the majorants computed by the RGBGridMedium is that they do not account for spectral variation in the scattering coefficients—although conservative, they may give a loose bound for wavelengths where the coefficients are much lower than the maximum values. Computing tighter majorants is not straightforward in a spectral renderer: in a renderer that used RGB color for rendering, it is easy to maintain a majorant grid of RGB values instead of Floats, though doing so is more difficult with a spectral renderer, for reasons related to why RGBUnboundedSpectrum values are stored in the grids for σa and σs and not RGB. (See the discussion of this topic before the 〈Initialize majorantGrid voxel for RGB σaand σs〉 fragment.) Investigate this issue and develop an approach that better accounts for spectral variation in the scattering coefficients to return wavelength-varying majorants when RGBGridMedium::SampleRay() is called. You might, for example, find a way to compute RGBUnboundedSpectrum values that bound the maximum of two or more others. How much overhead does your representation introduce? How much is rendering time improved for scenes with colored media due to more efficient sampling when it is used? ➋ 11.4 The Medium implementations that use the MajorantGrid all currently use fixed grid resolutions for it, regardless of the amount of variation in density in their underlying media. Read the paper by Yue et al. (2011) and use their approach to choose those resolutions adaptively. Then, measure performance over a sweep of grid sizes with a variety of volume densities. Are there any cases where there is a significant performance benefit from a different grid resolution? Considering their assumptions and pbrt’s implementation, can you explain any discrepancies between grid sizes set with their heuristics versus the most efficient resolution in pbrt? ➋ 11.5 Read Wrenninge’s paper (2016) on a time-varying density representation for motion blur in volumes and implement this approach in pbrt. One challenge will be to generate volumes in this representation; you may need to implement a physical simulation system in order to make some yourself.
 
 ```text
      GridMedium 728

@@ -910,11 +910,7 @@ The source code used for building pbrt is under the src directory in the pbrt di
 
 The pbrt.h header file in src/pbrt is the first file that is included by all other source files in the system. It contains a few macros and widely useful forward declarations, though we have tried to keep it short and to minimize the number of other headers that it includes in the interests of compile time efficiency. The src/pbrt directory also contains a number of subdirectories. They have the following roles: base: Header files defining the interfaces for 12 of the common interface types listed in Table 1.1 (Primitive and Integrator are CPU-only and so are defined in files in the cpu directory). cmd: Source files containing the main() functions for the executables that are built for pbrt. (Others besides the pbrt executable include imgtool, which performs various image processing operations, and pbrt_test, which contains unit tests.) cpu: CPU-specific code, including Integrator implementations. gpu: GPU-specific source code, including functions for allocating memory and launching work on the GPU. util: Lower-level utility code, most of it not specific to rendering.
 
-```text
-            wavefront: Implementation of the WavefrontPathIntegrator,
-            which is introduced in Chapter 15. This integrator runs on both
-            CPUs and GPUs.
-```
+wavefront: Implementation of the WavefrontPathIntegrator, which is introduced in Chapter 15. This integrator runs on both CPUs and GPUs.
 
 ### 1.5.2 NAMING CONVENTIONS
 
@@ -1085,10 +1081,7 @@ Pixar’s modern RenderMan (2018), Fascione et al. describing Weta Digital’s M
 
 ➊ 1.1 A good way to gain an understanding of pbrt is to follow the process of computing the radiance value for a single ray in a debugger. Build a version of pbrt with debugging symbols and set up your debugger to run pbrt with a not-too-complex scene. Set breakpoints in the ImageTileIntegrator::Render() method and trace through the process of how a ray is generated, how its radiance value is computed, and how its contribution is added to the image. The first time you do this, you may want to specify that only a single thread of execution should be used by providing --nthreads 1 as command-line arguments to pbrt; doing so ensures that all computation is done in the main processing thread, which may make it easier to understand what is going on, depending on how easy your debugger makes it to step through the program when it is running multiple threads.
 
-```text
-             As you gain more understanding about the details of the system later in the book, repeat
-             this process and trace through particular parts of the system more carefully.
-```
+As you gain more understanding about the details of the system later in the book, repeat this process and trace through particular parts of the system more carefully.
 
 ```text
      ImageTileIntegrator::Render() 25

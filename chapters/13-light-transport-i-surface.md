@@ -185,12 +185,8 @@ Given the path integral form of the LTE, we would like to estimate the value of 
 
 from the camera ray’s intersection point p1, for a given camera ray from p0 that first intersects the scene at p1. We have two problems that must be solved in order to compute this estimate:
 
-```text
-           1. How do we estimate the value of the sum of the infinite number of P (pi) terms with a
-              finite amount of computation?
-           2. Given a particular P (pi) term, how do we generate one or more paths p in order to
-              compute a Monte Carlo estimate of its multidimensional integral?
-```
+1. How do we estimate the value of the sum of the infinite number of P (pi) terms with a finite amount of computation?
+2. Given a particular P (pi) term, how do we generate one or more paths p in order to compute a Monte Carlo estimate of its multidimensional integral?
 
 For path tracing, we can take advantage of the fact that for physically valid scenes, paths with more vertices scatter less light than paths with fewer vertices overall (this is not necessarily true for any particular pair of paths, just in the aggregate). This is a natural consequence of conservation of energy in BSDFs. Therefore, we will always estimate the first few terms P (pi) and will then start to apply Russian roulette to stop sampling after a finite number of terms without introducing bias. (Recall that Section 2.2.4 showed how to use Russian roulette to probabilistically stop computing terms in a sum as long as the terms that are not skipped are reweighted appropriately.) For example, if we always computed estimates of P (p1), P (p2), and P (p3) but stopped without computing more terms with probability q, then an unbiased estimate of the sum would be
 
@@ -304,9 +300,6 @@ Thus, the product of beta with scattered light from direct lighting from the fin
     let mut depth = 0;
     while !beta.is_zero() {
         // 〈Find next SimplePathIntegrator vertex and accumulate contribution〉
-```
-
-```rust
     }
     return l;
 ```
@@ -315,16 +308,13 @@ Each iteration of the while loop accounts for an additional segment of a path, c
 
 〈Find next SimplePathIntegrator vertex and accumulate contribution〉 ≡ 827
 
-```text
-   〈Intersect ray with scene 828〉
-   〈Account for infinite lights if ray has no intersection 828〉
-   〈Account for emissive surface if light was not sampled 828〉
-   〈End path if maximum depth reached 829〉
-   〈Get BSDF and skip over medium boundaries 828〉
-   〈Sample direct illumination if sampleLights is true 829〉
-   〈Sample outgoing direction at intersection to continue path 830〉
-```
-
+- 〈Intersect ray with scene 828〉
+- 〈Account for infinite lights if ray has no intersection 828〉
+- 〈Account for emissive surface if light was not sampled 828〉
+- 〈End path if maximum depth reached 829〉
+- 〈Get BSDF and skip over medium boundaries 828〉
+- 〈Sample direct illumination if sampleLights is true 829〉
+- 〈Sample outgoing direction at intersection to continue path 830〉
 ```text
     RayDifferential 96
     RayIntegrator 28
@@ -563,19 +553,11 @@ Otherwise, the fragment 〈Uniformly sample sphere or hemisphere to get new path
 
 The PathIntegrator is based on the same path tracing approach as the SimplePathIntegrator but incorporates a number of improvements. They include these:
 
-```text
-               The direct lighting calculation is performed by sampling both the BSDF and the sampled
-               light source and weighting both samples using multiple importance sampling. This
-               approach can substantially reduce variance compared to sampling the light alone.
-               Any LightSampler can be used, which makes it possible to use effective light sampling
-               algorithms like the one implemented in BVHLightSampler to choose lights.
-               It initializes the VisibleSurface when it is provided, giving geometric information
-               about the first intersection point to Film implementations like GBufferFilm.
-               Russian roulette is used to terminate paths, which can significantly boost the integrator’s
-               efficiency.
-               A technique known as path regularization can be applied in order to reduce variance
-               from difficult-to-sample paths.
-```
+- The direct lighting calculation is performed by sampling both the BSDF and the sampled light source and weighting both samples using multiple importance sampling. This approach can substantially reduce variance compared to sampling the light alone.
+- Any LightSampler can be used, which makes it possible to use effective light sampling algorithms like the one implemented in BVHLightSampler to choose lights.
+- It initializes the VisibleSurface when it is provided, giving geometric information about the first intersection point to Film implementations like GBufferFilm.
+- Russian roulette is used to terminate paths, which can significantly boost the integrator’s efficiency.
+- A technique known as path regularization can be applied in order to reduce variance from difficult-to-sample paths.
 
 ![Figure 13.7](images/img-1316-306.png)
 
@@ -666,10 +648,7 @@ Also similarly, each iteration of the while loop traces a ray to find its closes
         // 〈Sample BSDF to get new path direction〉
         // 〈Possibly terminate the path with Russian roulette〉
    }
-```
-
-```rust
-    return l;
+   return l;
 ```
 
 We will defer discussing the implementation of the first fragment used below, 〈Add emitted light at intersection point or from the environment〉, until later in this section after more details of the implementation of the MIS direct lighting calculation have been introduced.
@@ -883,7 +862,8 @@ In addition to the path throughput weight beta, a number of additional values re
 
 Finally, prevIntrCtx stores geometric information about the intersection point from which the sampled ray is leaving. This value is also used in the MIS computation for direct lighting. 〈Update path state variables after surface scattering〉 ≡ 837
 
-beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf; p_b = bs->pdfIsProportional ? bsdf.PDF(wo, bs->wi) : bs->pdf; specularBounce = bs->IsSpecular(); anyNonSpecularBounces |= !bs->IsSpecular(); if (bs->IsTransmission()) etaScale *= Sqr(bs->eta); prevIntrCtx = si->intr; 〈Declare local variables for PathIntegrator::Li()〉 +≡ 833
+beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf; p_b = bs->pdfIsProportional ? bsdf.PDF(wo, bs->wi) : bs->pdf; specularBounce = bs->IsSpecular(); anyNonSpecularBounces |= !bs->IsSpecular(); if (bs->IsTransmission()) etaScale *= Sqr(bs->eta); prevIntrCtx = si->intr;
+〈Declare local variables for PathIntegrator::Li()〉 +≡ 833
 
 Float p_b, etaScale = 1; bool specularBounce = false, anyNonSpecularBounces = false; LightSampleContext prevIntrCtx;
 
@@ -1090,23 +1070,9 @@ discontinuities and not in smooth regions of the image. They then developed a me
 
 ➋ 13.1 To further improve efficiency, Russian roulette can be applied to skip tracing many of the shadow rays that make a low contribution to the final image: to implement this approach, tentatively compute the potential contribution of each shadow ray to the final overall radiance value before tracing the ray. If the contribution is below some threshold, apply Russian roulette to possibly skip tracing the ray. Measure the effect your scheme has on Monte Carlo efficiency for a number of test scenes. ➋ 13.2 Read Veach’s description of efficiency-optimized Russian roulette, which adaptively chooses a threshold for applying Russian roulette (Veach 1997; Section 10.4.1). Implement this algorithm in pbrt, and evaluate its effectiveness in comparison to manually setting these thresholds. ➋ 13.3 If a scene has an object with a material that causes all but one of the wavelengths in SampledWavelengths to be terminated (e.g., due to dispersion), then rays may often
 
-```text
-         undergo a number of scattering events before they hit such an object. In pbrt’s
-         current implementation, the path’s radiance estimate is divided by the wavelength
-         PDF values once, in the PixelSensor::ToSensorRGB() method. An implication of
-         this design is that all the lighting calculations along the path are affected by the
-         termination of wavelengths, and not just the ones after it happens. The result is an
-         increase in color noise in such images.
-```
+undergo a number of scattering events before they hit such an object. In pbrt’s current implementation, the path’s radiance estimate is divided by the wavelength PDF values once, in the PixelSensor::ToSensorRGB() method. An implication of this design is that all the lighting calculations along the path are affected by the termination of wavelengths, and not just the ones after it happens. The result is an increase in color noise in such images.
 
-```text
-         Modify one or more integrators to instead perform this division by the current set of
-         wavelength PDFs each time the radiance estimate being calculated is updated and not
-         in PixelSensor::ToSensorRGB(). Verify that the same image is computed for
-         scenes without wavelength termination (other than minor differences due to round-
-         off error). Is there any change in performance? Find a scene where this change
-         improves the result and measure the reduction in MSE.
-```
+Modify one or more integrators to instead perform this division by the current set of wavelength PDFs each time the radiance estimate being calculated is updated and not in PixelSensor::ToSensorRGB(). Verify that the same image is computed for scenes without wavelength termination (other than minor differences due to round-off error). Is there any change in performance? Find a scene where this change improves the result and measure the reduction in MSE.
 
 ```text
              BSDF 544

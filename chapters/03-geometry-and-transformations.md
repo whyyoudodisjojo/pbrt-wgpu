@@ -91,9 +91,6 @@ An alternate implementation of these two tuple classes would be to have a single
 ```rust
    T operator[](int i) const {
         if (i == 0) return x;
-```
-
-```rust
          if (i == 1) return y;
          return z;
     }
@@ -137,29 +134,27 @@ standard type promotion rules: if a Vector3 that stored integer values is added 
 
 In the interests of space, we will not include the other Tuple3 arithmetic operators here, nor will we include the various other utility functions that perform component-wise operations on them. The full list of capabilities provided by Tuple2 and Tuple3 is:
 
-```rust
-            The basic arithmetic operators of per-component addition, subtraction, and negation,
-            including the “in place” (e.g., operator+=) forms of them.
-            Component-wise multiplication and division by a scalar value, including “in place”
-            variants.
-            Abs(a), which returns a value where the absolute value of each component of the tuple
-            type has been taken.
-            Ceil(a) and Floor(a), which return a value where the components have been rounded
-            up or down to the nearest integer value, respectively.
-            Lerp(t, a, b), which returns the result of the linear interpolation (1-t)*a + t*b.
-            FMA(a, b, c), which takes three tuples and returns the result of a component-wise
-            fused multiply-add a*b + c.
-            Min(a, b) and Max(a, b), which respectively return the component-wise minimum
-            and maximum of the two given tuples.
-            MinComponentValue(a) and MaxComponentValue(a), which respectively return the
-            minimum and maximum value of the tuple’s components.
-            MinComponentIndex(a) and MaxComponentIndex(a), which respectively return the
-            zero-based index of the tuple element with minimum or maximum value.
-            Permute(a, perm), which returns the permutation of the tuple according to an array of
-            indices.
-            HProd(a), which returns the horizontal product—the component values multiplied
-            together.
-```
+The basic arithmetic operators of per-component addition, subtraction, and negation,
+including the “in place” (e.g., operator+=) forms of them.
+Component-wise multiplication and division by a scalar value, including “in place”
+variants.
+Abs(a), which returns a value where the absolute value of each component of the tuple
+type has been taken.
+Ceil(a) and Floor(a), which return a value where the components have been rounded
+up or down to the nearest integer value, respectively.
+Lerp(t, a, b), which returns the result of the linear interpolation (1-t)*a + t*b.
+FMA(a, b, c), which takes three tuples and returns the result of a component-wise
+fused multiply-add a*b + c.
+Min(a, b) and Max(a, b), which respectively return the component-wise minimum
+and maximum of the two given tuples.
+MinComponentValue(a) and MaxComponentValue(a), which respectively return the
+minimum and maximum value of the tuple’s components.
+MinComponentIndex(a) and MaxComponentIndex(a), which respectively return the
+zero-based index of the tuple element with minimum or maximum value.
+Permute(a, perm), which returns the permutation of the tuple according to an array of
+indices.
+HProd(a), which returns the horizontal product—the component values multiplied
+together.
 
 ```text
     Tuple2 83
@@ -328,11 +323,9 @@ The cross product is another useful operation for 3D vectors. Given two vectors 
 
 The cross product is defined as:
 
-```rust
-                                               (v×w)x = vywz − vzwy
-                                               (v×w)y = vzwx − vxwz
-                                              (v×w)z = vxwy − vywx.
-```
+(v×w)x = vywz − vzwy
+(v×w)y = vzwx − vxwz
+(v×w)z = vxwy − vywx.
 
 A way to remember this is to compute the determinant of the matrix:
 
@@ -574,9 +567,6 @@ The RayDifferential constructor mirrors the Ray’s.
 ```rust
    RayDifferential(Point3f o, Vector3f d, Float time = 0.f,
                          Medium medium = None)
-```
-
-```rust
          : Ray(o, d, time, medium) {}
 ```
 
@@ -1055,9 +1045,8 @@ explicit operator Vector3f() const { Vector3f v; v.x = -1 + 2 * (x / 65535.f); v
 
 For directions in the lower hemisphere, the inverse of the mapping implemented in the 〈Encode octahedral vector with z < 0〉 fragment must be performed before the direction is normalized. 〈Reparameterize directions in the z < 0 portion of the octahedron〉 ≡ 111
 
-if (v.z < 0) { Float xo = v.x; v.x = (1 - std::abs(v.y)) * Sign(xo);
-
 ```rust
+if (v.z < 0) { Float xo = v.x; v.x = (1 - std::abs(v.y)) * Sign(xo);
        v.y = (1 - std::abs(xo)) * Sign(v.y);
    }
 ```
@@ -1066,16 +1055,14 @@ Equal-Area Mapping The third spherical parameterization used in pbrt is carefull
 
 Given (u, v) ∈ [−1, 1]2; then in the first sector where u ≥ 0 and u − |v| ≥ 0, defining the polar coordinates of a point on the unit disk by art gives an area-preserving mapping with ϕ ∈ [−π/4, π/4]. Similar mappings can be found for the other three sectors. Given (r, ϕ), the corresponding point on the positive hemisphere is then given by art This mapping is also area-preserving. This mapping can be extended to the entire sphere using the same octahedral mapping that was used for the OctahedralVector. There are then three steps: Float 23 Normalize() 88 OctahedralVector 109 OctahedralVector::Sign() 110 Vector3f 86 1. First, the octahedral mapping is applied to the direction, giving a point (u, v) ∈ [−1, 1]2.
 
-```text
-       2. For directions in the upper hemisphere, the concentric hemisphere
-          mapping, Equation (3.9), is applied to the inner square of the
-          octahedral mapping. Doing so requires accounting for the fact
-          that it is rotated by 45° from the square expected by the
-          hemispherical mapping.
-       3. Directions in the lower hemisphere are mirrored over across their
-          quadrant’s diagonal before the hemispherical mapping is applied.
-          The resulting direction vector’s z component is then negated.
-```
+2. For directions in the upper hemisphere, the concentric hemisphere
+mapping, Equation (3.9), is applied to the inner square of the
+octahedral mapping. Doing so requires accounting for the fact
+that it is rotated by 45° from the square expected by the
+hemispherical mapping.
+3. Directions in the lower hemisphere are mirrored over across their
+quadrant’s diagonal before the hemispherical mapping is applied.
+The resulting direction vector’s z component is then negated.
 
 ```text
                                                             art
@@ -1277,25 +1264,21 @@ Float theta_r = theta_o - theta_a; Vector3f wr = Cross(a.w, b.w); if (LengthSqua
 
 In general, a transformation T is a mapping from points to points and from vectors to vectors: p′ = T(p) v′ = T(v). The transformation T may be an arbitrary procedure. However, we will consider a subset of all possible transformations in this chapter. In particular, they will be
 
-```rust
-            Linear: If T is an arbitrary linear transformation and s is an arbitrary scalar, then T(sv) =
-            sT(v) and T(v1 + v2) = T(v1) + T(v2). These two properties can greatly simplify
-            reasoning about transformations.
-            Continuous: Roughly speaking, T maps the neighborhoods around p and v to
-            neighborhoods around p′ and v′.
-            One-to-one and invertible: For each p, T maps p′ to a single unique p′. Furthermore, there
-            exists an inverse transform T−1 that maps p′ back to p.
-```
+Linear: If T is an arbitrary linear transformation and s is an arbitrary scalar, then T(sv) =
+sT(v) and T(v1 + v2) = T(v1) + T(v2). These two properties can greatly simplify
+reasoning about transformations.
+Continuous: Roughly speaking, T maps the neighborhoods around p and v to
+neighborhoods around p′ and v′.
+One-to-one and invertible: For each p, T maps p′ to a single unique p′. Furthermore, there
+exists an inverse transform T−1 that maps p′ back to p.
 
 We will often want to take a point, vector, or normal defined with respect to one coordinate frame and find its coordinate values with respect to another frame. Using basic properties of linear algebra, a 4 × 4 matrix can be shown to express the linear transformation of a point or vector from one frame to another. Furthermore, such a 4 × 4 matrix suffices to express all linear transformations of points and vectors within a fixed frame, such as translation in space or rotation around a point. Therefore, there are two different (and incompatible!) ways that a matrix can be interpreted:
 
-```text
-            Transformation within the frame: Given a point, the matrix could express how to compute
-            a new point in the same frame that represents the transformation of the original point
-            (e.g., by translating it in some direction).
-            Transformation from one frame to another: A matrix can express the coordinates of a
-            point or vector in a new frame in terms of the coordinates in the original frame.
-```
+Transformation within the frame: Given a point, the matrix could express how to compute
+a new point in the same frame that represents the transformation of the original point
+(e.g., by translating it in some direction).
+Transformation from one frame to another: A matrix can express the coordinates of a
+point or vector in a new frame in terms of the coordinates in the original frame.
 
 Most uses of transformations in pbrt are for transforming points from one frame to another.
 
@@ -1453,9 +1436,7 @@ where RT is the matrix transpose of R. This last property, that the inverse of R
 
 For a left-handed coordinate system, the matrix for clockwise rotation around the x axis is art Figure 3.26 gives an intuition for how this matrix works. It is easy to see that the matrix leaves the x axis unchanged:
 
-```rust
-                                    Rx(θ)[1 0 0 0]T = [1 0 0 0]T.
-```
+Rx(θ)[1 0 0 0]T = [1 0 0 0]T.
 
 It maps the y axis (0, 1, 0) to (0, cos θ, sin θ) and the z axis to (0, − sin θ, cos θ). The y and z axes remain in the same plane, perpendicular to the x axis, but are rotated by the given angle. An arbitrary point in space is similarly rotated about the x axis by this transformation while staying in the same yz plane as it was originally. The implementation of the RotateX() function is straightforward.
 

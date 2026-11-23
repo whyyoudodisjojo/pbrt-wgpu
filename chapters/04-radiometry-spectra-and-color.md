@@ -30,33 +30,11 @@ In this manner, it is possible to describe interactions of light with objects of
 
 In pbrt, we will assume that geometric optics is an adequate model for the description of light and light scattering. This leads to a few basic assumptions about the behavior of light that will be used implicitly throughout the system:
 
-```text
-            Linearity: The combined effect of two inputs to an optical system is always equal to the
-            sum of the effects of each of the inputs individually. Nonlinear scattering behavior is only
-            observed in physical experiments involving extremely high energies, so this is generally a
-            reasonable assumption.
-            Energy conservation: When light scatters from a surface or from participating media, the
-            scattering events can never produce more energy than they started with.
-            No polarization: Electromagnetic radiation including visible light is polarized. A good
-            mental analogy of polarization is a vibration propagating along a taut string. Shaking one
-            end of the string will produce perpendicular waves that travel toward the other end.
-            However, besides a simple linear motion, the taut string can also conduct other kinds of
-            oscillations: the motion could, for example, be clockwise or counter-clockwise and in a
-            circular or elliptical shape. All of these possibilities exist analogously in the case of light.
-            Curiously, this additional polarization state of light is essentially imperceptible to humans
-            without additional aids like specialized cameras or polarizing sunglasses. In pbrt, we will
-            therefore make the common assumption that light is unpolarized—that is, a
-            superposition of waves with many different polarizations so that only their average
-            behavior is perceived. Therefore, the only relevant property of light is its distribution by
-            wavelength (or, equivalently, frequency).
-            No fluorescence or phosphorescence: The behavior of light at one wavelength is completely
-            independent of light’s behavior at other wavelengths or times. As with polarization, it is
-            not too difficult to include these effects if they are required.
-            Steady state: Light in the environment is assumed to have reached equilibrium, so its
-            radiance distribution is not changing over time. This happens nearly instantaneously with
-            light in realistic scenes, so it is not a limitation in practice. Note that phosphorescence
-            also violates the steady-state assumption.
-```
+- **Linearity:** The combined effect of two inputs to an optical system is always equal to the sum of the effects of each of the inputs individually. Nonlinear scattering behavior is only observed in physical experiments involving extremely high energies, so this is generally a reasonable assumption.
+- **Energy conservation:** When light scatters from a surface or from participating media, the scattering events can never produce more energy than they started with.
+- **No polarization:** Electromagnetic radiation including visible light is polarized. A good mental analogy of polarization is a vibration propagating along a taut string. Shaking one end of the string will produce perpendicular waves that travel toward the other end. However, besides a simple linear motion, the taut string can also conduct other kinds of oscillations: the motion could, for example, be clockwise or counter-clockwise and in a circular or elliptical shape. All of these possibilities exist analogously in the case of light. Curiously, this additional polarization state of light is essentially imperceptible to humans without additional aids like specialized cameras or polarizing sunglasses. In pbrt, we will therefore make the common assumption that light is unpolarized—that is, a superposition of waves with many different polarizations so that only their average behavior is perceived. Therefore, the only relevant property of light is its distribution by wavelength (or, equivalently, frequency).
+- **No fluorescence or phosphorescence:** The behavior of light at one wavelength is completely independent of light’s behavior at other wavelengths or times. As with polarization, it is not too difficult to include these effects if they are required.
+- **Steady state:** Light in the environment is assumed to have reached equilibrium, so its radiance distribution is not changing over time. This happens nearly instantaneously with light in realistic scenes, so it is not a limitation in practice. Note that phosphorescence also violates the steady-state assumption.
 
 The most significant loss from adopting a geometric optics model is the incompatibility with diffraction and interference effects. Even though this incompatibility can be circumvented—for example, by replacing radiance with the concept of a Wigner distribution function (Oh et al. 2010, Cuypers et al. 2012)—such extensions are beyond the scope of this book.
 
@@ -291,11 +269,8 @@ and ωo: The spectral BRDF is defined by using spectral radiance in place of rad
 
 Physically based BRDFs have two important qualities:
 
-```text
-           1. Reciprocity: For all pairs of directions ωi and ωo, fr(p, ωi, ωo) = fr(p, ωo, ωi).
-           2. Energy conservation: The total energy of light reflected is less than or equal to the energy
-              of incident light. For all directions ωo,
-```
+1. **Reciprocity:** For all pairs of directions ωi and ωo, fr(p, ωi, ωo) = fr(p, ωo, ωi).
+2. **Energy conservation:** The total energy of light reflected is less than or equal to the energy of incident light. For all directions ωo,
 
 Note that the value of the BRDF for a pair of directions ωi and ωo is not necessarily less than 1; it is only its integral that has this normalization constraint.
 
@@ -347,36 +322,13 @@ Many different types of light sources have been invented to convert energy into 
 
 Understanding some of the physical processes involved in emission is helpful for accurately modeling light sources for rendering. A number of corresponding types of lamps are in wide use today:
 
-```text
-            Incandescent (tungsten) lamps have a small tungsten filament. The flow of electricity
-            through the filament heats it, which in turn causes it to emit electromagnetic radiation
-            with a distribution of wavelengths that depends on the filament’s temperature. A frosted
-            glass enclosure is often present to diffuse the emission over a larger area than just the
-            filament and to absorb some of the wavelengths generated in order to achieve a desired
-            distribution of emission by wavelength. With an incandescent light, much of the emitted
-```
+Incandescent (tungsten) lamps have a small tungsten filament. The flow of electricity through the filament heats it, which in turn causes it to emit electromagnetic radiation with a distribution of wavelengths that depends on the filament’s temperature. A frosted glass enclosure is often present to diffuse the emission over a larger area than just the filament and to absorb some of the wavelengths generated in order to achieve a desired distribution of emission by wavelength. With an incandescent light, much of the emitted power is in the infrared bands, which in turn means that much of the energy consumed by the light is turned into heat rather than light.
 
-```text
-             power is in the infrared bands, which in turn means that much of the energy consumed
-             by the light is turned into heat rather than light.
-             Halogen lamps also have a tungsten filament, but the enclosure around them is filled with
-             halogen gas. Over time, part of the filament in an incandescent light evaporates when it is
-             heated; the halogen gas causes this evaporated tungsten to return to the filament, which
-             lengthens the life of the light. Because it returns to the filament, the evaporated tungsten
-             does not adhere to the bulb surface (as it does with regular incandescent bulbs), which
-             also prevents the bulb from darkening.
-             Gas-discharge lamps pass electrical current through hydrogen, neon, argon, or vaporized
-             metal gas, which causes light to be emitted at specific wavelengths that depend on the
-             particular atom in the gas. (Atoms that emit relatively little of their electromagnetic
-             radiation in the not-useful infrared frequencies are selected for the gas.) Because a
-             broader spectrum of wavelengths is generally more visually desirable than wavelengths
-             that the chosen atoms generate directly, a fluorescent coating on the bulb’s interior is
-             often used to transform the emitted wavelengths to a broader range. (The fluorescent
-             coating also improves efficiency by converting ultraviolet wavelengths to visible
-             wavelengths.)
-             LED lights are based on electroluminescence: they use materials that emit photons due to
-             electrical current passing through them.
-```
+Halogen lamps also have a tungsten filament, but the enclosure around them is filled with halogen gas. Over time, part of the filament in an incandescent light evaporates when it is heated; the halogen gas causes this evaporated tungsten to return to the filament, which lengthens the life of the light. Because it returns to the filament, the evaporated tungsten does not adhere to the bulb surface (as it does with regular incandescent bulbs), which also prevents the bulb from darkening.
+
+Gas-discharge lamps pass electrical current through hydrogen, neon, argon, or vaporized metal gas, which causes light to be emitted at specific wavelengths that depend on the particular atom in the gas. (Atoms that emit relatively little of their electromagnetic radiation in the not-useful infrared frequencies are selected for the gas.) Because a broader spectrum of wavelengths is generally more visually desirable than wavelengths that the chosen atoms generate directly, a fluorescent coating on the bulb’s interior is often used to transform the emitted wavelengths to a broader range. (The fluorescent coating also improves efficiency by converting ultraviolet wavelengths to visible wavelengths.)
+
+LED lights are based on electroluminescence: they use materials that emit photons due to electrical current passing through them.
 
 For all of these sources, the underlying physical process is electrons colliding with atoms, which pushes their outer electrons to a higher energy level. When such an electron returns to a lower energy level, a photon is emitted. There are many other interesting processes that create light, including chemoluminescence (as seen in light sticks) and bioluminescence—a form of chemoluminescence seen in fireflies. Though interesting in their own right, we will not consider their mechanisms further here.
 
@@ -409,7 +361,7 @@ The Blackbody() function computes emitted radiance at the given temperature T in
 〈Spectrum Function Declarations〉 ≡ Float Blackbody(Float lambda, Float T) {
 
 ```rust
-        if t <= 0.0 {
+        if T <= 0.0 {
             return 0.0;
         }
         let c = 299_792_458.0;
@@ -425,7 +377,7 @@ The wavelength passed to Blackbody() is in nm, but the constants for Equation (4
 ```rust
     let l = lambda * 1e-9;
     let le = (2.0 * h * c * c)
-        / (l.powi(5) * (fast_exp((h * c) / (l * kb * t)) - 1.0));
+        / (l.powi(5) * (FastExp((h * c) / (l * kb * T)) - 1.0));
     le
 ```
 
@@ -730,17 +682,13 @@ swl.lambda[0] = Lerp(u, lambda_min, lambda_max);
 The remaining wavelengths are chosen by taking uniform steps delta starting from the first wavelength and wrapping around if lambda_max is passed. The result is a set of stratified wavelength samples that are generated using a single random number. One advantage of sampling wavelengths in this way rather than using a separate uniform sample for each one is that the value of NSpectrumSamples can be changed without requiring the modification of code that calls SampleUniform() to adjust the number of sample values that are passed to this method. 〈Initialize lambda for remaining wavelengths〉 ≡ 173
 
 ```rust
-    let delta = (lambda_max - lambda_min) / (NSPECTRUM_SAMPLES as f64);
-    for i in 1..NSPECTRUM_SAMPLES {
+    let delta = (lambda_max - lambda_min) / (NSpectrumSamples as f64);
+    for i in 1..NSpectrumSamples {
         swl.lambda[i] = swl.lambda[i - 1] + delta;
         if swl.lambda[i] > lambda_max {
             swl.lambda[i] = lambda_min + (swl.lambda[i] - lambda_max);
         }
     }
-```
-
-```text
-   }
 ```
 
 The probability density for each sample is easily computed, since the sampling distribution is uniform.
@@ -882,8 +830,8 @@ The summand in Equation (4.23) is easily computed with values at hand. Here, we 
 SampledSpectrum pdf = lambda.PDF(); return XYZ(SafeDiv(X * *this, pdf).Average(),
 
 ```rust
-    safe_div(y * self, pdf).average(),
-    safe_div(z * self, pdf).average()) / CIE_Y_INTEGRAL;
+    SafeDiv(y * self, pdf).Average(),
+    SafeDiv(z * self, pdf).Average()) / CIE_Y_integral;
 ```
 
 To avoid the expense of computing the X and Z coefficients when only luminance is needed, there is a y() method that only returns Y. Its implementation is the obvious subset of XYZ() and so is not included here.
@@ -1009,14 +957,14 @@ XYZ W = SpectrumToXYZ(illuminant); w = W.xy(); XYZ R = XYZ::FromxyY(r), G = XYZ:
 We will first derive the matrix M that transforms from RGB coefficients in the color space to art This matrix can be found by considering the relationship between the RGB triplet (1, 1, 1) and the whitepoint in XYZ coordinates, which is available in W. In this case, we know that wxλ must be proportional to the sum of the xλ coordinates of the red, green, and blue primaries, since we are considering the case of a (1, 1, 1) RGB. The same follows for yλ and zλ. This relationship can be expressed as art which only has unknowns cr, cg, and cb. These can be found by multiplying the whitepoint XYZ coordinates by the inverse of the remaining matrix. Inverting this matrix then gives the matrix that goes to RGB from XYZ. 〈Initialize XYZ color space conversion matrices〉 ≡ 183
 
 ```rust
-    let rgb = SquareMatrix::<3>::new([
+    let rgb = SquareMatrix::<3>::from_array([
         [r.x, g.x, b.x],
         [r.y, g.y, b.y],
         [r.z, g.z, b.z],
     ]);
-    let c = rgb.invert_or_exit() * w;
-    xyz_from_rgb = rgb * SquareMatrix::<3>::diag([c[0], c[1], c[2]]);
-    rgb_from_xyz = xyz_from_rgb.invert_or_exit();
+    let c = rgb.InvertOrExit() * w;
+    xyz_from_rgb = rgb * SquareMatrix::<3>::Diag([c[0], c[1], c[2]]);
+    rgb_from_xyz = xyz_from_rgb.InvertOrExit();
 ```
 
 〈RGBColorSpace Public Members〉 +≡ SquareMatrix<3> XYZFromRGB, RGBFromXYZ;

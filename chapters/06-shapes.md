@@ -201,14 +201,12 @@ In the event that an intersection is found, a SurfaceInteraction corresponding t
 
 There are a few important things to keep in mind when reading (and writing) intersection routines:
 
-```rust
-               The provided tMax value defines the endpoint of the ray. Intersection routines must
-               ignore any intersections that occur after this point.
-               If there are multiple intersections with a shape along the ray, the closest one should be
-               reported.
-               The rays passed into intersection routines are in rendering space, so shapes are
-               responsible for transforming them to object space if needed for intersection tests. The
-               intersection information returned should be in rendering space.
+The provided tMax value defines the endpoint of the ray. Intersection routines must
+ignore any intersections that occur after this point.
+If there are multiple intersections with a shape along the ray, the closest one should be
+reported.
+The rays passed into intersection routines are in rendering space, so shapes are
+responsible for transforming them to object space if needed for intersection tests. The
 ```
 
 The second intersection test method, Shape::IntersectP(), is a predicate function that determines whether or not an intersection occurs without returning any details about the intersection itself. That test is often more efficient than a full intersection test. This method is used in particular for shadow rays that are testing the visibility of a light source from a point in the scene.
@@ -441,9 +439,8 @@ Finally, the Sphere constructor also takes a Boolean parameter, reverseOrientati
        :                                     renderFromObject(renderFromObject),
        objectFromRender(objectFromRender),
          reverseOrientation(reverseOrientation),
+          transformSwapsHandedness(renderFromObject->SwapsHandedness()), radius(radius), zMin(Clamp(std::min(zMin, zMax), -radius, radius)), zMax(Clamp(std::max(zMin, zMax), -radius, radius)), thetaZMin(std::acos(Clamp(std::min(zMin, zMax) / radius, -1, 1))), thetaZMax(std::acos(Clamp(std::max(zMin, zMax) / radius, -1, 1))), phiMax(Radians(Clamp(phiMax, 0, 360))) {} 〈Sphere Private Members〉 ≡ 271
 ```
-
-transformSwapsHandedness(renderFromObject->SwapsHandedness()), radius(radius), zMin(Clamp(std::min(zMin, zMax), -radius, radius)), zMax(Clamp(std::max(zMin, zMax), -radius, radius)), thetaZMin(std::acos(Clamp(std::min(zMin, zMax) / radius, -1, 1))), thetaZMax(std::acos(Clamp(std::max(zMin, zMax) / radius, -1, 1))), phiMax(Radians(Clamp(phiMax, 0, 360))) {} 〈Sphere Private Members〉 ≡ 271
 
 ```rust
    Float radius;
@@ -857,20 +854,18 @@ We now have all the values necessary to apply the Weingarten equations. For this
 
 Having computed the surface parameterization and all the relevant partial derivatives, a SurfaceInteraction structure that contains all the necessary geometric information for this intersection can be returned. There are three things to note in the parameter values passed to the SurfaceInteraction constructor.
 
-```rust
-           1. The intersection point is provided as a Point3i that takes the pHit point computed
-              earlier and an error bound pError that is initialized in the fragment 〈Compute error
-              bounds for sphere intersection〉, which is defined later, in Section 6.8.5.
-           2. The SurfaceInteraction is initialized with object-space geometric quantities (pHit,
-              dpdu, etc.) and is then transformed to rendering space when it is returned. However, one
-              of the parameters is the outgoing direction, ωo. This is passed in to Interaction
-              FromIntersection(), but must be transformed to object space before being passed to
-              the constructor so that the returned Interaction::wo value is in rendering space again.
-           3. The flipNormal parameter indicates whether the surface normal should be flipped after
-              it is initially computed with the cross product of dpdu and dpdv. This should be done
-              either if the ReverseOrientation directive has been enabled or if the object-to-
-              rendering-space transform swaps coordinate system handedness (but not if both of these
-              are the case). (The need for the latter condition was discussed in Section 3.11.1.)
+1. The intersection point is provided as a Point3i that takes the pHit point computed
+earlier and an error bound pError that is initialized in the fragment 〈Compute error
+bounds for sphere intersection〉, which is defined later, in Section 6.8.5.
+2. The SurfaceInteraction is initialized with object-space geometric quantities (pHit,
+dpdu, etc.) and is then transformed to rendering space when it is returned. However, one
+of the parameters is the outgoing direction, ωo. This is passed in to Interaction
+FromIntersection(), but must be transformed to object space before being passed to
+the constructor so that the returned Interaction::wo value is in rendering space again.
+3. The flipNormal parameter indicates whether the surface normal should be flipped after
+it is initially computed with the cross product of dpdu and dpdv. This should be done
+either if the ReverseOrientation directive has been enabled or if the object-to-
+rendering-space transform swaps coordinate system handedness (but not if both of these
 ```
 
 ```rust
@@ -1618,7 +1613,9 @@ Given z and ϕ, the corresponding object-space position and normal are easily fo
 
 〈Compute cylinder sample position pi and normal n from z and ϕ〉 ≡ 291
 
+```rust
 Point3f pObj = Point3f(radius * std::cos(phi), radius * std::sin(phi), z); 〈Reproject pObj to cylinder surface and compute pObjError 376〉 Point3fi pi = (*renderFromObject)(Point3fi(pObj, pObjError)); Normal3f n = Normalize((*renderFromObject)(Normal3f(pObj.x, pObj.y, 0))); if (reverseOrientation) n *= -1; 〈Cylinder Public Methods〉 +≡ 286
+```
 
 ```rust
    Float PDF(const Interaction &) const { return 1 / Area(); }
@@ -1917,7 +1914,9 @@ The same computation as in the Intersect() method gives the parametric (u, v) fo
 
 〈Compute (u, v) for sampled point on disk〉 ≡ 295
 
+```rust
 Float phi = std::atan2(pd.y, pd.x); if (phi < 0) phi += 2 * Pi; Float radiusSample = std::sqrt(Sqr(pObj.x) + Sqr(pObj.y)); Point2f uv(phi / phiMax, (radius - radiusSample) / (radius - innerRadius)); 〈Disk Public Methods〉 +≡ 292
+```
 
 ```rust
    Float PDF(const Interaction &) const { return 1 / Area(); }
@@ -2462,10 +2461,8 @@ of edge function values: Thus, the bi sum to one.
 
 The interpolated z value is given by
 
-```text
-     z = b0z0 + b1z1 + b2z2, where zi are the coordinates of the three vertices in the ray–triangle
-                                  intersection coordinate system.
-```
+z = b0z0 + b1z1 + b2z2, where zi are the coordinates of the three vertices in the ray–triangle
+intersection coordinate system.
 
 To save the cost of the floating-point division to compute bi in cases where the final t value is out of the range of valid t values, the implementation here first computes t by interpolating zi with ei (in other words, not yet performing the division by d = e0 + e1 + e2). If the sign of d and the sign of the interpolated t value are different, then the final t value will certainly be negative and thus not a valid intersection.
 
@@ -3875,17 +3872,15 @@ There are three types of curves that the Curve shape can represent, shown in Fig
    Curve 346
 ```
 
-```rust
-           Flat: Curves with this representation are always oriented to face
-           the ray being intersected with them; they are useful for modeling
-           fine swept cylindrical shapes like hair or fur.
-           Cylinder: For curves that span a few pixels on the screen (like
-           spaghetti seen from not too far away), the Curve shape can
-           compute a shading normal that makes the curve appear to actually
-           be a cylinder.
-           Ribbon: This variant is useful for modeling shapes that do not
-           actually have a cylindrical cross section (such as a blade of grass).
-```
+Flat: Curves with this representation are always oriented to face
+the ray being intersected with them; they are useful for modeling
+fine swept cylindrical shapes like hair or fur.
+Cylinder: For curves that span a few pixels on the screen (like
+spaghetti seen from not too far away), the Curve shape can
+compute a shading normal that makes the curve appear to actually
+be a cylinder.
+Ribbon: This variant is useful for modeling shapes that do not
+actually have a cylindrical cross section (such as a blade of grass).
 
 ![Figure 6.31](images/img-538-059.png)
 
@@ -5029,18 +5024,14 @@ described by Hart et al. (2020). Peters (2021b) has recently shown how to effici
 
 ➋ 6.1 One nice property of mesh-based shapes like triangle meshes and subdivision surfaces is that the shape’s vertices can be transformed into rendering space, so that it is not necessary to transform rays into object space before performing ray intersection tests. Interestingly enough, it is possible to do the same thing for ray–quadric intersections.
 
-```text
-        The implicit forms of the quadrics in this chapter were all of the form
-```
+The implicit forms of the quadrics in this chapter were all of the form
 
 ```text
                                  ax2 + bxy + cxz + dy2 + eyz + f z2 + g = 0,
 ```
 
-```text
-        where some of the constants a … g were zero. More generally, we can define quadric
-        surfaces by the equation
-```
+where some of the constants a … g were zero. More generally, we can define quadric
+surfaces by the equation
 
 ```text
                      ax2 + by2 + cz2 + 2dxy + 2eyz + 2f xz + 2gx + 2hy + 2iz + j = 0,
@@ -5052,25 +5043,19 @@ described by Hart et al. (2020). Peters (2021b) has recently shown how to effici
         form, the quadric can be represented by a 4 × 4 symmetric matrixQ:
 ```
 
-```text
-        Given this representation, first show that the matrix Q′ representing a quadric transformed
-        by the matrix M is
-```
+Given this representation, first show that the matrix Q′ representing a quadric transformed
+by the matrix M is
 
 ```text
                                             Q′ = (MT)−1QM−1.
 ```
 
-```rust
-        To do so, show that for any point p where pT Qp = 0, if we apply a transformation M to p
-        and compute p′ = Mp, we would like to find Q′ so that (p′)T Q′p′ = 0.
-```
+To do so, show that for any point p where pT Qp = 0, if we apply a transformation M to p
+and compute p′ = Mp, we would like to find Q′ so that (p′)T Q′p′ = 0.
 
-```rust
-        Next, substitute the ray equation into the earlier, more general quadric equation to
-        compute coefficients for the quadratic equation in terms of entries of the matrix Q to pass
-        to the Quadratic() function.
-```
+Next, substitute the ray equation into the earlier, more general quadric equation to
+compute coefficients for the quadratic equation in terms of entries of the matrix Q to pass
+to the Quadratic() function.
 
 Now implement this approach in pbrt and use it instead of the original quadric intersection routines. Note that you will still need to transform the resulting rendering space hit points into object space to test against θmax, if it is not 2π, and so on. How does performance compare to the original scheme? ➋ 6.2 Transforming the object-space bounding box of a quadric to rendering space does not necessarily give an optimal bounding box. However, the matrix form of a quadric described in Exercise 6.1 can also be applied to computing optimal bounds. Read the
 
@@ -5087,21 +5072,17 @@ article by Barnes (2014) on this topic and implement the approach he described i
 
 Then, measure the MSE of pbrt’s current approach as well as your approach for a few scenes with spherical light sources, using an image rendered with thousands of samples per pixel as a reference. How do the results differ if the light is always unoccluded versus if it is sometimes partially occluded? How does the BSDF of scene surfaces affect the results? ➊ 6.8 Currently pbrt recomputes the partial derivatives ∂p/∂u and ∂p/∂v for triangles every time they are needed, even though they are constant for each triangle. Precompute these vectors and analyze the speed/storage trade-off, especially for large triangle meshes. How do the depth complexity of the scene and the size of triangles in the image affect this trade-off? ➋ 6.9 Implement a general polygon primitive that supports an arbitrary number of vertices and convex or concave polygons as a new Shape in pbrt. You can assume that a valid
 
-```text
-          polygon has been provided and that all the vertices of the polygon lie on the same plane,
-          although you might want to issue a warning when this is not the case.
-```
+polygon has been provided and that all the vertices of the polygon lie on the same plane,
+although you might want to issue a warning when this is not the case.
 
-```rust
-          An efficient technique for computing ray–polygon intersections is to find the plane
-          equation for the polygon from its normal and a point on the plane. Then compute the
-          intersection of the ray with that plane and project the intersection point and the polygon
-          vertices to 2D. You can then apply a 2D point-in-polygon test to determine if the point is
-          inside the polygon. An easy way to do this is to effectively do a 2D ray-tracing
-          computation: intersect the ray with each of the edge segments, and count how many it
-          goes through. If it goes through an odd number of them, the point is inside the polygon
-          and there is an intersection. See Figure 6.47 for an illustration of this idea.
-```
+An efficient technique for computing ray–polygon intersections is to find the plane
+equation for the polygon from its normal and a point on the plane. Then compute the
+intersection of the ray with that plane and project the intersection point and the polygon
+vertices to 2D. You can then apply a 2D point-in-polygon test to determine if the point is
+inside the polygon. An easy way to do this is to effectively do a 2D ray-tracing
+computation: intersect the ray with each of the edge segments, and count how many it
+goes through. If it goes through an odd number of them, the point is inside the polygon
+and there is an intersection. See Figure 6.47 for an illustration of this idea.
 
 You may find it helpful to read the article by Haines (1994) that surveys a number of approaches for efficient point-in-polygon tests. Some of the techniques described there may be helpful for optimizing this test. Furthermore, Section 13.3.3 of Schneider and Eberly (2003) discusses strategies for getting all the corner cases right: for example, when the 2D ray is aligned precisely with an edge or passes through a vertex of the polygon. ➋ 6.10 Constructive solid geometry (CSG) is a solid modeling technique where complex shapes are built up by considering the union, intersection, and differences of more primitive shapes. For example, a sphere could be used to create pits in a cylinder if a shape was modeled as the difference of a cylinder and set of spheres that partially overlapped it. See Hoffmann (1989) for further information about CSG.
 
@@ -5130,14 +5111,12 @@ Render images that show the benefit of adaptive refinement when the camera is cl
 
 ➌ 6.15 Deformation motion blur: The TransformedPrimitive in Section 7.1.2 of Chapter 7 supports animated shapes via transformations of primitives that vary over time. However, this type of animation is not general enough to represent a triangle mesh where each
 
-```text
-         vertex has a position given at the start time and another one at the end time. (For example,
-         this type of animation description can be used to describe a running character model
-         where different parts of the body are moving in different ways.) Implement a more
-         general Triangle or BilinearPatch shape that supports specifying vertex positions at
-         the start and end of frame and interpolates between them based on the ray time passed to
-         the intersection methods. Be sure to update the bounding routines appropriately.
-```
+vertex has a position given at the start time and another one at the end time. (For example,
+this type of animation description can be used to describe a running character model
+where different parts of the body are moving in different ways.) Implement a more
+general Triangle or BilinearPatch shape that supports specifying vertex positions at
+the start and end of frame and interpolates between them based on the ray time passed to
+the intersection methods. Be sure to update the bounding routines appropriately.
 
 Meshes with very large amounts of motion may exhibit poor performance due to individual triangles or patches sweeping out large bounding boxes and thus many intersection tests being performed that do not hit the shape. Can you come up with approaches that could be used to reduce the impact of this problem? ➌ 6.16 Implicit functions: Just as implicit definitions of the quadric shapes are a useful starting point for deriving ray-intersection algorithms, more complex implicit functions can also be used to define interesting shapes. In particular, difficult-to-model organic shapes, water drops, and so on can be well represented by implicit surfaces. Blinn (1982a) introduced the idea of directly rendering implicit surfaces, and Wyvill and Wyvill (1989) gave a basis function for implicit surfaces with a number of advantages compared to Blinn’s.
 

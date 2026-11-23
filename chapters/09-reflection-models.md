@@ -15,32 +15,15 @@ This chapter defines a set of classes for describing the way that light scatters
 
 Surface reflection models come from a number of sources:
 
-```text
-             Measured data: Reflection distribution properties of many real-world surfaces have been
-             measured in laboratories. Such data may be used directly in tabular form or to compute
-             coefficients for a set of basis functions.
-             Phenomenological models: Equations that attempt to describe the qualitative properties of
-             real-world surfaces can be remarkably effective at mimicking them. These types of BSDFs
-             can be particularly easy to use, since they tend to have intuitive parameters that modify
-             their behavior (e.g., “roughness”).
-             Simulation: Sometimes, low-level information is known about the composition of a
-             surface. For example, we might know that a paint is comprised of colored particles of
-             some average size suspended in a medium or that a particular fabric is comprised of two
-             types of threads with known reflectance properties. In this case, a preprocess could
-             simulate the behavior of light within the microstructure to fit an approximate BSDF.
-             Alternatively, simulation could occur when rendering.
-             Physical (wave) optics: Some reflection models have been derived using a detailed model
-             of light, treating it as a wave and computing the solution to Maxwell’s equations to find
-             how it scatters from a surface with known properties. They are mainly of use when the
-             scene contains geometric detail at the micrometer level that makes wave-optical behavior
-             readily apparent, such as with thin films, coatings, and periodic structures as found on
-             digital optical data storage formats like CDs and DVDs.
-             Geometric optics: As with simulation approaches, if the surface’s low-level scattering and
-             geometric properties are known, then closed-form reflection models can sometimes be
-             derived directly from these descriptions. Geometric optics makes modeling light’s
-             interaction with the surface more tractable, since complex wave effects like diffraction
-             can be ignored.
-```
+Measured data: Reflection distribution properties of many real-world surfaces have been measured in laboratories. Such data may be used directly in tabular form or to compute coefficients for a set of basis functions.
+
+Phenomenological models: Equations that attempt to describe the qualitative properties of real-world surfaces can be remarkably effective at mimicking them. These types of BSDFs can be particularly easy to use, since they tend to have intuitive parameters that modify their behavior (e.g., “roughness”).
+
+Simulation: Sometimes, low-level information is known about the composition of a surface. For example, we might know that a paint is comprised of colored particles of some average size suspended in a medium or that a particular fabric is comprised of two types of threads with known reflectance properties. In this case, a preprocess could simulate the behavior of light within the microstructure to fit an approximate BSDF. Alternatively, simulation could occur when rendering.
+
+Physical (wave) optics: Some reflection models have been derived using a detailed model of light, treating it as a wave and computing the solution to Maxwell’s equations to find how it scatters from a surface with known properties. They are mainly of use when the scene contains geometric detail at the micrometer level that makes wave-optical behavior readily apparent, such as with thin films, coatings, and periodic structures as found on digital optical data storage formats like CDs and DVDs.
+
+Geometric optics: As with simulation approaches, if the surface’s low-level scattering and geometric properties are known, then closed-form reflection models can sometimes be derived directly from these descriptions. Geometric optics makes modeling light’s interaction with the surface more tractable, since complex wave effects like diffraction can be ignored.
 
 ![Figure 9.1](images/img-835-150.png)
 
@@ -84,23 +67,11 @@ We will frequently find it useful to check whether two direction vectors lie in 
 
 There are some additional conventions that are important to keep in mind when reading the code in this chapter and when adding BRDFs and BTDFs to pbrt:
 
-```rust
-               The incident light direction ωi and the outgoing viewing direction ωo will both be
-               normalized and outward facing after being transformed into the local coordinate system
-               at the surface. In other words, the directions will not model the physical propagation of
-               light, which is helpful in bidirectional rendering algorithms that generate light paths in
-               reverse order.
-               In pbrt, the surface normal n always points to the “outside” of the object, which makes it
-               easy to determine if light is entering or exiting transmissive objects: if the incident light
-               direction ωi is in the same hemisphere as n, then light is entering; otherwise, it is exiting.
-               Therefore, the normal may be on the opposite side of the surface than one or both of the
-               ωi and ωo direction vectors. Unlike many other renderers, pbrt does not flip the normal
-               to lie on the same side as ωo.
-               The local coordinate system used for shading may not be exactly the same as the
-               coordinate system returned by the Shape::Intersect() routines from Chapter 6; it may
-               have been modified between intersection and shading to achieve effects like bump
-               mapping. See Chapter 10 for examples of this kind of modification.
-```
+The incident light direction ωi and the outgoing viewing direction ωo will both be normalized and outward facing after being transformed into the local coordinate system at the surface. In other words, the directions will not model the physical propagation of light, which is helpful in bidirectional rendering algorithms that generate light paths in reverse order.
+
+In pbrt, the surface normal n always points to the “outside” of the object, which makes it easy to determine if light is entering or exiting transmissive objects: if the incident light direction ωi is in the same hemisphere as n, then light is entering; otherwise, it is exiting. Therefore, the normal may be on the opposite side of the surface than one or both of the ωi and ωo direction vectors. Unlike many other renderers, pbrt does not flip the normal to lie on the same side as ωo.
+
+The local coordinate system used for shading may not be exactly the same as the coordinate system returned by the Shape::Intersect() routines from Chapter 6; it may have been modified between intersection and shading to achieve effects like bump mapping. See Chapter 10 for examples of this kind of modification.
 
 ### 9.1.2 BxDF INTERFACE
 
@@ -1437,16 +1408,9 @@ We will now turn to a generalization of these BxDFs using microfacet theory, whi
 
 It is worth noting that pbrt can in principle already render rough surfaces without resorting to microfacet theory: users could simply create extremely high-resolution triangular meshes containing such micro-scale surface variations and render them using perfect specular BxDFs. There are two fundamental problems with such an approach:
 
-```text
-            Storage and ray tracing efficiency: Representing micro-scale roughness using triangular
-            geometry would require staggeringly large triangle budgets. The overheads to store and
-            ray trace such large scenes are prohibitive.
-            Monte Carlo sampling efficiency: A fundamental issue with perfect specular scattering
-            distributions is that they contain Dirac delta terms, which preclude BSDF evaluation
-            (their f() method returns zero, making BSDF sampling the only supported operation).
-            This aspect disables light sampling strategies (Section 12.1), which are crucial for
-            efficiency in Monte Carlo rendering.
-```
+Storage and ray tracing efficiency: Representing micro-scale roughness using triangular geometry would require staggeringly large triangle budgets. The overheads to store and ray trace such large scenes are prohibitive.
+
+Monte Carlo sampling efficiency: A fundamental issue with perfect specular scattering distributions is that they contain Dirac delta terms, which preclude BSDF evaluation (their f() method returns zero, making BSDF sampling the only supported operation). This aspect disables light sampling strategies (Section 12.1), which are crucial for efficiency in Monte Carlo rendering.
 
 ![Figure 9.20](images/img-889-170.png)
 
@@ -1794,30 +1758,15 @@ We can finally explain how the ConductorBxDF handles rough microstructures via a
 
 Combined with the visible normal sampling approach, the sampling routine of this model consists of three physically intuitive steps:
 
-```text
-           1. Given a viewing ray from direction ωo, a microfacet normal ωm is sampled from the
-```
-
-```text
-              visible normal distribution               . This step encapsulates the process of intersecting
-              the viewing ray with the random microstructure.
-           2. Reflection from the sampled microfacet is modeled using the law of specular reflection
-              and the Fresnel equations, which yields the incident direction ωi and a reflection
-              coefficient that attenuates the light carried by the path.
-```
-
-```text
-           3. The scattered light is finally scaled by G1(ωi) to account for the effect of masking by
-              other microfacets.
-```
+1. Given a viewing ray from direction ωo, a microfacet normal ωm is sampled from the visible normal distribution. This step encapsulates the process of intersecting the viewing ray with the random microstructure.
+2. Reflection from the sampled microfacet is modeled using the law of specular reflection and the Fresnel equations, which yields the incident direction ωi and a reflection coefficient that attenuates the light carried by the path.
+3. The scattered light is finally scaled by G1(ωi) to account for the effect of masking by other microfacets.
 
 Our goal will be to determine the BRDF that represents this sequence of steps. For this, we must first find the probability density of the sampled incident direction ωi. Although visible normal sampling was involved, it is important to note that ωi is not distributed according to the visible normal distribution—to find its density, we must consider the sequence of steps that were used to obtain ωi from ωm.
 
 Taking stock of the available information, we know that the probability density of ωm is given by
 
-```text
-               , and that ωi is obtained from ωm and ωo using the law of specular reflection—that is,
-```
+, and that ωi is obtained from ωm and ωo using the law of specular reflection—that is,
 
 This reflection mapping also has an inverse: the normal responsible for a specific reflection can be determined via
 
@@ -2231,19 +2180,11 @@ The reflection models introduced up to this point represent index of refraction 
 
 However, many real-world materials are beyond the scope of even such layered models. Examples include:
 
-```text
-               Materials characterized by wave-optical phenomena that produce striking directionally
-               varying coloration. Examples include iridescent paints, insect wings, and holographic
-               paper.
-               Materials with rough interfaces. In pbrt, we have chosen to model such surfaces using
-               microfacet theory and the Trowbridge–Reitz distribution. However, it is important to
-               remember that both of these are models that generally do not match real-world behavior
-               perfectly.
-               Surfaces with non-standard microstructure. For example, a woven fabric composed of two
-               different yarns looks like a surface from a distance, but its directional intensity and color
-               variation are not well-described by any standard BRDF model due to the distinct
-               reflectance properties of fiber-based microgeometry.
-```
+Materials characterized by wave-optical phenomena that produce striking directionally varying coloration. Examples include iridescent paints, insect wings, and holographic paper.
+
+Materials with rough interfaces. In pbrt, we have chosen to model such surfaces using microfacet theory and the Trowbridge–Reitz distribution. However, it is important to remember that both of these are models that generally do not match real-world behavior perfectly.
+
+Surfaces with non-standard microstructure. For example, a woven fabric composed of two different yarns looks like a surface from a distance, but its directional intensity and color variation are not well-described by any standard BRDF model due to the distinct reflectance properties of fiber-based microgeometry.
 
 ```text
     BSDFSample 541
@@ -2281,24 +2222,11 @@ Consider the task of measuring the BRDF of a sheet of brushed aluminum: we could
 
 sample of the material from a set of n incident directions with k = 1, … , n and use some kind of sensor (e.g., a photodiode) to record the reflected light scattered along a set of m outgoing directions with l = 1, … , m. These n × m measurements could be stored on disk and interpolated at runtime to approximate the BRDF at intermediate configurations (θi, ϕi, θo, ϕo). However, closer scrutiny of such an approach reveals several problems:
 
-```text
-               BSDFs of polished materials are highly directionally peaked. Perturbing the incident or
-               outgoing direction by as little as 1 degree can change the measured reflectance by orders
-               of magnitude. This implies that the set of incident and outgoing directions must be
-               sampled fairly densely.
-               Accurate positioning in spherical coordinates is difficult to perform by hand and
-               generally requires mechanical aids. For this reason, such measurements are normally
-               performed using a motorized gantry known as a goniophotometer or gonioreflectometer.
-               Figure 9.33 shows two examples of such machines. Light stages consisting of a rigid
-               assembly of hundreds of LEDs around a sample are sometimes used to accelerate
-               measurement, though at the cost of reduced directional resolution.
-               Sampling each direction using a 1 degree spacing in spherical coordinates requires
-               roughly one billion sample points. Storing gigabytes of measurement data is possible but
-               undesirable, yet the time that would be spent for a full measurement is even more
-               problematic: assuming that the goniophotometer can reach a configuration (θi, ϕi, θo,
-               ϕo) within 1 second (a reasonable estimate for the devices shown in Figure 9.33), over 34
-               years of sustained operation would be needed to measure a single material.
-```
+BSDFs of polished materials are highly directionally peaked. Perturbing the incident or outgoing direction by as little as 1 degree can change the measured reflectance by orders of magnitude. This implies that the set of incident and outgoing directions must be sampled fairly densely.
+
+Accurate positioning in spherical coordinates is difficult to perform by hand and generally requires mechanical aids. For this reason, such measurements are normally performed using a motorized gantry known as a goniophotometer or gonioreflectometer. Figure 9.33 shows two examples of such machines. Light stages consisting of a rigid assembly of hundreds of LEDs around a sample are sometimes used to accelerate measurement, though at the cost of reduced directional resolution.
+
+Sampling each direction using a 1 degree spacing in spherical coordinates requires roughly one billion sample points. Storing gigabytes of measurement data is possible but undesirable, yet the time that would be spent for a full measurement is even more problematic: assuming that the goniophotometer can reach a configuration (θi, ϕi, θo, ϕo) within 1 second (a reasonable estimate for the devices shown in Figure 9.33), over 34 years of sustained operation would be needed to measure a single material.
 
 In sum, the combination of high-frequency signals, the 4D domain of the BRDF, and the curse of dimensionality conspire to make standard measurement approaches all but impractical.
 
@@ -3157,20 +3085,11 @@ Sampling BSDFs well is a key component of efficient image synthesis. Szécsi et 
 
 ➊ 9.1 A consequence of Fermat’s principle from optics is that light traveling from a point p1 in
 
-```text
-        a medium with index of refraction η1 to a point p2 in a medium with index of refraction
-        η2 will follow a path that minimizes the time to get from the first point to the second
-        point. Snell’s law can be shown to follow directly from this fact.
-```
+a medium with index of refraction η1 to a point p2 in a medium with index of refraction η2 will follow a path that minimizes the time to get from the first point to the second point. Snell’s law can be shown to follow directly from this fact.
 
 Consider light traveling between two points p1 and p2 separated by a planar boundary. The light could potentially pass through the boundary while traveling from p1 to p2 at any point on the boundary (see Figure 9.56, which shows two such possible points p′ and p″). Recall that the time it takes light to travel between two points in a medium with a constant index of refraction is proportional to the distance between them times the index of refraction in the medium. Using this fact, show that the point p′ on the boundary that minimizes the total time to travel from p1 to p2 is the point where η1 sin θ1 = η2 sin θ2. ➋ 9.2 Read the recent paper by d’Eon (2021) that describes a BRDF based on a model of the aggregate scattering of large collections of spherical particles that are themselves Lambertian. Implement this approach as a new BxDF in pbrt and render images comparing its visual appearance to that of the DiffuseBxDF. ➌ 9.3 Read the paper of Wolff and Kurlander (1990) and the course notes of Wilkie and Weidlich (2012) and apply some of the techniques described to modify pbrt to model the effect of light polarization. (A more in-depth review of the principles of polarization is provided by Collett (1993).) Set up scenes and render images of them that demonstrate a significant difference when polarization is accurately modeled. For this, you will need to implement a polarized version of the Fresnel equations and add BSDFs that model optical elements like linear polarizers and retarders. ➌ 9.4 Construct a scene with an actual geometric model of a rough plane with a large number of mirrored microfacets, and illuminate it with an area light source.11 Place the camera in the scene such that a very large number of microfacets are in each pixel’s area, and render images of this scene using hundreds or thousands of pixel samples. Compare the result to using a flat surface with a microfacet-based BRDF model. How well can you get the two approaches to match if you try to tune the microfacet BRDF parameters? Can you construct examples where images rendered with the true microfacets are actually visibly more realistic due to better modeling the effects of masking, self-shadowing, and interreflection between microfacets? ➌ 9.5 One shortcoming of the microfacet-based BSDFs in this chapter is that they do not account for multiple scattering among microfacets. Investigate previous work in this area, including the stochastic multiple scattering model of Heitz et al. (2016b) and the analytic models of Lee et al. (2018) and Xie and Hanrahan (2018), and implement one of these approaches in pbrt. Then implement an approximate model for multiple scattering, such as the one presented by Kulla and Conty Estevez (2017) or by Turquin (2019). How do rendered images differ from pbrt’s current implementation? How closely do the approximate approaches match the more comprehensive ones? How does execution time compare? ➌ 9.6 Review the algorithms for efficiently finding an approximation of a material’s normal distribution function and using that to measure BRDFs that are outlined in Section 9.8 and explained in more detail in Dupuy and Jakob (2018). Follow this approach to implement a virtual gonioreflectometer, where you provide pbrt with a description of the microgeometry of a complex surface (cloth, velvet, etc.) and its low-level reflection properties and then perform virtual measurements of the BSDF by simulating light paths in the microgeometry.
 
-```text
-              Store the results of this simulation in the file format used by the MeasuredBxDFData and
-              then render images that compare using the tabularized representation to directly rendering
-              the microgeometry. How do the images compare? How much more computationally
-              efficient is using the MeasuredBxDFData?
-```
+Store the results of this simulation in the file format used by the MeasuredBxDFData and then render images that compare using the tabularized representation to directly rendering the microgeometry. How do the images compare? How much more computationally efficient is using the MeasuredBxDFData?
 
 ```text
                    BxDF 538

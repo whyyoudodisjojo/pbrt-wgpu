@@ -28,19 +28,8 @@ The first section of this chapter will discuss the problem of texture aliasing a
 
 The sampling task from Chapter 8 was a frustrating one since the aliasing problem was known to be unsolvable from the start. The infinite frequency content of geometric edges and hard shadows guarantees aliasing in the final images, no matter how high the image sampling rate. (Our only consolation is that the visual impact of this remaining aliasing can be reduced to unobjectionable levels with a sufficient number of well-placed samples.) Fortunately, things are not this difficult from the start for textures: either there is often a convenient analytic form of the texture function available, which makes it possible to remove excessively high frequencies before sampling it, or it is possible to be careful when evaluating the function so as not to introduce high frequencies in the first place. When this problem is carefully addressed in texture implementations, as is done through the rest of this chapter, there is usually no need for more than one sample per pixel in order to render an image without texture aliasing. (Of course, sufficiently reducing Monte Carlo noise from lighting calculations may be another matter.) Two problems must be addressed in order to remove aliasing from texture functions:
 
-```text
-           1. The sampling rate in texture space must be computed. The screen-space sampling rate is
-              known from the image resolution and pixel sampling rate, but here we need to
-              determine the resulting sampling rate on a surface in the scene in order to find the rate
-              at which the texture function is being sampled.
-           2. Given the texture sampling rate, sampling theory must be applied to guide the
-              computation of a texture value that does not have higher frequency variation than can be
-```
-
-```text
-              represented by the sampling rate (e.g., by removing excess frequencies beyond the
-              Nyquist limit from the texture function).
-```
+1. The sampling rate in texture space must be computed. The screen-space sampling rate is known from the image resolution and pixel sampling rate, but here we need to determine the resulting sampling rate on a surface in the scene in order to find the rate at which the texture function is being sampled.
+2. Given the texture sampling rate, sampling theory must be applied to guide the computation of a texture value that does not have higher frequency variation than can be represented by the sampling rate (e.g., by removing excess frequencies beyond the Nyquist limit from the texture function).
 
 These two issues will be addressed in turn throughout the rest of this section.
 

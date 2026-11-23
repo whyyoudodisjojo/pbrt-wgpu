@@ -260,14 +260,9 @@ The Monte Carlo estimator of the null-scattering path integral from Equation (14
 
 generalized path contribution function from Equation (14.14) with the path probability p(pn) expressed as the product of three probabilities:
 
-```rust
-         pmaj(pi+1|pi, ωi): the probability of sampling the point pi+1 along
-         the direction ωi from the point pi.
-         pe(pi): the discrete probability of sampling the type of scattering
-         event—absorption, real-, or null-scattering—that was chosen at pi.
-         pω(ω′|ri, ωi): the probability of sampling the direction ω′ after a
-         regular scattering event at point ri with incident direction ωi.
-```
+- pmaj(pi+1|pi, ωi): the probability of sampling the point pi+1 along the direction ωi from the point pi.
+- pe(pi): the discrete probability of sampling the type of scattering event—absorption, real-, or null-scattering—that was chosen at pi.
+- pω(ω′|ri, ωi): the probability of sampling the direction ω′ after a regular scattering event at point ri with incident direction ωi.
 
 For an n vertex path with m real-scattering vertices, the resulting estimator is
 
@@ -368,12 +363,10 @@ With that, a call to SampleT_maj() starts the generation of samples according to
 Float tMax = si ? si->tHit : Infinity; Float u = sampler.Get1D(); Float uMode = sampler.Get1D(); SampleT_maj(ray, tMax, u, rng, lambda,
 
 ```rust
-        [&](Point3f p, MediumProperties mp, SampledSpectrum
-        sigma_maj,
+        [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj,
             SampledSpectrum T_maj) {
             〈Compute medium event probabilities for interaction 870〉
-            〈Randomly sample medium scattering event for delta tracking
-            871〉
+      〈Randomly sample medium scattering event for delta tracking 871〉
 ```
 
 ```rust
@@ -891,8 +884,7 @@ SampledSpectrum rrBeta = beta * etaScale / r_u.Average();
 ```rust
    Float uRR = sampler.Get1D();
    if (rrBeta.MaxComponentValue() < 1 && depth > 1) {
-       Float q = std::max<Float>(0, 1 -
-       rrBeta.MaxComponentValue());
+       Float q = std::max<Float>(0, 1 - rrBeta.MaxComponentValue());
        if (uRR < q) break;
        beta /= 1 - q;
    }
@@ -915,7 +907,7 @@ The overall structure of this method’s implementation is similar to the PathIn
 
 Because it is called for both surface and volumetric scattering path vertices, SampleLd() takes a plain Interaction to represent the scattering point. Some extra care is therefore needed when initializing the LightSampleContext: if scattering is from a surface, it is important to interpret that interaction as the SurfaceInteraction that it is so that the shading normal is included in the LightSampleContext. This case also presents an opportunity, as was done in the PathIntegrator, to shift the light sampling point to avoid incorrectly sampling self-illumination from area lights.
 
-```rust
+```text
    BSDF 544
    BSDF::operator bool() 544
    Float 23
@@ -948,8 +940,7 @@ Because it is called for both surface and volumetric scattering path vertices, S
 ```
 
 ```rust
-       〈Try to nudge the light sampling position to correct side of the surface
-       836〉
+    〈Try to nudge the light sampling position to correct side of the surface 836〉
 ```
 
 ```rust
@@ -973,8 +964,7 @@ Float scatterPDF; SampledSpectrum f_hat; Vector3f wo = intr.wo, wi = ls->wi; if 
 
 ```rust
    } else {
-       〈Update f_hat and scatterPDF accounting for the phase function
-       887〉
+    〈Update f_hat and scatterPDF accounting for the phase function 887〉
 ```
 
 ```rust
@@ -982,7 +972,7 @@ Float scatterPDF; SampledSpectrum f_hat; Vector3f wo = intr.wo, wi = ls->wi; if 
    if (!f_hat) return SampledSpectrum(0.f);
 ```
 
-```rust
+```text
    AbsDot() 90
    BSDF::f() 545
    BSDF::operator bool() 544
@@ -1111,8 +1101,7 @@ r_l *= r_p * lightPDF; r_u *= r_p * scatterPDF; if (IsDeltaLight(light.Type())) 
 
 ```rust
    else
-          return beta * f_hat * T_ray * ls->L / (r_l +
-          r_u).Average();
+          return beta * f_hat * T_ray * ls->L / (r_l + r_u).Average();
 ```
 
 With SampleLd() implemented, we will return to the fragments in the Li() method that handle the cases where a ray escapes from the scene and possibly finds illumination from infinite area lights, as well as where a ray intersects an emissive surface. These handle the first term in the direct lighting MIS estimator, Equation (14.24). 〈Add emitted light at volume path vertex or from the environment〉 ≡ 884
@@ -1141,8 +1130,7 @@ for (const auto &light : infiniteLights) { if (SampledSpectrum Le = light.Le(ray
 
 ```rust
             else {
-                 〈Add infinite light contribution using both PDFs with MIS
-                 891〉
+         〈Add infinite light contribution using both PDFs with MIS 891〉
 ```
 
 ```rust

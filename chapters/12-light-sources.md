@@ -81,14 +81,10 @@ Another example is that the Monte Carlo algorithms that sample illumination from
 
 There are four different light categories:
 
-```text
-             DeltaPosition: lights that emit solely from a single point in space. (“Delta” refers to the
-             fact that such lights can be described by Dirac delta distributions.)
-             DeltaDirection: lights that emit radiance along a single direction.
-             Area: lights that emit radiance from the surface of a geometric shape.
-             Infinite: lights “at infinity” that do not have geometry associated with them but provide
-             radiance to rays that escape the scene.
-```
+- DeltaPosition: lights that emit solely from a single point in space. (“Delta” refers to the fact that such lights can be described by Dirac delta distributions.)
+- DeltaDirection: lights that emit radiance along a single direction.
+- Area: lights that emit radiance from the surface of a geometric shape.
+- Infinite: lights “at infinity” that do not have geometry associated with them but provide radiance to rays that escape the scene.
 
 〈LightType Definition〉 ≡ enum class LightType { DeltaPosition, DeltaDirection, Area, Infinite };
 
@@ -248,21 +244,11 @@ As there was with classes like CameraBase and FilmBase for Camera and Film imple
 
 The following three values are passed to the LightBase constructor, which stores them in these member variables:
 
-```text
-             type characterizes the light’s type.
-```
+type characterizes the light’s type.
 
-```text
-               renderFromLight is a transformation that defines the light’s coordinate system with
-               respect to rendering space. As with shapes, it is often handy to be able to implement a
-               light assuming a particular coordinate system (e.g., that a spotlight is always located at
-               the origin of its light space, shining down the +z axis). The rendering-from-light
-               transformation makes it possible to place such lights at arbitrary positions and
-               orientations in the scene.
-               A MediumInterface describes the participating medium on the inside and the outside of
-               the light source. For lights that do not have “inside” and “outside” (e.g., a point light), the
-               MediumInterface stores the same Medium on both sides.
-```
+renderFromLight is a transformation that defines the light’s coordinate system with respect to rendering space. As with shapes, it is often handy to be able to implement a light assuming a particular coordinate system (e.g., that a spotlight is always located at the origin of its light space, shining down the +z axis). The rendering-from-light transformation makes it possible to place such lights at arbitrary positions and orientations in the scene.
+
+A MediumInterface describes the participating medium on the inside and the outside of the light source. For lights that do not have “inside” and “outside” (e.g., a point light), the MediumInterface stores the same Medium on both sides.
 
 ```text
     Camera 206
@@ -1347,7 +1333,7 @@ pstd::array<Point3f, 4> portal; Frame portalFrame;
 
 The constructor also resamples a provided equal-area image into the rectified representation at the same resolution. Because the rectified image depends on the geometry of the portal, it is better to take an equal-area image and resample it in the constructor than to require the user to provide an already-rectified image. In this way, it is easy for the user to change the portal specification just by changing the portal’s coordinates in the scene description file. 〈Resample environment map into rectified image〉 ≡ 776
 
-image = Image(PixelFormat::Float, equalAreaImage.Resolution(), {“R“, “G“, “B“}, equalAreaImage.Encoding(), alloc); ParallelFor(0, image.Resolution().y, [&](int y) { for (int x = 0; x < image.Resolution().x; ++x) {
+image = Image(PixelFormat::Float, equalAreaImage.Resolution(), {"R", "G", "B"}, equalAreaImage.Encoding(), alloc); ParallelFor(0, image.Resolution().y, [&](int y) { for (int x = 0; x < image.Resolution().x; ++x) {
 
 ```rust
                 〈Resample equalAreaImage to compute rectified image pixel (x, y) 777〉

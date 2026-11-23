@@ -34,22 +34,9 @@ The integrator described in this chapter, WavefrontPathIntegrator, is structured
 
 The WavefrontPathIntegrator imposes three requirements on a GPU platform:
 
-```text
-         1. It must support a unified address space, where the CPU and GPU can both access the
-            GPU’s memory, using pointers that are consistent on both types of processor. This
-            capability is integral to being able to parse the scene description and initialize the scene
-            representation on the CPU, including initializing pointer-based data structures there,
-            before the same data structures are then used in code that runs on the GPU.
-         2. The GPU compilation infrastructure must be compatible with C++17, the language that
-            the rest of pbrt is implemented in. This makes it possible to use the same class and
-            function implementations on both types of processors.
-```
-
-```rust
-           3. The GPU must have support for ray tracing, either in hardware or in vendor-supplied
-              software. (pbrt’s existing acceleration structures would not be efficient on the GPU in
-              their present form.)
-```
+1. It must support a unified address space, where the CPU and GPU can both access the GPU’s memory, using pointers that are consistent on both types of processor. This capability is integral to being able to parse the scene description and initialize the scene representation on the CPU, including initializing pointer-based data structures there, before the same data structures are then used in code that runs on the GPU.
+2. The GPU compilation infrastructure must be compatible with C++17, the language that the rest of pbrt is implemented in. This makes it possible to use the same class and function implementations on both types of processors.
+3. The GPU must have support for ray tracing, either in hardware or in vendor-supplied software. (pbrt’s existing acceleration structures would not be efficient on the GPU in their present form.)
 
 ```text
     WavefrontPathIntegrator 939
@@ -122,9 +109,8 @@ Considered under the lens of GPU execution, we can see the benefit of the first 
    Processors                                                  32                                  82
    Peak single-precision TFLOPS                                                                    36
                                                        3.8
+   Peak memory bandwidth                                      ~ 100 GiB/s                        936 GiB/s
 ```
-
-Peak memory bandwidth ~ 100 GiB/s 936 GiB/s
 
 We will say that execution across a thread group is converged when all of the threads follow the same control flow path through the program, and that it has become divergent at points in the program execution where some threads follow one path and others follow another through the program code. Some divergence is inevitable, but the less there is the better. Convergence can be improved both by writing individual blocks of code to minimize the number of separate control paths and by sorting work so that all of the threads in a thread block do the same thing. This latter idea will come up repeatedly in Section 15.3 when we discuss the set of kernels that the WavefrontPathIntegrator executes.
 
@@ -1736,20 +1722,15 @@ VolPathIntegrator’s 〈Possibly terminate volumetric path with Russian roulett
    present 967〉
    bool anyNonSpecularBounces = !bsdfSample->IsSpecular() ||
                                          w.anyNonSpecularBounces; LightSampleContext
-                                         ctx(w.pi, w.n, ns); nextRayQueue-
-                                         >PushIndirectRay(
-         ray, w.depth + 1, ctx, beta, r_u, r_l, lambda, etaScale, bsdfSample-
-         >IsSpecular(), anyNonSpecularBounces, w.pixelIndex);
+                                         ctx(w.pi, w.n, ns); nextRayQueue->PushIndirectRay(
+         ray, w.depth + 1, ctx, beta, r_u, r_l, lambda, etaScale, bsdfSample->IsSpecular(), anyNonSpecularBounces, w.pixelIndex);
 ```
 
 The medium member of the Ray must be set manually based on which side of the surface the ray starts in. 〈Initialize ray medium if media are present〉 ≡ 967,
 
 ```rust
-   if (haveMedia) ray.medium = Dot(ray.d, w.n) > 0 ?                                   968
-```
-
-```rust
-   w.mediumInterface.outside : w.mediumInterface.inside;
+   if (haveMedia) ray.medium = Dot(ray.d, w.n) > 0 ?
+       w.mediumInterface.outside : w.mediumInterface.inside;
 ```
 
 The MediumInterface at the intersection point is thus needed in MaterialEvalWorkItem.
@@ -1976,18 +1957,7 @@ Next, implement one of the more space-efficient techniques for representing deri
              WavefrontPathIntegrator:: EvaluateMaterialsAndBSDFs() 959
 ```
 
-```text
-         Following this approach, modify pbrt so that each ray traced handles its
-         termination individually when it reaches the maximum depth. Execute a
-         modified camera ray generation kernel each time through the main rendering
-         loop so that additional pixel samples are taken and camera rays are generated
-         until the current RayQueue is filled or there are no more samples to take. Note
-         that you will have to handle Film updates in a different way than the current
-         implementation—for example, via a work queue when rays terminate. You may
-         also have to handle the case of multiple threads updating the same pixel sample.
-         Finally, implement a mechanism for the GPU to notify the CPU when all rays
-         have terminated so that it knows when to stop launching kernels.
-```
+Following this approach, modify pbrt so that each ray traced handles its termination individually when it reaches the maximum depth. Execute a modified camera ray generation kernel each time through the main rendering loop so that additional pixel samples are taken and camera rays are generated until the current RayQueue is filled or there are no more samples to take. Note that you will have to handle Film updates in a different way than the current implementation—for example, via a work queue when rays terminate. You may also have to handle the case of multiple threads updating the same pixel sample. Finally, implement a mechanism for the GPU to notify the CPU when all rays have terminated so that it knows when to stop launching kernels.
 
 With all that taken care of, measure pbrt’s performance for a scene with a high maximum ray depth. (Scenes that include volumetric scattering with media with very high albedos are a good choice for this measurement.) How much is performance improved with your approach? How is performance affected for easier scenes with lower maximum depths that do not suffer from this problem? ➌ 15.6 In pbrt’s current implementation, the wavefront path tracer is usually slower than the VolPathIntegrator when running on the CPU. Render a few scenes using both approaches and benchmark pbrt’s performance. Are any opportunities to improve the performance of the wavefront approach on the CPU evident?
 

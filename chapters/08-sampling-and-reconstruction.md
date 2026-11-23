@@ -291,14 +291,12 @@ Although some of this variety is for pedagogy, it is largely due to the fact tha
 
 Fourier analysis can also be applied to evaluate sampling patterns in the context of Monte Carlo integration, leading to insights about both variance and the convergence rates of various sampling algorithms. We will make three simplifications in our treatment of this topic here. There are more general forms of the theory that do not require these, though they are more complex. (As always, see the “Further Reading” section for more information.) We assume that:
 
-```text
-           1. The sample points are uniformly distributed and equally weighted (i.e., importance
-              sampling is not being used).
-           2. The Monte Carlo estimator used is unbiased.
-           3. The properties of the sample points are homogeneous with respect to toroidal translation
-              over the sampling domain. (If they are not, the analysis is effectively over all possible
-              random translations of the sample points.)
-```
+1. The sample points are uniformly distributed and equally weighted (i.e., importance
+   sampling is not being used).
+2. The Monte Carlo estimator used is unbiased.
+3. The properties of the sample points are homogeneous with respect to toroidal translation
+   over the sampling domain. (If they are not, the analysis is effectively over all possible
+   random translations of the sample points.)
 
 Excluding importance sampling has obvious implications, though we note that the last assumption, homogeneity, is also significant. Many of the sampling approaches later in this chapter are based on decomposing the [0, 1)n sampling domain into strata and placing a single sample in each one. Homogenizing such algorithms causes some of those regions to wrap around the boundaries of the domain, which harms their effectiveness. Equivalently, homogenization can be seen as toroidally translating the function being integrated, which can introduce discontinuities that were not previously present. Nevertheless, we will see that there is still much useful insight to be had about the behavior of sampling patterns in spite of these simplifications.
 
@@ -785,9 +783,7 @@ which is optimal.
 
 The d-dimensional Halton sequence is defined using the radical inverse base b, with a different base for each dimension. The bases used must all be relatively prime to each other, so a natural choice is to use the first d prime numbers (p1, …, pd): Table 8.2: The radical inverse Φ2(a) of the first few nonnegative integers, computed in base 2. Notice how successive values of Φ2(a) are not close to any of the previous values of Φ2(a). As more and more values of the sequence are generated, samples are necessarily closer to previous samples, although with a minimum distance that is guaranteed to be reasonably good.
 
-```text
          a                          Base 2                                                 Φ2(a)
-```
 
 0 0 0
 
