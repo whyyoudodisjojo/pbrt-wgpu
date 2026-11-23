@@ -1,6 +1,16 @@
 # Chapter 14: Light Transport II: Volume
 
-RENDERING
+## Volume Light Transport (wgpu)
+
+```mermaid
+flowchart TD
+    A[Ray] --> B[Volume Integration]
+    B --> C[Scatter/Absorb]
+    C --> D[Next Event]
+    D --> E[Pixel]
+```
+
+
 
 The abstractions for representing participating media that were introduced in Chapter 11 describe how media scatter light but they do not provide the capability of simulating the global effects of light transport in a scene. The situation is similar to that with BSDFs: they describe local effects, but it was necessary to start to introduce integrators in Chapter 13 that accounted for direct lighting and interreflection in order to render images. This chapter does the same for volumetric scattering.
 
@@ -11,6 +21,8 @@ Following sections discuss implementations of solutions to the equation of trans
 ## 14.1 THE EQUATION OF TRANSFER
 
 The equation of transfer is the fundamental equation that governs the behavior of light in a medium that absorbs, emits, and scatters radiation. It accounts for all the volume scattering processes described in Chapter 11—absorption, emission, in scattering, and out scattering—to give an equation that describes the equilibrium distribution of radiance. The light transport equation is in fact a special case of it, simplified by the lack of participating media and specialized for scattering from surfaces. (We will equivalently refer to the equation of transfer as the volumetric light transport equation.) Integrator 22 LayeredBxDF 895
+
+![Figure 14.1](images/img-1351-314.png)
 
 *Figure 14.1: The equation of transfer gives the incident radiance at point Li(p, ω) accounting for the effect of participating media. At each point p′ along the ray, the source function Ls(p′, −ω) gives the differential radiance added at the point due to scattering and emission. This radiance is then attenuated by the beam transmittance Tr(p′ → p) from the point p′ to the ray’s origin.*
 
@@ -23,6 +35,8 @@ The source function accounts for all the processes that add radiance to a ray. T
 With suitable boundary conditions, this equation can be transformed to a pure integral equation that describes the effect of participating media from the infinite number of points along a ray. For example, if we assume that there are no surfaces in the scene so that the rays are never blocked and have an infinite length, the integral equation of transfer is
 
 (See Figure 14.1.) The meaning of this equation is reasonably intuitive: it just says that the radiance arriving at a point from a given direction is determined by accumulating the radiance added at all points along the ray. The amount of added radiance at each point along the ray that reaches the ray’s origin is reduced by the beam transmittance to the point.
+
+![Figure 14.2](images/img-1352-315.png)
 
 *Figure 14.2: For a finite ray that intersects a surface, the incident radiance, Li(p, ω), is equal to the outgoing radiance from the surface, Lo(ps, −ω), times the beam transmittance to the surface plus the added radiance from all points along the ray from p to ps.*
 
@@ -74,6 +88,8 @@ where is the transmittance function for the ith segment and the point p′ is th
     Medium 714
 ```
 
+![Figure 14.3](images/img-1357-317.png)
+
 *Figure 14.3: (a) Given piecewise-constant majorants defined over segments along a ray, the corresponding optical thickness τ is a piecewise-linear function. (b) Exponentiating the negative optical thickness gives the transmittance at each point along the ray. The transmittance function is continuous and decreasing, but has a first derivative discontinuity at transitions between segments.*
 
 with p′ = p + t′ω and , it is useful to rewrite the integral to be over the individual majorant segments, which gives
@@ -93,6 +109,8 @@ for evaluating all wavelengths’ contributions if multiple importance sampling 
 Each invocation of the callback is passed a sampled point along the ray, the associated MediumProperties and σmaj for the medium at that point, and the majorant transmittance Tmaj. The first time callback is invoked, the majorant transmittance will be from the ray origin to the sample; any subsequent invocations give the transmittance from the previous sample to the current one. After sampling concludes, SampleT_maj() returns the majorant transmittance Tmaj from the last sampled point in the medium (or the ray origin, if no samples were generated) to the ray’s endpoint (see Figure 14.4). As if all of this was not sufficiently complex, the implementation of SampleT_maj() starts out with some tricky C++ code. There is a second variant of SampleT_maj() we will introduce shortly that is templated based on the concrete type of Medium being sampled. In order to call the
 
 appropriate template specialization, we must determine which type of Medium the ray is passing through. Conceptually, we would like to do something like the following, using the TaggedPointer::Is() method: Float 23 Medium 714 MediumProperties 718 Ray 95 RayMajorantSegment 718 RNG 1054 SampledSpectrum 171 SampledWavelengths 173 Sampler 469
+
+![Figure 14.4](images/img-1360-319.png)
 
 *Figure 14.4: In addition to calling a provided callback function at sampled points in the medium, shown here as filled circles, the SampleT_maj() function returns the majorant transmittance Tmaj from the last sampled point to the provided tmax value.*
 
@@ -218,6 +236,8 @@ The path throughput function can then be defined as:
 
 It now refers to a generalized scattering distribution function and generalized geometric term Ĝ. The former simply falls back to the BSDF, phase function (multiplied by σs), or a factor that enforces the ordering of null-scattering vertices, depending on the type of the vertex pi. Note that the first two products in Equation (14.11) are over all vertices but the third is only over real-scattering vertices.
 
+![Figure 14.5](images/img-1370-321.png)
+
 *Figure 14.5: In the path space framework, a path is defined by a set of n vertices pi that have an emitter at one endpoint and a sensor at the other, where intermediate vertices represent scattering events, including null scattering. The subset of m vertices that represent real scattering events are labeled ri.*
 
 The scattering distribution function is defined by
@@ -276,6 +296,8 @@ First is the SimpleVolPathIntegrator, which uses simple sampling techniques, giv
 ### 14.2.1 A SIMPLE VOLUMETRIC INTEGRATOR
 
 The SimpleVolPathIntegrator implements a basic volumetric path tracer, following the sampling approach described in Section 14.1.2. Its Li() method is under 100 lines of code, none of them too tricky. However, with this simplicity comes a number of limitations. First, like the RandomWalkIntegrator, it does not perform any explicit light sampling, so it requires that rays are able to randomly intersect the lights in the scene. Second, it does not handle scattering from surfaces. An error message is therefore issued if it is used with a scene that contains delta distribution light sources or has surfaces with nonzero-valued BSDFs. (These defects are all addressed in the VolPathIntegrator discussed in Section 14.2.2.) Nevertheless, this integrator is capable of rendering complex volumetric effects; see Figure 14.6.
+
+![Figure 14.6](images/img-1375-322.png)
 
 *Figure 14.6: Explosion Rendered Using the SimpleVolPathIntegrator. With 256 samples per pixel, this integrator gives a reasonably accurate rendering of the volumetric model, though there are variance spikes in some pixels (especially visible toward the bottom of the volume) due to error from the integrator not directly sampling the scene’s light sources. The VolPathIntegrator, which uses more sophisticated sampling strategies, renders this scene with 1,288 times lower MSE; it is discussed in Section 14.2.2. (Scene courtesy of Jim Price.)*
 
@@ -525,7 +547,11 @@ In the following, we will say that the two path-sampling techniques used in the 
 
 Given a path pn−1, both approaches share the same path throughput weight β up to the vertex pn−1 and the same path PDF up to that vertex, pu(pn−1).2
 
+![Figure 14.7](images/img-1388-323.png)
+
 *Figure 14.7: Chromatic Volumetric Media. (a) When rendered without spectral MIS, variance is high. (b) Results are much better with spectral MIS, as implemented in the VolPathIntegrator. For this scene, MSE is reduced by a factor of 149. (Scene courtesty of Jim Price.)*
+
+![Figure 14.8](images/img-1389-324.png)
 
 *Figure 14.8: In the direct lighting calculation, at each path vertex a point is sampled on a light source and a shadow ray (dotted line) is traced. The VolPathIntegrator uses ratio tracking to compute the transmittance along the ray by accumulating the product σn/σmaj at sampled points along the ray (open circles). For the MIS weight, it is necessary to be able not only to compute the PDF for sampling the corresponding direction at the last path vertex but also to compute the probability of generating these samples using delta tracking, since that is how the path would be sampled with unidirectional path sampling.*
 
@@ -569,7 +595,11 @@ int maxDepth; LightSampler lightSampler; bool regularize;
 
 LightSampler 781 PathIntegrator 833 RayIntegrator 28 VolPathIntegrator 877
 
+![Figure 14.9](images/img-1392-325.png)
+
 *Figure 14.9: Volumetric Emission inside Lightbulbs. The flames in each lightbulb are modeled with participating media and rendered with the VolPathIntegrator. (Scene courtesy of Jim Price.)*
+
+![Figure 14.10](images/img-1393-326.png)
 
 *Figure 14.10: Volumetric Scattering in Liquid. Scattering in the paint-infused water is modeled with participating media and rendered with the VolPathIntegrator. (Scene courtesy of Angelo Ferretti.)*
 
@@ -1133,6 +1163,8 @@ In addition to describing scattering from larger-scale volumetric media like clo
 
 Modeling surface reflectance as a composition of layers makes it possible to describe a variety of surfaces that are not well modeled by the BSDFs presented in Chapter 9. For example, automobile paint generally has a smooth reflective “clear coat” layer applied on top of it; the overall appearance of the paint is determined by the combination of light scattering from the layer’s interface as well as light scattering from the paint. (See Figure 14.11.) Tarnished metal can be modeled by an underlying metal BRDF with a thin scattering medium on top of it; it is again the aggregate result of a variety of light scattering paths that determines the overall appearance of the surface.
 
+![Figure 14.11](images/img-1418-327.png)
+
 *Figure 14.11: Scattering from Layered Surfaces. Surface reflection can be modeled with a series of layers, where each interface between media is represented with a BSDF and where the media between layers may itself both absorb and scatter light. The aggregate scattering from such a configuration can be determined by finding solutions to the equation of transfer.*
 
 ```text
@@ -1148,7 +1180,11 @@ Modeling surface reflectance as a composition of layers makes it possible to des
     VolPathIntegrator::lightSampler 877
 ```
 
+![Figure 14.12](images/img-1419-328.png)
+
 *Figure 14.12: Setting for the One-Dimensional Equation of Transfer. If the properties of the medium only vary in one dimension and if the incident illumination is uniform over its boundary, then the equilibrium radiance distribution varies only with depth z and direction ω and a 1D specialization of the equation of transfer can be used.*
+
+![Figure 14.13](images/img-1419-329.png)
 
 *Figure 14.13: Transmittance in 1D. The distance between two depths d is given by the z distance between them divided by the cosine of the ray’s angle with respect to the z axis, θ. The transmittance follows.*
 
@@ -1165,6 +1201,8 @@ In this setting, the various quantities are more conveniently expressed as funct
 ```
 
 See Figure 14.13. This definition uses the fact that if a ray with direction ω travels a distance t, then the change in z is tωz.
+
+![Figure 14.14](images/img-1420-330.png)
 
 *Figure 14.14: The 1D specialization of the equation of transfer from Equation (14.31) expresses the incident radiance Li at a depth z as the sum of attenuated radiance Lo from the interface that is visible along the ray and the transmission-modulated source function Ls integrated over z.*
 
@@ -1188,13 +1226,19 @@ The LayeredBxDF further assumes that σt is constant over all wavelengths in the
 
 The equation of transfer describes the equilibrium distribution of radiance, though our interest here is in evaluating and sampling the BSDF that represents all the scattering from the layered medium. Fortunately, these two things can be connected. If we would like to evaluate the BSDF for a pair of directions ωo and ωi, then we can define an incident radiance function from a virtual light source from ωi as
 
+![Figure 14.15](images/img-1421-331.png)
+
 *Figure 14.15: If a medium is illuminated with a virtual light source of the form of Equation (14.34), then the radiance leaving the surface in the direction ωo is equivalent to the layered surface’s BSDF, f (ωo, ωi).*
 
 If a 1D medium is illuminated by such a light, then the outgoing radiance Lo(ωo) at the medium’s interface is equivalent to the value of the BSDF, f (ωo, ωi) (see Figure 14.15). One way to understand why this is so is to consider using such a light with the surface reflection equation:
 
 Thus, integrating the equation of transfer with such a light allows us to evaluate and sample the corresponding BSDF. However, this means that unlike all the BxDF implementations from Chapter 9, the values that LayeredBxDF returns from methods like f() and PDF() are stochastic. This is perfectly fine in the context of all of pbrt’s Monte Carlo–based techniques and does not affect the correctness of other estimators that use these values; it is purely one more source of error that can be controlled in a predictable way by increasing the number of samples. The LayeredBxDF allows the specification of only two interfaces and a homogeneous participating medium between them. Figure 14.16 illustrates the geometric setting. Surfaces with more layers can be modeled using a LayeredBxDF where one or both of its layers are themselves LayeredBxDFs. (An exercise at the end of the chapter discusses a more efficient approach for supporting additional layers.) The types of BxDFs at both interfaces can be provided as template parameters. While the user of a LayeredBxDF is free to provide a BxDF for both of these types (in which case pbrt’s regular dynamic dispatch mechanism will be used), performance is better if they are specific BxDFs and the compiler can generate a specialized implementation. This approach is used for the CoatedDiffuseBxDF and the CoatedConductorBxDF that are defined in Section 14.3.3. (The meaning of the twoSided template parameter will be explained in a few pages, where it is used.) BxDF 538 CoatedConductorBxDF 909 CoatedDiffuseBxDF 909
 
+![Figure 14.16](images/img-1423-332.png)
+
 *Figure 14.16: Geometric Setting for the LayeredBxDF. Scattering is specified by two interfaces with associated BSDFs where the bottom one is at z = 0 and there is a medium of user-specified thickness between the two interfaces.*
+
+![Figure 14.17](images/img-1423-333.png)
 
 *Figure 14.17: Effect of Varying Medium Thickness with the LayeredBxDF. (a) Dragon with surface reflectance modeled by a smooth conductor base layer and a dielectric interface above it. (b) With a scattering layer with albedo 0.7 and thickness 0.15 between the interface and the conductor, the reflection of the conductor is slightly dimmed. (c) With a thicker scattering layer of thickness 0.5, the conductor is much more attenuated and the overall reflection is more diffuse. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
@@ -1215,6 +1259,8 @@ In addition to BxDFs for the two interfaces, the LayeredBxDF maintains member va
 〈LayeredBxDF Private Members〉 ≡ 895
 
 TopBxDF top; BottomBxDF bottom; Float thickness, g; SampledSpectrum albedo;
+
+![Figure 14.18](images/img-1424-334.png)
 
 *Figure 14.18: If the incident ray intersects the layer at z = thickness, then the top layer is the same as is specified in the LayeredBxDF::top member variable. However, if it intersects the surface from the other direction at z = 0, we will find it useful to treat the z = 0 layer as the top one and the other as the bottom. The TopOrBottomBxDF class helps with related bookkeeping.*
 
@@ -1322,6 +1368,8 @@ if (SameHemisphere(wo, wi)) f = nSamples * enterInterface.f(wo, wi, mode);
 
 pbrt’s BxDF interface does not include any uniform sample values as parameters to the f() method; there is no need for them for any of the other BxDFs in the system. In any case, an unbounded number of uniform random numbers are required for sampling operations when evaluating layered BSDFs. Therefore, f() initializes an RNG and defines a convenience lambda function that returns uniform random sample values. This does mean that the benefits of sampling with well-distributed point sets are not present here; an exercise at the end of the chapter returns to this issue. The RNG is seeded carefully: it is important that calls to f() with different directions have different seeds so that there is no risk of errors due to correlation between the RNGs used for multiple samples in a pixel or across nearby pixels. However, we would also like the samples to be deterministic so that any call to f() with the same two directions always has the same set of random samples. This sort of reproducibility is important for debugging so that errors appear consistently across multiple runs of the program. Hashing the two provided directions along with the system-wide seed addresses all of these concerns.
 
+![Figure 14.19](images/img-1430-335.png)
+
 *Figure 14.19: The effect of light that scatters between the interface layers is found by integrating the product of the cosine-weighted BTDF at the entrance interface with the incident radiance from the medium, Equation (14.35).*
 
 〈Declare RNG for layered BSDF evaluation〉 ≡ 897
@@ -1351,6 +1399,8 @@ where is the hemisphere inside the medium (see Figure 14.19). The implementation
 ```
 
 Sampling the direction ω′ is a case where it is useful to be able to specify to Sample_f() that only transmission should be sampled.
+
+![Figure 14.20](images/img-1431-336.png)
 
 *Figure 14.20: Illumination Contribution from the Virtual Light Source. At a path vertex, the contribution of the virtual light source is given by the product of the path throughput weight β that accounts for previous scattering along the path, the scattering at the vertex, the transmittance Tr to the exit interface, and the effect of the BTDF at the interface.*
 
@@ -1526,6 +1576,8 @@ PDF Evaluation The PDF p(ωo, ωi) that corresponds to a LayeredBxDF’s BSDF ca
 
 The first term gives the contribution for the PDF at the top interface and the second is the PDF for directions ωi that were sampled via transmission through the top interface, scattering at the bottom, and then transmission back out in direction ωi. Note the coupling of directions between the PDF factors in the integrand: the negation of the initial transmitted direction ω′ gives the first direction for evaluation of the base PDF , and so forth (see Figure 14.21). Subsequent terms of this sum account for light that is reflected back downward at the top interface instead of exiting the layers, and expressions of a similar form can be found for the PDF if the base layer is also transmissive.
 
+![Figure 14.21](images/img-1440-337.png)
+
 *Figure 14.21: The First Two Terms of the Infinite Sum that Give a Layered BSDF’s PDF. (a) The PDF of the reflection component of the interface’s BSDF accounts for light that scatters without entering the layers. (b) The second term is given by a double integral over directions. A direction ω′ pointing into the medium is sampled; it gives the second direction for the interface’s BTDF PDF and its negation gives one of the two directions for . A second direction ω″ is used for as well as for a second evaluation of .*
 
 It is possible to compute a stochastic estimate of the PDF by applying Monte Carlo to the integrals and by terminating the infinite sum using
@@ -1653,9 +1705,11 @@ pbrt provides both the CoatedDiffuseBxDF and the CoatedConductorBxDF for such us
 
 There are also corresponding Material implementations, CoatedDiffuseMaterial and CoatedConductorMaterial. Their implementations follow the familiar pattern of evaluating textures and then initializing the corresponding BxDF, and they are therefore not included here.
 
+![Figure 14.22](images/img-1447-338.png)
+
 *Figure 14.22: A Variety of Effects That Can Be Achieved Using Layered Materials. (a) Dragon model with a blue diffuse BRDF. (b) The effect of adding a smooth dielectric interface on top of the diffuse BRDF. In addition to the specular highlights, note how the color has become more saturated, which is due to multiple scattering from paths that reflected back into the medium from the exit interface. (c) The effect of roughening the interface. The surface appears less shiny, but the blue remains more saturated. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
-FURTHER READING
+## FURTHER READING
 
 Lommel (1889) first derived the equation of transfer. Not only did he derive this equation, but he also solved it in some simplified cases in order to estimate reflection functions from real-world surfaces (including marble and paper), and he compared his solutions to measured reflectance data from these surfaces. The equation of transfer was independently found by Khvolson (1890) soon afterward; see Mishchenko (2013) for a history of early work in the area. Seemingly unaware of Lommel’s work, Schuster (1905) was the next researcher in radiative transfer to consider the effect of multiple scattering. He used the term self-illumination to describe the fact that each part of the medium is illuminated by every other part of the medium, and he derived differential equations that described reflection from a slab along the normal direction, assuming the presence of isotropic scattering. The conceptual framework that he developed remains essentially unchanged in the field of radiative transfer. Soon thereafter, Schwarzschild (1906) introduced the concept of radiative equilibrium, and Jackson (1910) expressed Schuster’s equation in integral form, also noting that “the obvious physical mode of solution is Liouville’s method of successive substitutions” (i.e., a Neumann series solution).
 
@@ -1704,7 +1758,7 @@ Moon et al. (2007) made the important observation that some of the assumptions u
 
 The equation of transfer assumes that the index of refraction of a medium will only change at discrete boundaries, though many actual media have continuously varying indices of refraction. Ament et al. (2014) derived a variant of the equation of transfer that allows for this case and applied photon mapping to render images with it. Pediredla et al. (2020) further investigated this topic and developed an unbiased rendering algorithm for such media based on path tracing. Handling fluorescence in the context of volumetric scattering introduces a number of complexities discussed by Mojzík et al. (2018), who also derived a fluorescence-aware sampling algorithm.
 
-EXERCISES
+## EXERCISES
 
 ➋ 14.1 Replace ratio tracking in the VolPathIntegrator::SampleLd() method with delta tracking. After you confirm that your changes converge to the correct result, measure the difference in performance and MSE in order to compare the Monte Carlo efficiency of the two approaches for a variety of volumetric data sets. Do you find any cases where delta tracking is more efficient? If so, can you explain why? ➋ 14.2 Residual ratio tracking can compute transmittance more efficiently than ratio tracking in dense media; it is based on finding lower bounds of σt in regions of space, analytically computing that portion of the transmittance, and then using ratio tracking for the remaining variation (Novák et al. 2014). Implement this approach in pbrt and measure its effectiveness. Note that you will need to make modifications to both the Medium’s RayMajorantSegment representation and the implementation of the VolPathIntegrator in order to do so. ➋ 14.3 The current implementation of SampleT_maj() consumes a new uniform random value for each RayMajorantSegment returned by the medium’s iterator. Its sampling operation can alternatively be implemented using a single uniform value to sample a total optical thickness and then finding the point along the ray where that optical thickness has been accumulated. Modify SampleT_maj() to implement that approach and measure rendering performance. Is there a benefit compared to the current implementation? ➌ 14.4 It is not possible to directly sample emission in volumes with the current Medium interface. Thus, integrators are left to include emission only when their random walk through a medium happens to find a part of it that is emissive. This approach can be quite inefficient, especially for localized bright emission. Add methods to the Medium interface that allow for sampling emission and modify the direct lighting calculation in the VolPathIntegrator to use them. For inspiration, it may be worthwhile to read the papers by Villemin and Hery (2013) and Simon et al. (2017) on Monte Carlo sampling of 3D emissive volumes. Measure the improvement in efficiency with your approach. Are there any cases where it hurts performance? ➌ 14.5 While sampling distances in participating media according to the majorant is much more effective than sampling uniformly, it does not account for other factors that vary along the ray, such as the scattering coefficient and phase function or variation
 

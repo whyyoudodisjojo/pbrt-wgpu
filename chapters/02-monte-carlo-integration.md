@@ -1,5 +1,18 @@
 # Chapter 2: Monte Carlo Integration
 
+## Monte Carlo Integration (wgpu)
+
+```mermaid
+flowchart LR
+    A[Sample Domain] --> B[Evaluate Integrand]
+    B --> C[Accumulate Sum]
+    C --> D{More samples?}
+    D -- yes --> A
+    D -- no --> E[Divide by N]
+    E --> F[Estimate]
+```
+
+
 Rendering is full of integration problems. In addition to the light transport equation (1.1), in the following chapters we will see that integral equations also describe a variety of additional quantities related to light, including the sensor response in a camera, the attenuation and scattering of light in participating media, and scattering from materials like skin. These integral equations generally do not have analytic solutions, so we must turn to numerical methods. Although standard numerical integration techniques like trapezoidal integration or Gaussian quadrature are effective at solving low-dimensional smooth integrals, their rate of convergence is poor for the higher dimensional and discontinuous integrals that are common in rendering. Monte Carlo integration techniques provide one solution to this problem. They use random sampling to evaluate integrals with a convergence rate that is independent of the dimensionality of the integrand.
 
 Monte Carlo integration1 has the useful property that it only requires the ability to evaluate an integrand f(x) at arbitrary points in the domain in order to estimate the value of its integral ∫ f(x) dx. This property not only makes Monte Carlo easy to implement but also makes the technique applicable to a broad variety of integrands. It has a natural extension to multidimensional functions; in Chapter 13, we will see that the light transport algorithm implemented in the RandomWalkIntegrator can be shown to be estimating the value of an infinite-dimensional integral.
@@ -601,7 +614,7 @@ is correct. Statistical tests can be an effective approach for checking their co
 
 See also the “Further Reading” section in Appendix A, which has information about the sampling algorithms implemented there as well as related approaches.
 
-EXERCISES
+## EXERCISES
 
 ```text
      SampleLinear() 73

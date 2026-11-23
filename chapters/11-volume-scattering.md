@@ -1,5 +1,16 @@
 # Chapter 11: Volume Scattering
 
+## Volume Scattering (wgpu)
+
+```mermaid
+flowchart TD
+    A[Ray] --> B[Sample Free Path]
+    B --> C[Scatter Event]
+    C --> D[Phase Function]
+    D --> E[Accumulate]
+```
+
+
 We have assumed so far that scenes are made up of collections of surfaces in a vacuum, which means that radiance is constant along rays between surfaces. However, there are many real-world situations where this assumption is inaccurate: fog and smoke attenuate and scatter light, and scattering from particles in the atmosphere makes the sky blue and sunsets red. This chapter introduces the mathematics that describe how light is affected as it passes through participating media—large numbers of very small particles distributed throughout a region of 3D space. These volume scattering models in computer graphics are based on the assumption that there are so many particles that scattering is best modeled as a probabilistic process rather than directly accounting for individual interactions with particles. Simulating the effect of participating media makes it possible to render images with atmospheric haze, beams of light through clouds, light passing through cloudy water, and subsurface scattering, where light exits a solid object at a different place than where it entered.
 
 This chapter first describes the basic physical processes that affect the radiance along rays passing through participating media, including the phase function, which characterizes the distribution of light scattered at a point in space. (It is the volumetric analog to the BSDF.) It then introduces transmittance, which describes the attenuation of light in participating media. Computing unbiased estimates of transmittance can be tricky, so we then discuss null scattering, a mathematical formalism that makes it easier to sample scattering integrals like the one that describes transmittance. Next, the Medium interface is defined; it is used for representing the properties of participating media in a region of space. Medium implementations provide information about the scattering properties at points in their extent. This chapter does not cover techniques related to computing lighting and the effect of multiple scattering in volumetric media; the associated Monte Carlo integration algorithms and implementations of Integrators that handle volumetric effects will be the topic of Chapter 14.
@@ -21,6 +32,8 @@ There are three main physical processes that affect the distribution of radiance
     Medium 714
 ```
 
+![Figure 11.1](images/img-1095-235.png)
+
 *Figure 11.1: Dragon Illuminated by a Spotlight through Fog. Light scattering from particles in the medium back toward the camera makes the spotlight’s illumination visible even in pixels where there are no visible surfaces that reflect it. The dragon blocks light, casting a volumetric shadow on the right side of the image. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 The characteristics of all of these properties may be homogeneous or inhomogeneous. Homogeneous properties are constant throughout some region of space, while inhomogeneous properties vary throughout space. Figure 11.1 shows a simple example of volume scattering, where a spotlight shining through a homogeneous participating medium illuminates particles in the medium and casts a volumetric shadow.
@@ -39,7 +52,11 @@ Consider thick black smoke from a fire: the smoke obscures the objects behind it
 
 Absorption is described by the medium’s absorption coefficient, σa, which is the probability density that light is absorbed per unit distance traveled in the medium. (Note that the medium absorption is distinct from the absorption coefficient used in specifying indices of refraction of conductors, as introduced in Section 9.3.6.) It is usually a spectrally varying quantity, though we will neglect the implications of that detail in this chapter and return to them in Section 14.2.2. Its units are reciprocal distance (m−1), which means that σa can take on any nonnegative value; it is not required to be between 0 and 1, for instance. In general, the absorption coefficient may vary with both position p and direction ω, although the volume scattering code in pbrt models it as purely a function of position. We will therefore sometimes simplify notation by not including ω in the use of σa and other related scattering properties, though it is easy enough to reintroduce when it is relevant.
 
+![Figure 11.2](images/img-1097-236.png)
+
 *Figure 11.2: If a participating medium primarily absorbs light passing through it, it will have a dark appearance, as shown here. (a) A relatively dense medium leads to a more apparent boundary as well as a darker result. (b) A less dense medium gives a softer look, as more light makes it through the medium. (Cloud model courtesy of Walt Disney Animation Studios.)*
+
+![Figure 11.3](images/img-1098-237.png)
 
 *Figure 11.3: Absorption reduces the amount of radiance along a ray through a participating medium. Consider a ray carrying incident radiance at a point p from direction −ω. If the ray passes through a differential cylinder filled with absorbing particles, the change in radiance due to absorption by those particles is dLo(p, ω) = −σa(p, ω)Li(p, −ω)dt.*
 
@@ -59,7 +76,11 @@ The differential equation that gives the change in radiance due to emission is
 
 The presence of σa on the right hand side stems from the connection between how efficiently an object absorbs light and how efficiently it emits it, as was introduced in Section 4.4.1. That factor also ensures that the corresponding term has units of radiance when the differential equation is converted to an integral equation.
 
+![Figure 11.4](images/img-1099-238.png)
+
 *Figure 11.4: The volume emission function Le(p, ω) gives the change in radiance along a ray as it passes through a differential volume of emissive particles. The change in radiance due to emission per differential distance is given by Equation (11.1).*
+
+![Figure 11.5](images/img-1100-239.png)
 
 *Figure 11.5: A Participating Medium Where the Dominant Volumetric Effect Is Emission. (Scene courtesy of Jim Price.)*
 
@@ -70,6 +91,8 @@ Note that this equation incorporates the assumption that the emitted light Le is
 The third basic light interaction in participating media is scattering. As a ray passes through a medium, it may collide with particles and be scattered in different directions. This has two effects on the total radiance that the beam carries. It reduces the radiance exiting a differential region of the beam because some of it is deflected to different directions. This effect is called out scattering (Figure 11.6) and is the topic of this section. However, radiance from other rays may be scattered into the path of the current ray; this in-scattering process is the subject of the next section. We will sometimes say
 
 that these two forms of scattering are real scattering, to distinguish them from null scattering, which will be introduced in Section 11.2.1.
+
+![Figure 11.6](images/img-1101-240.png)
 
 *Figure 11.6: Like absorption, out scattering also reduces the radiance along a ray. Light that hits particles may be scattered in another direction such that the radiance exiting the region in the original direction is reduced.*
 
@@ -85,7 +108,11 @@ Assuming that the separation between particles is at least a few times the lengt
 
 a point; it is the volumetric analog to the BSDF. The BSDF analogy is not exact, however. For example, phase functions have a normalization constraint: for all ω, the condition
 
+![Figure 11.7](images/img-1102-241.png)
+
 *Figure 11.7: In scattering accounts for the increase in radiance along a ray due to scattering of light from other directions. Radiance from outside the differential volume is scattered along the direction of the ray and added to the incoming radiance.*
+
+![Figure 11.8](images/img-1103-242.png)
 
 *Figure 11.8: In Scattering with the Cloud Model. For these scenes, there is no absorption and only scattering, which gives a substantially different result than the clouds in Figure 11.2. (a) Relatively dense cloud. (b) Thinner cloud. (Cloud model courtesy of Walt Disney Animation Studios.)*
 
@@ -111,9 +138,15 @@ can be solved to find the beam transmittance Tr, which gives the fraction of rad
 
 where d = ‖p − p′‖ is the distance between p and p′, and ω is the normalized direction vector between them. Note that the transmittance is always between 0 and 1. Thus, if exitant radiance from a point p on a surface in a given direction ω is given by Lo(p, ω), then after accounting for extinction the incident radiance at another point p′ in direction −ω is Tr(p → p′) Lo(p, ω). This idea is illustrated in Figure 11.9.
 
+![Figure 11.9](images/img-1105-243.png)
+
 *Figure 11.9: The beam transmittance Tr(p → p′) gives the fraction of light transmitted from one point to another, accounting for absorption and out scattering, but ignoring emission and in scattering. Given exitant radiance at a point p in direction ω (e.g., reflected radiance from a surface), the radiance visible at another point p along the ray is Tr(p → p′)Lo(p, ω).*
 
+![Figure 11.10](images/img-1105-244.png)
+
 *Figure 11.10: Shadow-Casting Volumetric Bunny. The bunny, which is modeled entirely with participating media, casts a shadow on the ground plane because it attenuates light from the sun (which is to the left) on its way to the ground. (Bunny courtesy of the Stanford Computer Graphics Laboratory; volumetric enhancement courtesy of the OpenVDB sample model repository.)*
+
+![Figure 11.11](images/img-1106-245.png)
 
 *Figure 11.11: A useful property of beam transmittance is that it is multiplicative: the transmittance between points p and p″ on a ray like the one shown here is equal to the transmittance from p to p′ times the transmittance from p′ to p″ for all points p′ between p and p″.*
 
@@ -140,6 +173,8 @@ where, as before, d is the distance between p and p′ and ω is the normalized 
 The transmittance is the fraction of the original radiance, and so Tr(p → p′) = L(p′)/L(p). Thus, if we divide Equation (11.9) by L(p) and rearrange terms, we can find that
 
 We have found ourselves with transmittance defined recursively in terms of an integral that includes transmittance in the integrand; although this may seem to be making the problem more complex than it was before, this definition makes it possible to apply Monte Carlo to the integral and to compute unbiased estimates of transmittance. However, it is difficult to sample this integrand well; in practice, estimates of it will have high variance. Therefore, the following section will introduce an alternative formulation of it that is amenable to sampling and makes a number of efficient solution techniques possible.
+
+![Figure 11.12](images/img-1108-246.png)
 
 *Figure 11.12: If the null-scattering coefficient is defined using a majorant σmaj as in Equation (11.11), then it can be interpreted as taking (a) an inhomogeneous medium (dark circles) and (b) filling it with fictitious particles (light circles) until it reaches a uniform density.*
 
@@ -211,6 +246,8 @@ Float p(Vector3f wo, Vector3f wi) const;
 
 It is also useful to be able to draw samples from the distribution described by a phase function. PhaseFunction implementations therefore must provide a Sample_p() method, which samples an incident direction ωi given the outgoing direction ωo and a sample value in [0, 1)2.
 
+![Figure 11.13](images/img-1114-247.png)
+
 *Figure 11.13: Phase functions in pbrt are implemented with the convention that both the incident direction and the outgoing direction point away from the point where scattering happens. This is the same convention that is used for BSDFs in pbrt but is different from the convention in the scattering literature, where the incident direction generally points toward the scattering point. The angle between the two directions is denoted by θ.*
 
 ```text
@@ -251,7 +288,11 @@ Thus, an isotropic phase function gives g = 0, as expected. Any number of phase 
 
 Vector3f 86
 
+![Figure 11.14](images/img-1116-248.png)
+
 *Figure 11.14: Plots of the Henyey–Greenstein Phase Function for Asymmetry g Parameters −0.25 and 0.7. Negative g values describe phase functions that primarily scatter light back in the incident direction, and positive g values describe phase functions that primarily scatter light forward in the direction it was already traveling (here, along the +x axis).*
+
+![Figure 11.15](images/img-1116-249.png)
 
 *Figure 11.15: Ganesha model filled with participating media rendered with (left) strong backward scattering (g = −0.9) and (right) strong forward scattering (g = 0.9). Because most of the light comes from a light source behind the objects, forward scattering leads to more light reaching the camera in this case.*
 
@@ -433,6 +474,8 @@ Primitives associated with shapes that represent medium boundaries generally hav
 
 While such a surface that disappears and does not affect ray paths could be accurately described by a BTDF that represents perfect specular transmission with the same index of refraction on both sides, dealing with such surfaces places extra burden on the Integrators (not all of which handle this type of specular light transport well). Therefore, pbrt allows such surfaces to have a Material that is nullptr, indicating that they do not affect light passing through them; in turn, SurfaceInteraction::GetBSDF() will return an unset BSDF. The light transport routines then do not worry about light scattering from such surfaces and only account for changes in the current medium at them. For an example of the difference that scattering at the surface makes, see Figure 11.16, which has two instances of the Ganesha model filled with scattering media; one has a scattering surface at the boundary and the other does not.
 
+![Figure 11.16](images/img-1127-250.png)
+
 *Figure 11.16: Scattering Media inside the Ganesha. Both models have the same isotropic homogeneous scattering media inside of them. On the left, the Material is nullptr, which indicates that the surface should be ignored by rays and is only used to delineate a participating medium’s extent. On the right, the model’s surface has a dielectric interface that both makes the interface visible and scatters some of the incident light, making the interior darker.*
 
 ### 11.4.1 Medium INTERFACE
@@ -463,6 +506,8 @@ The third method that Medium implementations must implement is SampleRay(), whic
 Some Medium implementations have a single medium-wide majorant (e.g., Homogeneous Medium), though for media where the scattering coefficients
 
 vary significantly over their extent, it is usually better to have distinct local majorants that bound σt over smaller regions. These tighter majorants can improve rendering performance by reducing the frequency of null scattering when sampling interactions along a ray. The number of segments along a ray is variable, depending on both the ray’s geometry and how the medium discretizes space. However, we would not like to return variable-sized arrays of RayMajorantSegments from SampleRay() method implementations. Although dynamic memory allocation to store them could be efficiently handled using a ScratchBuffer, another motivation not to immediately return all of them is that often not all the RayMajorant Segments along the ray are needed; if the ray path terminates or scattering occurs along the ray, then any additional RayMajorantSegments past the corresponding point would be unused and their initialization would be wasted work. Therefore, the RayMajorantIterator interface provides a mechanism for Medium implementations to return RayMajorantSegments one at a time as they are needed. There is a single method in this interface: Next(). Implementations of it should return majorant segments from the front to the back of the ray with no overlap in t between segments, though it may skip over ranges of t corresponding to regions of space where there is no scattering. (See Figure 11.17.) After it has returned all segments along the ray, an unset optional value should be returned. Thanks to this interface, different Medium implementations can generate RayMajorantSegments in different ways depending on their internal medium representation.
+
+![Figure 11.17](images/img-1130-251.png)
 
 *Figure 11.17: RayMajorantIterator implementations return a series of segments in parametric t along a ray where each segment has a majorant that is an upper bound of the medium’s σt value along the segment. Implementations are free to specify segments of varying lengths and to skip regions of space with no scattering, though they must provide segments in front-to-back order.*
 
@@ -664,6 +709,8 @@ Float nextCrossingT[3], deltaT[3]; int step[3], voxelLimit[3], voxel[3];
    SampledSpectrum 171
 ```
 
+![Figure 11.18](images/img-1140-252.png)
+
 *Figure 11.18: Stepping a Ray through a Voxel Grid. The parametric distance along the ray to the point where it crosses into the next voxel in the x direction is stored in nextCrossingT[0], and similarly for the y and z directions (not shown). When the ray crosses into the next x voxel, for example, it is immediately possible to update the value of nextCrossingT[0] by adding a fixed value, the voxel width in x divided by the ray’s x direction, deltaT[0].*
 
 For the DDA computations, we will transform the ray to a coordinate system where the grid spans [0, 1]3, giving the ray rayGrid. Working in this space simplifies some of the calculations related to the DDA.6 〈Set up 3D DDA for ray through the majorant grid〉 ≡ 723
@@ -773,6 +820,8 @@ voxel[stepAxis] += step[stepAxis]; if (voxel[stepAxis] == voxelLimit[stepAxis]) 
 
 Although the grid can significantly improve the efficiency of volume sampling by providing majorants that are a better fit to the local medium density and thence reducing the number of null-scattering events, it also introduces the overhead of additional computations for stepping through voxels with the DDA. Too low a grid resolution and the majorants may not fit the volume well; too high a resolution and too much time will be spent walking through the grid. Figure 11.19 has a graph that illustrates these trade-offs, plotting voxel grid resolution versus execution time when rendering the cloud model used in Figures 11.2 and 11.8. We can see that the performance characteristics are similar on both the CPU and the GPU, with both exhibiting good performance with grid resolutions that span roughly 64 through 256 voxels on a side. Figure 11.20 shows the extinction coefficient and the majorant along a randomly selected ray that was traced when rendering the cloud scene; we can see that the majorants end up fitting the extinction coefficient well.
 
+![Figure 11.19](images/img-1145-253.png)
+
 *Figure 11.19: Rendering Performance versus Maximum Density Grid Resolution. Performance is measured when rendering the cloud model in Figure 11.8 on both the CPU and the GPU; results are normalized to the performance on the corresponding processor with a single-voxel grid. Low-resolution grids give poor performance from many null-scattering events due to loose majorants, while high-resolution grids harm performance from grid traversal overhead.*
 
 ```text
@@ -783,6 +832,8 @@ Although the grid can significantly improve the efficiency of volume sampling by
     DDAMajorantIterator::voxel 723
     DDAMajorantIterator::voxelLimit 723
 ```
+
+![Figure 11.20](images/img-1146-254.png)
 
 *Figure 11.20: Extinction Coefficient and Majorant along a Ray. These quantities are plotted for a randomly selected ray that was traced when rendering the image in Figure 11.8. The majorant grid resolution was 256 voxels on a side, which leads to a good fit to the actual extinction coefficient along the ray.*
 
@@ -814,6 +865,8 @@ pstd::optional<SampledGrid<Float>> temperatureGrid; DenselySampledSpectrum Le_sp
    SampledSpectrum 171
    Transform 120
 ```
+
+![Figure 11.21](images/img-1148-255.png)
 
 *Figure 11.21: Volumetric Emission Specified with a Spectrum. The emission inside the globe is specified using a fixed spectrum that represents a purple color that is then scaled by a spatially varying factor. (Scene courtesy of Jim Price.)*
 
@@ -957,6 +1010,8 @@ Bounds3f bounds; Transform renderFromMedium;
    Transform 120
 ```
 
+![Figure 11.22](images/img-1153-256.png)
+
 *Figure 11.22: Volumetric Scattering Properties Specified Using RGB Coefficients. The RGBGridMedium class makes it possible to specify colorful participating media like the example shown here. (Scene courtesy of Jim Price.)*
 
 Emission is specified by the combination of an optional SampledGrid of RGBIlluminant Spectrum values and a scale factor. The RGBGridMedium reports itself as emissive if the grid is present and the scale is nonzero. This misses the case of a fully zero LeGrid, though we assume that case to be unusual. 〈RGBGridMedium Public Methods〉 ≡ 731
@@ -1064,7 +1119,7 @@ With the majorant grid initialized, the SampleRay() method’s implementation is
 
 DDAMajorantIterator SampleRay(Ray ray, Float raytMax, const SampledWavelengths &lambda) const { 〈Transform ray to medium’s space and compute bounds overlap〉 SampledSpectrum sigma_t(1); return DDAMajorantIterator(ray, tMin, tMax, &majorantGrid, sigma_t); }
 
-FURTHER READING
+## FURTHER READING
 
 The books written by van de Hulst (1980) and Preisendorfer (1965, 1976) are excellent introductions to volume light transport. The seminal book by Chandrasekhar (1960) is another excellent resource, although it is mathematically challenging. d’Eon’s book (2016) has rigorous coverage of this topic and includes extensive references to work in the area. Novák et al.’s report (2018) provides a comprehensive overview of research in volumetric light transport for rendering through 2018; see also the “Further Reading” section of Chapter 14 for more references on this topic. The Henyey–Greenstein phase function was originally described by Henyey and Greenstein (1941). Detailed discussion of scattering and phase functions, along with derivations of phase functions that describe scattering from independent spheres, cylinders, and other simple shapes, can be found in van de Hulst’s book (1981). Extensive discussion of the Mie and Rayleigh scattering models is also available there. Hansen and Travis’s survey article is also a good introduction to the variety of commonly used phase functions (Hansen and Travis 1974); see also d’Eon’s book (2016) for a catalog of useful phase functions and associated sampling techniques. While the Henyey–Greenstein model often works well, there are many media that it cannot represent accurately. Gkioulekas et al. (2013a) showed that sums of Henyey–Greenstein and von Mises-Fisher lobes are more accurate for representing scattering in many materials than Henyey–
 
@@ -1108,7 +1163,7 @@ have used a simple triangle filter to reconstruct densities at intermediate posi
    RGBGridMedium 731
 ```
 
-EXERCISES
+## EXERCISES
 
 ➋ 11.1 The GridMedium and RGBGridMedium classes use a relatively large amount of memory for complex volume densities. Determine their memory requirements when used with complex medium densities and modify their implementations to reduce memory use. One approach might be to detect regions of space with constant (or relatively constant) density values using an octree data structure and to only refine the octree in regions where the densities are changing. Another possibility is to use less memory to record each density value—for example, by computing the minimum and maximum densities and then using 8 or 16 bits per density value to interpolate between them. What sorts of errors appear when either of these approaches is pushed too far? ➋ 11.2 Improve GridMedium to allow specifying grids of arbitrary Spectrum values to define emission. How much more memory does your approach use for blackbody emission distributions than the current implementation, which only stores floating-point temperatures in that case? How much memory does it use when other spectral representations are provided? Can you find ways of reducing memory use—for example, by detecting equal spectra and only storing them in memory once? ➌ 11.3 One shortcoming of the majorants computed by the RGBGridMedium is that they do not account for spectral variation in the scattering coefficients—although conservative, they may give a loose bound for wavelengths where the coefficients are much lower than the maximum values. Computing tighter majorants is not straightforward in a spectral renderer: in a renderer that used RGB color for rendering, it is easy to maintain a majorant grid of RGB values instead of Floats, though doing so is more difficult with a spectral renderer, for reasons related to why RGBUnboundedSpectrum values are stored in the grids for σa and σs and not RGB. (See the discussion of this topic before the 〈Initialize majorantGrid voxel for RGB σaand σs〉 fragment.) Investigate this issue and develop an approach that better accounts for spectral variation in the scattering coefficients to return wavelength-varying majorants when RGBGridMedium::SampleRay() is called. You might, for example, find a way to compute RGBUnboundedSpectrum values that bound the maximum of two or more others. How much overhead does your representation introduce? How much is rendering time improved for scenes with colored media due to more efficient sampling when it is used? ➋ 11.4 The Medium implementations that use the MajorantGrid all currently use fixed grid resolutions for it, regardless of the amount of variation in density in their underlying media. Read the paper by Yue et al. (2011) and use their approach to choose those resolutions adaptively. Then, measure performance over a sweep of grid sizes with a variety of volume densities. Are there any cases where there is a significant performance benefit from a different grid resolution? Considering their assumptions and pbrt’s implementation, can you explain any discrepancies between grid sizes set with their heuristics versus the most efficient resolution in pbrt? ➋ 11.5 Read Wrenninge’s paper (2016) on a time-varying density representation for motion blur in volumes and implement this approach in pbrt. One challenge will be to
 

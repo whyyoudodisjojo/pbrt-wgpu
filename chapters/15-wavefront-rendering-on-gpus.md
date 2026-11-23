@@ -1,5 +1,22 @@
 # Chapter 15: Wavefront Rendering on GPUs
 
+
+## Wavefront Path Tracing on GPU (wgpu)
+
+```mermaid
+flowchart TD
+    A[Generate Camera Rays] --> B[Intersect Queue]
+    B --> C[BVH Traversal Kernel]
+    C --> D[Hit / Miss Classification]
+    D --> E[Material Evaluation Kernel]
+    E --> F[Shadow / NEE Kernel]
+    F --> G[Compact Active Rays]
+    G --> H{Queue empty?}
+    H -- no --> B
+    H -- yes --> I[Resolve & Tone Map]
+```
+
+
 One of the major changes in pbrt for this edition of the book is the addition of support for rendering on GPUs as well as on CPUs. Between the substantial computational capabilities that GPUs offer and the recent availability of custom hardware units for efficient ray intersection calculations, the GPU is a compelling target for ray tracing. For example, the image in Figure 15.1 takes 318.6 seconds to render with pbrt on a 2020-era high-end GPU at 1500× 1500 resolution with 2048 samples per pixel. On an 8-core CPU, it takes 11,983 seconds to render with the same settings—over 37 times longer. Even on a high-end 32-core CPU, it takes 2,669 seconds to render (still over 8 times longer).1
 
 pbrt’s GPU rendering path offers only a single integration algorithm: volumetric path tracing, following the algorithms used in the CPU-based VolPathIntegrator described in Section 14.2.3. It otherwise supports all of pbrt’s functionality, using the same classes and functions that have been presented in the preceding 14 chapters. This chapter will therefore not introduce any new rendering algorithms but instead will focus on topics like parallelism and data layout in memory that are necessary to achieve good performance on GPUs.
@@ -10,6 +27,8 @@ The integrator described in this chapter, WavefrontPathIntegrator, is structured
     VolPathIntegrator 877
     WavefrontPathIntegrator 939
 ```
+
+![Figure 15.1](images/img-1460-340.png)
 
 *Figure 15.1: Scene Used for CPU versus GPU Ray Tracing Performance Comparison. (Scene courtesy of Angelo Ferretti.)*
 
@@ -153,6 +172,8 @@ This version of pbrt adopts the wavefront approach for its GPU rendering path, a
 
 volume scattering fit in nicely: we can skip the corresponding kernels entirely if the scene does not include those effects.
 
+![Figure 15.2](images/img-1473-341.png)
+
 *Figure 15.2: Overview of Kernels Used in the Wavefront Integrator. Arrows correspond to queues on which kernels may enqueue work for subsequent kernels. After camera rays have been generated, the subsequent kernels execute one time for each ray depth up to the maximum depth.*
 
 As with the CPU-targeted Integrators, a BasicScene parses the scene description and stores various entities that represent scene components. When the wavefront integrator is being used, the parsed scene is then passed to the RenderWavefront() function, which is defined in the file wavefront/wavefront.cpp. Beyond some housekeeping, its main task is to allocate an instance of the WavefrontPathIntegrator class and to call its Render() method. Since the housekeeping is not very interesting, we will not include its implementation here. The WavefrontPathIntegrator constructor converts many of the entities in the BasicScene to pbrt objects in the same way as is done for the CPU renderer: all the lights are converted to corresponding instances of the Light classes, and similarly for the camera, film, sampler, light sampler, media, materials, and textures. One important difference, however, is that the Allocator that is provided for them allocates managed memory so that it can be initialized on the CPU and accessed by the GPU. Another
@@ -211,6 +232,8 @@ We provide a macro for specifying lambda functions for GPUParallelFor() and rela
 
 We do not provide a variant analogous to ParallelFor2D() for iterating over a 2D array, though it would be easy to do so; pbrt just has no need for such functionality.
 
+![Figure 15.3](images/img-1478-342.png)
+
 *Figure 15.3: Comparison of Synchronous and Asynchronous CPU/GPU Execution. (a) If the two processors are synchronous, only one is ever executing. The CPU stalls after launching a kernel on the GPU, and then the GPU is idle after a kernel finishes until the CPU resumes and launches another one. (b) With the asynchronous model, the CPU continues execution after launching each kernel and is able to enqueue more of them while the GPU is working on earlier ones. In turn, the GPU does not need to wait for the next batch of work to do.*
 
 Although execution is serialized between successive calls to GPUParallelFor(), it is important to be aware that the execution of the CPU and GPU are decoupled. When a call to GPUParallelFor() returns on the CPU, the corresponding threads on the GPU often will not even have been launched, let alone completed. Work on the GPU proceeds asynchronously. While this execution model thus requires explicit synchronization operations between the two processors, it is important for achieving high performance. Consider the two alternatives illustrated in Figure 15.3; automatically synchronizing execution of the two processors would mean that only one of them could be running at a given time.
@@ -224,6 +247,8 @@ An implication of this model is that the CPU must be careful about when it reads
     PBRT_CPU_GPU 928
 ```
 
+![Figure 15.4](images/img-1479-343.png)
+
 *Figure 15.4: Memory Layout of an Array of SimpleRay Structures. The elements of each ray are consecutive in memory.*
 
 As discussed earlier, the thread group execution model of GPUs affects the pattern of memory accesses that program execution generates. A consequence is that the way in which data is laid out in memory can have a meaningful effect on performance. To understand the issue, consider the following definition of a ray structure: struct SimpleRay { Point3f o; Vector3f d; };
@@ -233,6 +258,8 @@ Now consider a kernel that takes a queue of SimpleRays as input. Such a kernel m
 The generated code would typically load each component of the origins and directions individually. Figure 15.5(a) illustrates the distribution of memory locations accessed when each thread in a thread group loads the x component of its ray origin. The locations span many cache lines, which in turn incurs a performance cost. An alternative layout is termed structure of arrays, or SOA. The idea behind this approach is to effectively transpose the layout of the object in memory, storing all the origins’ x components contiguously in an array of Floats, then all of its origins’ y components in another Float array, and so forth. We might declare a specialized structure to represent arrays of SimpleRays laid out like this: struct SimpleRayArray { Float *ox, *oy, *oz; Float *dx, *dy, *dz; };
 
 In turn, if the threads in a thread group want to load the x component of their ray’s origin, the expression rays.ox[i] suffices to load that value. The locations accessed are contiguous in memory and span many fewer cache lines7 (Figure 15.5(b)).
+
+![Figure 15.5](images/img-1481-344.png)
 
 *Figure 15.5: Effect of Memory Layout on Read Coherence. (a) When the threads in a thread group ti load the x component of their ray origin with an array of structures layout, each thread reads from a memory location that is offset by sizeof(SimpleRay) from the previous one; in this case, 24 bytes, assuming 4-byte Floats. Consequently, multiple cache lines must be accessed, with corresponding performance cost. (b) With structure of arrays layout, the threads in a thread group access contiguous locations to read the x component, corresponding to 1 or at most 2 cache-line accesses, depending on the alignment of the array. Performance is generally much better.*
 
@@ -1917,7 +1944,7 @@ VisibleSurface visibleSurface = pixelSampleState.visibleSurface[pixelIndex]; fil
    WavefrontPathIntegrator::pixelSampleState 940
 ```
 
-FURTHER READING
+## FURTHER READING
 
 Purcell et al. (2002, 2003) and Carr, Hall, and Hart (2002) were the first to map general-purpose ray tracers to graphics processors.
 

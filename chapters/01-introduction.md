@@ -4,6 +4,24 @@ Rendering is the process of producing an image from the description of a 3D scen
 
 This book describes pbrt, a physically based rendering system based on the ray-tracing algorithm. It is capable of rendering realistic images of complex scenes such as the one shown in Figure 1.1. (Other than a few exceptions in this chapter that are noted with their appearance, all the images in this book are rendered with pbrt.) Most computer graphics books present algorithms and theory, sometimes combined with snippets of code. In contrast, this book couples the theory with a complete implementation of a fully functional rendering system. Furthermore, the full source code of the system is available under an open-source license, and the full text of this book is freely available online at pbr-book.org/4ed, as of November 1, 2023. Further information, including example scenes and additional information about pbrt, can be found on the website, pbrt.org.
 
+
+
+## Rendering Pipeline Overview (wgpu)
+
+```mermaid
+flowchart LR
+    A[Scene Description] --> B[Acceleration Structure BVH]
+    B --> C[Camera Ray Generation]
+    C --> D[Ray-Object Intersection]
+    D --> E[Material Scattering]
+    E --> F[Light Sampling]
+    F --> G[Accumulate Radiance]
+    G --> H{More bounces?}
+    H -- yes --> D
+    H -- no --> I[Write Pixel to Storage Buffer]
+    I --> J[Present via wgpu Surface]
+```
+
 ## 1.1 LITERATE PROGRAMMING
 
 While creating the TEX typesetting system, Donald Knuth developed a new programming methodology based on a simple but revolutionary idea. To quote Knuth, “let us change our traditional attitude to the construction of programs: Instead of imagining that our main task is to instruct a computer what to do, let us concentrate rather on explaining to human beings what we want a computer to do.” He named this methodology literate programming. This book (including the chapter you are reading now) is a long literate program. This means that in the course of reading this book, you will read the full implementation of the pbrt rendering system, not just a high-level description of it.
@@ -59,11 +77,7 @@ CleanUp();
 
 indicates that the 〈Do something else interesting〉 fragment is defined on page 486.
 
-## 1.2 PHOTOREALISTIC RENDERING AND THE RAY-
-
-```text
-    TRACING ALGORITHM
-```
+## 1.2 PHOTOREALISTIC RENDERING AND THE RAY-TRACING ALGORITHM
 
 The goal of photorealistic rendering is to create an image of a 3D scene that is indistinguishable from a photograph of the same scene. Before we describe the rendering process, it is important to understand that in this context the word indistinguishable is imprecise because it involves a human observer, and different observers may perceive the same image differently. Although we will cover a few perceptual issues in this book, accounting for the precise characteristics of a given observer is a difficult and not fully solved problem. For the most part, we will be satisfied with an accurate simulation of the physics of light and its interaction with matter, relying on our understanding of display technology to present the best possible image to the viewer. Given this single-minded focus on realistic simulation of light, it seems prudent to ask: what is light? Perception through light is central to our very existence, and this simple question has thus occupied the minds of famous philosophers and physicists since the beginning of recorded time. The ancient Indian philosophical school of Vaisheshika (5th–6th century BC) viewed light as a collection of small particles traveling along rays at high velocity. In the fifth century BC, the Greek philosopher Empedocles postulated that a divine fire emerged from human eyes and combined with light rays from the sun to produce vision. Between the 18th and 19th century, polymaths such as Isaac Newton, Thomas Young, and Augustin-Jean Fresnel endorsed conflicting theories modeling light as the consequence of either wave or particle propagation. During the same time period, André-Marie Ampère, Joseph-Louis Lagrange, Carl Friedrich Gauß, and Michael Faraday investigated the relations between electricity and magnetism that culminated in a sudden and dramatic unification by James Clerk Maxwell into a combined theory that is now known as electromagnetism. Light is a wave-like manifestation in this framework: the motion of electrically charged particles such as electrons in a light bulb’s filament
 
@@ -98,6 +112,8 @@ interprets this wavelength variation as color. Most camera sensors record separa
 Each time the camera generates a ray, the first task of the renderer is to determine which object, if any, that ray intersects first and where the intersection occurs. This intersection point is the visible point along the ray, and we will want to simulate the interaction of light with the object at this point. To find the intersection, we must test the ray for intersection against all objects in the scene and select the one that the ray intersects first. Given a ray r, we first start by writing it in parametric form: r(t) = o + td, where o is the ray’s origin, d is its direction vector, and t is a parameter whose legal range is [0, ∞). We can obtain a point along the ray by specifying its parametric t value and evaluating the above equation. It is often easy to find the intersection between the ray r and a surface defined by an implicit function F (x, y, z) = 0. We first substitute the ray equation into the implicit equation, producing a new function whose only parameter is t. We then solve this function for t and substitute the smallest positive root into the ray equation to find the desired point. For example, the implicit equation of a sphere centered at the origin with radius r is x2 + y2 + z2 − r2 = 0. Substituting the ray equation, we have (ox + tdx)2 + (oy + tdy)2 + (oz + tdz)2 − r2 = 0, where subscripts denote the corresponding component of a point or vector. For a given ray and a given sphere, all the values besides t are known, giving us an easily solved quadratic equation in t. If there are no
 
 real roots, the ray misses the sphere; if there are roots, the smallest positive one gives the intersection point. The intersection point alone is not enough information for the rest of the ray tracer; it needs to know certain properties of the surface at the point. First, a representation of the material at the point must be determined and passed along to later stages of the ray-tracing algorithm.
+
+![Figure 1.4](images/img-043-001.png)
 
 *Figure 1.4: Moana Island Scene, Rendered by pbrt. This model from a feature film exhibits the extreme complexity of scenes rendered for movies (Walt Disney Animation Studios 2018). It features over 146 million unique triangles, though the true geometric complexity of the scene is well into the tens of billions of triangles due to extensive use of object instancing. (Scene courtesy of Walt Disney Animation Studios.)*
 
@@ -170,6 +186,8 @@ Each object in the scene provides a material, which is a description of its appe
 Turner Whitted’s original paper on ray tracing (1980) emphasized its recursive nature, which was the key that made it possible to include indirect
 
 specular reflection and transmission in rendered images. For example, if a ray from the camera hits a shiny object like a mirror, we can reflect the ray about the surface normal at the intersection point and recursively invoke the ray-tracing routine to find the light arriving at the point on the mirror, adding its contribution to the original camera ray. This same technique can be used to trace transmitted rays that intersect transparent objects. Many early ray-tracing examples showcased mirrors and glass balls (Figure 1.11) because these types of effects were difficult to capture with other rendering techniques. In general, the amount of light that reaches the camera from a point on an object is given by the sum of light emitted by the object (if it is itself a light source) and the amount of reflected light. This idea is formalized by the light transport equation (also often known as the rendering equation), which measures light with respect to radiance, a radiometric unit that will be defined in Section 4.1. It says that the outgoing radiance Lo(p, ωo) from a point p in direction ωo is the emitted radiance at that point in that direction, Le(p, ωo), plus the incident radiance from all directions on the sphere S2 around p scaled by the BSDF f (p, ωo, ωi) and a cosine term: art We will show a more complete derivation of this equation in Sections 4.3.1 and 13.1.1. Solving this integral analytically is not possible except for the simplest of scenes, so we must either make simplifying assumptions or use numerical integration techniques.
+
+![Figure 1.11](images/img-049-003.png)
 
 *Figure 1.11: A Prototypical Early Ray Tracing Scene. Note the use of mirrored and glass objects, which emphasizes the algorithm’s ability to handle these kinds of surfaces. (a) Rendered using Whitted’s original ray-tracing algorithm from 1980, and (b) rendered using stochastic progressive photon mapping (SPPM), a modern advanced light transport algorithm. SPPM is able to accurately simulate the focusing of light that passes through the spheres.*
 
@@ -1012,11 +1030,7 @@ Although we made every effort to make pbrt as correct as possible through extens
 
 accumulate for a few months before going through them; do not take this as an indication that we do not value them!) However, we will not make major changes to the pbrt source code so that it does not diverge from the system described here in the book.
 
-## 1.6 A BRIEF HISTORY OF PHYSICALLY BASED
-
-```text
-    RENDERING
-```
+## 1.6 A BRIEF HISTORY OF PHYSICALLY BASED RENDERING
 
 Through the early years of computer graphics in the 1970s, the most important problems to solve were fundamental issues like visibility algorithms and geometric representations. When a megabyte of RAM was a rare and expensive luxury and when a computer capable of a million floating-point operations per second cost hundreds of thousands of dollars, the complexity of what was possible in computer graphics was correspondingly limited, and any attempt to accurately simulate physics for rendering was infeasible. As computers have become more capable and less expensive, it has become possible to consider more computationally demanding approaches to rendering, which in turn has made physically based approaches viable. This progression is neatly explained by Blinn’s law: “as technology advances, rendering time remains constant.” Jim Blinn’s simple statement captures an important constraint: given a certain number of images that must be rendered (be it a handful for a research paper or over a hundred thousand for a feature film), it is only possible to take so much processing time for each one. One has a certain amount of computation available and one has some amount of time available before rendering must be finished, so the maximum computation per image is necessarily limited. Blinn’s law also expresses the observation that there remains a gap between the images people would like to be able to render and the images that they can render: as computers have become faster, content creators have continued to use increased computational capability to render more complex scenes with more sophisticated rendering algorithms, rather than rendering the same scenes as before, just more quickly. Rendering continues to consume all computational capabilities made available to it.
 

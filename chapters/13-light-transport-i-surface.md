@@ -1,6 +1,18 @@
 # Chapter 13: Light Transport I: Surface
 
-REFLECTION
+## Surface Light Transport (wgpu)
+
+```mermaid
+flowchart TD
+    A[Camera Ray] --> B[Direct Lighting]
+    B --> C[Indirect Bounce]
+    C --> D[Accumulate]
+    D --> E{Max depth?}
+    E -- no --> C
+    E -- yes --> F[Pixel]
+```
+
+
 
 This chapter brings together the ray-tracing algorithms, radiometric concepts, and Monte Carlo sampling algorithms of the previous chapters to implement two different integrators that compute scattered radiance from surfaces in the scene. These integrators are much more effective than the RandomWalkIntegrator from the first chapter; with them, some scenes are rendered with hundreds of times lower error.
 
@@ -34,6 +46,8 @@ The key principle underlying the LTE is energy balance. Any change in energy has
 To enforce energy balance at a surface, exitant radiance Lo must be equal to emitted radiance plus the fraction of incident radiance that is scattered. Emitted radiance is given by Le, and scattered radiance is given by the scattering equation, which gives
 
 Because we have assumed for now that no participating media are present, radiance is constant along rays through the scene. We can therefore relate the incident radiance at p to the outgoing radiance from another point p′, as shown by Figure 13.1. If we define the ray-casting function t(p, ω) as a function that computes the first surface point p′ intersected by a ray from p in the direction ω, we can write the incident radiance at p in terms of outgoing radiance at p′: Li(p, ω) = Lo(t(p, ω), −ω).
+
+![Figure 13.1](images/img-1294-294.png)
 
 *Figure 13.1: Radiance along a Ray through Free Space Is Unchanged. Therefore, to compute the incident radiance along a ray from point p in direction ω, we can find the first surface the ray intersects and compute exitant radiance in the direction −ω there. The ray-casting function t(p, ω) gives the point p′ on the first surface that the ray (p, ω) intersects.*
 
@@ -93,6 +107,8 @@ Rewriting the terms in the LTE in this manner is not quite enough, however. We a
 
 We will combine this change-of-variables term, the original |cos θ| term from the LTE, and a binary visibility function V (V = 1 if the two points are mutually visible, and V = 0 otherwise) into a single geometric coupling term, G(p ↔ p′):
 
+![Figure 13.2](images/img-1297-295.png)
+
 *Figure 13.2: The three-point form of the light transport equation converts the integral to be over the domain of points on surfaces in the scene, rather than over directions on the sphere. It is a key transformation for deriving the path integral form of the light transport equation.*
 
 Substituting these into the light transport equation and converting to an area integral, we have the three-point form of the LTE,
@@ -108,6 +124,8 @@ With the area integral form of Equation (13.3), we can derive a more flexible fo
 The explicit form allows for considerable freedom in how these paths are found—essentially any technique for randomly choosing paths can be turned into a workable rendering algorithm that computes the right answer given a sufficient number of samples. This form of the LTE provides the foundation for bidirectional light transport algorithms.
 
 To go from the area integral to a sum over path integrals involving light-carrying paths of different lengths, we can start to expand the three-point light transport equation, repeatedly substituting the right hand side of the equation into the L(p″ → p′) term inside the integral. Here are the first few terms that give incident radiance at a point p0 from another point p1, where p1 is the first point on a surface along the ray from p0 in direction p1 − p0:
+
+![Figure 13.3](images/img-1298-296.png)
 
 *Figure 13.3: The integral over all points p2 and p3 on surfaces in the scene given by the light transport equation gives the total contribution of two bounce paths to radiance leaving p1 in the direction of p0. The components of the product in the integrand are shown here: the emitted radiance from the light, Le; the geometric terms between vertices, G; and scattering from the BSDFs, f .*
 
@@ -147,6 +165,8 @@ The two integrals can be evaluated independently, possibly using completely diff
 
 Finally, the BSDF terms can be partitioned as well (in fact, this application was the reason BSDF categorization with BxDFFlags values was introduced in Section 9.1.2). For example, if fΔ denotes components of the BSDF described by delta distributions and f¬Δ denotes the remaining components,
 
+![Figure 13.4](images/img-1302-301.png)
+
 *Figure 13.4: Kroken Scene Rendered with Path Tracing. (a) Rendered with path tracing with 8192 samples per pixel. (b) Rendered with just 8 samples per pixel, giving the characteristic grainy noise that is the hallmark of variance. Although the second image appears darker, the average pixel values of both are actually the same; very large values in some of its pixels cannot be displayed in print. (Scene courtesy of Angelo Ferretti.)*
 
 Note that because there are n − 1BSDF terms in the product, it is important to be careful not to count only terms with just fΔ components or just f¬Δ components; all the mixed terms like fΔ f¬Δ f¬Δ must be accounted for as well if a partitioning scheme like this is used.
@@ -183,6 +203,8 @@ each term with probability qi, we will eventually stop continued evaluation of t
 ### 13.2.2 PATH SAMPLING
 
 Given this method for evaluating only a finite number of terms of the infinite sum, we also need a way to estimate the contribution of a particular term P (pi). We need i + 1 vertices to specify the path, where the last vertex pi is on a light source and the first vertex p0 is a point on the camera film or lens (Figure 13.5). Looking at the form of P (pi), a multiple integral over surface area of objects in the scene, the most natural thing to do is to sample vertices pi according to the surface area of objects in the scene, such that all points on surfaces in the scene are sampled with equal probability. (We do not actually use this approach in the integrator implementations in this chapter for reasons that will be described later, but this sampling technique could possibly be used to improve the efficiency of our basic implementation and helps to clarify the meaning of the path integral LTE.)
+
+![Figure 13.5](images/img-1304-303.png)
 
 *Figure 13.5: A path pi of i + 1 vertices from the camera at p, intersecting a series of positions on surfaces in the scene, to a point on the light pi. Scattering according to the BSDF occurs at each path vertex from p1 to pi−1 such that the radiance estimate at the camera due to this path is given by the product of the path throughput T (pi) and the emitted radiance from the light divided by the path sampling weights.*
 
@@ -234,6 +256,8 @@ The “simple” in the name of this integrator is meaningful: PathIntegrator, w
     RandomWalkIntegrator::LiRandomWalk() 33
     SimplePathIntegrator 826
 ```
+
+![Figure 13.6](images/img-1308-305.png)
 
 *Figure 13.6: Comparison of the RandomWalkIntegrator and the SimplePathIntegrator. (a) Scene rendered with 64 pixel samples using the RandomWalkIntegrator. (b) Rendered with 64 pixel samples and the SimplePathIntegrator. The SimplePathIntegrator gives an image that is visibly much improved, thanks to using more effective BSDF and light sampling techniques. Here, mean squared error (MSE) is reduced by a factor of 101. Even though rendering time was 7.8× longer, the overall improvement in Monte Carlo efficiency was still 12.8×. (Scene courtesy of Angelo Ferretti.)*
 
@@ -553,6 +577,8 @@ The PathIntegrator is based on the same path tracing approach as the SimplePathI
                from difficult-to-sample paths.
 ```
 
+![Figure 13.7](images/img-1316-306.png)
+
 *Figure 13.7: Comparison of the SimplePathIntegrator and the PathIntegrator. (a) Rendered using the SimplePathIntegrator with 64 samples per pixel. (b) The PathIntegrator, also with 64 samples per pixel. Once again, improving the underlying sampling algorithms leads to a substantial reduction in error. Not only is MSE improved by a factor of 1.97, but execution time is 4.44× faster, giving an overall efficiency improvement of 8.75×. (Scene courtesy of Guillermo M. Leal Llaguno.)*
 
 While these additions make its implementation more complex, they also substantially improve efficiency; see Figure 13.7 for a comparison of the two.
@@ -567,6 +593,8 @@ which gives
 ```
 
 It may seem that using only a sampling PDF that matches the Le factor to sample these directions, as done by the SimplePathIntegrator, would be a good strategy; after all, the radiance Le can then be expected to be nonzero for the sampled direction. If we instead drew samples using the BSDF’s sampling distribution, we might choose directions that did not intersect a light source at all, finding no emitted radiance after incurring the expense of tracing a ray in the hope of intersecting a light.
+
+![Figure 13.8](images/img-1317-307.png)
 
 *Figure 13.8: Four surfaces ranging from very smooth (top) to very rough (bottom) illuminated by spherical light sources of decreasing size and rendered with different sampling techniques (modeled after a scene by Eric Veach). (a) BSDF sampling, (b) light sampling, and (c) both techniques combined using MIS. Sampling the BSDF is generally more effective for highly specular materials and large light sources, as illumination is coming from many directions, but the BSDF’s value is large for only a few of them (top left reflection). The converse is true for small sources and rough materials (bottom right reflection), where sampling the light source is more effective.*
 
@@ -720,6 +748,8 @@ If the surface is purely reflective or purely transmissive, then the reference p
 
 intersects an emitter that does not have a completely absorbing BSDF. The problem is illustrated in Figure 13.9.
 
+![Figure 13.9](images/img-1322-308.png)
+
 *Figure 13.9: The LightSampleContext stores the error bounds around the computed intersection point pi. Typically, the center of these bounds (filled circle) is used as the reference point for sampling a point on the light source. If a ray intersects the non-emissive side of a one-sided light, the light’s BSDF is nonzero, and if the center of the pi bounds is on the emissive side of the light, then it may seem that the intersection point is illuminated by the light. The result is an occasional bright pixel on the back side of light sources. Offsetting the reference point to the side of the surface from which the outgoing ray will leave (open circle) works around this problem.*
 
 ```text
@@ -812,6 +842,8 @@ A shadow ray is only traced if the BSDF for the sampled direction is nonzero. It
 ```
 
 The light sample’s contribution can now be computed; recall that the returned value corresponds to the first term of Equation (13.10), save for the β factor. The case of a light that is described by a delta distribution receives special treatment here; recall from Section 12.1 that in that case there is an implied delta distribution in the emitted radiance value returned from SampleLi() as well as the PDF and that they cancel out when the estimator is evaluated. Further, BSDF sampling is unable to generate a light sample and therefore we must not try to apply multiple importance sampling but should evaluate the standard estimator, Equation (13.9), instead. If we do not have a delta distribution light source, then the value of the BSDF’s PDF for sampling the direction ωi is found by calling BSDF::PDF() and the MIS weight is computed using the power heuristic. (See Figure 13.10 for a comparison between the balance heuristic and power heuristic for this computation.)
+
+![Figure 13.10](images/img-1325-309.png)
 
 *Figure 13.10: Comparison of the Balance and Power Heuristics for Direct Lighting. A zoomed-in region of Figure 13.8 is shown here. (a) Rendered using the balance heuristic to weight BSDF and light samples in the direct lighting calculation. (b) Rendered using the power heuristic. The pixels behind the light source have a visible reduction in noise.*
 
@@ -921,6 +953,8 @@ However, the details of how q is set can make a big difference.3 In general, it 
    SampledSpectrum 171
 ```
 
+![Figure 13.11](images/img-1330-310.png)
+
 *Figure 13.11: The Effect of Including Radiance Scaling Due to Transmission in the Russian Roulette Probability q. (a) If etaScale is not included in the probability, then some rays that would have passed through the glass object are terminated unnecessarily, leading to noise in the corresponding parts of the image. (b) Including etaScale in the computation of q fixes this issue. (Transparent Machines scene courtesy of Beeple.)*
 
 Finally, note that the termination probability is set according to the maximum component value of rrBeta rather than, for example, its average.
@@ -948,6 +982,8 @@ Recall that Russian roulette only increases variance. Because it terminates some
     BMW M6 (Figure 13.12)                                      1.00                0.801               1.25
 ```
 
+![Figure 13.12](images/img-1332-311.png)
+
 *Figure 13.12: Image with High Variance Due to Difficult-to-Sample Indirect Lighting. The environment map illuminating the scene includes the sun, which is not only bright but also subtends a small solid angle. When an indirect lighting sample hits a specular surface and reflects to the sun’s direction, variance spikes in the image result because its contribution is not sampled well. (Car model courtesy of tyrant monkey, via Blend Swap.)*
 
 ### 13.4.1 PATH REGULARIZATION
@@ -955,6 +991,8 @@ Recall that Russian roulette only increases variance. Because it terminates some
 Scenes with concentrated indirect lighting can pose a challenge to the path-tracing algorithm: the problem is that if the incident indirect radiance at a point has substantial variation but BSDF sampling is being used to generate the direction of indirect rays, then the sampling distribution may be a poor match for the integrand. Variance spikes then occur when the ratio f (x)/p(x) in the Monte Carlo estimator is large. Figure 13.12 shows an example of this issue. The car is illuminated by a sky environment map where a bright sun occupies a small number of pixels. Consider sampling indirect lighting at a point on the ground near one of the wheels: the ground material is fairly diffuse, so any direction will be
 
 sampled with equal (cosine-weighted) probability. Rarely, a direction will be sampled that both hits the highly specular wheel and then also reflects to a direction where the sun is visible. This is the cause of the bright pixels on the ground. (The lighting in the car interior is similarly difficult to sample, since the glass prevents light source sampling; the variance spikes there follow.)
+
+![Figure 13.13](images/img-1333-312.png)
 
 *Figure 13.13: Scene from Figure 13.12 with Roughened BSDFs. (a) Increasing the roughness of all the BSDFs eliminates the variance spikes by allowing the use of MIS at all indirect ray intersection points, though this substantially changes the appearance of the scene. (Note that the car paint is duller and the window glass and headlight covers have the appearance of frosted glass.) (b) Roughening BSDFs only after the first non-specular scattering event along the path preserves visual detail while reducing the error from difficult light paths. (Car model courtesy of tyrant monkey, via Blend Swap.)*
 
@@ -994,7 +1032,7 @@ surfaces with a roughness of zero become non-perfect specular and that surfaces 
 
 void Regularize() { if (alpha_x < 0.3f) alpha_x = Clamp(2 * alpha_x, 0.1f, 0.3f); if (alpha_y < 0.3f) alpha_y = Clamp(2 * alpha_y, 0.1f, 0.3f); }
 
-FURTHER READING
+## FURTHER READING
 
 The first application of Monte Carlo to global illumination for creating synthetic images that we are aware of was described in Tregenza’s paper on lighting design (Tregenza 1983). Cook’s distribution ray-tracing algorithm computed glossy reflections, soft shadows from area lights, motion blur, and depth of field with Monte Carlo sampling (Cook et al. 1984; Cook 1986), although the general form of the light transport equation was not stated until papers by Kajiya (1986) and Immel, Cohen, and Greenberg (1986). Kajiya (1986) introduced the general-purpose path-tracing algorithm. Other important early work on Monte Carlo in rendering includes Shirley’s Ph.D. thesis (1990) and a paper by Kirk and Arvo (1991) on sources of bias in rendering algorithms. Fundamental theoretical work on light transport has been done by Arvo (1993, 1995a), who investigated the connection between rendering algorithms in graphics and previous work in transport theory, which applies classical physics to particles and their interactions to predict their overall behavior. Our description of the path integral form of the LTE follows the framework in Veach’s Ph.D. thesis, which has thorough coverage of different forms of the LTE and its mathematical structure (Veach 1997). The next event estimation technique that corresponds to the direct lighting computation in path tracing was first introduced by Coveyou et al. (1967), in the context of neutron transport.
 

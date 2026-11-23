@@ -1,5 +1,16 @@
 # Chapter 6: Shapes
 
+## Shapes (wgpu)
+
+```mermaid
+flowchart LR
+    A[Shape] --> B[Intersect Ray]
+    B --> C[Surface Point]
+    C --> D[Normal and UV]
+    D --> E[Area / Bounds]
+```
+
+
 In this chapter, we will present pbrt’s abstraction for geometric primitives such as spheres and triangles. Careful abstraction of geometric shapes in a ray tracer is a key component of a clean system design, and shapes are the ideal candidate for an object-oriented approach. All geometric primitives implement a common interface, and the rest of the renderer can use this interface without needing any details about the underlying shape. This makes it possible to separate the geometric and shading subsystems of pbrt.
 
 pbrt hides details about primitives behind a two-level abstraction. The Shape interface provides access to the basic geometric properties of the primitive, such as its surface area and bounding box, and provides a ray intersection routine. Then, the Primitive interface encapsulates additional non-geometric information about the primitive, such as its material properties. The rest of the renderer then deals only with the abstract Primitive interface. This chapter will focus on the geometry-only Shape class; the Primitive interface is a key topic of Chapter 7.
@@ -65,7 +76,11 @@ If the Bounds3::IntersectP() method returns true, the intersection’s parametri
     Vector3f 86
 ```
 
+![Figure 6.1](images/img-402-024.png)
+
 *Figure 6.1: Intersecting a Ray with an Axis-Aligned Bounding Box. We compute intersection points with each slab in turn, progressively narrowing the parametric interval. Here, in 2D, the intersection of the x and y extents along the ray (thick segment) gives the extent where the ray is inside the box.*
+
+![Figure 6.2](images/img-402-025.png)
 
 *Figure 6.2: Intersecting a Ray with an Axis-Aligned Slab. The two planes shown here are described by x = c for constant values c. The normal of each plane is (1, 0, 0). Unless the ray is parallel to the planes, it will intersect the slab twice, at parametric positions tnear and tfar.*
 
@@ -378,6 +393,8 @@ Spheres are a special case of a general type of surface called quadrics—surfac
 
 Many surfaces can be described in one of two main ways: in implicit form and in parametric form. An implicit function describes a 3D surface as f (x, y, z) = 0. The set of all points (x, y, z) that fulfill this condition defines the surface. For a unit sphere at the origin, the familiar implicit equation is x2 + y2 + z2 − 1 = 0. Only the set of points one unit from the origin satisfies this constraint, giving the unit sphere’s surface.
 
+![Figure 6.3](images/img-411-026.png)
+
 *Figure 6.3: Basic Setting for the Sphere Shape. It has a radius of r and is centered at the object space origin. A partial sphere may be described by specifying a maximum ϕ value.*
 
 Many surfaces can also be described parametrically using a function to map 2D points to 3D points on the surface. For example, a sphere of radius r can be described as a function of 2D spherical coordinates (θ, ϕ), where θ ranges from 0 to π and ϕ ranges from 0 to 2π (Figure 6.3):
@@ -393,6 +410,8 @@ The Sphere class represents a sphere that is centered at the origin. As with all
 ```text
     Sphere 271
 ```
+
+![Figure 6.4](images/img-412-027.png)
 
 *Figure 6.4: Two Spheres. On the left is a partial sphere (with zmax < r and ϕmax < 2π) and on the right is a complete sphere. Note that the texture image used shows the (u, v) parameterization of the shape; the singularity at one of the poles is visible in the complete sphere.*
 
@@ -1077,6 +1096,8 @@ subtends an angle
 
 where r is the radius of the sphere and pc is its center (Figure 6.5). The sampling method here computes the cosine of the subtended angle θmax using Equation (6.4) and then uniformly samples directions inside this cone of directions using an approach that is derived for the SampleUniformCone() function in Section A.5.4, sampling an offset θ from the center vector ωc and then uniformly sampling a rotation angle ϕ around the vector. That function is not used here, however, as we will need some of the intermediate values in the following fragments.
 
+![Figure 6.5](images/img-430-033.png)
+
 *Figure 6.5: To sample points on a spherical light source, we can uniformly sample within the cone of directions around a central vector ωc with an angular spread of up to θmax. Trigonometry can be used to derive the value of sin θmax, r/|pc − p|.*
 
 〈Compute quantities related to the θmax for cone〉 ≡ 282
@@ -1127,6 +1148,8 @@ sines, we can find that
 Because γ is an obtuse angle, γ = π − arcsin(dc/r sin θ). Given two of the three angles of the triangle, it
 
 follows that
+
+![Figure 6.6](images/img-432-034.png)
 
 *Figure 6.6: Geometric Setting for Computing the Sampled Point on the Sphere Corresponding to a Sampled Angle θ. Consider the triangle shown here. The lengths of two sides are known: one is the radius of the sphere r and the other is dc, the distance from the reference point to the center of the sphere. We also know one angle, θ. Given these, we first solve for the angle γ before finding cos α.*
 
@@ -1286,6 +1309,8 @@ Here it is also worth considering numerical accuracy when the sphere subtends a 
        oneMinusCosThetaMax = sin2ThetaMax / 2;
 ```
 
+![Figure 6.7](images/img-436-035.png)
+
 *Figure 6.7: Basic Setting for the Cylinder Shape. The cylinder has a radius of r and covers a range along the z axis. A partial cylinder may be swept by specifying a maximum ϕ value.*
 
 ## 6.3 CYLINDERS
@@ -1315,6 +1340,8 @@ In parametric form, a cylinder is described by the following equations:
 ```
 
 Similar to the Sphere constructor, the Cylinder constructor takes transformations that define its object space and the parameters that define the cylinder itself. Its constructor just initializes the corresponding member variables, so we will not include it here.
+
+![Figure 6.8](images/img-437-036.png)
 
 *Figure 6.8: Two Cylinders. A partial cylinder is on the left, and a complete cylinder is on the right.*
 
@@ -1641,7 +1668,11 @@ The disk is an interesting quadric since it has a particularly straightforward i
 
 To describe partial disks, the user may specify a maximum ϕ value beyond which the disk is cut off (Figure 6.9). The disk can also be generalized to an annulus by specifying an inner radius, ri. In parametric form, it is described by
 
+![Figure 6.9](images/img-445-038.png)
+
 *Figure 6.9: Basic Setting for the Disk Shape. The disk has radius r and is located at height h along the z axis. A partial disk may be swept by specifying a maximum ϕ value and an inner radius ri.*
+
+![Figure 6.10](images/img-446-039.png)
 
 *Figure 6.10: Two Disks. A partial disk is on the left, and a complete disk is on the right.*
 
@@ -1913,6 +1944,8 @@ number of edges and vertices is furthermore related by the identity This can be 
 ```
 
 In other words, there are approximately twice as many faces as vertices. Since each face references three vertices, every vertex is (on average) referenced a total of six times. Thus, when vertices are shared, the total amortized storage required per triangle will be 12 bytes of memory for the offsets (at 4 bytes for three 32-bit integer offsets) plus half of the storage for one vertex—6 bytes, assuming three 4-byte floats are used to store the vertex position—for a total of 18 bytes per triangle. This is much better than the 36 bytes per triangle that storing the three positions directly would require. The relative storage savings are even better when there are per-vertex surface normals or texture coordinates in a mesh.
+
+![Figure 6.11](images/img-454-040.png)
 
 *Figure 6.11: Ganesha Model. This triangle mesh contains over four million individual triangles. It was created from a real statue using a 3D scanner that uses structured light to determine shapes of objects.*
 
@@ -2366,7 +2399,11 @@ For now, only the x and y dimensions are sheared; we can wait and shear the z di
 
 Note that the calculations for the coordinate permutation and the shear coefficients only depend on the given ray; they are independent of the triangle. In a high-performance ray tracer, it may be worthwhile to compute these values once and store them in the Ray class, rather than recomputing them for each triangle the ray is intersected with.
 
+![Figure 6.12](images/img-467-041.png)
+
 *Figure 6.12: In the ray–triangle intersection coordinate system, the ray starts at the origin and goes along the +z axis. The intersection test can be performed by considering only the xy projection of the ray and the triangle vertices, which in turn reduces to determining if the 2D point (0, 0) is within the triangle.*
+
+![Figure 6.13](images/img-467-042.png)
 
 *Figure 6.13: The area of a triangle with two edges given by vectors v1 and v2 is one-half of the area of the parallelogram shown here. The parallelogram area is given by the length of the cross product of v1 and v2.*
 
@@ -2379,6 +2416,8 @@ Half of this area is the area of the triangle that they define. Thus, we can see
 triangle with vertices p0, p1, and p2 is Figure 6.13 visualizes this idea geometrically.
 
 We will use this expression of triangle area to define a signed edge function: given two triangle vertices p0 and p1, we can define the directed edge function e as the function that gives twice the area of the triangle given by p0, p1, and a given third point p:
+
+![Figure 6.14](images/img-468-043.png)
 
 *Figure 6.14: The edge function e(p) characterizes points with respect to an oriented line between two points p0 and p1. The value of the edge function is positive for points p to the right of the line, zero for points on the line, and negative for points to the left of the line. The ray–triangle intersection algorithm uses an edge function that is twice the signed area of the triangle formed by the three points.*
 
@@ -2842,6 +2881,8 @@ They are the only source of variance in estimates of the integral. As an alterna
 
 between two points, we end up with where the last factor accounts for the change of variables and where cos θl is the angle between the light source’s surface normal and the vector between the two points. The values of the four factors inside the parentheses in this estimator all depend on the choice of p′. With area sampling, the |cos θl| factor adds some additional variance, though not too much, since it is between 0 and 1. However, 1/‖p′ − p‖2 can have unbounded variation over the surface of the triangle, which can lead to high variance in the estimator since the method used to sample p′ does not account for it at all. This variance increases the larger the triangle is and the closer the reference point is to it. Figure 6.16 shows a scene where solid angle sampling significantly reduces error. The Triangle::Sample() method that takes a reference point therefore samples a point according to solid angle.
 
+![Figure 6.16](images/img-483-045.png)
+
 *Figure 6.16: A Scene Where Solid Angle Triangle Sampling Is Beneficial. When points on triangles are sampled using uniform area sampling, error is high at points on the ground close to the emitter. If points are sampled on the triangle by uniformly sampling the solid angle the triangle subtends, then the remaining non-constant factors in the estimator are both between 0 and 1, which results in much lower error. For this scene, mean squared error (MSE) is reduced by a factor of 3.86. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 〈Triangle Public Methods〉 +≡ 301
@@ -2876,6 +2917,8 @@ the unit sphere (recall Section 3.8.2). Spherical triangle sampling is implement
 
 〈Apply warp product sampling for cosine factor at reference point 324〉 Float triPDF; pstd::array<Float, 3> b = SampleSphericalTriangle({p0, p1, p2}, ctx.p(), u, &triPDF); if (triPDF == 0) return {}; pdf *= triPDF;
 
+![Figure 6.17](images/img-485-046.png)
+
 *Figure 6.17: Geometric Setting for Spherical Triangles. Given vertices a, b, and c, the respective opposite edges are labeled ā, b, and c and the interior angles are labeled with Greek letters α, β, and γ.*
 
 Given the barycentric coordinates, it is simple to compute the sampled point. With that as well as the surface normal, computed by reusing a fragment from the other triangle sampling method, we have everything necessary to return a ShapeSample.
@@ -2905,6 +2948,8 @@ Given the reference point, it is easy to project the vertices on the unit sphere
 Vector3f a(v[0] - p), b(v[1] - p), c(v[2] - p); a = Normalize(a); b = Normalize(b); c = Normalize(c);
 
 Because the plane containing an edge also passes through the origin, we can compute the plane normal for an edge from a to b as
+
+![Figure 6.18](images/img-487-047.png)
 
 *Figure 6.18: (a) After sampling a triangle area, the first step of the sampling algorithm finds the vertex c′ that gives a spherical triangle abc′ with that area. The vertices a and b and the edge c are shared with the original triangle. (b) Given c′, a direction ω is sampled along the arc between b and c′.*
 
@@ -3001,7 +3046,11 @@ As noted earlier, uniform solid angle sampling does not account for the incident
 
 Vector3f 86 It can be shown through simple application of the chain rule that a suitable transformation of uniform [0, 1]2 sample points can account for the cos θ factor. Specifically, if transformed points are distributed according to the distribution of cos θ in [0, 1]2 and then used with the spherical triangle sampling algorithm, then the distribution of directions on the sphere will include the cos θ factor.
 
+![Figure 6.19](images/img-494-048.png)
+
 *Figure 6.19: (a) The cos θ factor varies smoothly over the area of a spherical triangle. (b) If it is mapped back to the [0, 1]2 sampling domain, it also varies smoothly there, thanks to the sampling algorithm not introducing any discontinuities or excessive distortion.*
+
+![Figure 6.20](images/img-495-049.png)
 
 *Figure 6.20: If (a) uniform sample points are warped to (b) approximate the distribution of the incident cosine factor in [0, 1]2 before being used with the spherical triangle sampling algorithm, then (c) the resulting points in the triangle are approximately cosine-distributed.*
 
@@ -3070,6 +3119,8 @@ The pair of sample values that give a sampled direction ω can be found by inver
 
 Next, it finds the vertex c′ along the arc between a and c that defines the subtriangle that would have been sampled when sampling ω. This vertex can be found by computing the intersection of the great circle defined by b and ω and the great circle defined by a and c; see Figure 6.21. Recall from Section 3.8.2 that the great circle passing through two points on the sphere is given by the intersection of the sphere with a plane passing through the origin and those two points. Therefore, we can find the intersection between the two corresponding planes, which is a line. In 3D, the cross product of the plane normals gives this line’s direction. This line intersects the sphere at two points and so it is necessary to choose the one of them that is between a and c.
 
+![Figure 6.21](images/img-499-050.png)
+
 *Figure 6.21: Given a spherical triangle abc and a direction ω that is inside it, the vertex c′ along the edge from a to c can be found from the intersection of the great circle that passes through b and ω and the great circle that passes through a and c.*
 
 ```text
@@ -3130,6 +3181,8 @@ The sampling method for choosing ω along the arc through b and c′, Equation (
 ## 6.6 BILINEAR PATCHES
 
 It is useful to have a shape defined by four vertices. One option would be a planar quadrilateral, though not requiring all four vertices to be coplanar is preferable, as it is less restrictive. Such a shape is the bilinear patch, which is a parametric surface defined by four vertices p0,0, p1,0, p0,1, and p1,1. Each vertex gives the position associated with a corner of the parametric (u, v) domain [0, 1]2 and points on the surface are defined via bilinear interpolation:
+
+![Figure 6.22](images/img-501-051.png)
 
 *Figure 6.22: Two Bilinear Patches. The bilinear patch is defined by four vertices that are not necessarily planar. It is able to represent a variety of simple curved surfaces.*
 
@@ -3282,6 +3335,8 @@ corresponding v and t values computed to find the full intersection information.
    Vector3f 86
 ```
 
+![Figure 6.23](images/img-509-052.png)
+
 *Figure 6.23: Ray–Bilinear Patch Intersections. Rays may intersect a bilinear patch either once or two times.*
 
 〈Bilinear Patch Inline Functions〉 ≡ pstd::optional<BilinearIntersection> IntersectBilinearPatch(const Ray &ray, Float tMax, Point3f p00, Point3f p10, Point3f p01, Point3f p11) { 〈Find quadratic coefficients for distance from ray to u iso-lines 333〉
@@ -3303,6 +3358,8 @@ with
 
 (See Figure 6.24.) The first step of the intersection test considers the set of all such lines defined by the patch’s vertices. For any intersection, the minimum distance from a point along the ray to a point along one of these lines will be zero. Therefore, we start with the task of trying to find u values that give lines with zero distance to a point on the ray. Given two infinite and non-parallel lines, one defined by the two points pa and pb and the other defined by pc and pd, the minimum distance between them can be found by determining the pair of parallel planes that each contain one of the lines and then finding the distance between them. (See Figure 6.25.) To find the coefficients of those plane equations, we start by taking the cross product (pb − pa)×(pd − pc). This gives a vector that is perpendicular to both lines and provides the first three coefficients of the plane equation ax + by + cz + d = 0. In turn, the dab and dcd coefficients can be found for each line’s plane by substituting a point along the respective line into the plane equation and solving for d. Because the planes are parallel, the distance between them is then
 
+![Figure 6.24](images/img-511-053.png)
+
 *Figure 6.24: Fixing the u parameter of a bilinear patch gives a linear function between two opposite edges of the patch.*
 
 ```text
@@ -3311,6 +3368,8 @@ with
    Point3f 92
    Ray 95
 ```
+
+![Figure 6.25](images/img-512-054.png)
 
 *Figure 6.25: The minimum distance between two lines can be computed by finding two parallel planes that contain each line and then computing the distance between them.*
 
@@ -3515,6 +3574,8 @@ The area sampling method first samples parametric (u, v) coordinates, from which
 
 While all the Shape implementations we have implemented so far can be used as area light sources, none of their sampling routines have accounted for the fact that pbrt’s DiffuseArea Light allows specifying an image that is used to represent spatially varying emission over the shape’s (u, v) surface. Because such emission profiles are most frequently used with rectangular light sources, the BilinearPatch has the capability of sampling in (u, v) according to the emission function. Figure 6.26 demonstrates the value of doing so.
 
+![Figure 6.26](images/img-523-055.png)
+
 *Figure 6.26: Area Sampling Accounting for Image-Based Emission. For a scene with an emissive bilinear patch where the amount of emission varies across the patch based on an image, (a) uniformly sampling in the patch’s (u, v) parametric space leads to high variance since some samples have much higher contributions than others. (b) Sampling according to the image’s distribution of brightness gives a significantly better result for the same number of rays. Here, MSE is improved by a factor of 2.28 ×. (Bunny model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 Otherwise, if the patch is not a rectangle, an approximation to uniform area sampling is used. If it is a rectangle, then uniform area sampling is trivial and the provided sample value is used directly for (u, v). In all of these
@@ -3530,6 +3591,8 @@ Float pdf = 1; Point2f uv; if (mesh->imageDistribution) uv = mesh->imageDistribu
    PiecewiseConstant2D::Sample() 1020
    Point2f 92
 ```
+
+![Figure 6.27](images/img-524-056.png)
 
 *Figure 6.27: Nonuniform Sample Distribution from Uniform Parametric Sampling. (a) When a bilinear patch is sampled uniformly in (u, v), the sample points are denser close to pairs of nearby vertices. (b) When using an approximate equal-area distribution, the points are more uniformly distributed over the patch.*
 
@@ -3563,6 +3626,8 @@ It is especially easy to compute the partial derivatives at the patch corners; t
 ```
 
 Given a (u, v) position on the patch, the corresponding position, partial derivatives, and surface normal can all be computed, following the same approach as was implemented in InteractionFromIntersection(). The fragment 〈Compute p, ∂p/∂u, and ∂p/∂v for sampled (u, v)〉 is therefore not included here, and (s, t) texture coordinates for the sampled point are computed using a fragment defined earlier.
+
+![Figure 6.28](images/img-526-057.png)
 
 *Figure 6.28: Plot of differential area ‖∂p/∂u×∂p/∂v‖ in parametric space for the bilinear patch shown in Figure 6.27. Although the differential area is not a bilinear function, a bilinear fit to it has low error and is easy to draw samples from.*
 
@@ -3790,6 +3855,8 @@ The InvertSphericalRectangleSample() function, not included here, returns the sa
 
 ⋆ 6.7 CURVES While triangles or bilinear patches can be used to represent thin shapes for modeling fine geometry like hair, fur, or fields of grass, it is worthwhile to have a specialized Shape in order to more efficiently render these sorts of objects, since many individual instances of them are often present. The Curve shape, introduced in this section, represents thin geometry modeled with cubic Bézier curves, which are defined by four control points, p0, p1, p2, and p3. The Bézier spline passes through the first and last control points. Points along it are given by the polynomial
 
+![Figure 6.29](images/img-536-058.png)
+
 *Figure 6.29: A cubic Bézier curve is defined by four control points, pi. The curve p(u), defined in Equation (6.16), passes through the first and last control points at u = 0 and u = 1, respectively.*
 
 *Figure 6.30: Basic Geometry of the Curve Shape. A 1D Bézier curve is offset by half of the specified width in both the directions orthogonal to the curve at each point along it. The resulting area represents the curve’s surface.*
@@ -3820,7 +3887,11 @@ There are three types of curves that the Curve shape can represent, shown in Fig
            actually have a cylindrical cross section (such as a blade of grass).
 ```
 
+![Figure 6.31](images/img-538-059.png)
+
 *Figure 6.31: Furry Bunny. Bunny model with over one million Curve shapes used to model fur. Here, we have used unrealistically long curves to better show off the Curve’s capabilities, giving an unrealistically shaggy bunny. (Underlying bunny mesh courtesy of the Stanford Computer Graphics Laboratory.)*
+
+![Figure 6.32](images/img-539-060.png)
 
 *Figure 6.32: The Three Types of Curves That the Curve Shape Can Represent. On the top is a flat curve that is always oriented to be perpendicular to a ray approaching it. The middle is a variant of this curve where the shading normal is set so that the curve appears to be cylindrical. On the bottom is a ribbon, which has a fixed orientation at its starting and ending points; intermediate orientations are smoothly interpolated between them.*
 
@@ -3913,6 +3984,8 @@ Ray ray = (*common->objectFromRender)(r);
 
 The CurveCommon class stores the control points for the full curve, but a Curve instance generally needs the four control points that represent the Bézier curve for its u extent. The CubicBezierControlPoints() utility function performs this computation.
 
+![Figure 6.33](images/img-543-061.png)
+
 *Figure 6.33: 2D Bounding Boxes of a Bézier Curve. (a) Bounding box computed using the curve’s control points as given. (b) The effect of rotating the curve so that the vector from its first to last control point is aligned with the x axis before computing bounds. The resulting bounding box is a much tighter fit.*
 
 〈Get object-space control points for curve segment, cpObj〉 ≡ 349
@@ -3954,6 +4027,8 @@ Vector3f dx = Cross(ray.d, cpObj[3] - cpObj[0]); if (LengthSquared(dx) == 0) { V
 ```
 
 Along the lines of the implementation in Curve::Bounds(), a conservative bounding box for a curve segment can be found by taking the bounds of the curve’s control points and expanding by half of the maximum width of the curve over the u range being considered.
+
+![Figure 6.34](images/img-545-062.png)
 
 *Figure 6.34: Ray–Curve Bounds Test. In the ray coordinate system, the ray’s origin is at (0, 0, 0) and its direction is aligned with the +z axis. Therefore, if the 2D point (x, y) = (0, 0) is outside the xy bounding box of the curve segment, then it is impossible that the ray intersects the curve.*
 
@@ -4052,6 +4127,8 @@ The 〈Test sample point against tangent perpendicular at curve end〉 fragment,
 The next part of the test is to determine the u value along the curve segment where the point (0, 0) is closest to the curve. This will be the intersection point, if it is no farther than the curve’s width away from the center at that point. Determining this distance for a cubic Bézier curve requires a significant amount of computation, so instead the implementation here approximates the curve with a linear segment to compute this u value.
 
 *Figure 6.36: Approximation of a Cubic Bézier Curve with a Linear Segment. For this part of the ray– curve intersection test, we approximate the Bézier with a linear segment (dashed line) passing through its starting and ending points. (In practice, after being subdivided, the curve will be already nearly linear, so the error is less than this figure suggests.)*
+
+![Figure 6.37](images/img-551-063.png)
 
 *Figure 6.37: (a) Given an infinite line and a point p, the vector from the point to the closest point on the line, p′, is then perpendicular to the line. (b) Because this vector is perpendicular, we can compute the distance from the first point of the line to the point of closest approach, p′, as d = ‖p − p0‖ cos θ.*
 
@@ -4193,7 +4270,11 @@ The accumulation of this error has several implications for the accuracy of inte
 
 negative even though the precise value is positive. Furthermore, computed ray–shape intersection points may be above or below the actual surface of the shape. This leads to a problem: when new rays are traced starting from computed intersection points for shadow rays and reflection rays, if the ray origin is below the actual surface, we may find an incorrect reintersection with the surface. Conversely, if the origin is too far above the surface, shadows and reflections may appear detached. (See Figure 6.38.) Typical practice to address this issue in ray tracing is to offset spawned rays by a fixed “ray epsilon” value, ignoring any intersections along the ray p + td closer than some tmin value.
 
+![Figure 6.38](images/img-557-064.png)
+
 *Figure 6.38: Geometric Settings for Rounding-Error Issues That Can Cause Visible Errors in Images. The incident ray on the left intersects the surface. On the left, the computed intersection point (black circle) is slightly below the surface and a too-low “epsilon” offsetting the origin of the shadow ray leads to an incorrect self-intersection, as the shadow ray origin (white circle) is still below the surface; thus the light is incorrectly determined to be occluded. On the right, a too-high “epsilon” causes a valid intersection to be missed as the ray’s origin is past the occluding surface.*
+
+![Figure 6.39](images/img-558-065.png)
 
 *Figure 6.39: If the computed intersection point (filled circle) is below the surface and the spawned ray is oblique, incorrect reintersections may occur some distance from the ray origin (open circle). If a minimum t value along the ray is used to discard nearby intersections, a relatively large tmin is needed to handle oblique rays well.*
 
@@ -4234,6 +4315,8 @@ Arithmetic Operations IEEE 754 provides important guarantees about the propertie
 ```text
    Float 23
 ```
+
+![Figure 6.40](images/img-563-066.png)
 
 *Figure 6.40: The IEEE standard specifies that floating-point calculations must be implemented as if the calculation was performed with infinite-precision real numbers and then rounded to the nearest representable float. Here, an infinite-precision result in the real numbers is denoted by a filled dot, with the representable floats around it denoted by ticks on a number line. We can see that the error introduced by rounding to the nearest float, δ, can be no more than half the spacing between floats.*
 
@@ -4409,6 +4492,8 @@ and then substitute in the values of a, b, and c from Equation (6.3) to the term
 
 where we have denoted the vector from (0, 0, 0) to the ray’s origin as o and is the ray’s normalized direction.
 
+![Figure 6.42](images/img-578-068.png)
+
 *Figure 6.42: The Effect of Reducing the Error in the Computation of the Discriminant for Ray– Sphere Intersection. Unit sphere, viewed using an orthographic projection with a camera 400 units away. (a) If the quadratic discriminant is computed in the usual fashion, numeric error causes intersections at the edges to be missed. In the found intersections, the inaccuracy is evident in the wobble of the textured lines. (b) With the more precise formulation described in this section, the sphere is rendered correctly. (With the improved discriminant, such a sphere can be translated as far as 7,500 or so units from an orthographic camera and still be rendered accurately.)*
 
 Now consider the decomposition of o into the sum of two vectors, d⊥ and d‖, where d‖ is parallel to and d⊥ is perpendicular to it. Those vectors are
@@ -4461,6 +4546,8 @@ The error term (in square brackets) is bounded by
 
 There are two things to see from Equation (6.27): first, the magnitudes of the terms that contribute to the error in the computed intersection point (ox, dx, and thitdx) may be quite different from the magnitude of the intersection point. Thus, there is a danger of catastrophic cancellation in the intersection point’s computed value. Second, ray intersection algorithms generally perform tens of floating-point operations to compute t values, which in turn means that we can expect δt to be at least of magnitude γnt, with n in the tens (and possibly much more, due to catastrophic cancellation).
 
+![Figure 6.43](images/img-582-069.png)
+
 *Figure 6.43: Shape intersection algorithms in pbrt compute an intersection point, shown here in the 2D setting with a filled circle. The absolute error in this point is bounded by δx and δy, giving a small box around the point. Because these bounds are conservative, we know that the actual intersection point on the surface (open circle) must lie somewhere within the box.*
 
 Each of these terms may introduce a significant amount of error in the computed point x. We introduce better approaches in the following.
@@ -4468,6 +4555,8 @@ Each of these terms may introduce a significant amount of error in the computed 
 Reprojection: Quadrics We would like to reliably compute surface intersection points with just a few ulps of error rather than the orders of magnitude greater error that intersection points computed with the parametric ray equation may have.
 
 Previously, Woo et al. (1996) suggested using the first intersection point computed as a starting point for a second ray–plane intersection, for ray– polygon intersections. From the bounds in Equation (6.27), we can see why the second intersection point will often be much closer to the surface than the first: the thit value along the second ray will be quite close to zero, so that the magnitude of the absolute error in thit will be quite small, and thus using this value in the parametric ray equation will give a point quite close to the surface (Figure 6.44). Further, the ray origin will have similar magnitude to the intersection point, so the γ1|ox| term will not introduce much additional error. Although the second intersection point computed with this approach is much closer to the plane of the surface, it still suffers from error by being offset due to error in the first computed intersection. The farther away the ray origin is from the intersection point (and thus, the larger the absolute error is in thit), the larger this error will be. In spite of this error, the approach has merit: we are generally better off with a computed intersection point that is quite close to the actual surface, even if offset from the most accurate possible intersection point, than we are with a point that is some distance above or below the surface (and likely also far from the most accurate intersection point). Rather than doing a full reintersection computation, which may not only be computationally costly but also will still have error in the computed t value, an effective alternative is to refine computed intersection points by reprojecting them to the surface. The error bounds for these reprojected points are often remarkably small. (It should be noted that these reprojection error bounds do not capture tangential errors that were present in the original intersection p—the main focus here is to detect errors that might cause the reprojected point p′ to fall below the surface.) Consider a ray–sphere intersection: given a computed intersection point (e.g., from the ray equation) p with a sphere at the origin with radius r, we can reproject the point onto the surface of the sphere by scaling it with the ratio of the sphere’s radius to the computed point’s distance to the origin, computing a new point p′ = (x′, y′, z′) with
+
+![Figure 6.44](images/img-584-070.png)
 
 *Figure 6.44: Reintersection to Improve the Accuracy of the Computed Intersection Point. Given a ray and a surface, an initial intersection point has been computed with the ray equation (filled circle). This point may be fairly inaccurate due to rounding error but can be used as the origin for a second ray–shape intersection. The intersection point computed from this second intersection (open circle) is much closer to the surface, though it may be shifted from the true intersection point due to error in the first computed intersection.*
 
@@ -4667,6 +4756,8 @@ We have not included the fragment 〈Compute error for transformed approximate p
 
 It would have been much easier to implement this method using the Interval class to automatically compute error bounds. We found that that approach gives bounds that are generally 3–6 × wider and cause the method to be six times slower than the implementation presented here. Given that transformations are frequently applied during rendering, deriving and then using tighter bounds is worthwhile.
 
+![Figure 6.45](images/img-593-073.png)
+
 *Figure 6.45: Given a computed intersection point (filled circle) with surface normal (arrow) and error bounds (rectangle), we compute two planes offset along the normal that are offset just far enough so that they do not intersect the error bounds. The points on these planes along the normal from the computed intersection point give us the origins for spawned rays (open circles); one of the two is selected based on the ray direction so that the spawned ray will not pass through the error bounding box. By construction, such rays cannot incorrectly reintersect the actual surface (thick line).*
 
 Note that the code that computes error bounds is buggy if the matrix is projective and the homogeneous w coordinate of the projected point is not one; this nit is not currently a problem for pbrt’s usage of this method.
@@ -4680,6 +4771,8 @@ Computed intersection points and their error bounds give us a small 3D box that 
 is). (Recall Figure 6.43.) Having these boxes makes it possible to position the origins of rays leaving the surface so that they are always on the right side of the surface and do not incorrectly reintersect it. When tracing spawned rays leaving the intersection point p, we offset their origins enough to ensure that they are past the boundary of the error box and thus will not incorrectly reintersect the surface. In order to ensure that the spawned ray origin is definitely on the right side of the surface, we move far enough along the normal so that the plane perpendicular to the normal is outside the error bounding box. To see how to do this, consider a computed intersection point at the origin, where the equation for the plane going through the intersection point is f (x, y, z) = nxx + nyy + nzz. The plane is implicitly defined by f (x, y, z) = 0, and the normal is (nx, ny, nz).
 
 For a point not on the plane, the value of the plane equation f (x, y, z) gives the offset along the normal that gives a plane that goes through the point. We would like to find the maximum value of f (x, y, z) for the eight corners of the error bounding box; if we offset the plane plus and minus this offset, we have two planes that do not intersect the error box that should be (locally) on opposite sides of the surface, at least at the computed intersection point offset along the normal (Figure 6.45).
+
+![Figure 6.46](images/img-594-074.png)
 
 *Figure 6.46: The rounded value of the offset point p+offset computed in OffsetRayOrigin() may end up in the interior of the error box rather than on its boundary, which in turn introduces the risk of incorrect self-intersections if the rounded point is on the wrong side of the surface. Advancing each coordinate of the computed point one floating-point value away from p ensures that it is outside of the error box.*
 
@@ -4898,7 +4991,7 @@ Interestingly enough, we saw an increase of roughly 20% in overall ray-tracing e
    Tuple3::MaxComponentValue() 85
 ```
 
-FURTHER READING
+## FURTHER READING
 
 An Introduction to Ray Tracing has an extensive survey of algorithms for ray–shape intersection (Glassner 1989a). Goldstein and Nagel (1971) discussed ray–quadric intersections, and Heckbert (1984) discussed the mathematics of quadrics for graphics applications in detail, with many citations to literature in mathematics and other fields. Hanrahan (1983) described a system that automates the process of deriving a ray intersection routine for surfaces defined by implicit polynomials; his system emits C source code to perform the intersection test and normal computation for a surface described by a given equation. Mitchell (1990) showed that interval arithmetic could be applied to develop algorithms for robustly computing
 
@@ -5011,6 +5104,8 @@ Then, measure the MSE of pbrt’s current approach as well as your approach for 
 ```
 
 You may find it helpful to read the article by Haines (1994) that surveys a number of approaches for efficient point-in-polygon tests. Some of the techniques described there may be helpful for optimizing this test. Furthermore, Section 13.3.3 of Schneider and Eberly (2003) discusses strategies for getting all the corner cases right: for example, when the 2D ray is aligned precisely with an edge or passes through a vertex of the polygon. ➋ 6.10 Constructive solid geometry (CSG) is a solid modeling technique where complex shapes are built up by considering the union, intersection, and differences of more primitive shapes. For example, a sphere could be used to create pits in a cylinder if a shape was modeled as the difference of a cylinder and set of spheres that partially overlapped it. See Hoffmann (1989) for further information about CSG.
+
+![Figure 6.47](images/img-613-075.png)
 
 *Figure 6.47: A ray–polygon intersection test can be performed by finding the point where the ray intersects the polygon’s plane, projecting the hit point and polygon vertices onto an axis-aligned plane, and doing a 2D point-in-polygon test there.*
 

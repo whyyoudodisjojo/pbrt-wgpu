@@ -1,6 +1,16 @@
 # Chapter 4: Radiometry, Spectra, and Color
 
-COLOR
+## Radiometry and Spectra (wgpu)
+
+```mermaid
+flowchart LR
+    A[Spectrum] --> B[XYZ Tristimulus]
+    B --> C[RGB Color]
+    C --> D[Display / Film]
+    A --> E[BRDF Evaluation]
+```
+
+
 
 To precisely describe how light is represented and sampled to compute images, we must first establish some background in radiometry—the study of the propagation of electromagnetic radiation in an environment. In this chapter, we will first introduce four key quantities that describe electromagnetic radiation: flux, intensity, irradiance, and radiance.
 
@@ -70,6 +80,8 @@ Note that our notation here is slightly informal: among other issues, because ph
 
 Total emission from light sources is generally described in terms of flux. Figure 4.1 shows flux from a point light source measured by the total amount of energy passing through imaginary spheres around the light. Note that the total amount of flux measured on either of the two spheres in Figure 4.1 is the same—although less energy is passing through any local part of the large sphere than the small sphere, the greater area of the large sphere means that the total flux is the same.
 
+![Figure 4.1](images/img-235-005.png)
+
 *Figure 4.1: Radiant flux, Φ, measures energy passing through a surface or region of space. Here, flux from a point light source is measured at spheres that surround the light.*
 
 Irradiance and Radiant Exitance Any measurement of flux requires an area over which photons per time is being measured. Given a finite area A, we can define the average density of power over the area by E = Φ/A. This quantity is either irradiance (E), the area density of flux arriving at a surface, or radiant exitance (M), the area density of flux leaving a surface. These measurements have units of W/m2. (The term irradiance is sometimes also used to refer to flux leaving a surface, but for clarity we will use different terms for the two cases.) For the point light source example in Figure 4.1, irradiance at a point on the outer sphere is less than the irradiance at a point on the inner sphere, since the surface area of the outer sphere is larger. In particular, if the point source is emitting the same amount of illumination in all directions,
@@ -85,6 +97,8 @@ The irradiance equation can also help us understand the origin of Lambert’s la
 figure), then the area on the surface receiving light A1 is equal to A. Irradiance at any point inside A1
 
 is then
+
+![Figure 4.2](images/img-236-006.png)
 
 *Figure 4.2: Lambert’s Law. Irradiance arriving at a surface varies according to the cosine of the angle of incidence of illumination, since illumination is over a larger area at larger incident angles.*
 
@@ -104,6 +118,8 @@ Radiance The final, and most important, radiometric quantity is radiance, L. Irr
 
 respect to solid angles. It is defined by where we have used Eω to denote irradiance at the surface that is perpendicular to the direction ω. In other words, radiance is not measured with respect to the irradiance incident at the surface p lies on. In effect, this change of measurement area serves to eliminate the cos θ factor from Lambert’s law in the definition of radiance.
 
+![Figure 4.3](images/img-237-007.png)
+
 *Figure 4.3: Radiance L is defined as flux per unit solid angle dω per unit projected area dA⊥.*
 
 Radiance is the flux density per unit area, per unit solid angle. In terms of flux, it is defined by
@@ -117,6 +133,8 @@ Of all of these radiometric quantities, radiance will be the one used most frequ
 When light interacts with surfaces in the scene, the radiance function L is generally not continuous across the surface boundaries. In the most extreme case of a fully opaque surface (e.g., a mirror), the radiance function slightly above and slightly below a surface could be completely unrelated.
 
 It therefore makes sense to take one-sided limits at the discontinuity to distinguish between the radiance function just above and below
+
+![Figure 4.4](images/img-238-008.png)
 
 *Figure 4.4: (a) The incident radiance function Li(p, ω) describes the distribution of radiance arriving at a point as a function of position and direction. (b) The exitant radiance function Lo(p, ω) gives the distribution of radiance leaving the point. Note that for both functions, ω is oriented to point away from the surface, and thus, for example, Li(p, −ω) gives the radiance arriving on the other side of the surface than the one where ω lies.*
 
@@ -189,6 +207,8 @@ All the other radiometric quantities that we have introduced in this chapter hav
    Radiance                 W/(m2sr)           Luminance                       lm/(m2sr) = cd/m2 = nit
 ```
 
+![Figure 4.5](images/img-241-010.png)
+
 *Figure 4.5: Irradiance at a point p is given by the integral of radiance times the cosine of the incident direction over the entire upper hemisphere above the point.*
 
 ## 4.2 WORKING WITH RADIOMETRIC INTEGRALS
@@ -198,6 +218,8 @@ A frequent task in rendering is the evaluation of integrals of radiometric quant
 where Li(p, ω) is the incident radiance function (Figure 4.5) and the cos θ factor in the integrand is
 
 due to the dA⊥ factor in the definition of radiance. θ is measured as the angle between ω and the surface normal n. Irradiance is usually computed over the hemisphere ℌ2(n) of directions about a given surface normal n.
+
+![Figure 4.6](images/img-242-011.png)
 
 *Figure 4.6: The projected solid angle subtended by an object is the cosine-weighted solid angle that it subtends. It can be computed by finding the object’s solid angle, projecting it down to the plane perpendicular to the surface normal, and measuring its area there. Thus, the projected solid angle depends on the surface normal where it is being measured, since the normal orients the plane of projection.*
 
@@ -221,6 +243,8 @@ For the rest of this book, we will write integrals over directions in terms of s
 
 It is often convenient to transform integrals over solid angle into integrals over spherical coordinates (θ, ϕ) using Equation (3.7). In order to convert an integral over a solid angle to an integral over (θ, ϕ), we need to be able to express the relationship between the differential area of a set of directions dω and the differential area of a (θ, ϕ) pair (Figure 4.7). The differential area on the unit sphere dω is the product of the differential lengths of its sides, sin θ dϕ and dθ. Therefore,
 
+![Figure 4.7](images/img-243-012.png)
+
 *Figure 4.7: The differential area dω subtended by a differential solid angle is the product of the differential lengths of the two edges sin θdϕ and dθ. The resulting relationship, dω = sin θdθdϕ, is the key to converting between integrals over solid angles and integrals over spherical angles.*
 
 (This result can also be derived using the multidimensional transformation approach from Section 2.4.1.) We can thus see that the irradiance integral over the hemisphere, Equation (4.7) with Ω =
@@ -239,7 +263,11 @@ Therefore, we can write the irradiance integral for the quadrilateral source as
 
 where L is the emitted radiance from the surface of the quadrilateral, θi is the angle between the surface normal at p and the direction from p to the point p′ on the light, and θo is the angle between the surface normal at p′ on the light and the direction from p′ to p (Figure 4.9).
 
+![Figure 4.8](images/img-244-013.png)
+
 *Figure 4.8: The differential solid angle dω subtended by a differential area dA is equal to dA cos θ/r2, where θ is the angle between dA’s surface normal and the vector to the point p and r is the distance from p to dA.*
+
+![Figure 4.9](images/img-245-014.png)
 
 *Figure 4.9: To compute irradiance at a point p from a quadrilateral source, it is easier to integrate over the surface area of the source than to integrate over the irregular set of directions that it subtends. The relationship between solid angles and areas given by Equation (4.9) lets us go back and forth between the two approaches.*
 
@@ -256,6 +284,8 @@ The bidirectional reflectance distribution function (BRDF) gives a formalism for
 A differential amount of radiance will be reflected in the direction ωo due to this irradiance. Because of the linearity assumption from geometric optics, the reflected differential radiance is proportional to the irradiance dLo(p, ωo) ∝ dE(p, ωi). The constant of proportionality defines the surface’s BRDF fr for the particular pair of directions ωi
 
 and ωo: The spectral BRDF is defined by using spectral radiance in place of radiance.
+
+![Figure 4.10](images/img-246-015.png)
 
 *Figure 4.10: The BRDF. The bidirectional reflectance distribution function is a 4D function over pairs of directions ωi and ωo that describes how much incident light along ωi is scattered from the surface in the direction ωo.*
 
@@ -304,6 +334,8 @@ The generalization of the scattering equation for the BSSRDF requires integratio
 With two more dimensions to integrate over, it is more complex to account for in rendering algorithms than Equation (4.14) is. However, as the distance between points pi and po increases, the value of S generally diminishes. This fact can be a substantial help in implementations of subsurface scattering algorithms.
 
 Light transport beneath a surface is described by the same principles as volume light transport in participating media and is described by the equation of transfer, which is introduced in Section 14.1. Subsurface scattering is thus based on the same effects as light scattering in clouds and smoke—just at a smaller scale.
+
+![Figure 4.11](images/img-249-016.png)
 
 *Figure 4.11: The bidirectional scattering surface reflectance distribution function generalizes the BSDF to account for light that exits the surface at a point other than where it enters. It is often more difficult to evaluate than the BSDF, although subsurface light transport makes a substantial contribution to the appearance of many real-world objects.*
 
@@ -370,6 +402,8 @@ T measured in kelvins: where c is the speed of light in the medium (299,792,458 
 
 The Blackbody() function computes emitted radiance at the given temperature T in Kelvin for the given wavelength lambda.
 
+![Figure 4.12](images/img-251-017.png)
+
 *Figure 4.12: Plots of emitted radiance as a function of wavelength for blackbody emitters at a few temperatures, as given by Equation (4.17). Note that as temperature increases, more of the emitted light is in the visible frequencies (roughly 380 nm–780 nm) and that the spectral distribution shifts from reddish colors to bluish colors. The total amount of emitted energy grows quickly as temperature increases, as described by the Stefan–Boltzmann law in Equation (4.19).*
 
 〈Spectrum Function Declarations〉 ≡ Float Blackbody(Float lambda, Float T) {
@@ -421,9 +455,15 @@ The Standard Illuminant A was introduced in 1931 and was intended to represent a
 
 (The B and C illuminants were intended to model daylight at two times of day and were generated with an A illuminant in combination with specific filters. They are no longer used.
 
+![Figure 4.13](images/img-253-018.png)
+
 *Figure 4.13: Plot of the CIE Standard Illuminant A’s Spectral Power Distribution as a Function of Wavelength in nm. This illuminant represents incandescent illumination and is close to a blackbody at 2856 K.*
 
+![Figure 4.14](images/img-254-019.png)
+
 *Figure 4.14: Plot of the CIE Standard D65 Illuminant Spectral Distribution as a Function of Wavelength in nm. This illuminant represents noontime daylight at European latitudes and is commonly used to define the whitepoint of color spaces (Section 4.6.3).*
+
+![Figure 4.15](images/img-254-020.png)
 
 *Figure 4.15: Plots of the F4 and F9 Standard Illuminants as a Function of Wavelength in nm. These represent two fluorescent lights. Note that the distributions are quite different. Spikes in the two distributions correspond to the wavelengths directly emitted by atoms in the gas, while the other wavelengths are generated by the bulb’s fluorescent coating. The F9 illuminant is a “broadband” emitter that uses multiple phosphors to achieve a more uniform spectral distribution.*
 
@@ -434,6 +474,8 @@ The D illuminant describes various phases of daylight. It was defined based on c
 combination of three terms (one fixed and two weighted), with one weight essentially corresponding to yellow-blue color change due to cloudiness and the other corresponding to pink-green due to water in the atmosphere (from haze, etc.). D65 is roughly 6504 K color temperature (not 6500 K—again due to changes in the values used for the constants in Planck’s law) and is intended to correspond to mid-day sunlight in Europe. (See Figure 4.14.) The CIE recommends that this illuminant be used for daylight unless there is a specific reason not to.
 
 Finally, the F series of illuminants describes fluorescents; it is based on measurements of a number of actual fluorescent lights. Figure 4.15 shows the spectral distributions of two of them.
+
+![Figure 4.16](images/img-255-021.png)
 
 *Figure 4.16: Spectral Distribution of Reflection from Lemon Skin.*
 
@@ -527,6 +569,8 @@ Float operator()(Float lambda) const { int offset = std::lround(lambda) - lambda
 ```
 
 While sampling a spectral distribution at 1 nm wavelengths gives sufficient accuracy for most uses in rendering, doing so requires nearly 2 kB of memory to store a distribution that covers the visible wavelengths. PiecewiseLinearSpectrum offers another representation that is often more compact; its distribution is specified by a set of pairs of values (λi, vi) where the spectral distribution is defined by linearly interpolating between them; see Figure 4.17. For spectra that are smooth in some regions and change rapidly in others, this representation makes it possible to specify the distribution at a higher rate in regions where its variation is greatest.
+
+![Figure 4.17](images/img-260-022.png)
 
 *Figure 4.17: PiecewiseLinearSpectrum defines a spectral distribution using a set of sample values (λi, vi). A continuous distribution is then defined by linearly interpolating between them.*
 
@@ -772,6 +816,8 @@ cells in the eye, each sensitive to different wavelengths of light. This theory,
 ### 4.6.1 XYZ COLOR
 
 An important set of color matching functions were determined by the Commission Internationale de l’Éclairage (CIE) standards body after a series of experiments with human test subjects. They define the XYZ color space and are graphed in Figure 4.18. XYZ is a device-independent color space, which means that it does not describe the characteristics of a particular display or color measurement device.
+
+![Figure 4.18](images/img-275-023.png)
 
 *Figure 4.18: The XYZ Color Matching Curves. A given spectral distribution can be converted to XYZ by multiplying it by each of the three matching curves and integrating the result to compute the values xλ, yλ, and zλ, using Equation (4.22).*
 
@@ -1397,7 +1443,7 @@ Color For background information on properties of the human visual system, Wande
 
 From RGB to Spectra Glassner (1989b) did early work on converting RGB values to spectral distributions. Smits (1999) optimized discrete reflectance spectra to reproduce primaries (red, green, blue) and combinations of primaries (yellow, cyan, magenta, white) based on the observation that linear interpolation in such an extended space tends to produce smoother reflectance spectra. Mallett and Yuksel (2019) presented a surprising result showing that linear interpolation of three carefully chosen spectra can fully cover the sRGB gamut, albeit at some cost in terms of smoothness. Meng et al. (2015) optimized a highly smooth spectral interpolant based on a dense sampling of the xy space of chromaticities, enabling usage independent of any specific RGB gamut. The method described in Section 4.6.6 was developed by Jakob and Hanika (2019). Several properties motivated its choice in pbrt: the spectral representation is based on a smooth function family with 3 parameters (i.e., the same dimension as an RGB). Conversion can then occur in two steps: a preprocessing step (e.g., per texel) replaces RGB values with polynomial coefficients, while the performance-critical evaluation at render time only requires a few floating-point instructions. Jung et al. (2019) extended this approach, using fluorescence to permit conversion of highly saturated RGB values that cannot be recreated using reflection alone. Peters et al. (2019) proposed a powerful parameterization of smooth reflectance spectra in terms of Fourier coefficients. Instead of using them in a truncated Fourier series, which would suffer from ringing, they built on the theory of moments to reconstruct smooth and energy-conserving spectra. The previous methods all incorporated smoothness as a central design constraint. While natural spectra indeed often tend to be smooth, maximally smooth spectra are not necessarily the most natural, especially when more information about the underlying type of material is available. Otsu et al. (2018) processed a large database of measured spectra, using principal component analysis to create a data-driven interpolant. Tódová et al. (2021) built on the moment-based method by Peters et al. (2019) to precompute an efficient spectral interpolant that is designed to reproduce user-specified spectra for certain RGB inputs.
 
-EXERCISES
+## EXERCISES
 
 ➊ 4.1 How many photons would a 50-W lightbulb that emits light at the single wavelength λ = 600 nm emit in 1 second? ➊ 4.2 Compute the irradiance at a point due to a unit-radius disk h units directly above its normal with constant outgoing radiance of 10 W/m2 sr. Do the computation twice, once as an integral over solid angle and once as an integral over area. (Hint: If the results do not match at first, see Section A.5.1.) ➊ 4.3 Similarly, compute the irradiance at a point due to a square quadrilateral with outgoing radiance of 10 W/m2 sr that has sides of length 1 and is 1 unit directly above the point in the direction of its surface normal. ➋ 4.4 Modify the SampledSpectrum class to also store the wavelengths associated with the samples and their PDFs. Using pbrt’s assertion macros, add checks to ensure that no computations are performed using SampledSpectrum values associated with different wavelengths. Measure the performance of pbrt with and without your changes. How much runtime overhead is there? Did you find any bugs in pbrt?
 

@@ -1,6 +1,18 @@
 # Chapter 7: Primitives and Intersection Acceleration
 
-ACCELERATION
+## BVH Traversal (wgpu)
+
+```mermaid
+flowchart TD
+    A[Ray] --> B[BVH Node]
+    B --> C{Leaf?}
+    C -- no --> D[Test Children]
+    D --> B
+    C -- yes --> E[Test Primitives]
+    E --> F[Closest Hit]
+```
+
+
 
 The classes described in the last chapter focus exclusively on representing geometric properties of 3D objects. Although the Shape interface provides a convenient abstraction for geometric operations such as intersection and bounding, it is not sufficiently expressive to fully describe an object in a scene. For example, it is necessary to bind material properties to each shape in order to specify its appearance.
 
@@ -177,6 +189,8 @@ The HashFloat() utility function provides a solution to this problem. Here it is
 
 If the alpha test indicates that the intersection should be ignored, then another intersection test is performed with the current GeometricPrimitive, with a recursive call to Intersect(). This additional test is important for shapes like spheres, where we may reject the closest intersection but then intersect the shape again further along the ray. This recursive call requires adjustment of the tMax value passed to it to account for the distance along the ray to the initial alpha tested intersection point. Then, if it reports an intersection, the reported tHit value should account for that segment as well.
 
+![Figure 7.1](images/img-625-077.png)
+
 *Figure 7.1: Comparison of Stochastic Alpha Testing to Using a Fixed Threshold. (a) Example scene: the two fir branches are modeled using a single quadrilateral with an alpha texture. (b) If a fixed threshold is used for the alpha test, the shape is not faithfully reproduced. Here a threshold of 1 was used, leading to shrinkage and jagged edges. (c) If a stochastic alpha test is used, the result is a smoother and more realistic transition.*
 
 GeometricPrimitive::areaLight 399 GeometricPrimitive::Intersect() 399 GeometricPrimitive::material 399
@@ -255,6 +269,8 @@ We will not include the remainder of the SimplePrimitive implementation here; it
 ### 7.1.2 OBJECT INSTANCING AND PRIMITIVES IN MOTION
 
 Object instancing is a classic technique in rendering that reuses transformed copies of a single collection of geometry at multiple positions in a scene. For example, in a model of a concert hall with thousands of identical seats, the scene description can be compressed substantially if all the seats refer to a shared geometric representation of a single seat. The ecosystem scene in Figure 7.2 has 23,241 individual plants of various types, although only 31 unique plant models. Because each plant model is instanced multiple times with a different transformation for each instance, the complete scene has a total of 3.1 billion triangles. However, only 24 million triangles are stored in memory thanks to primitive reuse through object instancing. pbrt uses just over 4 GB of memory when rendering this scene with object instancing (1.7 GB for BVHs, 707 MB for Primitives, 877 MB for triangle meshes, and 846 MB for texture images), but would need upward of 516 GB to render it without instancing.1
+
+![Figure 7.2](images/img-628-078.png)
 
 *Figure 7.2: This outdoor scene makes heavy use of instancing as a mechanism for compressing the scene’s description. There are only 24 million unique triangles in the scene, although, thanks to object reuse through instancing, the total geometric complexity is 3.1 billion triangles. (Scene courtesy of Laubwerk.)*
 
@@ -395,6 +411,8 @@ As with the TransformedPrimitive and AnimatedPrimitive classes, the intersection
 ## 7.3 BOUNDING VOLUME HIERARCHIES
 
 Bounding volume hierarchies (BVHs) are an approach for ray intersection acceleration based on primitive subdivision, where the primitives are partitioned into a hierarchy of disjoint sets. (In contrast, spatial subdivision generally partitions space into a hierarchy of disjoint sets.) Figure 7.3 shows a bounding volume hierarchy for a simple scene. Primitives are stored in the leaves, and each node stores a bounding box of the primitives in the nodes beneath it. Thus, as a ray traverses through the tree, any time it does not intersect a node’s bounds, the subtree beneath that node can be skipped.
+
+![Figure 7.3](images/img-633-079.png)
 
 *Figure 7.3: Bounding Volume Hierarchy for a Simple Scene. (a) A small collection of primitives, with bounding boxes shown by dashed lines. The primitives are aggregated based on proximity; here, the sphere and the equilateral triangle are bounded by another bounding box before being bounded by a bounding box that encompasses the entire scene (both shown in solid lines). (b) The corresponding bounding volume hierarchy. The root node holds the bounds of the entire scene. Here, it has two children, one storing a bounding box that encompasses the sphere and equilateral triangle (that in turn has those primitives as its children) and the other storing the bounding box that holds the skinny triangle.*
 
@@ -612,6 +630,8 @@ For interior nodes, the collection of primitives must be partitioned between the
 
 The general goal is to select a partition of primitives that does not have too much overlap of the bounding boxes of the two resulting primitive sets—if there is substantial overlap, then it will more frequently be necessary to traverse both children’s subtrees when traversing the tree, requiring more computation than if it had been possible to more effectively prune away collections of primitives. This idea of finding effective primitive partitions will be made more rigorous shortly, in the discussion of the surface area heuristic.
 
+![Figure 7.4](images/img-642-080.png)
+
 *Figure 7.4: Choosing the Axis along which to Partition Primitives. The BVHAggregate chooses an axis along which to partition the primitives based on which axis has the largest range of the centroids of the primitives’ bounding boxes. Here, in two dimensions, their extent is largest along the y axis (filled points on the axes), so the primitives will be partitioned in y.*
 
 〈Compute bound of primitive centroids and choose split dimension dim〉 ≡ 411
@@ -673,6 +693,8 @@ std::partition(bvhPrimitives.begin(), bvhPrimitives.end(), [dim, pmid](const BVH
 
 When splitMethod is SplitMethod::EqualCounts, the 〈Partition primitives into equally sized subsets〉 fragment runs. It partitions the primitives into two equal-sized subsets such that the first half of the n of them are the n/2 with smallest centroid coordinate values along the chosen axis, and the second half are the ones with the largest centroid coordinate values.
 
+![Figure 7.5](images/img-646-081.png)
+
 *Figure 7.5: Splitting Primitives Based on the Midpoint of Centroids on an Axis. (a) For some distributions of primitives, such as the one shown here, splitting based on the midpoint of the centroids along the chosen axis (thick vertical line) works well. (The bounding boxes of the two resulting primitive groups are shown with dashed lines.) (b) For distributions like this one, the midpoint is a suboptimal choice; the two resulting bounding boxes overlap substantially. (c) If the same group of primitives from (b) is instead split along the line shown here, the resulting bounding boxes are smaller and do not overlap at all, leading to better performance when rendering.*
 
 While this approach can sometimes work well, the case in Figure 7.5(b) is one where this method also fares poorly.
@@ -697,6 +719,8 @@ where ttrav is the time it takes to traverse the interior node and determine whi
    Primitive 398
 ```
 
+![Figure 7.6](images/img-649-082.png)
+
 *Figure 7.6: If a node of the bounding hierarchy with surface area sA is split into two children with surface areas sB and sC, the probabilities that a ray passing through A also passes through B and C are given by sB/sA and sC/sA, respectively.*
 
 The probabilities pA and pB can be computed using ideas from geometric probability. It can be shown that for a convex volume A contained in another convex volume B, the conditional probability that a uniformly distributed random ray passing through B will also pass through A is the ratio of their surface areas, sA and sB: Because we are interested in the cost for rays passing through the node, we can use this result directly. Thus, if we are considering refining a region of space A such that there are two new subregions with bounds B and C (Figure 7.6), the probability that a ray passing through A will also pass through either of the subregions is easily computed. When splitMethod has the value SplitMethod::SAH, the SAH is used for building the BVH; a partition of the primitives along the chosen axis that gives a minimal SAH cost estimate is found by considering a number of candidate partitions. (This is the default SplitMethod, and it creates the most efficient hierarchies of the partitioning options.) However, once it has refined down to two primitives, the implementation switches over to directly partitioning them in half. The incremental computational cost for applying the SAH at that point is not beneficial. 〈Partition primitives using approximate SAH〉 ≡ if (bvhPrimitives.size() <= 2) { 〈Partition primitives into equally sized subsets 415〉
@@ -704,6 +728,8 @@ The probabilities pA and pB can be computed using ideas from geometric probabili
 } else { 〈Allocate BVHSplitBucket for SAH partition buckets 417〉 〈Initialize BVHSplitBucket for SAH partition buckets 417〉 〈Compute costs for splitting after each bucket 418〉 〈Find bucket to split at that minimizes SAH metric 419〉 〈Either create leaf or split primitives at selected SAH bucket 419〉 }
 
 Rather than exhaustively considering all 2n possible partitions along the axis, computing the SAH for each to select the best, the implementation here instead divides the range along the axis into a small number of buckets of equal extent. It then only considers partitions at bucket boundaries. This approach is more efficient than considering all partitions while usually still producing partitions that are nearly as effective. This idea is illustrated in Figure 7.7.
+
+![Figure 7.7](images/img-650-083.png)
 
 *Figure 7.7: Choosing a Splitting Plane with the Surface Area Heuristic for BVHs. The projected extent of primitive bounds centroids is projected onto the chosen split axis. Each primitive is placed in a bucket along the axis based on the centroid of its bounds. The implementation then estimates the cost for splitting the primitives using the planes at each of the bucket boundaries (solid vertical lines); whichever one gives the minimum cost per the surface area heuristic is selected.*
 
@@ -800,7 +826,11 @@ spatially nearby clusters of primitives are in contiguous segments of the sorted
 
 Another way to interpret these bit-based properties is in terms of Morton-coded values. For example, Figure 7.9(a) corresponds to the index being in the range [8, 15], and Figure 7.9(c) corresponds to [8, 11]. Thus, given a set of sorted Morton indices, we could find the range of points corresponding to an area like Figure 7.9(c) by performing a binary search to find each endpoint in the array.
 
+![Figure 7.8](images/img-657-084.png)
+
 *Figure 7.8: The Order That Points Are Visited along the Morton Curve. Coordinate values along the x and y axes are shown in binary. If we connect the integer coordinate points in the order of their Morton indices, we see that the Morton curve visits the points along a hierarchical “z”-shaped path.*
+
+![Figure 7.9](images/img-658-085.png)
 
 *Figure 7.9: Implications of the Morton Encoding. The values of various bits in the Morton value indicate the region of space that the corresponding coordinate lies in. (a) In 2D, the high bit of the Morton-coded value of a point’s coordinates defines a splitting plane along the middle of the y axis. If the high bit is set, the point is above the plane. (b) Similarly, the second-highest bit of the Morton value splits the x axis in the middle. (c) If the high y bit is 1 and the high x bit is 0, then the point must lie in the shaded region. (d) The second-from-highest y bit splits the y axis into four regions.*
 
@@ -919,6 +949,8 @@ Given the sorted array of primitives, we can now find clusters of primitives wit
    MortonPrimitive::mortonCode 422
 ```
 
+![Figure 7.10](images/img-664-086.png)
+
 *Figure 7.10: Primitive Clusters for LBVH Treelets. Primitive centroids are clustered in a uniform grid over their bounds. An LBVH is created for each cluster of primitives within a cell that are in contiguous sections of the sorted Morton index values.*
 
 Each primitive cluster is represented by an LBVHTreelet. It encodes the index in the morton Prims array of the first primitive in the cluster as well as the number of following primitives. (See Figure 7.10.) 〈LBVHTreelet Definition〉 ≡ struct LBVHTreelet { size_t startIndex, nPrimitives; BVHBuildNode *buildNodes; };
@@ -1023,6 +1055,8 @@ The implementation of buildUpperSAH() is not included here, as it follows the sa
 
 Once the BVH is built, the last step is to convert it into a compact representation—doing so improves cache, memory, and thus overall system performance. The final BVH is stored in a linear array in memory. The nodes of the original tree are laid out in depth-first order, which means that the first child of each interior node is immediately after the node in memory. In this case, only the offset to the second child of each interior node must be stored explicitly.
 
+![Figure 7.11](images/img-670-087.png)
+
 *Figure 7.11: Linear Layout of a BVH in Memory. The nodes of the BVH (left) are stored in memory in depth-first order (right). Therefore, for any interior node of the tree (A and B in this example), the first child is found immediately after the parent node in memory. The second child is found via an offset pointer, represented here by lines with arrows. Leaf nodes of the tree (D, E, and C) have no children.*
 
 See Figure 7.11 for an illustration of the relationship between tree topology and node order in memory.
@@ -1111,7 +1145,11 @@ if (node->bounds.IntersectP(ray.o, ray.d, tMax, invDir, dirIsNeg)) { if (node->n
 
 If the current node is a leaf, then the ray must be tested for intersection with the primitives inside it. The next node to visit is then found from the nodesToVisit stack; even if an intersection is found in the current node, the remaining nodes must be visited in case one of them yields a closer intersection.
 
+![Figure 7.12](images/img-676-089.png)
+
 *Figure 7.12: Visualization of BVH Performance with the Kroken Scene. (a) Number of BVH nodes visited when tracing the camera ray at each pixel for the scene shown in Figure 1.1. Not only are more nodes visited in geometrically complex regions of the scene such as the rug, but objects that are not accurately bounded by axis-aligned bounding boxes such as the support under the bottom shelf lead to many nodes being visited. (b) Number of ray–triangle intersection tests performed for the camera ray at each pixel. The BVH is effective at limiting the number of intersection tests even in highly complex regions of the scene like the rug. However, objects that are poorly fit by axis-aligned bounding boxes lead to many intersection tests for rays in their vicinity. (Kroken scene courtesy of Angelo Ferretti.)*
+
+![Figure 7.13](images/img-677-090.png)
 
 *Figure 7.13: Visualization of BVH Performance with the Moana Island Scene. (a) Number of BVH nodes visited when tracing the camera ray at each pixel for the scene shown in Figure 1.4. As with the Kroken scene, silhouette edges and regions where the ray passes by many objects before finding an intersection see the most nodes visited. (b) Number of ray–triangle intersection tests performed for the camera ray at each pixel. The most geometrically complex trees and the detailed ground cover on the beach require the most intersection tests. (Scene courtesy of Walt Disney Animation Studios.)*
 
@@ -1143,7 +1181,7 @@ if (dirIsNeg[node->axis]) { nodesToVisit[toVisitOffset++] = currentNodeIndex + 1
 
 The BVHAggregate::IntersectP() method is essentially the same as the regular intersection method, with the two differences that Primitive’s IntersectP() methods are called rather than Intersect(), and traversal stops immediately when any intersection is found. It is thus not included here.
 
-FURTHER READING
+## FURTHER READING
 
 The stochastic alpha test implemented in Section 7.1.1 builds on ideas introduced in Enderton et al.’s stochastic approach for transparency (2010) and Wyman and McGuire’s hashed alpha testing algorithm (2017), both of which were focused on rasterization-based rendering.
 

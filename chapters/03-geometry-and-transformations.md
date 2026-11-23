@@ -1,6 +1,16 @@
 # Chapter 3: Geometry and Transformations
 
-TRANSFORMATIONS
+## Geometry and Transforms (wgpu)
+
+```mermaid
+flowchart TD
+    A[Point/Vector/Normal] --> B[Transform Matrix]
+    B --> C[Apply to Ray]
+    C --> D[Intersect Scene]
+    D --> E[SurfaceInteraction]
+```
+
+
 
 Almost all nontrivial graphics programs are built on a foundation of geometric classes that represent mathematical constructs like points, vectors, and rays. Because these classes are ubiquitous throughout the system, good abstractions and efficient implementations are critical. This chapter presents the interface to and implementation of pbrt’s geometric foundation. Note that these are not the classes that represent the actual scene geometry (triangles, spheres, etc.); those classes are the topic of Chapter 6.
 
@@ -9,6 +19,8 @@ Almost all nontrivial graphics programs are built on a foundation of geometric c
 As is typical in computer graphics, pbrt represents three-dimensional points, vectors, and normal vectors with three coordinate values: x, y, and z. These values are meaningless without a coordinate system that defines the origin of the space and gives three linearly independent vectors that define the x, y, and z axes of the space. Together, the origin and three vectors are called the frame that defines the coordinate system. Given an arbitrary point or direction in 3D, its (x, y, z) coordinate values depend on its relationship to the frame. Figure 3.1 shows an example that illustrates this idea in 2D.
 
 In the general n-dimensional case, a frame’s origin po and its n linearly independent basis vectors define an n-dimensional affine space. All vectors v in the space can be expressed as a linear combination of the basis vectors. Given a vector v and the basis vectors vi, there is a unique set of scalar values si such that v = s1v1 + … + snvn. The scalars si are the representation of v with respect to the basis {v1, v2, … , vn} and are the coordinate values that we store with the vector. Similarly, for all points p, there are unique scalars si such that the point can be expressed in terms of the origin po and the basis vectors p = po + s1v1 + … + snvn. Thus, although points and vectors are both represented by x, y, and z coordinates in 3D, they are distinct mathematical entities and are not freely interchangeable.
+
+![Figure 3.1](images/img-140-004.png)
 
 *Figure 3.1: In 2D, the (x, y) coordinates of a point p are defined by the relationship of the point to a particular 2D coordinate system. Here, two coordinate systems are shown; the point might have coordinates (3, 3) with respect to the coordinate system with its coordinate axes drawn in solid lines but have coordinates (2, −4) with respect to the coordinate system with dashed axes. In either case, the 2D point p is at the same absolute position in space.*
 
@@ -2039,7 +2051,7 @@ PhaseFunction phase;
     Vector3f 86
 ```
 
-FURTHER READING
+## FURTHER READING
 
 DeRose, Goldman, and their collaborators have argued for an elegant “coordinate-free” approach to describing vector geometry for graphics, where the fact that positions and directions happen to be represented by (x, y, z) coordinates with respect to a particular coordinate system is deemphasized and where points and vectors themselves record which coordinate system they are expressed in terms of (Goldman 1985; DeRose 1989; Mann, Litke, and DeRose 1997). This makes it possible for a software layer to ensure that common errors like adding a vector in one coordinate system to a point in another coordinate system are transparently handled by transforming them to a common coordinate system first. A related approach was described by Geisler et al. (2020), who encoded coordinate systems using the programming language’s type system. We have not followed either of these approaches in pbrt, although the principles behind them are well worth understanding and keeping in mind when working with coordinate systems in computer graphics. Schneider and Eberly’s Geometric Tools for Computer Graphics is influenced by the coordinate-free approach and covers the topics of this chapter in much greater depth (Schneider and Eberly 2003). It is also full of useful geometric algorithms for graphics. A classic and more traditional introduction to the topics of this chapter is Mathematical Elements for Computer Graphics by Rogers and Adams (1990). Note that their book uses a row-vector representation of points and vectors, however, which means that our matrices would be transposed when expressed in their framework, and that they multiply points and vectors by matrices to transform them (pM), rather than multiplying matrices by points as we do (Mp). Homogeneous coordinates were only briefly mentioned in this chapter, although they are the basis of projective geometry, where they are the foundation of many elegant algorithms. Stolfi’s book is an excellent introduction to this topic (Stolfi 1991). There are many good books on linear algebra and vector geometry. We have found Lang (1986) and Buck (1978) to be good references on these respective topics. See also Akenine-Möller et al.’s Real-Time Rendering book (2018) for a solid graphics-based introduction to linear algebra. Ström et al. have written an excellent online linear algebra book, immersivemath.com, that features interactive figures that illustrate the key concepts (2020).
 
@@ -2055,7 +2067,7 @@ Donnay’s book (1945) gives a concise but complete introduction to spherical tr
 
 An algorithm to compute a tight bounding cone for multiple direction vectors was given by Barequet and Elber (2005). The algorithms used in the AnimatedTransform implementation are based on the polar matrix decomposition approach that was described by Shoemake and Duff (1992); see the online edition of this book for further references to methods for animating transformations.
 
-EXERCISES
+## EXERCISES
 
 ➊ 3.1 Find a more efficient way to transform axis-aligned bounding boxes by taking advantage of the symmetries of the problem: because the eight corner points are linear combinations of three axis-aligned basis vectors and a single corner point, their transformed bounding box can be found more efficiently than by the method we have presented (Arvo 1990). ➋ 3.2 Instead of boxes, tighter bounds around objects could be computed by using the intersections of many nonorthogonal slabs. Extend the bounding box representation in pbrt to allow the user to specify a bound comprised of arbitrary slabs. ➋ 3.3 The DirectionCone::BoundSubtendedDirections() method bounds the directions that a Bounds3f subtends from a given reference point by first finding a sphere that bounds the Bounds3f and then bounding the directions it subtends. While this gives a valid bound, it is not necessarily the smallest one possible. Derive an improved algorithm that acts directly on the bounding box, update the implementation of BoundSubtendedDirections(), and render scenes where that method is used (e.g., those that use a BVHLightSampler to sample light sources). How are running time and image quality affected? Can you find a scene where this change gives a significant benefit? ➊ 3.4 Change pbrt so that it transforms Normal3fs just like Vector3fs, and create a scene that gives a clearly incorrect image due to this bug. (Do not forget to revert this change from your copy of the source code when you are done!)
 

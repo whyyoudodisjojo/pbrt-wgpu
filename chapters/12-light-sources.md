@@ -1,5 +1,15 @@
 # Chapter 12: Light Sources
 
+## Light Sources (wgpu)
+
+```mermaid
+flowchart LR
+    A[Light] --> B[Sample Direction]
+    B --> C[Visibility Test]
+    C --> D[Contribute Radiance]
+```
+
+
 In order for objects in a scene to be visible, there must be a source of illumination so that some light is reflected from them to the camera sensor. To that end, this chapter first presents the Light interface, which allows specification of a variety of types of light sources. (Before reading this chapter, you may wish to review Section 4.4, which describes the physical processes underlying light emission.) The implementations of a number of useful light sources follow. Because the implementations of different types of lights are all hidden behind a carefully designed interface, the light transport routines in Chapters 13 through 15 can generally operate without knowing which particular types of lights are in the scene, similar to how acceleration structures can hold collections of different types of primitives without needing to know the details of their actual representations.
 
 A wide variety of light source models are introduced in this chapter, although the variety is slightly limited by pbrt’s physically based design. Many non-physical light source models have been developed for computer graphics, incorporating control over properties like the rate at which the light falls off with distance, which objects are illuminated by the light, which objects cast shadows from the light, and so on. These sorts of controls are incompatible with physically based light transport algorithms and thus cannot be provided in the models here.
@@ -84,6 +94,8 @@ There are four different light categories:
 
 A helper function checks if a light is defined using a Dirac delta distribution.
 
+![Figure 12.1](images/img-1168-258.png)
+
 *Figure 12.1: An effective sampling strategy for choosing an incident direction from a point for direct lighting computations is to allow the light source to define a distribution of directions with respect to solid angle at the point. Here, a small spherical light source is illuminating the point. The cone of directions that the sphere subtends is a much better sampling distribution to use than a uniform distribution over the hemisphere, for example.*
 
 〈Light Inline Functions〉 ≡
@@ -150,6 +162,8 @@ A convenience method provides the point as a regular Point3f for the routines th
 ```
 
 Light samples are bundled up into instances of the LightLiSample structure. The radiance L is the amount of radiance leaving the light toward the receiving point; it does not include the effect of extinction due to participating media or occlusion, if there is an object between the light and the receiver. wi gives the direction along which light arrives at the point that was specified via the LightSampleContext (see Figure 12.2) and the point from which light is being emitted is provided by pLight. Finally, the PDF value for the light sample is returned in pdf. This PDF should be measured with respect to solid angle at the receiving point.
+
+![Figure 12.2](images/img-1171-259.png)
 
 *Figure 12.2: The Light::SampleLi() method returns incident radiance from the light at a point and also returns the direction vector ωi that gives the direction from which radiance is arriving.*
 
@@ -340,6 +354,8 @@ A number of interesting lights can be described in terms of emission from a sing
 
 PointLights are positioned at the origin in the light coordinate system. To place them elsewhere, the rendering-from-light transformation should be set accordingly. In addition to passing the common light parameters to LightBase, the constructor supplies LightType::
 
+![Figure 12.3](images/img-1177-260.png)
+
 *Figure 12.3: Scene Rendered with a Point Light Source. Notice the hard shadow boundaries from this type of light. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 ```text
@@ -416,9 +432,13 @@ Spotlights are a handy variation on point lights; rather than shining illuminati
 
 There is not anything interesting in the SpotLight constructor, so it is not included here. It is given angles that set the extent of the SpotLight’s cone —the overall angular width of the cone and the angle at which falloff starts (Figure 12.5)—but it stores the cosines of these angles, which are more useful to have at hand in the SpotLight’s methods.
 
+![Figure 12.4](images/img-1181-261.png)
+
 *Figure 12.4: Scene Rendered with a Spotlight. The spotlight cone smoothly cuts off illumination past a user-specified angle from the light’s central axis. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 DenselySampledSpectrum::Sample() 167 LightBase 744 Pi 1033 PointLight::I 747 PointLight::scale 747 SampledSpectrum 171 SampledWavelengths 173 SpotLight 748
+
+![Figure 12.5](images/img-1182-262.png)
 
 *Figure 12.5: Spotlights are defined by two angles, falloffStart and totalWidth, that are measured with respect to the z axis in light space. Objects inside the inner cone of angles, up to falloffStart, are fully illuminated by the light. The directions between falloffStart and totalWidth are a transition zone that ramps down from full illumination to no illumination, such that points outside the totalWidth cone are not illuminated at all. The cosine of the angle θ between the vector to a point p and the spotlight axis can easily be computed with a dot product.*
 
@@ -472,9 +492,13 @@ The falloff region works out simply, thanks in part to SmoothStep() being a poly
 
 Another useful light source acts like a slide projector; it takes an image map and projects its image out into the scene. The ProjectionLight class uses a projective transformation to project points in the scene onto the light’s projection plane based on the field of view angle given to the constructor (Figure 12.6). The use of this light in the lighting example scene is shown in Figure 12.7.
 
+![Figure 12.6](images/img-1185-263.png)
+
 *Figure 12.6: The Basic Setting for Projection Light Sources. A point p in the light’s coordinate system is projected onto the plane of the image using the light’s projection matrix.*
 
 CosTheta() 107 DenselySampledSpectrum::Sample() 167 Pi 1033 ProjectionLight 751 SampledSpectrum 171 SampledWavelengths 173 SmoothStep() 1034 SpotLight::cosFalloffEnd 749 SpotLight::cosFalloffStart 749 SpotLight::Iemit 749 SpotLight::scale 749 Vector3f 86
+
+![Figure 12.7](images/img-1186-264.png)
 
 *Figure 12.7: Scene Rendered with a Projection Light Using a Grid Image. The projection light acts like a slide projector, projecting an image onto objects in the scene. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
@@ -550,6 +574,8 @@ For a number of the following methods, we will need the light-space area of the 
    Float opposite = std::tan(Radians(fov) / 2); A = 4 * Sqr(opposite) *
    (aspect > 1 ? aspect : (1 / aspect));
 ```
+
+![Figure 12.8](images/img-1189-265.png)
 
 *Figure 12.8: The first step of computing the light-space area of the image on the z = 1 projection plane is to compute the length opposite illustrated here. It is easily found using basic trigonometry.*
 
@@ -631,6 +657,8 @@ Point2f ps = screenBounds.Lerp(Point2f((x + 0.5f) / image.Resolution().x, (y + 0
 
 For the same reasons as in the Project() method, an RGBIlluminantSpectrum is used to convert each RGB value to spectral samples.
 
+![Figure 12.9](images/img-1193-266.png)
+
 *Figure 12.9: To find the power of a point light source, we generally integrate radiant intensity over directions around the light. For the ProjectionLight, we instead integrate over the z = 1 plane, in which case we need to account for the change of variables, applying both a cos θ and a 1/r2 factor.*
 
 〈Update sum for projection light pixel〉 ≡ 754
@@ -649,6 +677,8 @@ A goniophotometric diagram describes the angular distribution of luminance from 
 
 one of these images to modulate its directional distribution of illumination. The GoniometricLight uses the equal-area parameterization of the sphere that was introduced in Section 3.8.3, so the center of the image corresponds to the “up” direction.
 
+![Figure 12.10](images/img-1194-267.png)
+
 *Figure 12.10: An Example of a Goniophotometric Diagram Specifying an Outgoing Light Distribution from a Point Light Source in 2D. The emitted intensity is defined in a fixed set of directions on the unit sphere, and the intensity for a given outgoing direction ω is found by interpolating the intensities of the adjacent samples.*
 
 ```text
@@ -663,7 +693,11 @@ one of these images to modulate its directional distribution of illumination. Th
    RGBIlluminantSpectrum::Sample() 200
 ```
 
+![Figure 12.11](images/img-1195-268.png)
+
 *Figure 12.11: Goniophotometric Diagrams for Real-World Light Sources. These images are encoded using an equal-area parameterization (Section 3.8.3). (a) A light that mostly illuminates in its up direction, with only a small amount of illumination in the down direction. (b) A light that mostly illuminates in the down direction. (c) A light that casts illumination both above and below.*
+
+![Figure 12.12](images/img-1195-269.png)
 
 *Figure 12.12: Scene Rendered Using the Goniophotometric Diagram from Figure 12.11(b). Even though a point light source is the basis of this light, including the directional variation of a realistic light improves the visual realism of the rendered image. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
@@ -766,7 +800,11 @@ pstd::optional<LightLiSample> SampleLi(LightSampleContext ctx, Point2f u, Sample
    Vector3f 86
 ```
 
+![Figure 12.13](images/img-1200-270.png)
+
 *Figure 12.13: Computing the Second Point for a DistantLight Shadow Ray. Given a sphere that bounds the scene (dashed line) with radius r and given some point in the scene p, if we then move a distance of 2r along any vector from p, the resulting point must be outside of the scene’s bound. If a shadow ray to such a point is unoccluded, then we can be certain that the point p receives illumination from a distant light along the vector’s direction.*
+
+![Figure 12.14](images/img-1200-271.png)
 
 *Figure 12.14: An approximation of the power emitted by a distant light into a given scene can be obtained by finding the sphere that bounds the scene, computing the area of an inscribed disk, and computing the power that arrives on the surface of that disk.*
 
@@ -779,6 +817,8 @@ direction. The total power reaching the disk is Φ = AL. As the size of the rece
 Area lights are defined by the combination of a Shape and a directional distribution of radiance at each point on its surface. In general, computing radiometric quantities related to area lights requires computing integrals over the surface of the light that often cannot be computed in closed form, though they are well suited to Monte Carlo integration. The reward for this complexity (and computational expense) is soft shadows and more realistic lighting effects, rather than the hard shadows and stark lighting that come from point lights. (See Figure 12.15, which shows the effect of varying the size of an area light source used to illuminate the dragon; compare its soft look to illumination from a point light in Figure 12.3.) DenselySampledSpectrum::Sample() 167 DistantLight 757 DistantLight::Lemit 757 DistantLight::scale 757 DistantLight::sceneRadius 758 LightBase 744 Pi 1033 SampledSpectrum 171
 
 SampledWavelengths 173 Shape 261 Sqr() 1034 The DiffuseAreaLight class defines an area light where emission at each point on the surface has a uniform directional distribution. 〈DiffuseAreaLight Definition〉 ≡ class DiffuseAreaLight : public LightBase { public: 〈DiffuseAreaLight Public Methods 761〉 private: 〈DiffuseAreaLight Private Members 761〉 〈DiffuseAreaLight Private Methods 762〉 };
+
+![Figure 12.15](images/img-1203-272.png)
 
 *Figure 12.15: Dragon Model Illuminated by Disk Area Lights. (a) The disk’s radius is relatively small; the shadow has soft penumbrae, but otherwise the image looks similar to the one with a point light. (b) The effect of using a much larger disk: not only have the penumbrae become much larger, to the point of nearly eliminating the shadow of the tail, for example, but note also how the shading on the body is smoother, with the specular highlights less visible due to illumination coming from a wider range of directions. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
@@ -947,6 +987,8 @@ Emitted power from an area light with uniform emitted radiance over the surface 
 
 SampledSpectrum DiffuseAreaLight::Phi(SampledWavelengths lambda) const { SampledSpectrum L(0.f); if (image) { 〈Compute average light image emission〉 } else L = Lemit->Sample(lambda) * scale; return Pi * (twoSided ? 2 : 1) * area * L; }
 
+![Figure 12.16](images/img-1210-273.png)
+
 *Figure 12.16: Car model (a) illuminated with a few area lights, (b) illuminated with midday skylight from an environment map, (c) using a sunset environment map. (Model courtesy of Yasutoshi Mori.)*
 
 ## 12.5 INFINITE AREA LIGHTS
@@ -1009,6 +1051,8 @@ The total power from an infinite light can be found by taking the product of the
 ImageInfiniteLight is a useful infinite light variation that uses an Image to define the directional distribution of emitted radiance. Given an image that represents the distribution of incident radiance in a real-world environment (sometimes called an environment map), this light can be used to render objects under the same illumination, which is particularly useful for applications like visual effects for movies, where it is often necessary to composite rendered objects with film footage. (See the “Further Reading”
 
 section for information about techniques for capturing this lighting data from real-world environments.) Figure 12.17 shows the image radiance maps used in Figure 12.16.
+
+![Figure 12.17](images/img-1215-274.png)
 
 *Figure 12.17: Environment Maps Used for Illumination in Figure 12.16. All use the octahedral mapping and equal-area parameterization of the sphere from Section 3.8.3. (a) Midday and (b) sunset sky. (Midday environment map courtesy of Sergej Majboroda, sunset environment map courtesy of Greg Zaal, both via Poly Haven.)*
 
@@ -1182,6 +1226,8 @@ The ImageInfiniteLight::Phi() method, not included here, integrates incident rad
 
 ImageInfiniteLights provide a handy sort of light source, though one shortcoming of that class’s implementation is that it does not account for visibility in its sampling routines. Samples that it generates that turn out to be occluded are much less useful than those that do carry illumination to the reference point. While the expense of ray tracing is necessary to fully account for visibility, accounting for even some visibility effects in light sampling can significantly reduce error.
 
+![Figure 12.18](images/img-1222-276.png)
+
 *Figure 12.18: Dragon Model Illuminated by the Morning Skylight Environment Map. All images were rendered with 32 samples per pixel. (a) Rendered using a uniform sampling distribution. (b) Rendered with samples distributed according to environment map image pixels. (c) Rendered using the compensated distribution that skips sampling unimportant parts of the image. All images took essentially the same amount of time to render, though (b) has over 38,000 times lower MSE than (a), and (c) further improves MSE by a factor of 1.52. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 Consider the scene shown in Figure 12.19, where all the illumination is coming from a skylight environment map that is visible only through the windows. Part of the scene is directly illuminated by the sun, but much of it
@@ -1191,6 +1237,8 @@ is not. Those other parts are still illuminated, but by much less bright regions
 ```text
    ImageInfiniteLight 767
 ```
+
+![Figure 12.19](images/img-1224-278.png)
 
 *Figure 12.19: Watercolor Scene Illuminated by a Daytime Sky Environment Map. This is a challenging scene to render since the direct lighting calculation only finds illumination when it samples a ray that passes through the window. (a) When rendered with the ImageInfiniteLight and 16 samples per pixel, error is high because the environment map includes a bright sun, though it does not illuminate all parts of the room. For such points, none of the many samples taken toward the sun has any contribution. (b) When rendered using the PortalImageInfiniteLight, results are much better with the same number of samples because the light is able to sample just the part of the environment map that is visible through the window. In this case, MSE is reduced by a factor of 2.82. (Scene courtesy of Angelo Ferretti.)*
 
@@ -1203,6 +1251,8 @@ The PortalImageInfiniteLight is designed to handle this situation more effective
 
 Given a portal and a point in the scene, there is a set of directions from that point that pass through the portal. If we can find the corresponding region of the environment map, then our task is to sample from it according to the environment map’s emission. This idea is illustrated in Figure 12.20. With the equal-area mapping, the shape of the visible region of the environment map seen from a given point can be complex. The problem is illustrated in Figure 12.21(a), which visualizes the visible regions from two points in the scene from Figure 12.19. The PortalImageInfiniteLight therefore uses a different parameterization of directions that causes the visible region seen through a portal to always be rectangular. Later in this section, we will see how this property makes efficient sampling possible. The directional parameterization used by the PortalImageInfiniteLight is based on a coordinate system where the x and y axes are aligned with the edges of the portal. Note that the position of the portal is not used in defining this coordinate system—only the directions of its edges. As a first indication that this idea is getting us somewhere, consider the vectors from a point in the scene to the four corners of the portal, transformed into this coordinate system.
 
+![Figure 12.20](images/img-1225-279.png)
+
 *Figure 12.20: Given a scene with a portal (opening in the box), for each point in the scene we can find the set of directions that pass through the portal. To sample illumination efficiently, we would like to only sample from the corresponding visible region of the environment map (thick segment on the sphere).*
 
 ```text
@@ -1213,6 +1263,8 @@ Given a portal and a point in the scene, there is a set of directions from that 
 ```text
    PortalImageInfiniteLight 773
 ```
+
+![Figure 12.21](images/img-1226-280.png)
 
 *Figure 12.21: Shapes of Visible Regions of an Environment Map as Seen through a Portal. These images illustrate the visible regions of the environment map as seen through the window for a point on the floor and a point on one of the paintings on the wall for the scene in Figure 12.19. (a) The equal-area mapping used by the ImageInfiniteLight is convenient for sampling the entire environment map, but it leads to the portal-visible regions having complex shapes. (b) With the directional parameterization used by the PortalImageInfiniteLight, the visible region is always rectangular, which makes it feasible to sample from just that part of it. (Environment map courtesy of Sergej Majboroda, via Poly Haven.)*
 
@@ -1226,6 +1278,8 @@ We can ignore vectors with negative z components in the rectified coordinate sys
    ImageInfiniteLight 767
    PortalImageInfiniteLight 773
 ```
+
+![Figure 12.22](images/img-1228-281.png)
 
 *Figure 12.22: Vectors in the portal’s coordinate system can be represented by a pair of angles (α, β) that measure the angle made by the x or y component, respectively, with the z axis.*
 
@@ -1467,6 +1521,8 @@ a sum of terms fi is given by where the probability mass function (PMF) p(j) > 0
 
 *Figure 12.23 is a rendered image of a scene with 8,878 light sources. A few observations motivate some of the light sampling algorithms to come. At any given point in the scene, some lights are facing away and others are occluded. Ideally, such lights would be given a zero sampling probability. Furthermore, often many lights are both far away from a given point and have relatively low power; such lights should have a low probability of being sampled. (Consider, for example, the small yellow lights inset in the machinery.) Of course, even a small and dim light is important to points close to it. Therefore, the most effective light sampling probabilities will vary across the scene depending on position, surface normal, the BSDF, and so forth.*
 
+![Figure 12.23](images/img-1238-282.png)
+
 *Figure 12.23: Zero Day Scene, with 8,878 Light Sources. It is infeasible to consider every light when computing reflected radiance at a point on a surface, and therefore light sampling methods from this section are necessary to render this scene efficiently. (Scene courtesy of Beeple.)*
 
 The LightSampler class defines the LightSampler interface for sampling light sources.2 It is defined in the file base/lightsampler.h. LightSampler implementations can be found in lightsamplers.h and lightsamplers.cpp.
@@ -1640,6 +1696,8 @@ Float PMF(Light light) const {
 
 As with the UniformLightSampler, the Sample() and PMF() methods that do take a Light SampleContext just call the corresponding methods that do not take one. Sampling lights based on their power usually works well. Figure 12.24 compares both sampling methods using the Zero Day scene. For this scene, noise is visibly reduced when sampling according to power, and mean squared error (MSE) is improved by a factor of 12.4. Although sampling according to power generally works well, it is not optimal. Like uniform sampling, it is hindered by not taking the geometry of emitters and the relationship between emitters and the receiving point into account. Relatively dim light sources may make the greatest visual contribution in a scene, especially if the bright ones are far away, mostly occluded, or not visible at all. As an extreme example of this problem with sampling according to power, consider a large triangular light source that emits a small amount of radiance. The triangle’s emitted power can be made arbitrarily large by scaling it to increase its total area. However, at any point in the scene the triangle can do no more than subtend a hemisphere, which limits its effect on the total incident radiance at a point. Sampling by power can devote far too many samples to such lights.
 
+![Figure 12.24](images/img-1244-283.png)
+
 *Figure 12.24: Sampling Lights Uniformly versus by Emitted Power with the Zero Day Scene. (a) Rendered with uniform light sampling. (b) Rendered with lights sampled according to power. Both images are rendered with 16 samples per pixel and rendering time is nearly the same. Sampling lights according to power reduces MSE by a factor of 12.4 for this scene. (Scene courtesy of Beeple.)*
 
 ⋆ 12.6.3 BVH LIGHT SAMPLING
@@ -1671,6 +1729,8 @@ As suggested earlier, bounding a light’s directional emission distribution is 
 ```
 
 While this representation may seem overly specialized for emissive shapes alone, it works well for all of pbrt’s (noninfinite) light types. For example, a point light can be represented with an arbitrary average normal ω and an angle of π for θo. A spotlight can use the direction it is facing for ω, its central cone angle for θo, and the angular width of its falloff region for θe.
+
+![Figure 12.25](images/img-1247-284.png)
 
 *Figure 12.25: Specification of Potential Emission Directions for a Light. Lights specify a principal direction of their distribution of surface normals ω as well as two angles, θo and θe. The first angle bounds the variation in surface normals from ω and the second gives the additional angle beyond which emission is possible.*
 
@@ -1762,6 +1822,8 @@ auto cosSubClamped = [](Float sinTheta_a, Float cosTheta_a, Float sinTheta_b, Fl
 
 There are a number of angles involved in the importance computation. In addition to the ones that specify the directional emission bounds, θo and θe, we will start by computing the sine and cosine of θw, the angle between the principal normal direction and the vector from the center of the light bounds to the reference point (Figure 12.26(a)).
 
+![Figure 12.26](images/img-1251-285.png)
+
 *Figure 12.26: (a) θw measures the angle between the principal normal direction ω and the vector from the center of the bounding box to the reference point. (b) θb is the angle that the LightBounds’s bounding box, bounds, subtends with respect to the reference point.*
 
 ```text
@@ -1774,6 +1836,8 @@ There are a number of angles involved in the importance computation. In addition
    LightBounds::bounds 786
    Point3f 92
 ```
+
+![Figure 12.27](images/img-1252-286.png)
 
 *Figure 12.27: θ′ is the minimum angle between the emitter and the vector to the reference point.*
 
@@ -1821,6 +1885,8 @@ is given by θ′ = max(0, θw – θo – θb); see Figure 12.27. As with the o
 ```
 
 The importance value can now be computed. It starts with the product of the power of the lights, the cos θ′ factor that accounts for the cosine at the emitter, and the inverse squared distance.
+
+![Figure 12.28](images/img-1254-287.png)
 
 *Figure 12.28: An angle that gives a lower bound on the angle between the incident lighting direction and the surface normal can be found by subtracting θb, the angle that the bounding box subtends with respect to the reference point p, from θi, the angle between the surface normal and the vector to the center of the box.*
 
@@ -1910,6 +1976,8 @@ The SpotLight’s bounding method is a bit more interesting: now the average nor
 We will skip past the implementations of the ProjectionLight and GoniometricLight Bounds() methods, which are along similar lines.
 
 The DiffuseAreaLight’s Bounds() implementation is different than the previous ones. The utility of the Shape::NormalBounds() method may now be better appreciated; the cone of directions that it returns gives the average normal direction ω and its spread angle θo. For area lights, θe = π/2, since illumination is emitted in the entire hemisphere around each surface normal. 〈DiffuseAreaLight Method Definitions〉 +≡ pstd::optional<LightBounds> DiffuseAreaLight::Bounds() const { 〈Compute phi for diffuse area light bounds 794〉 DirectionCone nb = shape.NormalBounds(); return LightBounds(shape.Bounds(), nb.w, phi, nb.cosTheta, std::cos(Pi / 2), twoSided); }
+
+![Figure 12.29](images/img-1258-288.png)
 
 *Figure 12.29: Simple Scene with Two Area Lights. The quadrilateral on the right emits light from both sides, while the one on the left only emits from the front side. (a) If the DiffuseAreaLight::Bounds() method includes an additional factor of 2 for the two-sided light’s importance, then it receives more samples than it should. (b) Without this factor, the light importance values are more accurate, which in turn gives a visible reduction in error. The MSE improvement is a factor of 1.42.*
 
@@ -2029,6 +2097,8 @@ Light Bounding Volume Hierarchies Given a way of bounding lights as well as a co
 
 Its constructor starts by making a copy of the provided array of lights before proceeding to initialize the BVH and additional data structures.
 
+![Figure 12.30](images/img-1265-289.png)
+
 *Figure 12.30: A Simple Scene with Two Light Sources. (a) Rendered with 1 sample per pixel using the PowerLightSampler. (b) Rendered with 1 sample per pixel using the BVHLightSampler. Even with a small number of lights, error is visibly lower with a sampler that uses spatially varying sampling probabilities due to being able to choose nearby bright lights with higher probability. In this case, MSE is improved by a factor of 2.72.*
 
 ```text
@@ -2047,6 +2117,8 @@ Its constructor starts by making a copy of the provided array of lights before p
 〈BVHLightSampler Private Members〉 ≡ 796
 
 pstd::vector<Light> lights;
+
+![Figure 12.31](images/img-1267-290.png)
 
 *Figure 12.31: Zero Day Scene, with 8,878 Area Lights. (a) Rendered with the PowerLightSampler. (b) Rendered with the BVHLightSampler. Both images are rendered with 16 samples per pixel. For a scene of this complexity, an effective light sampling algorithm is crucial. The BVHLightSampler gives an MSE improvement of 2.37× with only a 5.8% increase in rendering time. Monte Carlo efficiency is improved by a factor of 2.25. (Scene courtesy of Beeple.)*
 
@@ -2152,6 +2224,8 @@ HashMap<Light, uint32_t> lightToBitTrail;
 
 When there are multiple lights to consider, the EvaluateCost() method is called to evaluate the cost model for the two LightBounds for each split candidate. In addition to the LightBounds for which to compute the cost, it takes the bounding box of all the lights passed to the current invocation of buildBVH() as well as the dimension in which the split is being performed.
 
+![Figure 12.32](images/img-1272-291.png)
+
 *Figure 12.32: The direction bounds measure is found by integrating to find the solid angle of the center cone up to θo and then applying a cosine weighting over the additional angle of θe.*
 
 〈BVHLightSampler Private Methods〉 +≡ 796
@@ -2230,6 +2304,8 @@ If an infinite light is to be sampled, then the random sample u is rescaled to p
 u /= pInfinite; int index = std::min<int>(u * infiniteLights.size(), infiniteLights.size() - 1); Float pmf = pInfinite / infiniteLights.size(); return SampledLight{infiniteLights[index], pmf};
 
 Otherwise a light is sampled by traversing the BVH. At each interior node, probabilities are found for sampling each of the two children using importance values returned by the LightBounds for the reference point. A child node is then randomly chosen according to these probabilities. In the end, the probability of choosing a leaf node is equal to the product of probabilities along the path from the root to the leaf (see Figure 12.33). With this traversal scheme, there is no need to maintain a stack of nodes to be processed as the BVHAggregate does—a single path is taken down the tree from the root to a leaf.
+
+![Figure 12.33](images/img-1276-292.png)
 
 *Figure 12.33: Sampling a Light BVH. At each non-leaf node of the tree, we compute discrete probabilities pi and 1 – pi for sampling each child node and then randomly choose a child accordingly. The probability of sampling each leaf node is the product of probabilities along the path from the root of the tree down to it. Here, the nodes that are visited and the associated probabilities for sampling the triangular light source are highlighted.*
 
@@ -2354,7 +2430,7 @@ nodeIndex = (bitTrail & 1) ? node->childOrLightIndex : (nodeIndex + 1); bitTrail
 
 The basic Sample() and PMF() methods for when a reference point is not specified sample all the lights uniformly and so are not included here, as they parallel the implementations in the UniformLightSampler.
 
-FURTHER READING
+## FURTHER READING
 
 Light Emission Descriptions Warn (1983) developed early models of light sources with nonisotropic emission distributions, including the spotlight model used in this chapter. Verbeck and Greenberg (1984) also described a number of techniques for modeling light sources that are now classic parts of the light modeling toolbox. Barzel (1997) described a highly parameterized model for light sources, including multiple parameters for controlling rate of falloff, the area of space that is illuminated, and so on. Bjorke (2001) described a number of additional techniques for shaping illumination for artistic effect. (Many parts of the Barzel and Bjorke approaches are not physically based, however.) BVHLightSampler::nodes 799 CompactLightBounds::Importance() 796 Float 23 LightBVHNode 799 LightBVHNode::childOrLightIndex 799 LightBVHNode::lightBounds 799 UniformLightSampler 782 The goniophotometric light source approximation is widely used to model area light sources in the field of illumination engineering. The rule of thumb there is that once a reference point is five times an area light source’s radius away from it, a point light approximation has sufficient accuracy for most applications. File format standards have been developed for encoding goniophotometric diagrams for these applications (Illuminating Engineering Society of North America 2002). Many lighting fixture manufacturers provide data in these formats on their websites. Ashdown (1993) proposed a more sophisticated light source model than goniophotometric; he measured the directional distribution of emitted radiance at a large number of points around a light source and described
 
@@ -2397,7 +2473,7 @@ Incorporating light visibility into the sampling process can substantially impro
    ProjectionLight 751
 ```
 
-EXERCISES
+## EXERCISES
 
 ➊ 12.1 The functionality of the SpotLight could be replicated by using a suitable image in conjunction with the ProjectionLight or GoniometricLight. Discuss the advantages and disadvantages of providing this specific functionality separately with the SpotLight class. ➋ 12.2 Modify the ProjectionLight to also support orthographic projections. This variant is particularly useful even without an image map, since it gives a directional light source with a beam of user-defined extent. ➌ 12.3 The current light source implementations do not support animated transformations. Modify pbrt to include this functionality and render images showing off the effect of animating light positions. Note that if you would like to use the BVHLightSampler with animated light sources, it will require substantial modifications.
 

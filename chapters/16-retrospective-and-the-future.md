@@ -1,5 +1,14 @@
 # Chapter 16: Retrospective and the Future
 
+## Retrospective and the Future (wgpu)
+
+```mermaid
+flowchart LR
+    A[pbrt History] --> B[Hardware Trends]
+    B --> C[Design Alternatives]
+    C --> D[Future Directions]
+```
+
 In this concluding chapter, we begin with a review of how pbrt has changed over the years and discuss how improvements in computer hardware have affected its design and performance. We then outline some alternative architectures for rendering systems before we conclude with a brief retrospective of the system’s adoption and impact.
 
 ## 16.1 pbrt OVER THE YEARS
@@ -15,6 +24,8 @@ There have been numerous improvements throughout the system over time—we have 
 ```
 
 Through all the improvements to the underlying algorithms, the bones of the system have not changed very much—Integrators have always been at the core of solving the light transport equation, and many of the core interface types like Shapes, Lights, Cameras, Filters, and Samplers have all been there throughout with the same responsibilities, though there have been changes to their interfaces and operation along the way. Looking back at pbrt-v1 now, we can find plenty of snippets of code that are still present, unchanged since the start.
+
+![Figure 16.1](images/img-1561-346.png)
 
 *Figure 16.1: Audi TT Car Model Lit by an Environment Map. (a) Reference image, rendered with pbrt-v1 with 64k samples per pixel. (b) Rendered with pbrt-v1 with 16 samples per pixel. (c) Reference image, rendered with pbrt-v4 with 64k samples per pixel. (d) Rendered with pbrt-v4 with 16 samples per pixel. (Some image differences due to changes in material models since pbrt-v1 are expected.) The reduction in noise from (b) to (d) is notable; all of it is due to improvements in sampling and Monte Carlo integration algorithms over pbrt’s lifetime. (Car model courtesy of Marko Dabrovic and Mihovil Odak.)*
 
@@ -233,6 +244,8 @@ In the third category, a number of researchers have investigated training deep n
 
 using conventional rendering algorithms at all, but solely from characteristics learned from real-world images. A recent example of such a generative model is StyleGAN, which was developed by Karras et al. (2018, 2020); it is capable of generating high-resolution and photorealistic images of a variety of objects, including human faces, cats, cars, and interior scenes. Techniques based on segmentation maps (Chen and Koltun 2017; Park et al. 2019) allow a user to denote that regions of an image should be of general categories like “sky,” “water,” “mountain,” or “car” and then synthesize a realistic image that follows those categories. See the report by Tewari et al. (2020) for a comprehensive summary of recent work in such areas.
 
+![Figure 16.2](images/img-1575-348.png)
+
 *Figure 16.2: Effectiveness of Modern Neural Denoising Algorithms for Rendering. (a) Noisy image rendered with 32 samples per pixel. (b) Feature buffer with the average surface albedo at each pixel. (c) Feature buffer with the surface normal at each pixel. (d) Denoised image. (Image denoised with the NVIDIA OptiX 7.3 denoiser.)*
 
 ## 16.4 THE FUTURE
@@ -253,7 +266,7 @@ We would like to sincerely thank everyone who has built upon this work for their
 
 1 This is an inexact comparison for many reasons. Among them: pbrt is now a spectral renderer, while before it used RGB for lighting calculations; materials like CoatedDiffuseMaterial now require stochastic evaluation; its sampling algorithms are much better, but more computationally intensive; and improvements to the geometric robustness of ray intersection computations have imposed some performance cost (Section 6.8.8). Nevertheless, we believe that the results are directionally valid.
 
-A SAMPLING ALGORITHMS
+## A SAMPLING ALGORITHMS
 
 Chapter 2 provided an introduction to the principles of sampling and Monte Carlo integration that are most widely used in pbrt. However, a number of additional sampling techniques—the alias method, reservoir sampling, and rejection sampling—that are used only occasionally were not described there. This appendix introduces each of those techniques and then concludes with two sections that further apply the inversion method to derive sampling techniques for a variety of useful distributions.
 
@@ -1386,7 +1399,7 @@ The PDF method implements the same computation that is used to compute the PDF i
 
 Float PDF(Point2f p, const Bounds2f &b) const { Float funcInt = sat.Integral(b); if (funcInt == 0) return 0; return Eval(p) / funcInt; }
 
-FURTHER READING
+## FURTHER READING
 
 Rejection sampling was developed by von Neumann (1951) shortly after the Monte Carlo method was invented. The alias method was introduced by Walker (1974, 1977). The algorithm that we have implemented to generate alias tables in the AliasTable class is due to Vose (1991). See Schwarz’s article (2011) for extensive information about implementing alias tables and related techniques. A number of algorithms for reservoir sampling were described by Vitter (1985), though he credits the basic algorithm we outlined at the start of Section A.2 to Alan Waterman. The weighted reservoir sampling algorithm in pbrt’s WeightedReservoirSampler class is due to Chao (1982).
 
@@ -1418,7 +1431,7 @@ Arithmetic coding offers another interesting way to approach sampling from distr
 
 _________________ 1 Note that the use of “alias” in this context is unrelated to the aliasing in images that is discussed in Section 8.1.3. 2 This is a subtlety that the authors did not appreciate in the first two editions of the book.
 
-B UTILITIES
+## B UTILITIES
 
 In addition to all the graphics-related code presented thus far, pbrt makes use of a number of general utility routines and classes. Although these are key to pbrt’s operation, it is not necessary to understand their implementation in detail in order to work with the rest of the system. This appendix describes the interfaces to these routines, including those that handle mathematical foundations, error reporting, memory management, support for parallel execution on multiple CPU cores, and other basic infrastructure. The implementations of some of this functionality—the parts that are interesting enough to be worth delving into—are also discussed.
 
@@ -4013,7 +4026,7 @@ First, and most obviously, the macro defines a 64-bit integer variable named var
 
 At the end of rendering, the ForEachThread() function is used to cause each thread to loop over the registered lambdas and call each of them. In turn, the StatsAccumulator will have all the aggregate values when they are done. The PrintStats() function can then be called to print all the statistics that have been accumulated in StatsAccumulator.
 
-FURTHER READING
+## FURTHER READING
 
 Hacker’s Delight (Warren 2006) is a delightful and thought-provoking exploration of bit-twiddling algorithms like those used in some of the utility routines in this appendix. Sean Anderson (2004) has a Web page filled with a collection of bit-twiddling techniques like the ones in IsPowerOf2() and RoundUpPow2() at graphics.stanford.edu/~seander/bithacks.html.
 
@@ -4059,7 +4072,7 @@ _________________ 1 The following argument applies equivalently to computing the
 
 3 For those already familiar with Unicode, we admit that our use of the word “character” in this section is informal; Unicode differentiates between abstract characters, coded characters, and user-perceived characters, each with distinct definitions, and none of them the same as a glyph, which is a shape defined by a font for display. We will generally equate code points with characters here, with the caveat that this equivalence is not always so. 4 Thomas Müller’s tev image viewer, available from https://github.com/Tom94/tev, supports this protocol. 5 Our TaggedPointer implementation is derived from DiscriminatedPtr in Facebook’s open source folly library. 6 About the decltype(auto) specifying Dispatch()’s return type: this syntax is unfortunately necessary in C++ for perfect forwarding, which ensures that reference types are returned as references and not converted to their underlying value type if a plain auto was used. 7 pbrt’s PNG support is provided by Lode Vandevenne’s lodepng library, PFM support is thanks to code from Jiawen Chen, and JPG, TGA, BMP, GIF, and HDR are thanks to Sean Barrett’s stb_image.h library. 8 More generally, C++ defines such uncoordinated access to be “undefined behavior,” which in turn means that what happens in subsequent program execution is completely undefined. 9 The “weak” in the compare/exchange instruction refers to the shared memory model required of the underlying hardware. For our purposes, the lesser requirement of “weak” is fine, as it can be much more efficient than a strongly ordered memory model on some architectures. In return for this choice, the compare and exchange may occasionally fail incorrectly, so it requires a retry loop as we have implemented here. 10 Our implementation is based on the parallel for loop implementation in Halide written by Jonathan Ragan-Kelley, Andrew Adams, and Zalman Stern.
 
-C PROCESSING THE SCENE DESCRIPTION
+## C PROCESSING THE SCENE DESCRIPTION
 
 In the discussion of pbrt’s main() function in Section 1.3.2 at the start of the book, we wrote that after the command-line arguments are processed, the scene description is parsed and converted into corresponding Shapes, Lights, Materials, and so forth. Thereafter, as we have discussed the implementations of those classes, we have not worried about when they are created or where the parameter values for their constructors come from. This appendix fills in that gap and explains the path from human-readable scene description files to corresponding C++ objects in memory.
 
@@ -4725,7 +4738,7 @@ pbrt’s scene file format is custom, which has allowed us to tailor it to prese
    ParserTarget 1120
 ```
 
-EXERCISES
+## EXERCISES
 
 ➌ C.1 An advantage of the way that pbrt separates parsing, graphics state management, and the creation of scene objects is that it is easier to replace or extend those components of the system than it might be if all those responsibilities were in a single class. Investigate pbrt’s parsing performance with scenes that have multi-gigabyte *.pbrt scene description files (Disney’s Moana Island scene (Walt Disney Animation Studios 2018) is a good choice) and develop a scene description format for pbrt that is more efficient to parse. You might, for example, consider a compact binary format.
 
