@@ -1,5 +1,22 @@
 # Chapter 6: Shapes
 
+<!-- interactive-nav -->
+## Contents
+
+- [Shapes (wgpu)](#shapes-wgpu)
+- [6.1 Basic Shape Interface](#61-basic-shape-interface)
+- [6.2 Spheres](#62-spheres)
+- [6.3 Cylinders](#63-cylinders)
+- [6.4 Disks](#64-disks)
+- [6.5 Triangle Meshes](#65-triangle-meshes)
+- [6.6 Bilinear Patches](#66-bilinear-patches)
+- [6.7 Curves](#67-curves)
+- [6.8 Managing Rounding Error](#68-managing-rounding-error)
+- [Further Reading](#further-reading)
+- [Exercises](#exercises)
+
+---
+
 ## Shapes (wgpu)
 
 ```mermaid
@@ -10,5746 +27,6413 @@ flowchart LR
     D --> E[Area / Bounds]
 ```
 
+In this chapter we present pbrt's abstraction for geometric primitives such as spheres and triangles. Careful abstraction of geometric shapes in a ray tracer is a key component of clean system design, and shapes are the ideal candidate for an object-oriented approach: all geometric primitives implement a common interface, and the rest of the renderer uses that interface without needing any details about the underlying shape. This makes it possible to separate the geometric and shading subsystems of pbrt.
 
-In this chapter, we will present pbrt’s abstraction for geometric primitives such as spheres and triangles. Careful abstraction of geometric shapes in a ray tracer is a key component of a clean system design, and shapes are the ideal candidate for an object-oriented approach. All geometric primitives implement a common interface, and the rest of the renderer can use this interface without needing any details about the underlying shape. This makes it possible to separate the geometric and shading subsystems of pbrt.
+pbrt hides details about primitives behind a two-level abstraction. The `Shape` interface provides access to the basic geometric properties of the primitive—surface area, bounding box, and a ray-intersection routine. The `Primitive` interface encapsulates additional non-geometric information such as material properties; the rest of the renderer deals only with the abstract `Primitive` interface. This chapter focuses on the geometry-only `Shape` class; `Primitive` is a key topic of Chapter 7.
 
-pbrt hides details about primitives behind a two-level abstraction. The `Shape` interface provides access to the basic geometric properties of the primitive, such as its surface area and bounding box, and provides a ray intersection routine. Then, the `Primitive` interface encapsulates additional non-geometric information about the primitive, such as its material properties. The rest of the renderer then deals only with the abstract `Primitive` interface. This chapter will focus on the geometry-only `Shape` class; the `Primitive` interface is a key topic of Chapter 7.
+> **wgpu / Rust note.** The implementations below are written in Rust with idiomatic `snake_case` method names (the canonical pbrt names such as `Shape::Intersect()` are still used in the prose). GPU-side intersection routines are given as WGSL snippets: tracing is done through the ray-tracing API or an explicit BVH traversal kernel, while the *per-primitive* intersection tests shown here are the ones that run in intersection shaders and any-hit shaders.
 
-## 6.1 BASIC SHAPE INTERFACE
+### Shape intersection at a glance
 
-The interface for Shapes is defined in the file `base/shape.rs`, and the shape implementations can be found in `shapes.rs` and `shapes.rs`. The `Shape` class defines the general shape interface.
+```mermaid
+flowchart TD
+    R[Ray in rendering space] --> BB{Bounds3::IntersectP?}
+    BB -- no --> M[Miss]
+    BB -- yes --> SP[Transform ray to object space<br/>where needed]
+    SP --> I[BasicIntersect / IntersectTriangle<br/>solve for parametric t]
+    I --> CLIP{Inside clipping<br/>z / phi / barycentric?}
+    CLIP -- no --> M
+    CLIP -- yes --> CMP{Closer than<br/>current tMax?}
+    CMP -- no --> M
+    CMP -- yes --> SI[InteractionFromIntersection<br/>p, n, dpdu, dpdv, uv]
+    SI --> OUT[ShapeIntersection in<br/>rendering space]
+```
 
-〈Shape Definition〉 ≡
+## 6.1 Basic Shape Interface
+
+The interface for shapes is defined in `base/shape.rs`; the shape implementations live in `shapes.rs` (and its companion module). The `Shape` class defines the general shape interface.
+
+**〈Shape Definition〉 ≡**
 
 ```rust
-class Shape : public TaggedPointer<Sphere, Cylinder, Disk, Triangle, BilinearPatch, Curve> { public: 〈Shape Interface 262〉 };
+// pbrt dispatches with a tagged pointer; in Rust the shape set is an enum:
+enum Shape {
+    Sphere(Sphere),
+    Cylinder(Cylinder),
+    Disk(Disk),
+    Triangle(Triangle),
+    BilinearPatch(BilinearPatch),
+    Curve(Curve),
+}
 ```
 
-```text
-    BilinearPatch 328
-    Curve 346
-    Cylinder 286
-    Disk 292
-    Primitive 398
-    Shape 261
-    Sphere 271
-    TaggedPointer 1073
-    Triangle 301
-```
+<details>
+<summary>Reference / notes</summary>
 
-### 6.1.1 BOUNDING
+`BilinearPatch` 328 · `Curve` 346 · `Cylinder` 286 · `Disk` 292 · `Primitive` 398 · `Shape` 261 · `Sphere` 271 · `TaggedPointer` 1073 · `Triangle` 301
 
-The scenes that pbrt renders often contain objects that are computationally expensive to process. For many operations, it is useful to have a 3D bounding volume that encloses an object. For example, if a ray does not pass through a particular bounding volume, pbrt can avoid processing all the objects inside of it for that ray.
+</details>
 
-Axis-aligned bounding boxes are a convenient bounding volume, as they require only six floating-point values to store. They fit many shapes well and it is fairly inexpensive to test for the intersection of a ray with an axis-aligned bounding box. Each `Shape` implementation must therefore be capable of bounding itself with an axis-aligned bounding box represented by a `Bounds3f`. The returned bounding box should be in the rendering coordinate system (recall the discussion of coordinate systems in Section 5.1.1).
+### 6.1.1 Bounding
 
-〈Shape Interface〉 ≡ 261
+Scenes often contain objects that are computationally expensive to process. For many operations it is useful to have a 3D bounding volume that encloses an object: if a ray does not pass through a particular bounding volume, pbrt can avoid processing all the objects inside it for that ray.
+
+Axis-aligned bounding boxes are convenient because they require only six floating-point values to store, fit many shapes well, and are inexpensive to test against a ray. Each `Shape` implementation must be able to bound itself with an axis-aligned bounding box represented by a `Bounds3f`. The returned box is in the rendering coordinate system (recall Section 5.1.1).
+
+**〈Shape Interface〉 ≡ 261**
 
 ```rust
-   Bounds3f Bounds() const;
+/// Axis-aligned bounding box in rendering space.
+fn bounds(&self) -> Bounds3f;
 ```
 
-In addition to bounding their spatial extent, shapes must also be able to bound their range of surface normals. The `NormalBounds()` method should return such a bound using a `DirectionCone`, which was defined in Section 3.8.4. Normal bounds are specifically useful in lighting calculations: when a shape is emissive, they sometimes make it possible to efficiently determine that the shape does not illuminate a particular point in the scene.
+In addition to bounding spatial extent, shapes must bound their range of surface normals. `NormalBounds()` returns such a bound using a `DirectionCone` (Section 3.8.4). Normal bounds are useful in lighting: when a shape is emissive, they sometimes make it possible to efficiently determine that the shape does not illuminate a particular point in the scene.
 
-〈Shape Interface〉 +≡ 261
+**〈Shape Interface〉 +≡ 261**
 
 ```rust
-   DirectionCone NormalBounds() const;
+/// Conservative cone containing all surface normals.
+fn normal_bounds(&self) -> DirectionCone;
 ```
 
-### 6.1.2 RAY–BOUNDS INTERSECTIONS
+<details>
+<summary>Reference / notes</summary>
 
-Given the use of `Bounds3f` instances to bound shapes, we will add a `Bounds3` method, `Bounds3::IntersectP()`, that checks for a ray–box intersection and returns the two parametric t values of the intersection, if any.
+`Bounds3f` 97 · `DirectionCone` 114 · `Float` 23 · `Shape` 261
 
-One way to think of bounding boxes is as the intersection of three slabs, where a slab is the region of space between two parallel planes. To intersect a ray with a box, we intersect the ray with each of the box’s three slabs in turn. Because the slabs are aligned with the three coordinate axes, a number of optimizations can be made in the ray–slab tests.
+</details>
 
-The basic ray–bounding box intersection algorithm works as follows: we start with a parametric interval that covers that range of positions t along the ray where we are interested in finding intersections; typically, this is (0, ∞). We will then successively compute the two parametric t positions where the ray intersects each axis-aligned slab. We compute the set intersection of the per-slab intersection interval with the current intersection interval, returning failure if we find that the resulting interval is degenerate. If, after checking all three slabs, the interval is nondegenerate, we have the parametric range of the ray that is inside the box. Figure 6.1 illustrates this process, and Figure 6.2 shows the basic geometry of a ray intersecting a slab.
+### 6.1.2 Ray–Bounds Intersections
 
-If the `Bounds3::IntersectP()` method returns true, the intersection’s parametric range is returned in the optional arguments hitt0 and hitt1. Intersections outside of the (0, tMax) range of the ray are ignored. If the ray’s origin is inside the box, 0 is returned for hitt0.
+Given that `Bounds3f` instances bound shapes, we add a `Bounds3::IntersectP()` method that checks for a ray–box intersection and returns the two parametric $t$ values of the intersection, if any.
 
-〈Bounds3 Inline Functions〉 +≡
+It is helpful to think of a bounding box as the intersection of three *slabs*, where a slab is the region of space between two parallel planes. To intersect a ray with a box, we intersect the ray with each of the box's three slabs in turn. Because the slabs are aligned with the coordinate axes, a number of optimizations can be made in the ray–slab tests.
+
+The basic algorithm works as follows. We start with a parametric interval covering the range of positions $t$ along the ray where we are interested in finding intersections, typically $(0,\infty)$. We then successively compute the two parametric $t$ positions where the ray intersects each axis-aligned slab and compute the set intersection of the per-slab interval with the current interval, returning failure if the resulting interval becomes degenerate. If, after all three slabs, the interval is nondegenerate, we have the parametric range of the ray that is inside the box. Figures 6.1 and 6.2 illustrate the process.
+
+*Figure 6.1: Intersecting a Ray with an Axis-Aligned Bounding Box. We compute intersection points with each slab in turn, progressively narrowing the parametric interval. Here, in 2D, the intersection of the $x$ and $y$ extents along the ray (thick segment) gives the extent where the ray is inside the box.*
+
+```mermaid
+flowchart LR
+    subgraph slabs["2D slab intersection (original Fig. 6.1)"]
+        direction TB
+        X["x-slab: x0 <= x <= x1<br/>t in [tx0, tx1]"] --> Y["y-slab: y0 <= y <= y1<br/>t in [ty0, ty1]"]
+        Y --> I["Intersect intervals:<br/>t0 = max(tx0, ty0)<br/>t1 = min(tx1, ty1)"]
+        I --> R["Thick ray segment between<br/>t0 and t1 lies inside the box"]
+    end
+```
+
+*Figure 6.2: Intersecting a Ray with an Axis-Aligned Slab. The two planes are $x=c$ for constants $c=x_0,x_1$, each with normal $(1,0,0)$. Unless the ray is parallel to the planes, it intersects the slab twice, at parametric positions $t_{\mathrm{near}}$ and $t_{\mathrm{far}}$.*
+
+```mermaid
+flowchart LR
+    O["Ray origin o"] --> T0["t_near = (x0 - o.x)/d.x"]
+    T0 --> T1["t_far = (x1 - o.x)/d.x"]
+    T1 --> C["Slab interval [t_near, t_far]<br/>plane normal n = (1,0,0)"]
+```
+
+If `Bounds3::IntersectP()` returns true, the intersection's parametric range is returned in the optional arguments `hitt0` and `hitt1`. Intersections outside the ray's $(0,t_{\max})$ range are ignored. If the ray origin is inside the box, $0$ is returned for `hitt0`.
+
+**〈Bounds3 Inline Functions〉 +≡**
 
 ```rust
-template <typename T> bool Bounds3<T>::IntersectP(Point3f o, Vector3f d, Float tMax, Float *hitt0, Float *hitt1) const { Float t0 = 0, t1 = tMax; for (int i = 0; i < 3; ++i) { 〈Update interval for ith bounding box slab 264〉 } if (hitt0) *hitt0 = t0; if (hitt1) *hitt1 = t1; return true; }
+impl<T: Float> Bounds3<T> {
+    fn intersect_p(
+        &self,
+        o: Point3f,
+        d: Vector3f,
+        t_max: Float,
+        hitt0: Option<&mut Float>,
+        hitt1: Option<&mut Float>,
+    ) -> bool {
+        let mut t0 = 0.0;
+        let mut t1 = t_max;
+        for i in 0..3 {
+            // 〈Update interval for ith bounding box slab〉
+        }
+        if let Some(v) = hitt0 { *v = t0; }
+        if let Some(v) = hitt1 { *v = t1; }
+        true
+    }
+}
 ```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Bounds3` 97 · `Bounds3::IntersectP()` 262 · `Bounds3f` 97 · `DirectionCone` 114 · `Float` 23 · `Point3f` 92 · `Shape` 261 · `Vector3f` 86
+
+</details>
+
+For each pair of planes the routine computes two ray–plane intersections. For the slab perpendicular to the $x$ axis, the two planes pass through $(x_0,0,0)$ and $(x_1,0,0)$ with normal $(1,0,0)$. Substituting the ray equation into a general plane $ax+by+cz+d=0$ gives
+
+$$
+a(o_x+t d_x)+b(o_y+t d_y)+c(o_z+t d_z)+d
+= (a,b,c)\cdot\mathbf o + t\,(a,b,c)\cdot\mathbf d + d = 0,
+$$
+
+so solving for $t$ yields
+
+$$
+t = -\frac{(a,b,c)\cdot\mathbf o + d}{(a,b,c)\cdot\mathbf d}.
+$$
+
+For the $x$ slab we have $a=1$, $b=c=0$, and $d=-x_0$, which simplifies the calculation to $t=(x_0-o_x)/d_x$.
+
+Because $y$ and $z$ components of the plane normal are zero, the computation reduces to a few multiplies and adds. The code starts by computing the reciprocal of the corresponding component of the ray direction so that it can multiply by this factor rather than performing multiple divisions. Note that although it divides by this component, it is not necessary to verify that it is nonzero: if it is zero, `invRayDir` holds an infinite value, either $-\infty$ or $\infty$, and the rest of the algorithm still works correctly.[^1]
+
+**〈Update interval for ith bounding box slab〉 ≡ 262**
 
 ```rust
-    Bounds3 97
-    Bounds3::IntersectP() 262
-    Bounds3f 97
-    DirectionCone 114
-    Float 23
-    Point3f 92
-    Shape 261
-    Vector3f 86
+let inv_ray_dir = 1.0 / d[i];
+let t_near = (self.p_min[i] - o[i]) * inv_ray_dir;
+let t_far = (self.p_max[i] - o[i]) * inv_ray_dir;
+// 〈Update parametric interval from slab intersection t values〉
 ```
 
-![Figure 6.1](images/img-402-024.png)
+The two distances are reordered so that `t_near` holds the closer intersection and `t_far` the farther one, giving a range $[t_{\mathrm{near}},t_{\mathrm{far}}]$ that is intersected with the current range $[t_0,t_1]$. If the new range is empty ($t_0>t_1$), the code can immediately return failure.
 
+There is a floating-point subtlety: if the ray origin lies in the plane of a slab and the ray lies in that plane, `t_near` or `t_far` can be computed as $0/0$, producing NaN. Comparisons involving NaN always evaluate to false, so the update is written so that `t0` and `t1` can never take on a NaN value and always remain unchanged in that case.
 
-*Figure 6.1: Intersecting a Ray with an Axis-Aligned Bounding Box. We compute intersection points with each slab in turn, progressively narrowing the parametric interval. Here, in 2D, the intersection of the x and y extents along the ray (thick segment) gives the extent where the ray is inside the box.*
-
-![Figure 6.2](images/img-402-025.png)
-
-
-*Figure 6.2: Intersecting a Ray with an Axis-Aligned Slab. The two planes shown here are described by x = c for constant values c. The normal of each plane is (1, 0, 0). Unless the ray is parallel to the planes, it will intersect the slab twice, at parametric positions tnear and tfar.*
-
-For each pair of planes, this routine needs to compute two ray–plane intersections. For example, the slab described by two planes perpendicular to the x axis can be described by planes through points (x0, 0, 0) and (x1, 0, 0), each with normal (1, 0, 0). Consider the first t value for a plane intersection,
-
-t0. The parametric t value for the intersection between a ray with origin o and direction d and a plane ax + by + cz + d = 0 can be found by substituting the ray equation into the plane equation:
-
-```text
-                          = a(ox + tdx) + b(oy + tdy) + c(oz + tdz) + d
-                          = (a, b, c) · o + t(a, b, c) · d + d.
-```
-
-Solving for t gives
-
-Because the y and z components of the plane’s normal are zero, b and c are zero, and a is one. The plane’s d coefficient is −x0. We can use this information and the definition of the dot product to
-
-simplify the calculation substantially: The code to compute the t values of the slab intersections starts by computing the reciprocal of the corresponding component of the ray direction so that it can multiply by this factor instead of performing multiple divisions. Note that, although it divides by this component, it is not necessary to verify that it is nonzero. If it is zero, then invRayDir will hold an infinite value, either −∞ or ∞, and the rest of the algorithm still works correctly.1
-
-〈Update interval for ith bounding box slab〉 ≡ 262
+**〈Update parametric interval from slab intersection t values〉 ≡ 264**
 
 ```rust
-   Float invRayDir = 1 / d[i];
-   Float tNear = (pMin[i] - o[i]) * invRayDir;
-   Float tFar = (pMax[i] - o[i]) * invRayDir;
-   〈Update parametric interval from slab intersection t values 264〉
+let (mut t_near, mut t_far) = if t_near > t_far { (t_far, t_near) } else { (t_near, t_far) };
+
+// 〈Update tFar to ensure robust ray–bounds intersection〉
+t0 = if t_near > t0 { t_near } else { t0 };
+t1 = if t_far < t1 { t_far } else { t1 };
+if t0 > t1 { return false; }
 ```
 
-The two distances are reordered so that tNear holds the closer intersection and tFar the farther one. This gives a parametric range [tNear, tFar], which is used to compute the set intersection with the current range [t0, t1]to compute a new range. If this new range is empty (i.e., t0 > t1), then the code can immediately return failure.
+`Bounds3` also provides a specialized `IntersectP()` method that takes the reciprocal of the ray direction as an additional parameter, so the three reciprocals need not be recomputed on each call. It also takes precomputed flags indicating whether each direction component is negative, which eliminates the comparisons that order `t_near` and `t_far`: those comparisons depend on computed values and can be inefficient to execute because the values must be finished before the comparison can be made. Since many ray–box tests are performed during rendering, this small optimization is worthwhile.
 
-There is another floating-point-related subtlety here: in the case where the ray origin is in the plane of one of the bounding box slabs and the ray lies in the plane of the slab, it is possible that tNear or tFar will be computed by an expression of the form 0/0, which results in a floating-point “not a number” (NaN) value. Like infinity values, NaNs have well-specified semantics: for example, any logical comparison involving a NaN always evaluates to false. Therefore, the code that updates the values of t0 and t1 is carefully written so that if tNear or tFar is NaN, then t0 or t1 will not ever take on a NaN value but will always remain unchanged.
+<details>
+<summary>Reference / notes</summary>
 
-〈Update parametric interval from slab intersection t values〉 ≡ 264
+`Bounds3::pMax` 98 · `Bounds3::pMin` 98 · `Float` 23
+
+</details>
+
+This routine returns true if the ray segment is entirely inside the bounding box, even if the intersections are not within the ray's $(0,t_{\max})$ range.
+
+**〈Bounds3 Inline Functions〉 +≡**
 
 ```rust
-   if (tNear > tFar) pstd::swap(tNear, tFar);
+fn intersect_p_fast(
+    &self,
+    o: Point3f,
+    d: Vector3f,
+    ray_t_max: Float,
+    inv_dir: Vector3f,
+    dir_is_neg: [i32; 3],
+) -> bool {
+    let bounds = self;
+    // 〈Check for ray intersection against x and y slabs〉
+    // 〈Check for ray intersection against z slab〉
+    t_min < ray_t_max && t_max > 0.0
+}
 ```
+
+If the ray direction component is negative, the "near" parametric intersection is found with the *larger* of the two bounding values and the far intersection with the smaller one. The implementation uses this observation to compute the near and far values directly.
+
+**〈Check for ray intersection against x and y slabs〉 ≡ 265**
 
 ```rust
-    〈Update tFar to ensure robust ray–bounds intersection 370〉
-    t0 = tNear > t0 ? tNear : t0;
-    t1 = tFar < t1 ? tFar : t1;
-    if (t0 > t1) return false;
+let mut t_min = (bounds[dir_is_neg[0] as usize].x - o.x) * inv_dir.x;
+let mut t_max = (bounds[1 - dir_is_neg[0] as usize].x - o.x) * inv_dir.x;
+let mut ty_min = (bounds[dir_is_neg[1] as usize].y - o.y) * inv_dir.y;
+let mut ty_max = (bounds[1 - dir_is_neg[1] as usize].y - o.y) * inv_dir.y;
+// 〈Update tMax and tyMax to ensure robust bounds intersection〉
+if t_min > ty_max || ty_min > t_max { return false; }
+if ty_min > t_min { t_min = ty_min; }
+if ty_max < t_max { t_max = ty_max; }
 ```
 
-`Bounds3` also provides a specialized `IntersectP()` method that takes the reciprocal of the ray’s direction as an additional parameter, so that the three reciprocals do not need to be computed each time `IntersectP()` is called.
+The fragment `〈Check for ray intersection against z slab〉` is analogous and is not included here.
 
-This version of the method also takes precomputed values that indicate whether each direction component is negative, which makes it possible to eliminate the comparisons of the computed tNear and tFar values in the original routine and to directly compute the respective near and far values. Because the comparisons that order these values from low to high in the original code are dependent on computed values, they can be inefficient for processors to execute, since the computation of their values must be finished before the comparison can be made. Because many ray–bounds intersection tests may be performed during rendering, this small optimization is worth using.
+This intersection test is at the heart of traversing the `BVHAggregate` acceleration structure (Section 7.3). Because so many ray–box tests are performed while traversing the BVH, this optimized method provided approximately a 15% improvement in overall rendering time compared with the variant that did not take precomputed direction reciprocals and signs.
 
-```text
-    Bounds3::pMax 98
-    Bounds3::pMin 98
-    Float 23
+#### GPU version (WGSL)
+
+The slab test maps directly to a WGSL intersection-shader helper. The sign flags are replaced by selecting the near/far bounds with `select`, which is branch-free and thread-group friendly.
+
+```wgsl
+fn intersect_aabb(o: vec3f, inv_d: vec3f, t_max: f32,
+                  p_min: vec3f, p_max: vec3f) -> vec2f {
+  // returns (t0, t1); t0 > t1 means a miss
+  let near = (p_min - o) * inv_d;
+  let far  = (p_max - o) * inv_d;
+  let t0v = min(near, far);
+  let t1v = max(near, far);
+  var t0 = max(max(t0v.x, t0v.y), max(t0v.z, 0.0));
+  var t1 = min(min(t1v.x, t1v.y), min(t1v.z, t_max));
+  // Conservative expansion for the overlap case (Section 6.8.2).
+  t1 = t1 * (1.0 + 2.0 * gamma3());
+  return vec2f(t0, t1);
+}
 ```
 
-This routine returns true if the ray segment is entirely inside the bounding box, even if the intersections are not within the ray’s (0, tMax) range.
+### 6.1.3 Intersection Tests
 
-〈Bounds3 Inline Functions〉 +≡
+`Shape` implementations must provide two methods that test for ray intersections. The first, `Intersect()`, returns geometric information about a single ray–shape intersection corresponding to the first intersection, if any, in the $(0,t_{\max})$ range along the given ray.
+
+**〈Shape Interface〉 +≡ 261**
 
 ```rust
-template <typename T> bool Bounds3<T>::IntersectP(Point3f o, Vector3f d, Float raytMax, Vector3f invDir, const int dirIsNeg[3]) const { const Bounds3f &bounds = *this; 〈Check for ray intersection against x and y slabs 265〉 〈Check for ray intersection against z slab〉 return (tMin < raytMax) && (tMax > 0); }
+fn intersect(&self, ray: &Ray, t_max: Float) -> Option<ShapeIntersection>;
 ```
 
-If the ray direction vector is negative, the “near” parametric intersection will be found with the slab with the larger of the two bounding values, and the far intersection will be found with the slab with the smaller of them. The implementation can use this observation to compute the near and far parametric values in each direction directly.
+When an intersection is found, a `SurfaceInteraction` corresponding to the intersection point and the parametric $t$ distance along the ray are returned via a `ShapeIntersection` instance.
 
-〈Check for ray intersection against x and y slabs〉 ≡ 265
+<details>
+<summary>Reference / notes</summary>
+
+`Bounds3` 97 · `Bounds3::IntersectP()` 262 · `Bounds3f` 97 · `BVHAggregate` 407 · `Float` 23 · `Infinity` 361 · `Point3f` 92 · `Ray` 95 · `Shape` 261 · `ShapeIntersection` 266 · `SurfaceInteraction` 138 · `Vector3f` 86
+
+</details>
+
+**〈ShapeIntersection Definition〉 ≡**
 
 ```rust
-   Float tMin = (bounds[ dirIsNeg[0]].x - o.x) * invDir.x;
-   Float tMax = (bounds[1-dirIsNeg[0]].x - o.x) * invDir.x;
-   Float tyMin = (bounds[ dirIsNeg[1]].y - o.y) * invDir.y;
+struct ShapeIntersection {
+    intr: SurfaceInteraction,
+    t_hit: Float,
+}
 ```
+
+Important points to keep in mind when reading (and writing) intersection routines:
+
+- The provided `t_max` value defines the endpoint of the ray. Intersections after this point must be ignored.
+- If there are multiple intersections with a shape along the ray, the closest one must be reported.
+- Rays passed to intersection routines are in rendering space, so shapes are responsible for transforming them to object space if needed for the intersection test.[^2]
+
+The second method, `Shape::IntersectP()`, is a predicate that determines whether an intersection occurs without returning any details about it. It is often more efficient than a full intersection test and is used in particular for shadow rays testing the visibility of a light source from a point in the scene.
+
+**〈Shape Interface〉 +≡ 261**
 
 ```rust
-    Float tyMax = (bounds[1-dirIsNeg[1]].y - o.y) * invDir.y;
-    〈Update tMax and tyMax to ensure robust bounds intersection〉
-    if (tMin > tyMax || tyMin > tMax)
-        return false;
-    if (tyMin > tMin) tMin = tyMin;
-    if (tyMax < tMax) tMax = tyMax;
+fn intersect_p(&self, ray: &Ray, t_max: Float) -> bool;
 ```
 
-The fragment 〈Check for ray intersection against z slab〉 is analogous and is not included here.
+On the GPU these two roles are played by *any-hit* shaders (visibility only, with early termination) and *closest-hit* shaders (full `SurfaceInteraction` construction). The two-stage structure used by the quadrics below—cheap `BasicIntersect()` first, full interaction second—matches that split exactly.
 
-This intersection test is at the heart of traversing the `BVHAggregate` acceleration structure, which is introduced in Section 7.3. Because so many ray–bounding box intersection tests are performed while traversing the BVH tree, we found that this optimized method provided approximately a 15% performance improvement in overall rendering time compared to using the `Bounds3::IntersectP()` variant that did not take the precomputed direction reciprocals and signs.
+### 6.1.4 Intersection Coordinate Spaces
 
-### 6.1.3 INTERSECTION TESTS
+For some shapes, intersection routines are most naturally expressed in their object space. The `Sphere` shape below computes the intersection with a sphere of a given radius positioned at the origin; being at the origin allows various simplifications. Other shapes, like `Triangle`, transform their representation to rendering space and perform intersection tests there.
 
-`Shape` implementations must provide an implementation of two methods that test for ray intersections with their shape. The first, `Intersect()`, returns geometric information about a single ray–shape intersection corresponding to the first intersection, if any, in the (0, tMax) parametric range along the given ray.
+Shapes like `Sphere` that operate in object space must transform the specified ray to object space and then transform any intersection results back to rendering space. Most of this is handled using methods of `Transform` (Section 3.10), but a natural question is: what effect does the object-from-rendering-space transformation have on the correct parametric distance to return? The intersection method finds a parametric $t$ for the object-space ray, which may have been translated, rotated, scaled, or worse when transformed from rendering space.
 
-〈Shape Interface〉 +≡ 261
+Using the properties of transformations we can show that $t$ is unaffected. Consider a rendering-space ray $\mathbf r_r$ with origin $\mathbf o_r$ and direction $\mathbf d_r$. Given an object-from-rendering-space transformation matrix $M$, the object-space ray has origin $M\mathbf o_r$ and direction $M\mathbf d_r$ (directions transform with the linear part only).
+
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Infinity` 361 · `Ray` 95 · `Shape::IntersectP()` 266 · `Sphere` 271 · `SurfaceInteraction` 138 · `Transform` 120 · `Triangle` 301
+
+</details>
+
+If the algorithm finds an object-space intersection at distance $t$, the object-space intersection point is
+
+$$
+\mathbf p_o = \mathbf o_o + t\,\mathbf d_o.
+$$
+
+Applying $M^{-1}$ to both sides gives the rendering-space intersection point $\mathbf p_r$:
+
+$$
+M^{-1}\mathbf p_o = M^{-1}(\mathbf o_o + t\,\mathbf d_o)
+                 = M^{-1}\mathbf o_o + t\,M^{-1}\mathbf d_o
+                 = \mathbf o_r + t\,\mathbf d_r.
+$$
+
+Therefore the $t$ computed in object space is also the correct $t$ in rendering space. Note that if the object-space ray's direction were normalized after transformation, this would no longer hold and a correction factor related to the unnormalized ray length would be needed. This is one reason pbrt does not normalize object-space ray directions after transformation.[^2]
+
+### 6.1.5 Sidedness
+
+Many rendering systems, particularly scanline and z-buffer systems, support "one-sided" shapes: a shape is visible from the front but disappears when viewed from behind. If a geometric object is closed and always viewed from the outside, backfacing parts can be discarded without changing the image, substantially speeding up hidden-surface removal. With ray tracing the benefit is reduced, since it is often necessary to perform the ray–object intersection before determining the surface normal for the backfacing test. Furthermore, the feature can produce a physically inconsistent scene if one-sided objects are not closed: a surface might block a shadow ray traced from a light to another surface but not when traced in the other direction. For all of these reasons, pbrt does not support this feature.
+
+### 6.1.6 Area
+
+In pbrt, area lights are defined by attaching an emission profile to a `Shape`. To use shapes as area lights they must be able to return their surface area in rendering space.
+
+**〈Shape Interface〉 +≡ 261**
 
 ```rust
-   Option<ShapeIntersection> Intersect(const Ray &ray,
-                                            Float tMax = Infinity) const;
+fn area(&self) -> Float;
 ```
 
-In the event that an intersection is found, a `SurfaceInteraction` corresponding to the intersection point and the parametric t distance along the ray where the intersection occurred are returned via a `ShapeIntersection` instance.
+### 6.1.7 Sampling
+
+A few methods are needed to sample points on the surface of shapes in order to use them as emitters. There are two shape sampling methods, both named `Sample()`. The first chooses points on the surface with a distribution proportional to surface area and returns local geometric information about the sampled point in a `ShapeSample`. The provided sample $\mathbf u$, uniform in $[0,1)^2$, determines the point on the shape.
+
+**〈Shape Interface〉 +≡ 261**
 
 ```rust
-    Bounds3 97
-    Bounds3::IntersectP() 262
-    Bounds3f 97
-    BVHAggregate 407
-    Float 23
-    Infinity 361
-    Point3f 92
-    Ray 95
-    Shape 261
-    ShapeIntersection 266
-    SurfaceInteraction 138
-    Vector3f 86
+fn sample(&self, u: Point2f) -> Option<ShapeSample>;
 ```
 
-〈ShapeIntersection Definition〉 ≡
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Interaction` 136 · `Point2f` 92 · `ShapeSample` 268
+
+</details>
+
+The returned `ShapeSample` stores an `Interaction` corresponding to a sampled point on the surface together with the probability density with respect to surface area for sampling that point.
+
+**〈ShapeSample Definition〉 ≡**
 
 ```rust
-   struct ShapeIntersection {
-       SurfaceInteraction intr;
-       Float tHit;
-   };
+struct ShapeSample {
+    intr: Interaction,
+    pdf: Float,
+}
 ```
 
-There are a few important things to keep in mind when reading (and writing) intersection routines:
+Shapes must also provide an associated `PDF()` method returning the probability density for sampling the specified point on the shape corresponding to a given `Interaction`. This method should only be called with interactions known to be on the shape's surface: implementations are allowed to assume this, and callers are responsible for ensuring it. Although `Sample()` already returns the PDF for the point it samples, this method is needed for multiple importance sampling, where densities for samples generated by other techniques must be evaluated.
 
-The provided tMax value defines the endpoint of the ray. Intersection routines must
-ignore any intersections that occur after this point.
-If there are multiple intersections with a shape along the ray, the closest one should be
-reported.
-The rays passed into intersection routines are in rendering space, so shapes are
-responsible for transforming them to object space if needed for intersection tests. The
-
-The second intersection test method, `Shape::IntersectP()`, is a predicate function that determines whether or not an intersection occurs without returning any details about the intersection itself. That test is often more efficient than a full intersection test. This method is used in particular for shadow rays that are testing the visibility of a light source from a point in the scene.
-
-〈Shape Interface〉 +≡ 261
+**〈Shape Interface〉 +≡ 261**
 
 ```rust
-   bool IntersectP(const Ray &ray, Float tMax = Infinity) const;
+fn pdf(&self, intr: &Interaction) -> Float;
 ```
 
-### 6.1.4 INTERSECTION COORDINATE SPACES
+The second sampling method takes a reference point from which the shape is being viewed. This is especially useful for lighting: the caller passes the point to be lit and the shape only samples the portion of its surface potentially visible from that point.
 
-For some shapes, intersection routines are most naturally expressed in their object space. For example, the following `Sphere` shape computes the intersection with a sphere of a given radius positioned at the origin. The sphere being at the origin allows various simplifications to the intersection algorithm. Other shapes, like the `Triangle`, transform their representation to rendering space and perform intersection tests there.
+Unlike the first method, which samples with respect to surface area, this one uses a density with respect to *solid angle* from the reference point. The difference stems from the area-light sampling routines evaluating the direct-lighting integral as an integral over directions from the reference point, where a solid-angle density is more convenient.
 
-Shapes like `Sphere` that operate in object space must transform the specified ray to object space and then transform any intersection results back to rendering space. Most of this is handled easily using associated methods in the `Transform` class that were introduced in Section 3.10, though a natural question to ask is, “What effect does the object-from-rendering-space transformation have on the correct parametric distance to return?” The intersection method has found a parametric t distance to the intersection for the object-space ray, which may have been translated, rotated, scaled, or worse when it was transformed from rendering space.
-
-Using the properties of transformations, it is possible to show that the t distance to the intersection is unaffected by the transformation. Consider a rendering-space ray rr with associated origin or and direction dr. Given an object-from-rendering-space transformation matrix M, we can then find the object-space ray ro with origin Moo and direction Mdo.
-
-```text
-    Float 23
-```
-
-```text
-    Infinity 361
-    Ray 95
-    Shape::IntersectP() 266
-    Sphere 271
-    SurfaceInteraction 138
-    Transform 120
-    Triangle 301
-```
-
-If the ray–shape intersection algorithm finds an object-space intersection at a distance t along the ray, then the object-space intersection point is po = oo + tdo. Now consider the rendering-space intersection point pr that is found by applying M’s inverse to both sides of that equation:
-
-```text
-                    M−1po = M−1 (oo + tdo)
-```
-
-```text
-                    M−1po = M−1oo + M−1 (tdo)
-```
-
-```text
-                    M−1po = M−1oo + tM−1 (do)
-                        pr = or + tdr.
-```
-
-Therefore, the t value that was computed in object space is the correct t value for the intersection point in rendering space as well. Note that if the object-space ray’s direction had been normalized after the transformation, then this would no longer be the case and a correction factor related to the unnormalized ray’s length would be needed. This is one reason that pbrt does not normalize object-space rays’ directions after transformation.
-
-### 6.1.5 SIDEDNESS
-
-Many rendering systems, particularly those based on scanline or z-buffer algorithms, support the concept of shapes being “one-sided”—the shape is visible if seen from the front but disappears when viewed from behind. In particular, if a geometric object is closed and always viewed from the outside, then the backfacing parts of it can be discarded without changing the resulting image. This optimization can substantially improve the speed of these types of hidden surface removal algorithms. The potential for improved performance is reduced when using this technique with ray tracing, however, since it is often necessary to perform the ray–object intersection before determining the surface normal to do the backfacing test. Furthermore, this feature can lead to a physically inconsistent scene description if one-sided objects are not in fact closed. For example, a surface might block light when a shadow ray is traced from a light source to a point on another surface, but not if the shadow ray is traced in the other direction. For all of these reasons, pbrt does not support this feature.
-
-### 6.1.6 AREA
-
-In pbrt, area lights are defined by attaching an emission profile to a `Shape`. To use Shapes as area lights, it is necessary that shapes be able to return their surface area of a shape in rendering space.
-
-〈Shape Interface〉 +≡ 261
+**〈Shape Interface〉 +≡ 261**
 
 ```rust
-   Float Area() const;
+fn sample(&self, ctx: &ShapeSampleContext, u: Point2f) -> Option<ShapeSample>;
 ```
 
-### 6.1.7 SAMPLING
+Information about the reference point and its geometric and shading normals is provided by `ShapeSampleContext`. The reference position uses `Point3fi`, which can represent the numerical uncertainty in a ray intersection point computed with floating-point arithmetic (Section 6.8). For points in participating media that are not associated with a surface, the normals are left at their default value $(0,0,0)$.
 
-A few methods are necessary to sample points on the surface of shapes in order to use them as emitters. Additional `Shape` methods make this possible.
-
-There are two shape sampling methods, both named `Sample()`. The first chooses points on the surface of the shape using a sampling distribution with respect to surface area and returns the local geometric information about the sampled point in a `ShapeSample`. The provided sample value u, a uniform sample in [0, 1)2, should be used to determine the point on the shape.
-
-〈Shape Interface〉 +≡ 261
+**〈ShapeSampleContext Definition〉 ≡**
 
 ```rust
-   Option<ShapeSample> Sample(Point2f u) const;
+struct ShapeSampleContext {
+    // 〈ShapeSampleContext Public Methods〉
+    pi: Point3fi,
+    n: Normal3f,
+    ns: Normal3f,
+    time: Float,
+}
 ```
 
-```text
-    Float 23
-    Interaction 136
-    Point2f 92
-    ShapeSample 268
-```
+`ShapeSampleContext` provides convenience constructors that specify the members directly or from various types of `Interaction`.
 
-The `ShapeSample` structure that is returned stores an `Interaction` corresponding to a sampled point on the surface as well as the probability density with respect to surface area on the shape for sampling that point.
+<details>
+<summary>Reference / notes</summary>
 
-〈ShapeSample Definition〉 ≡
+`Float` 23 · `Interaction` 136 · `Normal3f` 94 · `Point2f` 92 · `Point3fi` 1061 · `Shape` 261 · `ShapeSample` 268 · `ShapeSampleContext` 268 · `ShapeSampleContext::pi` 268
+
+</details>
+
+**〈ShapeSampleContext Public Methods〉 ≡ 268**
 
 ```rust
-struct ShapeSample { Interaction intr; Float pdf; };
+impl ShapeSampleContext {
+    fn new(pi: Point3fi, n: Normal3f, ns: Normal3f, time: Float) -> Self {
+        Self { pi, n, ns, time }
+    }
+    fn from_surface(si: &SurfaceInteraction) -> Self {
+        Self { pi: si.pi, n: si.n, ns: si.shading.n, time: si.time }
+    }
+    fn from_medium(mi: &MediumInteraction) -> Self {
+        Self { pi: mi.pi, n: Normal3f::ZERO, ns: Normal3f::ZERO, time: mi.time }
+    }
+}
 ```
 
-Shapes must also provide an associated `PDF()` method that returns probability density for sampling the specified point on the shape that corresponds to the given `Interaction`. This method should only be called with interactions that are on the shape’s surface. Although `Sample()` already returns the probability density for the point it samples, this method is useful when using multiple importance sampling, in which case it is necessary to compute the probability density for samples generated using other sampling techniques. An important detail is that implementations are allowed to assume that the provided point is on their surface; callers are responsible for ensuring that this is the case.
+For code that does not need to be aware of numeric error in the intersection point, a method provides it as a regular `Point3f`.
 
-〈Shape Interface〉 +≡ 261
+**〈ShapeSampleContext Public Methods〉 +≡ 268**
 
 ```rust
-   Float PDF(const Interaction &) const;
+fn p(&self) -> Point3f { Point3f::from(self.pi) }
 ```
 
-The second shape sampling method takes a reference point from which the shape is being viewed. This method is particularly useful for lighting, since the caller can pass in the point to be lit and allow shape implementations to ensure that they only sample the portion of the shape that is potentially visible from that point.
+A second `PDF()` method returns the shape's probability of sampling a point on the light such that the incident direction $\omega_i$ at the reference point is `wi`. As with the corresponding sampling method, this density is with respect to solid angle at the reference point, and it should only be called for a direction known to intersect the shape from the reference point; implementations are not responsible for checking that case.
 
-Unlike the first `Shape` sampling method, which generates points on the shape according to a probability density with respect to surface area on the shape, the second one uses a density with respect to solid angle from the reference point. This difference stems from the fact that the area light sampling routines evaluate the direct lighting integral as an integral over directions from the reference point—expressing these sampling densities with respect to solid angle at the point is more convenient.
-
-〈Shape Interface〉 +≡ 261
+**〈Shape Interface〉 +≡ 261**
 
 ```rust
-   Option<ShapeSample> Sample(const ShapeSampleContext &ctx,
-                                    Point2f u) const;
+fn pdf(&self, ctx: &ShapeSampleContext, wi: Vector3f) -> Float;
 ```
 
-Information about the reference point and its geometric and shading normals is provided by the `ShapeSampleContext` structure. The reference point position is specified using the `Point3fi` class, which can represent the numerical uncertainty in a ray intersection point computed using floating-point arithmetic. Discussion of related topics is in Section 6.8. For points in participating media that are not associated with a surface, the normal and shading normal are left with their default values of (0, 0, 0).
+Some `PDF()` implementations need to trace a ray from the reference point in direction $\omega_i$ to see if it intersects the shape. Use the following `ShapeSampleContext` methods to find the ray origin or the ray itself rather than using `ShapeSampleContext::p()`. This too stems from a subtlety in handling numeric error in intersection points; the implementation and a discussion of the underlying issues are in Section 6.8.6.
 
-〈ShapeSampleContext Definition〉 ≡
+**〈ShapeSampleContext Public Methods〉 +≡ 268**
 
 ```rust
-struct ShapeSampleContext { 〈ShapeSampleContext Public Methods 269〉 Point3fi pi; Normal3f n, ns; Float time; };
+fn offset_ray_origin(&self, w: Vector3f) -> Point3f;
+fn offset_ray_origin_to(&self, pt: Point3f) -> Point3f;
+fn spawn_ray(&self, w: Vector3f) -> Ray;
 ```
 
-`ShapeSampleContext` provides a variety of convenience constructors that allow specifying the member variable values directly or from various types of `Interaction`.
+## 6.2 Spheres
 
-```text
-    Float 23
-    Interaction 136
-    Normal3f 94
-    Point2f 92
-    Point3fi 1061
-    Shape 261
-    ShapeSample 268
-    ShapeSampleContext 268
+Spheres are a special case of quadrics—surfaces described by quadratic polynomials in $x$, $y$, and $z$. They offer a good starting point for ray-intersection algorithms. Together with a transformation matrix, pbrt's `Sphere` can also take the form of an ellipsoid. The other basic quadrics are cylinders and disks; cones, hyperboloids, and paraboloids are less useful for rendering and are not included in the system.
+
+Surfaces can be described in two main ways. An *implicit* function describes a 3D surface as $f(x,y,z)=0$; the set of points satisfying the condition defines the surface. For a unit sphere at the origin the familiar implicit equation is
+
+$$
+x^2 + y^2 + z^2 - 1 = 0.
+$$
+
+*Figure 6.3: Basic Setting for the Sphere Shape. It has radius $r$ and is centered at the object-space origin. A partial sphere is described by a maximum $\phi$ value.*
+
+```mermaid
+flowchart TD
+    O["Object-space origin (0,0,0)"] --> R["Radius r to surface point (x,y,z)"]
+    R --> EQ["Implicit form: x^2 + y^2 + z^2 = r^2"]
+    EQ --> PAR["Parametric form:<br/>x = r sin(theta) cos(phi)<br/>y = r sin(theta) sin(phi)<br/>z = r cos(theta)"]
+    PAR --> CLIP["theta in [theta_min, theta_max], phi in [0, phi_max]<br/>(partial sphere)"]
 ```
 
-〈ShapeSampleContext Public Methods〉 ≡ 268
+Many surfaces can also be described *parametrically*, by a function mapping 2D points to 3D points on the surface. A sphere of radius $r$ is a function of spherical coordinates $(\theta,\phi)$, with $\theta\in[0,\pi]$ and $\phi\in[0,2\pi]$:
 
-```rust
-   ShapeSampleContext(Point3fi pi, Normal3f n, Normal3f ns, Float time)
-```
+$$
+\mathbf p(\theta,\phi) = \big(r\sin\theta\cos\phi,\; r\sin\theta\sin\phi,\; r\cos\theta\big).
+$$
 
-```rust
-      : pi(pi), n(n), ns(ns), time(time) {}
-    ShapeSampleContext(const SurfaceInteraction &si)
-      : pi(si.pi), n(si.n), ns(si.shading.n), time(si.time) {}
-    ShapeSampleContext(const MediumInteraction &mi)
-      : pi(mi.pi), time(mi.time) {}
-```
+We can transform this into a function $\mathbf f(u,v)$ over $[0,1]^2$ and allow partial spheres sweeping $\theta\in[\theta_{\min},\theta_{\max}]$ and $\phi\in[0,\phi_{\max}]$ with the substitution
 
-For code that does not need to be aware of numeric error in the intersection point, a method provides it as a regular `Point3`.
+$$
+\theta = \theta_{\min} + v\,(\theta_{\max}-\theta_{\min}), \qquad \phi = u\,\phi_{\max}.
+$$
 
-〈ShapeSampleContext Public Methods〉 +≡ 268
+This form is particularly useful for texture mapping, since a texture over $[0,1]^2$ maps directly to the sphere. Figure 6.4 shows two spheres with a grid image map revealing the $(u,v)$ parameterization.
 
-```rust
-   Point3f p() const { return Point3f(pi); }
-```
+*Figure 6.4: Two Spheres. On the left is a partial sphere (with $z_{\max}<r$ and $\phi_{\max}<2\pi$) and on the right a complete sphere. The texture image shows the $(u,v)$ parameterization; the singularity at one pole is visible in the complete sphere.*
 
-A second `PDF()` method comes along with this sampling approach. It returns the shape’s probability of sampling a point on the light such that the incident direction ωi at the reference point is wi. As with the corresponding sampling method, this density should be with respect to solid angle at the reference point. As with the other `Shape` `PDF()` method, this should only be called for a direction that is known to intersect the shape from the reference point; as such, implementations are not responsible for checking that case.
-
-〈Shape Interface〉 +≡ 261
-
-```rust
-   Float PDF(const ShapeSampleContext &ctx, Vector3f wi) const;
-```
-
-Some of the `PDF()` method implementations will need to trace a ray from the reference point in the direction ωi to see if it intersects the shape. The following `ShapeSampleContext` methods should be used to find the origin or the ray itself rather than using the point returned by `ShapeSampleContext::p()`. This, too, stems from a subtlety related to handling numeric error in intersection points. The implementation of these methods and discussion of the underlying issues can be found in Section 6.8.6.
-
-〈ShapeSampleContext Public Methods〉 +≡ 268
-
-```rust
-   Point3f OffsetRayOrigin(Vector3f w) const;
-   Point3f OffsetRayOrigin(Point3f pt) const;
-   Ray SpawnRay(Vector3f w) const;
-```
-
-## 6.2 SPHERES
-
-Spheres are a special case of a general type of surface called quadrics—surfaces described by quadratic polynomials in x, y, and z. They offer a good starting point for introducing ray intersection algorithms. In conjunction with a transformation matrix, pbrt’s `Sphere` shape can also take the form of an ellipsoid. pbrt supports two other basic types of quadrics: cylinders and disks. Other quadrics such as the cone, hyperboloid, and paraboloid are less useful for most rendering applications, and so are not included in the system.
-
-```rust
-    Float 23
-    MediumInteraction 141
-    Normal3f 94
-    Point3 92
-    Point3f 92
-    Point3fi 1061
-    Ray 95
-    Shape 261
-    ShapeSampleContext 268
-    ShapeSampleContext::p() 269
-    ShapeSampleContext::pi 268
-    SurfaceInteraction 138
-    Vector3f 86
-```
-
-Many surfaces can be described in one of two main ways: in implicit form and in parametric form. An implicit function describes a 3D surface as f (x, y, z) = 0. The set of all points (x, y, z) that fulfill this condition defines the surface. For a unit sphere at the origin, the familiar implicit equation is x2 + y2 + z2 − 1 = 0. Only the set of points one unit from the origin satisfies this constraint, giving the unit sphere’s surface.
-
-![Figure 6.3](images/img-411-026.png)
-
-
-*Figure 6.3: Basic Setting for the Sphere Shape. It has a radius of r and is centered at the object space origin. A partial sphere may be described by specifying a maximum ϕ value.*
-
-Many surfaces can also be described parametrically using a function to map 2D points to 3D points on the surface. For example, a sphere of radius r can be described as a function of 2D spherical coordinates (θ, ϕ), where θ ranges from 0 to π and ϕ ranges from 0 to 2π (Figure 6.3):
-
-We can transform this function f (θ, ϕ) into a function f (u, v) over [0, 1]2 and generalize it slightly to allow partial spheres that only sweep out θ ∊ [θmin, θmax] and ϕ ∊ [0, ϕmax] with the substitution
-
-This form is particularly useful for texture mapping, where it can be directly used to map a texture defined over [0, 1]2 to the sphere. Figure 6.4 shows an image of two spheres; a grid image map has been used to show the (u, v) parameterization.
-
-As we describe the implementation of the sphere shape, we will make use of both the implicit and parametric descriptions of the shape, depending on which is a more natural way to approach the particular problem we are facing.
-
-The `Sphere` class represents a sphere that is centered at the origin. As with all the other shapes, its implementation is in the files `shapes.rs` and `shapes.rs`.
-
-```text
-    Sphere 271
-```
+<details>
+<summary>Figure 6.4 — pictorial image (keep)</summary>
 
 ![Figure 6.4](images/img-412-027.png)
 
+</details>
 
-*Figure 6.4: Two Spheres. On the left is a partial sphere (with zmax < r and ϕmax < 2π) and on the right is a complete sphere. Note that the texture image used shows the (u, v) parameterization of the shape; the singularity at one of the poles is visible in the complete sphere.*
+As we describe the implementation, we will use whichever of the implicit and parametric descriptions is more natural for the problem at hand. The `Sphere` class represents a sphere centered at the origin; its implementation is in `shapes.rs`.
 
-〈Sphere Definition〉 ≡
+<details>
+<summary>Reference / notes</summary>
 
-```rust
-class Sphere { public: 〈Sphere Public Methods 272〉 private: 〈Sphere Private Members 272〉 };
-```
+`Sphere` 271
 
-As mentioned earlier, spheres in pbrt are defined in a coordinate system where the center of the sphere is at the origin. The sphere constructor is provided transformations that map between the sphere’s object space and rendering space.
+</details>
 
-Although pbrt supports animated transformation matrices, the transformations here are not AnimatedTransforms. (Such is also the case for all the shapes defined in this chapter.) Animated shape transformations are instead handled by using a `TransformedPrimitive` to represent the shape in the scene. Doing so allows us to centralize some of the tricky details related to animated transformations in a single place, rather than requiring all Shapes to handle this case.
-
-The radius of the sphere can have an arbitrary positive value, and the sphere’s extent can be truncated in two different ways. First, minimum and maximum z values may be set; the parts of the sphere below and above these planes, respectively, are cut off. Second, considering the parameterization of the sphere in spherical coordinates, a maximum ϕ value can be set. The sphere sweeps out ϕ values from 0 to the given ϕmax such that the section of the sphere with spherical ϕ values above ϕmax is also removed.
-
-Finally, the `Sphere` constructor also takes a Boolean parameter, reverseOrientation, that indicates whether their surface normal directions should be reversed from the default (which is pointing outside the sphere). This capability is useful because the orientation of the surface normal is used to determine which side of a shape is “outside.” For example, shapes that emit illumination are by default emissive only on the side the surface normal lies on. The value of this parameter is managed via the ReverseOrientation statement in pbrt scene description files.
-
-```text
-    AnimatedTransform 135
-    Shape 261
-    TransformedPrimitive 403
-```
-
-〈Sphere Public Methods〉 ≡ 271
+**〈Sphere Definition〉 ≡**
 
 ```rust
-   Sphere(const         Transform    *renderFromObject,     const      Transform
-   *objectFromRender,
-           bool reverseOrientation, Float radius, Float zMin, Float zMax,
-           Float phiMax)
-       :                                     renderFromObject(renderFromObject),
-       objectFromRender(objectFromRender),
-         reverseOrientation(reverseOrientation),
-          transformSwapsHandedness(renderFromObject->SwapsHandedness()), radius(radius), zMin(Clamp(std::min(zMin, zMax), -radius, radius)), zMax(Clamp(std::max(zMin, zMax), -radius, radius)), thetaZMin(std::acos(Clamp(std::min(zMin, zMax) / radius, -1, 1))), thetaZMax(std::acos(Clamp(std::max(zMin, zMax) / radius, -1, 1))), phiMax(Radians(Clamp(phiMax, 0, 360))) {}
+struct Sphere {
+    // 〈Sphere Public Methods〉
+    // 〈Sphere Private Members〉
+}
 ```
 
-〈Sphere Private Members〉 ≡ 271
+Spheres in pbrt are defined in a coordinate system with the center at the origin; the constructor receives transformations mapping between object space and rendering space. Although pbrt supports animated transformations, these shapes do not use `AnimatedTransform`: animated shapes are represented by a `TransformedPrimitive`, which centralizes the tricky details of animation rather than requiring every shape to handle it.
+
+The radius may be any positive value, and the sphere's extent can be truncated in two ways: minimum and maximum $z$ values cut off the caps, and a maximum $\phi$ sweeps only part of the circle. Finally, a Boolean `reverse_orientation` parameter indicates whether surface normals should be reversed from the default (outward). This matters because the normal's orientation determines which side of a shape is "outside"—emissive shapes, for example, emit only on the side the normal points to. The parameter is set by the `ReverseOrientation` statement in pbrt scene description files.
+
+<details>
+<summary>Reference / notes</summary>
+
+`AnimatedTransform` 135 · `Shape` 261 · `TransformedPrimitive` 403
+
+</details>
+
+**〈Sphere Public Methods〉 ≡ 271**
 
 ```rust
-   Float radius;
-   Float zMin, zMax;
-   Float thetaZMin, thetaZMax, phiMax;
-   const Transform *renderFromObject, *objectFromRender;
-   bool reverseOrientation, transformSwapsHandedness;
-```
-
-### 6.2.1 BOUNDING
-
-Computing an object-space bounding box for a sphere is straightforward. The implementation here uses the values of zmin and zmax provided by the user to tighten up the bound when less than an entire sphere is being rendered. However, it does not do the extra work to compute a tighter bounding box when ϕmax is less than 3π/2. This improvement is left as an exercise. This object-space bounding box is transformed to rendering space before being returned.
-
-〈Sphere Method Definitions〉 ≡
-
-```rust
-Bounds3f Sphere::Bounds() const { return (*renderFromObject)( Bounds3f(Point3f(-radius, -radius, zMin), Point3f( radius, radius, zMax))); }
-```
-
-The `Sphere`’s `NormalBounds()` method does not consider any form of partial spheres but always returns the bounds for an entire sphere, which is all possible directions.
-
-〈Sphere Public Methods〉 +≡ 271
-
-```rust
-   DirectionCone NormalBounds() const { return DirectionCone::EntireSphere();
-   }
-```
-
-### 6.2.2 INTERSECTION TESTS
-
-The ray intersection test is broken into two stages. First, `BasicIntersect()` does the basic ray– sphere intersection test and returns a small structure, `QuadricIntersection`, if an intersection is found. A subsequent call to the `InteractionFromIntersection()` method transforms the
-
-`QuadricIntersection` into a full-blown `SurfaceInteraction`, which can be returned from the Intersection() method.
-
-There are two motivations for separating the intersection test into two stages like this. One is that doing so allows the `IntersectP()` method to be implemented as a trivial wrapper around `BasicIntersect()`. The second is that pbrt’s GPU rendering path is organized such that the closest intersection among all shapes is found before the full `SurfaceInteraction` is constructed; this decomposition fits that directly.
-
-```rust
-    Bounds3f 97
-    DirectionCone 114
-    DirectionCone::EntireSphere() 115
-    Float 23
-    Point3f 92
-    Sphere 271
-    Sphere::objectFromRender 272
-    Sphere::phiMax 272
-    Sphere::radius 272
-    Sphere::renderFromObject 272
-    Sphere::reverseOrientation 272
-    Sphere::thetaZMax 272
-    Sphere::thetaZMin 272
-    Sphere:: transformSwapsHandedness 272
-    Sphere::zMax 272
-    Sphere::zMin 272
-    Transform 120
-    Transform::SwapsHandedness() 133
-```
-
-〈Sphere Public Methods〉 +≡ 271
-
-```rust
-   Option<ShapeIntersection> Intersect(const Ray &ray,
-                                             Float tMax = Infinity) const {
-        Option<QuadricIntersection> isect = BasicIntersect(ray, tMax);
-        if (!isect) return {};
-        SurfaceInteraction intr =
-            InteractionFromIntersection(*isect, -ray.d, ray.time);
-        return ShapeIntersection{intr, isect->tHit};
-   }
-```
-
-`QuadricIntersection` stores the parametric t along the ray where the intersection occurred, the object-space intersection point, and the sphere’s ϕ value there. As its name suggests, this structure will be used by the other quadrics in the same way it is here.
-
-〈QuadricIntersection Definition〉 ≡
-
-```rust
-   struct QuadricIntersection {
-       Float tHit;
-       Point3f pObj;
-       Float phi;
-   };
-```
-
-The basic intersection test transforms the provided rendering-space ray to object space and intersects it with the complete sphere. If a partial sphere has been specified, some additional tests reject intersections with portions of the sphere that have been removed.
-
-〈Sphere Public Methods〉 +≡ 271
-
-```rust
-   Option<QuadricIntersection> BasicIntersect(const Ray &r,
-                                                                  Float tMax) const {
-        Float phi;
-        Point3f pHit;
-        〈Transform Ray origin and direction to object space 273〉
-        〈Solve quadratic equation to compute sphere t0 and t1 274〉
-        〈Check quadric shape t0 and t1 for nearest intersection 275〉
-        〈Compute sphere hit position and ϕ 275〉
-        〈Test sphere intersection against clipping parameters 276〉
-        〈Return QuadricIntersection for sphere intersection 276〉
-   }
-```
-
-```rust
-    Float 23
-    Infinity 361
-    Point3f 92
-    Point3fi 1061
-    QuadricIntersection 273
-    QuadricIntersection::tHit 273
-    Ray 95
-    Ray::d 95
-    Ray::o 95
-    Ray::time 95
-    ShapeIntersection 266
-    Sphere::BasicIntersect() 273
-    Sphere::InteractionFromIntersection() 276
-    Sphere::objectFromRender 272
-    SurfaceInteraction 138
-    Vector3f 86
-    Vector3fi 1060
-```
-
-The transformed ray origin and direction are respectively stored using `Point3fi` and `Vector3fi` classes rather than the usual `Point3f` and `Vector3f`. These classes represent those quantities as small intervals in each dimension that bound the floating-point round-off error that was introduced by applying the transformation. Later, we will see that these error bounds will be useful for improving the geometric accuracy of the intersection computation. For the most part, these classes can respectively be used just like `Point3f` and `Vector3f`.
-
-〈Transform Ray origin and direction to object space〉 ≡ 273, 288, 293
-
-```rust
-   Point3fi oi = (*objectFromRender)(Point3fi(r.o));
-   Vector3fi di = (*objectFromRender)(Vector3fi(r.d));
-```
-
-If a sphere is centered at the origin with radius r, its implicit representation is
-
-```text
-                                           x2 + y2 + z2 − r2 = 0.
-```
-
-By substituting the parametric representation of the ray from Equation (3.4) into the implicit sphere equation, we have (ox + tdx)2 + (oy + tdy)2 + (oz + tdz)2 = r2. Note that all elements of this equation besides t are known values. The t values where the equation holds give the parametric positions along the ray where the implicit sphere equation is satisfied and thus the points along the ray where it intersects the sphere. We can expand this equation and gather the coefficients for a general quadratic equation in t, at2 + bt + c = 0, where2
-
-The `Interval` class stores a small range of floating-point values to maintain bounds on floating-point rounding error. It is defined in Section B.2.15 and is analogous to `Float` in the way that `Point3fi` is to `Point3f`, for example.
-
-〈Solve quadratic equation to compute sphere t0 and t1〉 ≡ 273
-
-```rust
-   Interval t0, t1;
-   〈Compute sphere quadratic coefficients 274〉
-   〈Compute sphere quadratic discriminant discrim 372〉
-   〈Compute quadratic t values 275〉
-```
-
-Given `Interval`, Equation (6.3) directly translates to the following fragment of source code.
-
-〈Compute sphere quadratic coefficients〉 ≡ 274
-
-```rust
-   Interval a = Sqr(di.x) + Sqr(di.y) + Sqr(di.z);
-   Interval b = 2 * (di.x * oi.x + di.y * oi.y + di.z * oi.z);
-```
-
-```rust
-    Interval c = Sqr(oi.x) + Sqr(oi.y) + Sqr(oi.z) - Sqr(Interval(radius));
-```
-
-The fragment 〈Compute sphere quadratic discriminant discrim〉 computes the discriminant b2 − 4ac in a way that maintains numerical accuracy in tricky cases. It is defined later, in Section 6.8.3, after related topics about floating-point arithmetic have been introduced. Proceeding here with its value in discrim, the quadratic equation can be applied. Here we use a variant of the traditional approach that gives more accuracy; it is described in Section B.2.10.
-
-```rust
-    Float 23
-    Interval 1057
-    Interval::Sqr() 1060
-    Point3f 92
-    Point3fi 1061
-    Sphere::radius 272
-    Sqr() 1034
-```
-
-〈Compute quadratic t values〉 ≡ 274, 288
-
-```rust
-   Interval rootDiscrim = Sqrt(discrim);
-   Interval q;
-   if ((Float)b < 0) q = -.5f * (b - rootDiscrim);
-   else q = -.5f * (b + rootDiscrim);
-   t0 = q / a;
-   t1 = c / q;
-   〈Swap quadratic t values so that t0 is the lesser 275〉
-```
-
-Because t0 and t1 represent intervals of floating-point values, it may be ambiguous which of them is less than the other. We use their lower bound for this test, so that in ambiguous cases, at least we do not risk returning a hit that is potentially farther away than an actual closer hit.
-
-〈Swap quadratic t values so that t0 is the lesser〉 ≡ 275
-
-```rust
-   if (t0.LowerBound() > t1.LowerBound())
-        pstd::swap(t0, t1);
-```
-
-A similar ambiguity must be accounted for when testing the t values against the acceptable range. In ambiguous cases, we err on the side of returning no intersection rather than an invalid one. The closest valid t is then stored in tShapeHit.
-
-〈Check quadric shape t0 and t1 for nearest intersection〉 ≡ 273, 288
-
-```rust
-   if (t0.UpperBound() > tMax || t1.LowerBound() <= 0)
-        return {};
-   Interval tShapeHit = t0;
-   if (tShapeHit.LowerBound() <= 0) {
-```
-
-```rust
-         tShapeHit = t1;
-         if (tShapeHit.UpperBound() > tMax)
-            return {};
-    }
-```
-
-Given the parametric distance along the ray to the intersection with a full sphere, the intersection point pHit can be computed as that offset along the ray. In its initializer, all the respective interval types are cast back to their non-interval equivalents, which gives their midpoint. (The remainder of the intersection test no longer needs the information provided by the intervals.) Due to floating-point precision limitations, this computed intersection point pHit may lie a bit to one side of the actual sphere surface; the 〈Refine sphere intersection point〉 fragment, which is defined in Section 6.8.5, improves the accuracy of this value.
-
-It is next necessary to handle partial spheres with clipped z or ϕ ranges—intersections that are in clipped areas must be ignored. The implementation starts by computing the ϕ value for the hit point.
-
-Using the parametric representation of the sphere, so ϕ = arctan y/x. It is necessary to remap the result of the standard library’s `std::atan()` function to a value between 0 and 2π, to match the sphere’s original definition.
-
-```rust
-    Float 23
-    Interval 1057
-    Interval::LowerBound() 1059
-    Interval::Sqrt() 1060
-    Interval::UpperBound() 1059
-    Pi 1033
-    Point3f 92
-    Sphere::radius 272
-    Vector3f 86
-```
-
-〈Compute sphere hit position and ϕ〉 ≡ 273, 276
-
-```rust
-   pHit = Point3f(oi) + (Float)tShapeHit * Vector3f(di);
-   〈Refine sphere intersection point 375〉
-   if (pHit.x == 0 && pHit.y == 0) pHit.x = 1e-5f * radius;
-   phi = std::atan2(pHit.y, pHit.x);
-   if (phi < 0) phi += 2 * Pi;
-```
-
-The hit point can now be tested against the specified minima and maxima for z and ϕ. One subtlety is that it is important to skip the z tests if the z range includes the entire sphere; the computed pHit.z value may be slightly out of the z range due to floating-point round-off, so we should only perform this test when the user expects the sphere to be partially incomplete. If the t0 intersection is not valid, the routine tries again with t1.
-
-〈Test sphere intersection against clipping parameters〉 ≡ 273
-
-```rust
-   if ((zMin > -radius && pHit.z < zMin) ||
-         (zMax < radius && pHit.z > zMax) || phi > phiMax) {
-         if (tShapeHit == t1) return {};
-         if (t1.UpperBound() > tMax) return {};
-         tShapeHit = t1;
-         〈Compute sphere hit position and ϕ 275〉
-         if ((zMin > -radius && pHit.z < zMin) ||
-              (zMax < radius && pHit.z > zMax) || phi > phiMax)
-              return {};
-   }
-```
-
-At this point in the routine, it is certain that the ray hits the sphere. A `QuadricIntersection` is returned that encapsulates sufficient information about it to determine the rest of the geometric information at the intersection point. Recall from Section 6.1.4 that even though tShapeHit was computed in object space, it is also the correct t value in rendering space. Therefore, it can be returned directly.
-
-〈Return QuadricIntersection for sphere intersection〉 ≡ 273
-
-```rust
-   return QuadricIntersection{Float(tShapeHit), pHit, phi};
-```
-
-With `BasicIntersect()` implemented, `Sphere::IntersectP()` is easily taken care of.
-
-〈Sphere Public Methods〉 +≡ 271
-
-```rust
-   bool IntersectP(const Ray &r, Float tMax = Infinity) const {
-        return BasicIntersect(r, tMax).has_value();
-   }
-```
-
-A `QuadricIntersection` can be upgraded to a `SurfaceInteraction` with a call to `InteractionFromIntersection()`().
-
-〈Sphere Public Methods〉 +≡ 271
-
-```rust
-   SurfaceInteraction InteractionFromIntersection(
-            const QuadricIntersection &isect, Vector3f wo, Float time) const {
-        Point3f pHit = isect.pObj;
-        Float phi = isect.phi;
-        〈Find parametric representation of sphere hit 277〉
-        〈Compute error bounds for sphere intersection 375〉
-        〈Return SurfaceInteraction for quadric intersection 279〉
-   }
-```
-
-```text
-    Float 23
-```
-
-```text
-    Infinity 361
-    Interval::UpperBound() 1059
-    Point3f 92
-    QuadricIntersection 273
-    QuadricIntersection::phi 273
-    QuadricIntersection::pObj 273
-    Ray 95
-    Sphere::BasicIntersect() 273
-    Sphere::phiMax 272
-    Sphere::radius 272
-    Sphere::zMax 272
-    Sphere::zMin 272
-    SurfaceInteraction 138
-    Vector3f 86
-```
-
-The method first computes u and v values by scaling the previously computed ϕ value for the hit to lie between 0 and 1 and by computing a θ value between 0 and 1 for the hit point based on the range of θ values for the given sphere. Then it finds the parametric partial derivatives of position ∂p/∂u and ∂p/ ∂v and surface normal ∂n/∂u and ∂n/∂v.
-
-〈Find parametric representation of sphere hit〉 ≡ 276
-
-```rust
-   Float u = phi / phiMax;
-   Float cosTheta = pHit.z / radius;
-   Float theta = SafeACos(cosTheta);
-   Float v = (theta - thetaZMin) / (thetaZMax - thetaZMin);
-   〈Compute sphere ∂p/∂u and ∂p/∂v 277〉
-   〈Compute sphere ∂n/∂u and ∂n/∂v 278〉
-```
-
-Computing the partial derivatives of a point on the sphere is a short exercise in algebra. Here we will show how the x component of ∂p/∂u, ∂px/∂u, is calculated; the other components are found similarly.
-
-Using the parametric definition of the sphere, we have Using a substitution based on the parametric definition of the sphere’s y coordinate, this simplifies to
-
-Similarly,
-
-and
-
-A similar process gives ∂p/∂v. The complete result is
-
-and the implementation follows directly.
-
-〈Compute sphere ∂p/∂u and ∂p/∂v〉 ≡ 277
-
-```rust
-   Float zRadius = std::sqrt(Sqr(pHit.x) + Sqr(pHit.y));
-   Float cosPhi = pHit.x / zRadius, sinPhi = pHit.y / zRadius;
-   Vector3f dpdu(-phiMax * pHit.y, phiMax * pHit.x, 0);
-   Float sinTheta = SafeSqrt(1 - Sqr(cosTheta));
-   Vector3f dpdv = (thetaZMax - thetaZMin) *
-       Vector3f(pHit.z * cosPhi, pHit.z * sinPhi, -radius * sinTheta);
-```
-
-```rust
-      Float 23
-      SafeACos() 1035
-      SafeSqrt() 1034
-      Sphere::phiMax 272
-      Sphere::radius 272
-      Sphere::thetaZMax 272
-      Sphere::thetaZMin 272
-      Sqr() 1034
-      Vector3f 86
-```
-
-It is also useful to determine how the normal changes as we move along the surface in the u and v directions. (For example, the antialiasing techniques in Chapter 10 use this information to antialias textures on objects that are seen reflected in curved surfaces.) The differential changes in normal ∂n/ ∂u and ∂n/∂v are given by the Weingarten equations from differential geometry:
-
-where E, F, and G are coefficients of the first fundamental form and are given by These are easily computed with the ∂p/∂u and ∂p/∂v values found earlier. The e, f, and g are
-
-coefficients of the second fundamental form, The two fundamental forms capture elementary metric properties of a surface, including notions of distance, angle, and curvature; see a differential geometry textbook such as Gray (1993) for details. To find e, f, and g, it is necessary to compute the second-order partial derivatives ∂2p/∂u2 and so on.
-
-For spheres, a little more algebra gives the second derivatives:
-
-The translation into code is straightforward.
-
-〈Compute sphere ∂n/∂u and ∂n/∂v〉 ≡ 277
-
-```rust
-   Vector3f d2Pduu = -phiMax * phiMax * Vector3f(pHit.x, pHit.y, 0);
-   Vector3f d2Pduv = (thetaZMax - thetaZMin) * pHit.z * phiMax *
-       Vector3f(-sinPhi, cosPhi, 0.);
-   Vector3f         d2Pdvv        =        -Sqr(thetaZMax         - thetaZMin)                     *
-   Vector3f(pHit.x,pHit.y,pHit.z);
-   〈Compute coefficients for fundamental forms 279〉
-   〈Compute ∂n/∂u and ∂n/∂v from fundamental form coefficients 279〉
-```
-
-```text
-    Sphere::phiMax 272
-```
-
-```text
-    Sphere::thetaZMax 272
-    Sphere::thetaZMin 272
-    Sqr() 1034
-    Vector3f 86
-```
-
-Given all the partial derivatives, it is also easy to compute the coefficients of the fundamental forms.
-
-〈Compute coefficients for fundamental forms〉 ≡ 278, 290, 337
-
-```rust
-   Float E = Dot(dpdu, dpdu), F = Dot(dpdu, dpdv), G = Dot(dpdv, dpdv);
-   Vector3f n = Normalize(Cross(dpdu, dpdv));
-   Float e = Dot(n, d2Pduu), f = Dot(n, d2Pduv), g = Dot(n, d2Pdvv);
-```
-
-We now have all the values necessary to apply the Weingarten equations. For this computation, we have found it worthwhile to use `DifferenceOfProducts()` to compute EG − F2 for the greater numerical accuracy it provides than the direct expression of that computation. Note also that we must be careful to avoid dividing by 0 if that expression is zero-valued so that dndu and dndv do not take on not-a-number values in that case.
-
-〈Compute ∂n/∂u and ∂n/∂v from fundamental form coefficients〉 ≡ 278, 290, 337
-
-```rust
-   Float EGF2 = DifferenceOfProducts(E, G, F, F);
-   Float invEGF2 = (EGF2 == 0) ? Float(0) : 1 / EGF2;
-   Normal3f dndu = Normal3f((f * F - e * G) * invEGF2 * dpdu +
-                             (e * F - f * E) * invEGF2 * dpdv);
-   Normal3f dndv = Normal3f((g * F - f * G) * invEGF2 * dpdu +
-                             (f * F - g * E) * invEGF2 * dpdv);
-```
-
-Having computed the surface parameterization and all the relevant partial derivatives, a `SurfaceInteraction` structure that contains all the necessary geometric information for this intersection can be returned. There are three things to note in the parameter values passed to the `SurfaceInteraction` constructor.
-
-1. The intersection point is provided as a `Point3i` that takes the pHit point computed
-earlier and an error bound pError that is initialized in the fragment 〈Compute error
-bounds for sphere intersection〉, which is defined later, in Section 6.8.5.
-2. The `SurfaceInteraction` is initialized with object-space geometric quantities (pHit,
-dpdu, etc.) and is then transformed to rendering space when it is returned. However, one
-of the parameters is the outgoing direction, ωo. This is passed in to `Interaction`
-FromIntersection(), but must be transformed to object space before being passed to
-the constructor so that the returned `Interaction`::wo value is in rendering space again.
-3. The flipNormal parameter indicates whether the surface normal should be flipped after
-it is initially computed with the cross product of dpdu and dpdv. This should be done
-either if the ReverseOrientation directive has been enabled or if the object-to-
-rendering-space transform swaps coordinate system handedness (but not if both of these
-
-```rust
-    Cross() 91
-    DifferenceOfProducts() 1044
-    Dot() 89
-    Float 23
-    Normal3f 94
-    Normalize() 88
-    Point2f 92
-    Point3fi 1061
-    Point3i 92
-    Sphere::objectFromRender 272
-    Sphere::reverseOrientation 272
-    Sphere:: transformSwapsHandedness 272
-    SurfaceInteraction 138
-    Vector3f 86
-```
-
-〈Return SurfaceInteraction for quadric intersection〉 ≡ 276, 290, 295
-
-```rust
-   bool flipNormal = reverseOrientation ^ transformSwapsHandedness;
-   Vector3f woObject = (*objectFromRender)(wo);
-   return (*renderFromObject)(
-        SurfaceInteraction(Point3fi(pHit,           pError), Point2f(u,                     v),
-        woObject,
-                          dpdu, dpdv, dndu, dndv, time, flipNormal));
-```
-
-### 6.2.3 SURFACE AREA
-
-To compute the surface area of quadrics, we use a standard formula from integral calculus. If a curve y = f (x) from x = a to x = b is revolved around the x axis, the surface area of the resulting swept surface is
-
-where f′ (x) denotes the derivative df/dx. Since most of our surfaces of revolution are only partially
-
-swept around the axis, we will instead use the formula The sphere is a surface of revolution of a circular arc. The function that defines the profile curve along the z axis of the sphere is
-
-and its derivative is
-
-Recall that the sphere is clipped at zmin and zmax. The surface area is therefore
-
-For the full sphere ϕmax = 2π, zmin = −r, and zmax = r, so we have the standard formula A = 4πr2, confirming that the formula makes sense.
-
-〈Sphere Public Methods〉 +≡ 271
-
-```rust
-   Float Area() const { return phiMax * radius * (zMax - zMin); }
-```
-
-### 6.2.4 SAMPLING
-
-Uniformly sampling a point on the sphere’s area is easy: `Sphere::Sample()` generates a point on the unit sphere using `SampleUniformSphere()` and then scales the point by the sphere’s radius. A bound on the numeric error in this value is found in a fragment that will be defined later.
-
-〈Sphere Method Definitions〉 +≡
-
-```rust
-pstd::optional<ShapeSample> Sphere::Sample(Point2f u) const { Point3f pObj = Point3f(0, 0, 0) + radius * SampleUniformSphere(u); 〈Reproject pObj to sphere surface and compute pObjError 376〉 〈Compute surface normal for sphere sample and return ShapeSample 281〉 }
-```
-
-```rust
-    Float 23
-    Point2f 92
-    Point3f 92
-    Point3fi 1061
-    SampleUniformSphere() 1016
-    ShapeSample 268
-    Sphere::phiMax 272
-    Sphere::radius 272
-    Sphere::zMax 272
-```
-
-```text
-    Sphere::zMin 272
-```
-
-Because the object-space sphere is at the origin, the object-space surface normal is easily found by converting the object-space point to a normal vector and then normalizing it. A `Point3fi` for the sample point can be initialized from pObj and its error bounds. The final sample is returned in rendering space with a PDF equal to one over the surface area, since this `Sample()` method samples uniformly by surface area.
-
-〈Compute surface normal for sphere sample and return ShapeSample〉 ≡ 280
-
-```rust
-   Normal3f nObj(pObj.x, pObj.y, pObj.z);
-   Normal3f n = Normalize((*renderFromObject)(nObj));
-   if (reverseOrientation)
-       n *= -1;
-   〈Compute (u, v) coordinates for sphere sample 281〉
-   Point3fi pi = (*renderFromObject)(Point3fi(pObj, pObjError));
-   return ShapeSample{Interaction(pi, n, uv), 1 / Area()};
-```
-
-The (u, v) parametric coordinates for the point are given by inverting Equations (6.1) and (6.2).
-
-〈Compute (u, v) coordinates for sphere sample〉 ≡ 281
-
-```rust
-   Float theta = SafeACos(pObj.z / radius);
-   Float phi = std::atan2(pObj.y, pObj.x);
-   if (phi < 0) phi += 2 * Pi;
-   Point2f uv(phi / phiMax, (theta - thetaZMin) / (thetaZMax - thetaZMin));
-```
-
-The associated `PDF()` method returns the same PDF.
-
-〈Sphere Public Methods〉 +≡ 271
-
-```rust
-   Float PDF(const Interaction &) const { return 1 / Area(); }
-```
-
-For the sphere sampling method that is given a point being illuminated, we can do much better than sampling over the sphere’s entire area. While uniform sampling over its surface would be perfectly correct, a better approach is not to sample points on the sphere that are definitely not visible (such as those on the back side of the sphere as seen from the point). The sampling routine here instead uniformly samples directions over the solid angle subtended by the sphere from the reference point and then computes the point on the sphere corresponding to the sampled direction.
-
-〈Sphere Public Methods〉 +≡ 271
-
-```rust
-   Option<ShapeSample> Sample(const ShapeSampleContext &ctx,
-                                             Point2f u) const {
-        〈Sample uniformly on sphere if p is inside it 281〉
-        〈Sample sphere uniformly inside subtended cone 282〉
-        〈Return ShapeSample for sampled point on sphere 284〉
-```
-
-```rust
-    }
-```
-
-```rust
-    DistanceSquared() 93
-    Float 23
-    Interaction 136
-    Normal3f 94
-    Normalize() 88
-    OffsetRayOrigin() 381
-    Pi 1033
-    Point2f 92
-    Point3f 92
-    Point3fi 1061
-    SafeACos() 1035
-    ShapeSample 268
-    ShapeSampleContext 268
-    ShapeSampleContext::OffsetRayOrigin() 383
-    Sphere::Area() 280
-    Sphere::phiMax 272
-    Sphere::radius 272
-    Sphere::renderFromObject 272
-    Sphere::reverseOrientation 272
-    Sphere::thetaZMax 272
-    Sphere::thetaZMin 272
-    Sqr() 1034
-```
-
-For points that lie inside the sphere, the entire sphere should be sampled, since the whole sphere is visible from inside it. Note that the reference point used in this determination, pOrigin, is computed using the `OffsetRayOrigin()` function. Doing so ensures that if the reference point came from a ray intersecting the sphere, the point tested does not lie on the wrong side of the sphere due to rounding error.
-
-〈Sample uniformly on sphere if p is inside it〉 ≡ 281
-
-```rust
-   Point3f pCenter = (*renderFromObject)(Point3f(0, 0, 0));
-   Point3f pOrigin = ctx.OffsetRayOrigin(pCenter);
-   if (DistanceSquared(pOrigin, pCenter) <= Sqr(radius)) {
-        〈Sample shape by area and compute incident direction wi 282〉
-        〈Convert area sampling PDF in ss to solid angle measure 282〉
-        return ss;
-   }
-```
-
-A call to the first `Sample()` method gives an initial `ShapeSample` for a point on the sphere. The direction vector from the reference point to the sampled point wi is computed and then normalized, so long as it is non-degenerate.
-
-〈Sample shape by area and compute incident direction wi〉 ≡ 281, 291, 317, 343
-
-```rust
-   Option<ShapeSample> ss = Sample(u);
-   ss->intr.time = ctx.time;
-   Vector3f wi = ss->intr.p() - ctx.p();
-   if (LengthSquared(wi) == 0) return {};
-   wi = Normalize(wi);
-```
-
-To compute the value of the PDF, the method converts the value of the PDF with respect to surface area from the call to `Sample()` to a PDF with respect to solid angle from the reference point. Doing so
-
-requires division by the factor where θo is the angle between the direction of the ray from the point on the light to the reference point and the light’s surface normal, and r2 is the distance between the point on the light and the point being shaded (recall the discussion about transforming between area and directional integration domains in Section 4.2.3).
-
-In the rare case that the surface normal and wi are perpendicular, this results in an infinite value, in which case no valid sample is returned.
-
-〈Convert area sampling PDF in ss to solid angle measure〉 ≡ 281, 291, 317, 343
-
-```rust
-   ss->pdf /= AbsDot(ss->intr.n, -wi) /
-                DistanceSquared(ctx.p(), ss->intr.p());
-   if (IsInf(ss->pdf))
-        return {};
-```
-
-For the more common case of a point outside the sphere, sampling within the cone proceeds.
-
-〈Sample sphere uniformly inside subtended cone〉 ≡ 281
-
-```rust
-   〈Compute quantities related to the θmax for cone 283〉
-    〈Compute θ and ϕ values for sample in cone 283〉
-    〈Compute angle α from center of sphere to sampled point on surface 284〉
-    〈Compute surface normal and sampled point on sphere 284〉
-```
-
-If the reference point is outside the sphere, then as seen from the reference point p the sphere
-
-subtends an angle
-
-```text
-    AbsDot() 90
-    DistanceSquared() 93
-    Interaction::n 137
-    Interaction::p() 137
-    Interaction::time 137
-```
-
-```text
-    IsInf() 363
-    LengthSquared() 87
-    Normalize() 88
-    SampleUniformCone() 1018
-    ShapeSample 268
-    ShapeSample::intr 268
-    ShapeSample::pdf 268
-    ShapeSampleContext::p() 269
-    ShapeSampleContext::time 268
-    Vector3f 86
-```
-
-where r is the radius of the sphere and pc is its center (Figure 6.5). The sampling method here computes the cosine of the subtended angle θmax using Equation (6.4) and then uniformly samples directions inside this cone of directions using an approach that is derived for the `SampleUniformCone()` function in Section A.5.4, sampling an offset θ from the center vector ωc and then uniformly sampling a rotation angle ϕ around the vector. That function is not used here, however, as we will need some of the intermediate values in the following fragments.
-
-![Figure 6.5](images/img-430-033.png)
-
-
-*Figure 6.5: To sample points on a spherical light source, we can uniformly sample within the cone of directions around a central vector ωc with an angular spread of up to θmax. Trigonometry can be used to derive the value of sin θmax, r/|pc − p|.*
-
-〈Compute quantities related to the θmax for cone〉 ≡ 282
-
-```rust
-   Float sinThetaMax = radius / Distance(ctx.p(), pCenter);
-   Float sin2ThetaMax = Sqr(sinThetaMax);
-   Float cosThetaMax = SafeSqrt(1 - sin2ThetaMax);
-   Float oneMinusCosThetaMax = 1 - cosThetaMax;
-```
-
-As shown in Section A.5.4, uniform sampling of cos θ between cos θmax and 1 gives the cosine of a uniformly sampled direction in the cone.
-
-〈Compute θ and ϕ values for sample in cone〉 ≡ 282
-
-```rust
-    Float cosTheta = (cosThetaMax - 1) * u[0] + 1;
-    Float sin2Theta = 1 - Sqr(cosTheta);
-    if (sin2ThetaMax < 0.00068523f /* sin^2(1.5 deg) */) {
-        〈Compute cone sample via Taylor series expansion for small angles 283〉
-    }
-```
-
-For very small θmax angles, cos2 θmax is close to one. Computing sin2 θ by subtracting this value from 1 gives a value close to 0, but with very little accuracy, since there is much less floating-point precision close to 1 than there is by 0. Therefore, in this case, we use single-term Taylor expansions near 0 to compute sin2 θ and related terms, which gives much better accuracy.
-
-〈Compute cone sample via Taylor series expansion for small angles〉 ≡ 283
-
-```rust
-   sin2Theta = sin2ThetaMax * u[0];
-   cosTheta = std::sqrt(1 - sin2Theta);
-   oneMinusCosThetaMax = sin2ThetaMax / 2;
-```
-
-Given a sample angle (θ, ϕ) with respect to the sampling coordinate system computed earlier, we can directly compute the corresponding point on the sphere. The first step is to find the angle γ between the vector from the reference point pr to the sampled point on the sphere ps and the vector from the center of the sphere pc to ps. The basic setting is shown in Figure 6.6.
-
-We denote the distance from the reference point to the center of the sphere by dc. Applying the law of
-
-sines, we can find that
-
-```rust
-    Distance() 93
-    Float 23
-    SafeSqrt() 1034
-    ShapeSampleContext::p() 269
-    Sqr() 1034
-```
-
-Because γ is an obtuse angle, γ = π − arcsin(dc/r sin θ). Given two of the three angles of the triangle, it
-
-follows that
-
-![Figure 6.6](images/img-432-034.png)
-
-
-*Figure 6.6: Geometric Setting for Computing the Sampled Point on the Sphere Corresponding to a Sampled Angle θ. Consider the triangle shown here. The lengths of two sides are known: one is the radius of the sphere r and the other is dc, the distance from the reference point to the center of the sphere. We also know one angle, θ. Given these, we first solve for the angle γ before finding cos α.*
-
-We can avoid expensive inverse trigonometric functions by taking advantage of the fact that we only need the sine and cosine of α. If we take the cosine of both sides of this equation, apply the cosine angle addition formula, and then use the two relationships sin θmax = r/dc and
-
-, we can find The value of sin α follows from the identity .
-
-〈Compute angle α from center of sphere to sampled point on surface〉 ≡ 282
-
-```rust
-   Float cosAlpha = sin2Theta / sinThetaMax +
-                     cosTheta * SafeSqrt(1 - sin2Theta / Sqr(sinThetaMax));
-   Float sinAlpha = SafeSqrt(1 - Sqr(cosAlpha));
-```
-
-The α angle and ϕ give the spherical coordinates for the sampled direction with respect to a coordinate system with z axis centered around the vector from the sphere center to the reference point. We can use an instance of the `Frame` class to transform the direction from that coordinate system to rendering space. The surface normal on the sphere can then be computed as the negation of that vector and the point on the sphere can be found by scaling by the radius and translating by the sphere’s center point.
-
-```rust
-    Float 23
-    Frame 133
-    Frame::FromLocal() 134
-    Frame::FromZ() 134
-    Interaction 136
-    Normal3f 94
-    Normalize() 88
-    Pi 1033
-```
-
-```text
-    Point3f 92
-    Point3fi 1061
-    SafeSqrt() 1034
-    ShapeSample 268
-    ShapeSampleContext::p() 269
-    ShapeSampleContext::time 268
-    Sphere::radius 272
-    Sphere::reverseOrientation 272
-    SphericalDirection() 106
-    Sqr() 1034
-    Vector3f 86
-```
-
-〈Compute surface normal and sampled point on sphere〉 ≡ 282
-
-```rust
-   Float phi = u[1] * 2 * Pi;
-   Vector3f w = SphericalDirection(sinAlpha, cosAlpha, phi);
-   Frame samplingFrame = Frame::FromZ(Normalize(pCenter - ctx.p()));
-   Normal3f n(samplingFrame.FromLocal(-w));
-   Point3f p = pCenter + radius * Point3f(n.x, n.y, n.z);
-   if (reverseOrientation)
-       n *= -1;
-```
-
-The 〈Compute (u, v) coordinates for sampled point on sphere〉 fragment applies the same mapping using the object space sampled point as is done in the `Intersect()` method, and so it is elided. The PDF for uniform sampling in a cone is 1/(2π(1 − cos θmax)). (A derivation is in Section A.5.4.)
-
-〈Return ShapeSample for sampled point on sphere〉 ≡ 281
-
-```rust
-   〈Compute pError for sampled point on sphere〉
-   〈Compute (u, v) coordinates for sampled point on sphere〉
-   return ShapeSample{Interaction(Point3fi(p, pError), n, ctx.time, uv),
-                       1 / (2 * Pi * oneMinusCosThetaMax)};
-```
-
-The method that computes the PDF for sampling a direction toward a sphere from a reference point also differs depending on which of the two sampling strategies would be used for the point.
-
-〈Sphere Public Methods〉 +≡ 271
-
-```rust
-   Float PDF(const ShapeSampleContext &ctx, Vector3f wi) const {
-        Point3f pCenter = (*renderFromObject)(Point3f(0, 0, 0));
-        Point3f pOrigin = ctx.OffsetRayOrigin(pCenter);
-        if (DistanceSquared(pOrigin, pCenter) <= Sqr(radius)) {
-            〈Return solid angle PDF for point inside sphere 285〉
+impl Sphere {
+    fn new(
+        render_from_object: &Transform,
+        object_from_render: &Transform,
+        reverse_orientation: bool,
+        radius: Float,
+        z_min: Float,
+        z_max: Float,
+        phi_max: Float,
+    ) -> Self {
+        let (z_min, z_max) = (z_min.min(z_max), z_min.max(z_max));
+        Self {
+            radius,
+            z_min: z_min.clamp(-radius, radius),
+            z_max: z_max.clamp(-radius, radius),
+            theta_z_min: (z_min / radius).clamp(-1.0, 1.0).acos(),
+            theta_z_max: (z_max / radius).clamp(-1.0, 1.0).acos(),
+            phi_max: phi_max.to_radians().clamp(0.0, 360.0),
+            render_from_object,
+            object_from_render,
+            reverse_orientation,
+            transform_swaps_handedness: render_from_object.swaps_handedness(),
         }
-        〈Compute general solid angle sphere PDF 285〉
-```
-
-```rust
     }
+}
 ```
 
-If the reference point is inside the sphere, a uniform area sampling strategy would have been used.
-
-〈Return solid angle PDF for point inside sphere〉 ≡ 285
+**〈Sphere Private Members〉 ≡ 271**
 
 ```rust
-   〈Intersect sample ray with shape geometry 285〉
-   〈Compute PDF in solid angle measure from shape intersection point 285〉
-   return pdf;
+struct Sphere {
+    radius: Float,
+    z_min: Float,
+    z_max: Float,
+    theta_z_min: Float,
+    theta_z_max: Float,
+    phi_max: Float,
+    render_from_object: Transform,
+    object_from_render: Transform,
+    reverse_orientation: bool,
+    transform_swaps_handedness: bool,
+}
 ```
 
-First, the corresponding point on the sphere is found by intersecting a ray leaving the reference point in direction wi with the sphere. Note that this is a fairly efficient computation since it is only intersecting the ray with a single sphere and not the entire scene.
+### 6.2.1 Bounding
 
-〈Intersect sample ray with shape geometry〉 ≡ 285, 291, 324, 345
+An object-space bounding box is straightforward. The implementation uses the user's $z_{\min}$ and $z_{\max}$ to tighten the bound when less than a full sphere is rendered, but does not do the extra work of tightening for $\phi_{\max}<3\pi/2$; that improvement is left as an exercise. The box is transformed to rendering space before being returned.
+
+**〈Sphere Method Definitions〉 ≡**
 
 ```rust
-   Ray ray = ctx.SpawnRay(wi);
-   Option<ShapeIntersection> isect = Intersect(ray);
-   if (!isect) return 0;
+fn bounds(&self) -> Bounds3f {
+    self.render_from_object.apply(Bounds3f::new(
+        Point3f::new(-self.radius, -self.radius, self.z_min),
+        Point3f::new( self.radius,  self.radius, self.z_max),
+    ))
+}
 ```
 
-In turn, the uniform area density of one over the surface area is converted to a solid angle density following the same approach as was used in the previous `Sample()` method.
+`NormalBounds()` does not consider partial spheres and always returns the bound for a full sphere, i.e. all possible directions.
+
+**〈Sphere Public Methods〉 +≡ 271**
 
 ```rust
-    AbsDot() 90
-    DistanceSquared() 93
-    Float 23
-    Interaction::n 137
-    Interaction::p() 137
-    IsInf() 363
-    Pi 1033
-    Point3f 92
-    Ray 95
-    SafeSqrt() 1034
-    ShapeIntersection 266
-    ShapeIntersection::intr 266
-    ShapeSampleContext 268
-    ShapeSampleContext::OffsetRayOrigin() 383
-    ShapeSampleContext::p() 269
-    ShapeSampleContext::SpawnRay() 383
-    Sphere::Area() 280
-    Sphere::Intersect() 273
-    Sphere::radius 272
-    Sphere::renderFromObject 272
-    Sqr() 1034
-    Vector3f 86
+fn normal_bounds(&self) -> DirectionCone { DirectionCone::entire_sphere() }
 ```
 
-〈Compute PDF in solid angle measure from shape intersection point〉 ≡ 285, 291, 324
+<details>
+<summary>Reference / notes</summary>
+
+`Bounds3f` 97 · `DirectionCone` 114 · `DirectionCone::EntireSphere()` 115 · `Float` 23 · `Point3f` 92 · `Sphere` 271 · `Transform` 120 · `Transform::SwapsHandedness()` 133
+
+</details>
+
+### 6.2.2 Intersection Tests
+
+The ray-intersection test is split into two stages. `BasicIntersect()` does the ray–sphere test and returns a small `QuadricIntersection` if it hits; `InteractionFromIntersection()` upgrades that to a full `SurfaceInteraction` returned from `Intersect()`.
+
+There are two motivations for this split. First, `IntersectP()` becomes a trivial wrapper around `BasicIntersect()`. Second, pbrt's GPU path finds the closest intersection among all shapes *before* constructing the full `SurfaceInteraction`; the decomposition fits that directly.
+
+<details>
+<summary>Reference / notes</summary>
+
+`Bounds3f` 97 · `DirectionCone` 114 · `DirectionCone::EntireSphere()` 115 · `Float` 23 · `Point3f` 92 · `Sphere` 271 · `Sphere::objectFromRender` 272 · `Sphere::phiMax` 272 · `Sphere::radius` 272 · `Sphere::renderFromObject` 272 · `Sphere::reverseOrientation` 272 · `Sphere::thetaZMax` 272 · `Sphere::thetaZMin` 272 · `Sphere::transformSwapsHandedness` 272 · `Sphere::zMax` 272 · `Sphere::zMin` 272 · `Transform` 120 · `Transform::SwapsHandedness()` 133
+
+</details>
+
+**〈Sphere Public Methods〉 +≡ 271**
 
 ```rust
-   Float pdf = (1 / Area()) / (AbsDot(isect->intr.n, -wi) /
-                                  DistanceSquared(ctx.p(), isect->intr.p()));
-   if (IsInf(pdf)) pdf = 0;
+fn intersect(&self, ray: &Ray, t_max: Float) -> Option<ShapeIntersection> {
+    let isect = self.basic_intersect(ray, t_max)?;
+    let intr = self.interaction_from_intersection(&isect, -ray.d, ray.time);
+    Some(ShapeIntersection { intr, t_hit: isect.t_hit })
+}
 ```
 
-The value of the PDF is easily computed using the same trigonometric identities as were used in the sampling routine.
+`QuadricIntersection` stores the parametric $t$ along the ray, the object-space intersection point, and the sphere's $\phi$ value there. As its name suggests, the other quadrics use this structure in the same way.
 
-〈Compute general solid angle sphere PDF〉 ≡ 285
+**〈QuadricIntersection Definition〉 ≡**
 
 ```rust
-   Float sin2ThetaMax = radius * radius / DistanceSquared(ctx.p(), pCenter);
-   Float cosThetaMax = SafeSqrt(1 - sin2ThetaMax);
-   Float oneMinusCosThetaMax = 1 - cosThetaMax;
-   〈Compute more accurate oneMinusCosThetaMax for small solid angle 285〉
-   return 1 / (2 * Pi * oneMinusCosThetaMax);
+struct QuadricIntersection {
+    t_hit: Float,
+    p_obj: Point3f,
+    phi: Float,
+}
 ```
 
-Here it is also worth considering numerical accuracy when the sphere subtends a small solid angle from the reference point. In that case, cosThetaMax will be close to 1 and the value of oneMinusCosThetaMax will be relatively inaccurate; we then switch to the one-term Taylor approximation of 1 − cos θ ≈ 1/2 sin2 θ, which is more accurate near zero.
+The basic test transforms the rendering-space ray to object space and intersects it with the complete sphere; for partial spheres, additional tests reject intersections with removed portions.
 
-〈Compute more accurate oneMinusCosThetaMax for small solid angle〉 ≡ 285
+**〈Sphere Public Methods〉 +≡ 271**
 
 ```rust
-   if (sin2ThetaMax < 0.00068523f /* sin^2(1.5 deg) */)
-       oneMinusCosThetaMax = sin2ThetaMax / 2;
+fn basic_intersect(&self, r: &Ray, t_max: Float) -> Option<QuadricIntersection> {
+    let phi: Float;
+    let mut p_hit: Point3f;
+    // 〈Transform Ray origin and direction to object space〉
+    // 〈Solve quadratic equation to compute sphere t0 and t1〉
+    // 〈Check quadric shape t0 and t1 for nearest intersection〉
+    // 〈Compute sphere hit position and phi〉
+    // 〈Test sphere intersection against clipping parameters〉
+    // 〈Return QuadricIntersection for sphere intersection〉
+}
 ```
 
-![Figure 6.7](images/img-436-035.png)
+<details>
+<summary>Reference / notes</summary>
 
+`Float` 23 · `Infinity` 361 · `Point3f` 92 · `Point3fi` 1061 · `QuadricIntersection` 273 · `QuadricIntersection::tHit` 273 · `Ray` 95 · `Ray::d` 95 · `Ray::o` 95 · `Ray::time` 95 · `ShapeIntersection` 266 · `Sphere::BasicIntersect()` 273 · `Sphere::InteractionFromIntersection()` 276 · `Sphere::objectFromRender` 272 · `SurfaceInteraction` 138 · `Vector3f` 86 · `Vector3fi` 1060
 
-*Figure 6.7: Basic Setting for the Cylinder Shape. The cylinder has a radius of r and covers a range along the z axis. A partial cylinder may be swept by specifying a maximum ϕ value.*
+</details>
 
-## 6.3 CYLINDERS
+The transformed ray origin and direction are stored as `Point3fi` and `Vector3fi` rather than `Point3f`/`Vector3f`. These represent each quantity as a small interval bounding the floating-point round-off introduced by the transformation; later we will use those bounds to improve geometric accuracy (Section 6.8). For the most part they can be used just like their non-interval counterparts.
 
-Another useful quadric is the cylinder; pbrt provides a cylinder `Shape` that is centered around the z axis. The user can supply a minimum and maximum z value for the cylinder, as well as a radius and maximum ϕ sweep value (Figure 6.7).
-
-〈Cylinder Definition〉 ≡
+**〈Transform Ray origin and direction to object space〉 ≡ 273, 288, 293**
 
 ```rust
-class Cylinder { public: 〈Cylinder Public Methods 287〉 private: 〈Cylinder Private Members 287〉 };
+let oi: Point3fi = self.object_from_render.apply(Point3fi::from(r.o));
+let di: Vector3fi = self.object_from_render.apply(Vector3fi::from(r.d));
 ```
 
-In parametric form, a cylinder is described by the following equations:
+For a sphere centered at the origin with radius $r$, the implicit representation is
 
-```text
-                      ϕ = u ϕmax
-                      x = r cos ϕ
-                      y = r sin ϕ
+$$
+x^2+y^2+z^2-r^2=0.
+$$
+
+Substituting the ray equation (Equation 3.4), $\mathbf p(t)=\mathbf o+t\mathbf d$, gives
+
+$$
+(o_x+t d_x)^2+(o_y+t d_y)^2+(o_z+t d_z)^2=r^2.
+$$
+
+Every quantity except $t$ is known. Expanding and gathering terms gives the quadratic equation
+
+$$
+a t^2 + b t + c = 0,
+\qquad
+a = |\mathbf d|^2,\quad b = 2\,\mathbf d\!\cdot\!\mathbf o,\quad c = |\mathbf o|^2-r^2.
+$$
+
+<details>
+<summary>Reference / notes</summary>
+
+`Interval` 1057 · `Interval::Sqr()` 1060 · `Point3f` 92 · `Point3fi` 1061 · `Sphere::radius` 272 · `Sqr()` 1034
+
+</details>
+
+**〈Solve quadratic equation to compute sphere t0 and t1〉 ≡ 273**
+
+```rust
+let (mut t0, mut t1): (Interval, Interval);
+// 〈Compute sphere quadratic coefficients〉
+// 〈Compute sphere quadratic discriminant discrim 372〉
+// 〈Compute quadratic t values〉
 ```
 
-```text
-                       z = zmin + v(zmax − zmin).
+`Interval` stores a small range of floats to bound rounding error (Section B.2.15); it relates to `Float` as `Point3fi` relates to `Point3f`. With `Interval`, Equation (6.3) translates directly to:
+
+**〈Compute sphere quadratic coefficients〉 ≡ 274**
+
+```rust
+let a = di.x.sqr() + di.y.sqr() + di.z.sqr();
+let b = 2.0 * (di.x * oi.x + di.y * oi.y + di.z * oi.z);
+let c = oi.x.sqr() + oi.y.sqr() + oi.z.sqr() - Interval::from(self.radius).sqr();
 ```
 
-*Figure 6.8 shows a rendered image of two cylinders. Like the sphere image, the right cylinder is a complete cylinder, while the left one is a partial cylinder because it has a ϕmax value less than 2π.*
+The fragment `〈Compute sphere quadratic discriminant discrim〉` computes $b^2-4ac$ in a way that maintains accuracy in tricky cases; it is defined later in Section 6.8.3, after the relevant floating-point topics have been introduced. With `discrim` in hand, the quadratic formula can be applied. We use a more accurate variant of the traditional approach (Section B.2.10):
 
-```text
-    Cylinder 286
-    Shape 261
-    Sphere 271
+$$
+q = -\tfrac12\big(b \pm \sqrt{b^2-4ac}\big), \qquad
+t_0 = q/a,\qquad t_1 = c/q .
+$$
+
+**〈Compute quadratic t values〉 ≡ 274, 288**
+
+```rust
+let root_discrim = discrim.sqrt();
+let q = if b.to_float() < 0.0 { -0.5 * (b - root_discrim) }
+        else                  { -0.5 * (b + root_discrim) };
+t0 = q / a;
+t1 = c / q;
+// 〈Swap quadratic t values so that t0 is the lesser〉
 ```
 
-Similar to the `Sphere` constructor, the `Cylinder` constructor takes transformations that define its object space and the parameters that define the cylinder itself. Its constructor just initializes the corresponding member variables, so we will not include it here.
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Interval` 1057 · `Interval::LowerBound()` 1059 · `Interval::Sqrt()` 1060 · `Interval::UpperBound()` 1059 · `Pi` 1033 · `Point3f` 92 · `Sphere::radius` 272 · `Vector3f` 86
+
+</details>
+
+Because `t0` and `t1` are intervals, it may be ambiguous which is smaller. We use their lower bounds for the test: in ambiguous cases we then do not risk returning a farther hit in place of a closer one.
+
+**〈Swap quadratic t values so that t0 is the lesser〉 ≡ 275**
+
+```rust
+if t0.lower_bound() > t1.lower_bound() { std::mem::swap(&mut t0, &mut t1); }
+```
+
+A similar ambiguity arises when testing $t$ against the acceptable range; again we err on the side of returning no intersection rather than an invalid one. The closest valid $t$ is stored in `t_shape_hit`.
+
+**〈Check quadric shape t0 and t1 for nearest intersection〉 ≡ 273, 288**
+
+```rust
+if t0.upper_bound() > t_max || t1.lower_bound() <= 0.0 { return None; }
+let mut t_shape_hit = t0;
+if t_shape_hit.lower_bound() <= 0.0 {
+    t_shape_hit = t1;
+    if t_shape_hit.upper_bound() > t_max { return None; }
+}
+```
+
+Given the parametric distance to the full-sphere intersection, the hit point is that offset along the ray. Casting the intervals back to non-interval values gives their midpoints. Due to floating-point precision, the computed $\mathbf p_{\mathrm{hit}}$ may lie slightly to one side of the true sphere surface; `〈Refine sphere intersection point〉` (Section 6.8.5) improves this.
+
+Next we handle partial spheres with clipped $z$ or $\phi$ ranges. Using the parametric representation, $\phi=\arctan(y/x)$; the result of `atan2` is remapped to $[0,2\pi)$ to match the sphere's definition.
+
+**〈Compute sphere hit position and phi〉 ≡ 273, 276**
+
+```rust
+p_hit = Point3f::from(oi) + t_shape_hit.to_float() * Vector3f::from(di);
+// 〈Refine sphere intersection point 375〉
+if p_hit.x == 0.0 && p_hit.y == 0.0 { p_hit.x = 1e-5 * self.radius; }
+phi = p_hit.y.atan2(p_hit.x);
+if phi < 0.0 { phi += 2.0 * PI; }
+```
+
+The hit point is tested against the specified $z$ and $\phi$ minima and maxima. One subtlety: the $z$ tests are skipped when the $z$ range includes the whole sphere, because computed `pHit.z` may be slightly outside due to round-off. If $t_0$ is invalid, the routine retries with $t_1$.
+
+**〈Test sphere intersection against clipping parameters〉 ≡ 273**
+
+```rust
+if (self.z_min > -self.radius && p_hit.z < self.z_min)
+    || (self.z_max < self.radius && p_hit.z > self.z_max)
+    || phi > self.phi_max
+{
+    if t_shape_hit == t1 { return None; }
+    if t1.upper_bound() > t_max { return None; }
+    t_shape_hit = t1;
+    // 〈Compute sphere hit position and phi 275〉
+    if (self.z_min > -self.radius && p_hit.z < self.z_min)
+        || (self.z_max < self.radius && p_hit.z > self.z_max)
+        || phi > self.phi_max
+    { return None; }
+}
+```
+
+At this point the ray definitely hits the sphere. A `QuadricIntersection` is returned with enough information to determine the remaining geometry. Recall from Section 6.1.4 that $t$ computed in object space is also correct in rendering space, so it can be returned directly.
+
+**〈Return QuadricIntersection for sphere intersection〉 ≡ 273**
+
+```rust
+Some(QuadricIntersection {
+    t_hit: t_shape_hit.to_float(),
+    p_obj: p_hit,
+    phi,
+})
+```
+
+With `BasicIntersect()` implemented, `IntersectP()` is a simple wrapper:
+
+**〈Sphere Public Methods〉 +≡ 271**
+
+```rust
+fn intersect_p(&self, r: &Ray, t_max: Float) -> bool {
+    self.basic_intersect(r, t_max).is_some()
+}
+```
+
+#### GPU version (WGSL)
+
+The two-stage structure becomes two WGSL functions: a cheap quadratic root finder usable from any-hit shaders, and the full interaction builder in the closest-hit shader.
+
+```wgsl
+struct QuadricHit { t: f32, p_obj: vec3f, phi: f32 };
+
+fn sphere_basic_intersect(o: vec3f, d: vec3f, t_max: f32,
+                          radius: f32, z_min: f32, z_max: f32,
+                          phi_max: f32) -> QuadricHit {
+  let a = dot(d, d);
+  let b = 2.0 * dot(d, o);
+  let c = dot(o, o) - radius * radius;
+  // Accurate discriminant; Section 6.8.3 gives the derivation.
+  let f = b / (2.0 * a);
+  let v = o - f * d;
+  let discrim = 4.0 * a * (radius + length(v)) * (radius - length(v));
+  if (discrim < 0.0) { return QuadricHit(-1.0, vec3f(0.0), 0.0); }
+  let root = sqrt(discrim);
+  let q = select(-0.5 * (b + root), -0.5 * (b - root), b < 0.0);
+  var t = q / a;
+  if (t <= 0.0) { t = c / q; }
+  if (t <= 0.0 || t >= t_max) { return QuadricHit(-1.0, vec3f(0.0), 0.0); }
+
+  var p = o + t * d;
+  p *= radius / length(p);                 // reproject (Section 6.8.5)
+  var phi = atan2(p.y, p.x);
+  if (phi < 0.0) { phi += 2.0 * PI; }
+  if (p.z < z_min || p.z > z_max || phi > phi_max) {
+    return QuadricHit(-1.0, vec3f(0.0), 0.0);
+  }
+  return QuadricHit(t, p, phi);
+}
+```
+
+A `QuadricIntersection` is upgraded to a `SurfaceInteraction` by `InteractionFromIntersection()`.
+
+**〈Sphere Public Methods〉 +≡ 271**
+
+```rust
+fn interaction_from_intersection(
+    &self,
+    isect: &QuadricIntersection,
+    wo: Vector3f,
+    time: Float,
+) -> SurfaceInteraction {
+    let p_hit = isect.p_obj;
+    let phi = isect.phi;
+    // 〈Find parametric representation of sphere hit〉
+    // 〈Compute error bounds for sphere intersection 375〉
+    // 〈Return SurfaceInteraction for quadric intersection 279〉
+}
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Infinity` 361 · `Interval::UpperBound()` 1059 · `Point3f` 92 · `QuadricIntersection` 273 · `QuadricIntersection::phi` 273 · `QuadricIntersection::pObj` 273 · `Ray` 95 · `Sphere::BasicIntersect()` 273 · `Sphere::phiMax` 272 · `Sphere::radius` 272 · `Sphere::zMax` 272 · `Sphere::zMin` 272 · `SurfaceInteraction` 138 · `Vector3f` 86
+
+</details>
+
+The method first computes $u$ and $v$ by scaling $\phi$ into $[0,1]$ and computing a $\theta$ value in $[0,1]$ from the sphere's $\theta$ range, then finds the parametric partial derivatives of position, $\partial\mathbf p/\partial u$ and $\partial\mathbf p/\partial v$, and of the normal, $\partial\mathbf n/\partial u$ and $\partial\mathbf n/\partial v$.
+
+**〈Find parametric representation of sphere hit〉 ≡ 276**
+
+```rust
+let u = phi / self.phi_max;
+let cos_theta = p_hit.z / self.radius;
+let theta = safe_acos(cos_theta);
+let v = (theta - self.theta_z_min) / (self.theta_z_max - self.theta_z_min);
+// 〈Compute sphere dpdu and dpdv〉
+// 〈Compute sphere dndu and dndv〉
+```
+
+Computing the partial derivatives of a point on the sphere is a short algebra exercise. Using $x=r\sin\theta\cos\phi$, the $x$ component is
+
+$$
+\frac{\partial p_x}{\partial u}
+= \frac{\partial p_x}{\partial\phi}\frac{\partial\phi}{\partial u}
+= (-r\sin\theta\sin\phi)\,\phi_{\max} = -\phi_{\max}\,y,
+$$
+
+and similarly $\partial p_y/\partial u=\phi_{\max}x$ and $\partial p_z/\partial u=0$. Likewise,
+
+$$
+\frac{\partial\mathbf p}{\partial v}
+= (\theta_{\max}-\theta_{\min})\big(z\cos\phi,\; z\sin\phi,\; -r\sin\theta\big).
+$$
+
+The complete result follows directly in code:
+
+**〈Compute sphere dpdu and dpdv〉 ≡ 277**
+
+```rust
+let z_radius = (p_hit.x.sqr() + p_hit.y.sqr()).sqrt();
+let cos_phi = p_hit.x / z_radius;
+let sin_phi = p_hit.y / z_radius;
+let dpdu = Vector3f::new(-self.phi_max * p_hit.y, self.phi_max * p_hit.x, 0.0);
+let sin_theta = safe_sqrt(1.0 - cos_theta.sqr());
+let dpdv = (self.theta_z_max - self.theta_z_min)
+    * Vector3f::new(p_hit.z * cos_phi, p_hit.z * sin_phi, -self.radius * sin_theta);
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`SafeACos()` 1035 · `SafeSqrt()` 1034 · `Sphere::phiMax` 272 · `Sphere::radius` 272 · `Sphere::thetaZMax` 272 · `Sphere::thetaZMin` 272 · `Sqr()` 1034 · `Vector3f` 86
+
+</details>
+
+It is also useful to know how the normal changes as we move along the surface—the antialiasing techniques of Chapter 10 use this to antialias textures on curved reflected objects. The differential changes $\partial\mathbf n/\partial u$ and $\partial\mathbf n/\partial v$ are given by the *Weingarten equations* from differential geometry:
+
+$$
+\frac{\partial\mathbf n}{\partial u}
+ = \frac{fF-eG}{EG-F^2}\frac{\partial\mathbf p}{\partial u}
+ + \frac{eF-fE}{EG-F^2}\frac{\partial\mathbf p}{\partial v},
+\qquad
+\frac{\partial\mathbf n}{\partial v}
+ = \frac{gF-fG}{EG-F^2}\frac{\partial\mathbf p}{\partial u}
+ + \frac{fF-gE}{EG-F^2}\frac{\partial\mathbf p}{\partial v}.
+$$
+
+Here $E$, $F$, $G$ are coefficients of the first fundamental form,
+
+$$
+E = \frac{\partial\mathbf p}{\partial u}\!\cdot\!\frac{\partial\mathbf p}{\partial u},
+\quad
+F = \frac{\partial\mathbf p}{\partial u}\!\cdot\!\frac{\partial\mathbf p}{\partial v},
+\quad
+G = \frac{\partial\mathbf p}{\partial v}\!\cdot\!\frac{\partial\mathbf p}{\partial v},
+$$
+
+and $e$, $f$, $g$ are coefficients of the second fundamental form,
+
+$$
+e = \mathbf n\cdot\frac{\partial^2\mathbf p}{\partial u^2},\quad
+f = \mathbf n\cdot\frac{\partial^2\mathbf p}{\partial u\,\partial v},\quad
+g = \mathbf n\cdot\frac{\partial^2\mathbf p}{\partial v^2}.
+$$
+
+The two forms capture elementary metric properties of a surface—distance, angle, and curvature; see a differential geometry textbook such as Gray (1993) for details. Finding $e,f,g$ requires the second-order partial derivatives. For spheres, a little more algebra gives
+
+$$
+\frac{\partial^2\mathbf p}{\partial u^2}=-\phi_{\max}^2(x,y,0),\quad
+\frac{\partial^2\mathbf p}{\partial u\,\partial v}=(\theta_{\max}-\theta_{\min})\,z\,\phi_{\max}(-\sin\phi,\cos\phi,0),
+\quad
+\frac{\partial^2\mathbf p}{\partial v^2}=-(\theta_{\max}-\theta_{\min})^2(x,y,z).
+$$
+
+**〈Compute sphere dndu and dndv〉 ≡ 277**
+
+```rust
+let d2_pduu = -self.phi_max.powi(2) * Vector3f::new(p_hit.x, p_hit.y, 0.0);
+let d2_pduv = (self.theta_z_max - self.theta_z_min) * p_hit.z * self.phi_max
+    * Vector3f::new(-sin_phi, cos_phi, 0.0);
+let d2_pdvv = -(self.theta_z_max - self.theta_z_min).powi(2)
+    * Vector3f::new(p_hit.x, p_hit.y, p_hit.z);
+// 〈Compute coefficients for fundamental forms〉
+// 〈Compute dndu and dndv from fundamental form coefficients〉
+```
+
+Given all the partial derivatives, the fundamental-form coefficients are easy to compute:
+
+**〈Compute coefficients for fundamental forms〉 ≡ 278, 290, 337**
+
+```rust
+let E = dot(dpdu, dpdu);
+let F = dot(dpdu, dpdv);
+let G = dot(dpdv, dpdv);
+let n = normalize(cross(dpdu, dpdv));
+let e = dot(n, d2_pduu);
+let f = dot(n, d2_pduv);
+let g = dot(n, d2_pdvv);
+```
+
+We now have everything needed to apply the Weingarten equations. For this computation it is worthwhile to use `DifferenceOfProducts()` to compute $EG-F^2$ for the greater accuracy it provides over the direct expression. We must also avoid dividing by zero if that expression is zero, so that `dndu` and `dndv` do not become NaN.
+
+**〈Compute dndu and dndv from fundamental form coefficients〉 ≡ 278, 290, 337**
+
+```rust
+let egf2 = difference_of_products(E, G, F, F);
+let inv_egf2 = if egf2 == 0.0 { 0.0 } else { 1.0 / egf2 };
+let dndu = Normal3f::from((f * F - e * G) * inv_egf2 * dpdu
+                        + (e * F - f * E) * inv_egf2 * dpdv);
+let dndv = Normal3f::from((g * F - f * G) * inv_egf2 * dpdu
+                        + (f * F - g * E) * inv_egf2 * dpdv);
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Cross()` 91 · `DifferenceOfProducts()` 1044 · `Dot()` 89 · `Float` 23 · `Normal3f` 94 · `Normalize()` 88 · `Point2f` 92 · `Point3fi` 1061 · `Point3i` 92 · `Sphere::objectFromRender` 272 · `Sphere::reverseOrientation` 272 · `Sphere::transformSwapsHandedness` 272 · `SurfaceInteraction` 138 · `Vector3f` 86
+
+</details>
+
+Having computed the surface parameterization and all relevant partial derivatives, we can return the `SurfaceInteraction` containing the geometric information for this intersection. Three details matter in the constructor arguments:
+
+1. The intersection point is a `Point3i` taking `pHit` and an error bound `pError` initialized in `〈Compute error bounds for sphere intersection〉` (Section 6.8.5).
+2. The `SurfaceInteraction` is initialized with object-space quantities (`pHit`, `dpdu`, …) and transformed to rendering space when returned. One argument is the outgoing direction $\omega_o$: it must be transformed to object space before being passed in so that the returned `Interaction::wo` is in rendering space again.
+3. `flipNormal` indicates whether the surface normal should be flipped after its initial computation via $\partial\mathbf p/\partial u\times\partial\mathbf p/\partial v$. This is done if `ReverseOrientation` is enabled *or* if the object-to-rendering transform swaps handedness, but not if both.
+
+**〈Return SurfaceInteraction for quadric intersection〉 ≡ 276, 290, 295**
+
+```rust
+let flip_normal = self.reverse_orientation ^ self.transform_swaps_handedness;
+let wo_object = self.object_from_render.apply(wo);
+self.render_from_object.apply(SurfaceInteraction::new(
+    Point3fi::new(p_hit, p_error), Point2f::new(u, v), wo_object,
+    dpdu, dpdv, dndu, dndv, time, flip_normal,
+))
+```
+
+### 6.2.3 Surface Area
+
+To compute the surface area of quadrics we use a standard formula from integral calculus: if a curve $y=f(x)$ from $x=a$ to $x=b$ is revolved around the $x$ axis, the swept surface has area
+
+$$
+A = 2\pi\int_a^b f(x)\sqrt{1+f'(x)^2}\,dx,
+$$
+
+where $f'(x)=df/dx$. Since most of our surfaces of revolution are only partially swept, we instead use
+
+$$
+A = \phi\int_a^b f(x)\sqrt{1+f'(x)^2}\,dx .
+$$
+
+The sphere is a surface of revolution of a circular arc. Its profile curve along the $z$ axis is
+
+$$
+f(z)=\sqrt{r^2-z^2}, \qquad f'(z)=\frac{-z}{\sqrt{r^2-z^2}},
+$$
+
+so $f(z)\sqrt{1+f'(z)^2}=r$, and the area is therefore
+
+$$
+A = \phi_{\max}\, r\,(z_{\max}-z_{\min}).
+$$
+
+For a full sphere, $\phi_{\max}=2\pi$, $z_{\min}=-r$, and $z_{\max}=r$, giving the standard $A=4\pi r^2$, which confirms the formula.
+
+**〈Sphere Public Methods〉 +≡ 271**
+
+```rust
+fn area(&self) -> Float { self.phi_max * self.radius * (self.z_max - self.z_min) }
+```
+
+### 6.2.4 Sampling
+
+Uniformly sampling a point on the sphere's area is easy: `Sphere::Sample()` generates a point on the unit sphere using `SampleUniformSphere()` and scales it by the radius. A bound on the numeric error is found in a fragment defined later (Section 6.8.5).
+
+**〈Sphere Method Definitions〉 +≡**
+
+```rust
+fn sample(&self, u: Point2f) -> Option<ShapeSample> {
+    let mut p_obj = Point3f::ZERO + self.radius * sample_uniform_sphere(u);
+    // 〈Reproject pObj to sphere surface and compute pObjError 376〉
+    // 〈Compute surface normal for sphere sample and return ShapeSample〉
+}
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Point2f` 92 · `Point3f` 92 · `Point3fi` 1061 · `SampleUniformSphere()` 1016 · `ShapeSample` 268 · `Sphere::phiMax` 272 · `Sphere::radius` 272 · `Sphere::zMin` 272
+
+</details>
+
+Because the object-space sphere is at the origin, its surface normal is found by converting the point to a normal vector and normalizing it. A `Point3fi` is initialized from `pObj` and its error bounds. The sample is returned in rendering space with a PDF equal to one over the surface area, since this method samples uniformly by surface area.
+
+**〈Compute surface normal for sphere sample and return ShapeSample〉 ≡ 280**
+
+```rust
+let n_obj = Normal3f::new(p_obj.x, p_obj.y, p_obj.z);
+let mut n = normalize(self.render_from_object.apply(n_obj));
+if self.reverse_orientation { n = -n; }
+// 〈Compute (u, v) coordinates for sphere sample〉
+let pi = self.render_from_object.apply(Point3fi::new(p_obj, p_obj_error));
+Some(ShapeSample { intr: Interaction::new(pi, n, uv), pdf: 1.0 / self.area() })
+```
+
+The $(u,v)$ parametric coordinates come from inverting Equations (6.1) and (6.2):
+
+**〈Compute (u, v) coordinates for sphere sample〉 ≡ 281**
+
+```rust
+let theta = safe_acos(p_obj.z / self.radius);
+let mut phi = p_obj.y.atan2(p_obj.x);
+if phi < 0.0 { phi += 2.0 * PI; }
+let uv = Point2f::new(phi / self.phi_max,
+                      (theta - self.theta_z_min) / (self.theta_z_max - self.theta_z_min));
+```
+
+The associated `PDF()` returns the same PDF:
+
+**〈Sphere Public Methods〉 +≡ 271**
+
+```rust
+fn pdf(&self, _intr: &Interaction) -> Float { 1.0 / self.area() }
+```
+
+For the sampling method given a point being illuminated, we can do much better than sampling the whole sphere. Uniform area sampling would be correct, but a better approach avoids points that are definitely not visible—for example those on the back side as seen from the point. This routine instead samples directions uniformly over the *solid angle subtended by the sphere* and computes the corresponding point on the sphere.
+
+**〈Sphere Public Methods〉 +≡ 271**
+
+```rust
+fn sample(&self, ctx: &ShapeSampleContext, u: Point2f) -> Option<ShapeSample> {
+    // 〈Sample uniformly on sphere if p is inside it〉
+    // 〈Sample sphere uniformly inside subtended cone〉
+    // 〈Return ShapeSample for sampled point on sphere〉
+}
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`DistanceSquared()` 93 · `Float` 23 · `Interaction` 136 · `Normal3f` 94 · `Normalize()` 88 · `OffsetRayOrigin()` 381 · `Pi` 1033 · `Point2f` 92 · `Point3f` 92 · `Point3fi` 1061 · `SafeACos()` 1035 · `ShapeSample` 268 · `ShapeSampleContext` 268 · `ShapeSampleContext::OffsetRayOrigin()` 383 · `Sphere::Area()` 280 · `Sphere::phiMax` 272 · `Sphere::radius` 272 · `Sphere::renderFromObject` 272 · `Sphere::reverseOrientation` 272 · `Sphere::thetaZMax` 272 · `Sphere::thetaZMin` 272 · `Sqr()` 1034
+
+</details>
+
+For points inside the sphere, the entire sphere should be sampled, since it is all visible from inside. The reference point used in the test, `pOrigin`, is computed with `OffsetRayOrigin()` so that if the point came from a ray hitting the sphere, round-off does not put it on the wrong side of the surface.
+
+**〈Sample uniformly on sphere if p is inside it〉 ≡ 281**
+
+```rust
+let p_center = self.render_from_object.apply(Point3f::ZERO);
+let p_origin = ctx.offset_ray_origin_to(p_center);
+if distance_squared(p_origin, p_center) <= self.radius.sqr() {
+    // 〈Sample shape by area and compute incident direction wi〉
+    // 〈Convert area sampling PDF in ss to solid angle measure〉
+    return ss;
+}
+```
+
+A call to the first `Sample()` gives an initial `ShapeSample`. The direction from the reference point to the sampled point, $\omega_i$, is computed and normalized if non-degenerate.
+
+**〈Sample shape by area and compute incident direction wi〉 ≡ 281, 291, 317, 343**
+
+```rust
+let mut ss = self.sample(u)?;
+ss.intr.time = ctx.time;
+let mut wi = ss.intr.p() - ctx.p();
+if length_squared(wi) == 0.0 { return None; }
+wi = normalize(wi);
+```
+
+To compute the PDF, the area density from `Sample()` is converted to a solid-angle density at the reference point by dividing by $|\cos\theta_o|/r^2$, where $\theta_o$ is the angle between the ray from the light point to the reference point and the light's surface normal, and $r^2$ is the squared distance between the two points (Section 4.2.3). If the normal and $\omega_i$ are perpendicular the result is infinite and no valid sample is returned.
+
+**〈Convert area sampling PDF in ss to solid angle measure〉 ≡ 281, 291, 317, 343**
+
+```rust
+ss.pdf /= abs_dot(ss.intr.n, -wi) / distance_squared(ctx.p(), ss.intr.p());
+if is_inf(ss.pdf) { return None; }
+```
+
+For a point outside the sphere, sampling within the cone proceeds.
+
+**〈Sample sphere uniformly inside subtended cone〉 ≡ 281**
+
+```rust
+// 〈Compute quantities related to the theta_max for cone〉
+// 〈Compute theta and phi values for sample in cone〉
+// 〈Compute angle alpha from center of sphere to sampled point on surface〉
+// 〈Compute surface normal and sampled point on sphere〉
+```
+
+*Figure 6.5: To sample points on a spherical light source, we uniformly sample within the cone of directions around a central vector $\omega_c$ with angular spread up to $\theta_{\max}$. Trigonometry gives $\sin\theta_{\max}=r/|\mathbf p_c-\mathbf p|$.*
+
+```mermaid
+flowchart LR
+    P["Reference point p"] --> C["Central direction omega_c<br/>toward sphere center p_c"]
+    C --> TM["Subtended half-angle theta_max<br/>sin(theta_max) = r / |p_c - p|"]
+    TM --> S["Uniformly sample cone<br/>cos(theta) = (cos(theta_max)-1)u0 + 1"]
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Interaction::time` 137 · `IsInf()` 363 · `LengthSquared()` 87 · `MediumInteraction` 141 · `Normalize()` 88 · `SampleUniformCone()` 1018 · `ShapeSample` 268 · `ShapeSample::intr` 268 · `ShapeSample::pdf` 268 · `ShapeSampleContext::p()` 269 · `ShapeSampleContext::time` 268 · `Vector3f` 86
+
+</details>
+
+If the reference point is outside the sphere, it subtends an angle
+
+$$
+\theta_{\max} = \arcsin\!\frac{r}{|\mathbf p_c-\mathbf p|},
+$$
+
+where $r$ is the radius and $\mathbf p_c$ the center (Figure 6.5). The sampling method computes $\cos\theta_{\max}$ using Equation (6.4) and samples directions uniformly inside the cone using the approach derived for `SampleUniformCone()` in Section A.5.4: sample an offset $\theta$ from the center vector $\omega_c$ and a rotation angle $\phi$ around it. That function is not used here because some intermediate values are needed below.
+
+**〈Compute quantities related to the theta_max for cone〉 ≡ 282**
+
+```rust
+let sin_theta_max = self.radius / distance(ctx.p(), p_center);
+let sin2_theta_max = sin_theta_max.sqr();
+let cos_theta_max = safe_sqrt(1.0 - sin2_theta_max);
+let one_minus_cos_theta_max = 1.0 - cos_theta_max;
+```
+
+As shown in Section A.5.4, uniform sampling of $\cos\theta$ between $\cos\theta_{\max}$ and $1$ gives a uniformly sampled direction in the cone.
+
+**〈Compute theta and phi values for sample in cone〉 ≡ 282**
+
+```rust
+let mut cos_theta = (cos_theta_max - 1.0) * u[0] + 1.0;
+let mut sin2_theta = 1.0 - cos_theta.sqr();
+if sin2_theta_max < 0.00068523 /* sin^2(1.5 deg) */ {
+    // 〈Compute cone sample via Taylor series expansion for small angles〉
+}
+```
+
+For very small $\theta_{\max}$, $\cos^2\theta_{\max}$ is close to one and $1-\cos^2\theta_{\max}$ loses accuracy near 1. We use single-term Taylor expansions near zero instead:
+
+**〈Compute cone sample via Taylor series expansion for small angles〉 ≡ 283**
+
+```rust
+sin2_theta = sin2_theta_max * u[0];
+cos_theta = (1.0 - sin2_theta).sqrt();
+one_minus_cos_theta_max = sin2_theta_max / 2.0;
+```
+
+Given a sample angle $(\theta,\phi)$, we can directly compute the corresponding point on the sphere. First find the angle $\gamma$ between the vector from the reference point $\mathbf p_r$ to the sampled point $\mathbf p_s$ and the vector from the sphere center $\mathbf p_c$ to $\mathbf p_s$; the setting is shown in Figure 6.6.
+
+*Figure 6.6: Geometric Setting for Computing the Sampled Point on the Sphere Corresponding to a Sampled Angle $\theta$. In the triangle, two side lengths are known: the sphere radius $r$ and $d_c$, the distance from the reference point to the sphere center. One angle, $\theta$, is also known. We first solve for $\gamma$, then find $\cos\alpha$.*
+
+```mermaid
+flowchart LR
+    PR["p_r (reference)"] -- "d_c" --> PC["p_c (center)"]
+    PR -- "sampled direction, angle theta" --> PS["p_s (sampled point)"]
+    PC -- "radius r" --> PS
+    PS --> G["gamma = pi - arcsin((d_c/r) sin(theta))"]
+    G --> A["cos(alpha) from the law of cosines<br/>cos(alpha) = sin^2(theta)/sin(theta_max)<br/>+ cos(theta) sqrt(1 - sin^2(theta)/sin^2(theta_max))"]
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Distance()` 93 · `Float` 23 · `SafeSqrt()` 1034 · `ShapeSampleContext::p()` 269 · `Sqr()` 1034
+
+</details>
+
+Denoting by $d_c$ the distance from the reference point to the center, the law of sines gives $\sin\gamma=(d_c/r)\sin\theta$. Because $\gamma$ is obtuse, $\gamma=\pi-\arcsin\big((d_c/r)\sin\theta\big)$. Given two of the three triangle angles, $\alpha$ follows. We avoid expensive inverse trig functions by taking the cosine of both sides, applying the cosine angle-addition formula, and using $\sin\theta_{\max}=r/d_c$, which yields
+
+$$
+\cos\alpha = \frac{\sin^2\theta}{\sin\theta_{\max}}
+           + \cos\theta\,\sqrt{1-\frac{\sin^2\theta}{\sin^2\theta_{\max}}},
+$$
+
+with $\sin\alpha=\sqrt{1-\cos^2\alpha}$.
+
+**〈Compute angle alpha from center of sphere to sampled point on surface〉 ≡ 282**
+
+```rust
+let cos_alpha = sin2_theta / sin_theta_max
+    + cos_theta * safe_sqrt(1.0 - sin2_theta / sin_theta_max.sqr());
+let sin_alpha = safe_sqrt(1.0 - cos_alpha.sqr());
+```
+
+The angles $\alpha$ and $\phi$ give spherical coordinates for the sampled direction relative to a frame whose $z$ axis points from the sphere center to the reference point. A `Frame` transforms that direction to rendering space; the surface normal is its negation, and the point is the radius-scaled normal translated by the center.
+
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Frame` 133 · `Frame::FromLocal()` 134 · `Frame::FromZ()` 134 · `Interaction` 136 · `Normal3f` 94 · `Normalize()` 88 · `Pi` 1033 · `Point3f` 92 · `Point3fi` 1061 · `SafeSqrt()` 1034 · `ShapeSample` 268 · `ShapeSampleContext::p()` 269 · `ShapeSampleContext::time` 268 · `Sphere::radius` 272 · `Sphere::reverseOrientation` 272 · `SphericalDirection()` 106 · `Sqr()` 1034 · `Vector3f` 86
+
+</details>
+
+**〈Compute surface normal and sampled point on sphere〉 ≡ 282**
+
+```rust
+let phi = u[1] * 2.0 * PI;
+let w = spherical_direction(sin_alpha, cos_alpha, phi);
+let sampling_frame = Frame::from_z(normalize(p_center - ctx.p()));
+let mut n = Normal3f::from(sampling_frame.from_local(-w));
+let mut p = p_center + self.radius * Point3f::from(n);
+if self.reverse_orientation { n = -n; }
+```
+
+The `〈Compute (u, v) coordinates for sampled point on sphere〉` fragment applies the same mapping as `Intersect()` using the object-space sample point, so it is elided. The PDF for uniform cone sampling is
+
+$$
+p(\omega)=\frac{1}{2\pi(1-\cos\theta_{\max})}.
+$$
+
+(A derivation is in Section A.5.4.)
+
+**〈Return ShapeSample for sampled point on sphere〉 ≡ 281**
+
+```rust
+// 〈Compute pError for sampled point on sphere〉
+// 〈Compute (u, v) coordinates for sampled point on sphere〉
+Some(ShapeSample {
+    intr: Interaction::with_time(Point3fi::new(p, p_error), n, ctx.time, uv),
+    pdf: 1.0 / (2.0 * PI * one_minus_cos_theta_max),
+})
+```
+
+The `PDF()` method for sampling a direction toward a sphere likewise depends on which of the two strategies would be used.
+
+**〈Sphere Public Methods〉 +≡ 271**
+
+```rust
+fn pdf(&self, ctx: &ShapeSampleContext, wi: Vector3f) -> Float {
+    let p_center = self.render_from_object.apply(Point3f::ZERO);
+    let p_origin = ctx.offset_ray_origin_to(p_center);
+    if distance_squared(p_origin, p_center) <= self.radius.sqr() {
+        // 〈Return solid angle PDF for point inside sphere〉
+    }
+    // 〈Compute general solid angle sphere PDF〉
+}
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`AbsDot()` 90 · `DistanceSquared()` 93 · `Float` 23 · `Interaction::n` 137 · `Interaction::p()` 137 · `IsInf()` 363 · `Pi` 1033 · `Point3f` 92 · `Ray` 95 · `SafeSqrt()` 1034 · `ShapeIntersection` 266 · `ShapeIntersection::intr` 266 · `ShapeSampleContext` 268 · `ShapeSampleContext::OffsetRayOrigin()` 383 · `ShapeSampleContext::p()` 269 · `ShapeSampleContext::SpawnRay()` 383 · `Sphere::Area()` 280 · `Sphere::Intersect()` 273 · `Sphere::radius` 272 · `Sphere::renderFromObject` 272 · `Sqr()` 1034 · `Vector3f` 86
+
+</details>
+
+If the reference point is inside the sphere, uniform area sampling would have been used.
+
+**〈Return solid angle PDF for point inside sphere〉 ≡ 285**
+
+```rust
+// 〈Intersect sample ray with shape geometry〉
+// 〈Compute PDF in solid angle measure from shape intersection point〉
+pdf
+```
+
+First, the point on the sphere is found by intersecting a ray from the reference point in direction $\omega_i$ with the sphere. This is cheap—a single sphere, not the whole scene.
+
+**〈Intersect sample ray with shape geometry〉 ≡ 285, 291, 324, 345**
+
+```rust
+let ray = ctx.spawn_ray(wi);
+let isect = self.intersect(&ray, Float::INFINITY)?;
+```
+
+The uniform area density $1/A$ is converted to a solid-angle density in the same way as in `Sample()`:
+
+**〈Compute PDF in solid angle measure from shape intersection point〉 ≡ 285, 291, 324**
+
+```rust
+let mut pdf = (1.0 / self.area())
+    / (abs_dot(isect.intr.n, -wi) / distance_squared(ctx.p(), isect.intr.p()));
+if is_inf(pdf) { pdf = 0.0; }
+```
+
+The general PDF uses the same trigonometric identities as the sampling routine:
+
+**〈Compute general solid angle sphere PDF〉 ≡ 285**
+
+```rust
+let sin2_theta_max = self.radius * self.radius / distance_squared(ctx.p(), p_center);
+let cos_theta_max = safe_sqrt(1.0 - sin2_theta_max);
+let mut one_minus_cos_theta_max = 1.0 - cos_theta_max;
+// 〈Compute more accurate oneMinusCosThetaMax for small solid angle〉
+1.0 / (2.0 * PI * one_minus_cos_theta_max)
+```
+
+For a small subtended solid angle, `cosThetaMax` is close to one and `oneMinusCosThetaMax` is inaccurate; we switch to the one-term Taylor approximation $1-\cos\theta\approx\tfrac12\sin^2\theta$, which is accurate near zero.
+
+**〈Compute more accurate oneMinusCosThetaMax for small solid angle〉 ≡ 285**
+
+```rust
+if sin2_theta_max < 0.00068523 /* sin^2(1.5 deg) */ {
+    one_minus_cos_theta_max = sin2_theta_max / 2.0;
+}
+```
+
+## 6.3 Cylinders
+
+Another useful quadric is the cylinder. pbrt provides a `Cylinder` shape centered on the $z$ axis; the user supplies minimum and maximum $z$ values, a radius, and a maximum $\phi$ sweep (Figure 6.7).
+
+*Figure 6.7: Basic Setting for the Cylinder Shape. The cylinder has radius $r$ and covers a range along the $z$ axis. A partial cylinder sweeps $\phi\in[0,\phi_{\max}]$.*
+
+```mermaid
+flowchart TD
+    R["Radius r about the z axis"] --> Z["z in [z_min, z_max]"]
+    Z --> PHI["phi in [0, phi_max]"]
+    PHI --> EQ["Parametric form:<br/>phi = u * phi_max<br/>x = r cos(phi), y = r sin(phi)<br/>z = z_min + v (z_max - z_min)"]
+    EQ --> IMP["Implicit form: x^2 + y^2 = r^2"]
+```
+
+**〈Cylinder Definition〉 ≡**
+
+```rust
+struct Cylinder {
+    // 〈Cylinder Public Methods〉
+    // 〈Cylinder Private Members〉
+}
+```
+
+In parametric form a cylinder is described by
+
+$$
+\phi = u\,\phi_{\max},\qquad
+x = r\cos\phi,\qquad
+y = r\sin\phi,\qquad
+z = z_{\min} + v\,(z_{\max}-z_{\min}).
+$$
+
+*Figure 6.8 shows a rendered image of two cylinders. Like the sphere image, the right cylinder is complete while the left one is partial, with $\phi_{\max}<2\pi$.*
+
+<details>
+<summary>Reference / notes</summary>
+
+`Cylinder` 286 · `Shape` 261 · `Sphere` 271
+
+</details>
+
+*Figure 6.8: Two Cylinders. A partial cylinder is on the left and a complete cylinder on the right.*
+
+<details>
+<summary>Figure 6.8 — pictorial image (keep)</summary>
 
 ![Figure 6.8](images/img-437-036.png)
 
+</details>
 
-*Figure 6.8: Two Cylinders. A partial cylinder is on the left, and a complete cylinder is on the right.*
+Like the `Sphere` constructor, the `Cylinder` constructor takes transformations defining its object space and the parameters defining the cylinder. It merely initializes member variables, so we omit it here.
 
-〈Cylinder Public Methods〉 ≡ 286
-
-```rust
-Cylinder(const Transform *renderFromObj, const Transform *objFromRender, bool reverseOrientation, Float radius, Float zMin, Float zMax, Float phiMax);
-```
-
-〈Cylinder Private Members〉 ≡ 286
+**〈Cylinder Public Methods〉 ≡ 286**
 
 ```rust
-   const Transform *renderFromObject, *objectFromRender;
-   bool reverseOrientation, transformSwapsHandedness;
-   Float radius, zMin, zMax, phiMax;
+impl Cylinder {
+    fn new(
+        render_from_obj: &Transform,
+        obj_from_render: &Transform,
+        reverse_orientation: bool,
+        radius: Float,
+        z_min: Float,
+        z_max: Float,
+        phi_max: Float,
+    ) -> Self;
+}
 ```
 
-### 6.3.1 AREA AND BOUNDING
-
-A cylinder is a rolled-up rectangle. If you unroll the rectangle, its height is zmax − zmin, and its width is rϕmax:
-
-〈Cylinder Public Methods〉 +≡ 286
+**〈Cylinder Private Members〉 ≡ 286**
 
 ```rust
-   Float Area() const { return (zMax - zMin) * radius * phiMax; }
+struct Cylinder {
+    render_from_object: Transform,
+    object_from_render: Transform,
+    reverse_orientation: bool,
+    transform_swaps_handedness: bool,
+    radius: Float,
+    z_min: Float,
+    z_max: Float,
+    phi_max: Float,
+}
 ```
 
-As was done with the sphere, the cylinder’s spatial bounding method computes a conservative bounding box using the z range but does not take into account the maximum ϕ.
+### 6.3.1 Area and Bounding
 
-〈Cylinder Method Definitions〉 ≡
+A cylinder is a rolled-up rectangle. Unrolled, its height is $z_{\max}-z_{\min}$ and its width is $r\phi_{\max}$:
+
+**〈Cylinder Public Methods〉 +≡ 286**
 
 ```rust
-Bounds3f Cylinder::Bounds() const { return (*renderFromObject)(Bounds3f({-radius, -radius, zMin}, { radius, radius, zMax})); }
+fn area(&self) -> Float { (self.z_max - self.z_min) * self.radius * self.phi_max }
 ```
+
+As with the sphere, the spatial bound is conservative: it uses the $z$ range but does not account for $\phi_{\max}$.
+
+**〈Cylinder Method Definitions〉 ≡**
 
 ```rust
-    Bounds3f 97
-    Cylinder 286
-    Cylinder::phiMax 287
-    Cylinder::radius 287
-    Cylinder::renderFromObject 287
-    Cylinder::zMax 287
-    Cylinder::zMin 287
-    DirectionCone 114
-    DirectionCone::EntireSphere() 115
-    Float 23
-    Transform 120
+fn bounds(&self) -> Bounds3f {
+    self.render_from_object.apply(Bounds3f::new(
+        Point3f::new(-self.radius, -self.radius, self.z_min),
+        Point3f::new( self.radius,  self.radius, self.z_max),
+    ))
+}
 ```
 
-Its surface normal bounding function is conservative in two ways: not only does it not account for ϕmax < 2π, but the actual set of normals of a cylinder can be described by a circle on the sphere of all directions. However, `DirectionCone`’s representation is not able to bound such a distribution more tightly than with the entire sphere of directions, and so that is the bound that is returned.
+<details>
+<summary>Reference / notes</summary>
 
-〈Cylinder Public Methods〉 +≡ 286
+`Bounds3f` 97 · `Cylinder` 286 · `Cylinder::phiMax` 287 · `Cylinder::radius` 287 · `Cylinder::renderFromObject` 287 · `Cylinder::zMax` 287 · `Cylinder::zMin` 287 · `DirectionCone` 114 · `DirectionCone::EntireSphere()` 115 · `Float` 23 · `Transform` 120
+
+</details>
+
+The normal bound is conservative in two ways: it ignores $\phi_{\max}<2\pi$, and the actual set of cylinder normals is a circle on the sphere of directions, which `DirectionCone` cannot bound more tightly than the entire sphere.
+
+**〈Cylinder Public Methods〉 +≡ 286**
 
 ```rust
-   DirectionCone NormalBounds() const { return DirectionCone::EntireSphere();
-   }
+fn normal_bounds(&self) -> DirectionCone { DirectionCone::entire_sphere() }
 ```
 
-### 6.3.2 INTERSECTION TESTS
+### 6.3.2 Intersection Tests
 
-Also similar to the sphere (and for similar reasons), `Cylinder` provides a `BasicIntersect()` method that returns a `QuadricIntersection` as well as an `InteractionFromIntersection()` method that converts that to a full `SurfaceInteraction`. Given these, the `Intersect()` method is again a simple composition of them. (If pbrt used virtual functions, a design alternative would be to have a
+As with the sphere, `Cylinder` provides `BasicIntersect()` returning a `QuadricIntersection` and `InteractionFromIntersection()` converting it to a full `SurfaceInteraction`; `Intersect()` composes them. (Had pbrt used virtual functions, an alternative design would be a `QuadricShape` base class providing a default `Intersect()` and leaving the two pieces as pure virtual functions for subclasses.)
 
-QuadricShape class that provided a default `Intersect()` method and left `BasicIntersect()` and `InteractionFromIntersection()` as pure virtual functions for subclasses to implement.)
-
-〈Cylinder Public Methods〉 +≡ 286
+**〈Cylinder Public Methods〉 +≡ 286**
 
 ```rust
-   Option<ShapeIntersection> Intersect(const Ray &ray,
-                                             Float tMax = Infinity) const {
-        Option<QuadricIntersection> isect = BasicIntersect(ray, tMax);
-        if (!isect) return {};
-        SurfaceInteraction intr =
-            InteractionFromIntersection(*isect, -ray.d, ray.time);
-        return ShapeIntersection{intr, isect->tHit};
-   }
+fn intersect(&self, ray: &Ray, t_max: Float) -> Option<ShapeIntersection> {
+    let isect = self.basic_intersect(ray, t_max)?;
+    let intr = self.interaction_from_intersection(&isect, -ray.d, ray.time);
+    Some(ShapeIntersection { intr, t_hit: isect.t_hit })
+}
 ```
 
-The form of the `BasicIntersect()` method also parallels the sphere’s, computing appropriate quadratic coefficients, solving the quadratic equation, and then handling the various cases for partial cylinders. A number of fragments can be reused from the `Sphere`’s implementation.
+`BasicIntersect()` parallels the sphere's: compute quadratic coefficients, solve, then handle partial-cylinder cases. Several fragments are reused from `Sphere`.
 
-〈Cylinder Public Methods〉 +≡ 286
+**〈Cylinder Public Methods〉 +≡ 286**
 
 ```rust
-   Option<QuadricIntersection> BasicIntersect(const Ray &r,
-                                                                  Float tMax) const {
-        Float phi;
-        Point3f pHit;
-        〈Transform Ray origin and direction to object space 273〉
-        〈Solve quadratic equation to find cylinder t0 and t1 values 288〉
-        〈Check quadric shape t0 and t1 for nearest intersection 275〉
-        〈Compute cylinder hit point and ϕ 289〉
-        〈Test cylinder intersection against clipping parameters 289〉
-        〈Return QuadricIntersection for cylinder intersection 289〉
-   }
+fn basic_intersect(&self, r: &Ray, t_max: Float) -> Option<QuadricIntersection> {
+    let phi: Float;
+    let mut p_hit: Point3f;
+    // 〈Transform Ray origin and direction to object space 273〉
+    // 〈Solve quadratic equation to find cylinder t0 and t1 values 288〉
+    // 〈Check quadric shape t0 and t1 for nearest intersection 275〉
+    // 〈Compute cylinder hit point and phi 289〉
+    // 〈Test cylinder intersection against clipping parameters 289〉
+    // 〈Return QuadricIntersection for cylinder intersection 289〉
+}
 ```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Cylinder::BasicIntersect()` 288 · `Cylinder::InteractionFromIntersection()` 290 · `Float` 23 · `Infinity` 361 · `Interval` 1057 · `Point3f` 92 · `QuadricIntersection` 273 · `QuadricIntersection::tHit` 273 · `Ray` 95 · `Ray::d` 95 · `Ray::time` 95 · `ShapeIntersection` 266 · `Sphere` 271 · `SurfaceInteraction` 138
+
+</details>
+
+The discriminant fragment, `〈Compute cylinder quadratic discriminant discrim〉`, is defined in Section 6.8.3 after floating-point accuracy has been discussed.
+
+**〈Solve quadratic equation to find cylinder t0 and t1 values〉 ≡ 288**
 
 ```rust
-    Cylinder::BasicIntersect() 288
-    Cylinder::InteractionFromIntersection() 290
-    Float 23
-    Infinity 361
-    Interval 1057
-    Point3f 92
-    QuadricIntersection 273
-    QuadricIntersection::tHit 273
-    Ray 95
-    Ray::d 95
-    Ray::time 95
-    ShapeIntersection 266
+let (mut t0, mut t1): (Interval, Interval);
+// 〈Compute cylinder quadratic coefficients 289〉
+// 〈Compute cylinder quadratic discriminant discrim 372〉
+// 〈Compute quadratic t values 275〉
 ```
 
-```text
-    Sphere 271
-    SurfaceInteraction 138
-```
+As with spheres, the formula comes from substituting the ray equation into the cylinder's implicit equation. An infinitely long cylinder of radius $r$ on the $z$ axis satisfies $x^2+y^2-r^2=0$, so
 
-As before, the fragment that computes the quadratic discriminant, 〈Compute cylinder quadratic discriminant discrim〉, is defined in Section 6.8.3 after topics related to floating-point accuracy have been discussed.
+$$
+(o_x+t d_x)^2 + (o_y+t d_y)^2 = r^2,
+$$
 
-〈Solve quadratic equation to find cylinder t0 and t1 values〉 ≡ 288
+and the coefficients of $a t^2+bt+c=0$ are
+
+$$
+a=d_x^2+d_y^2,\qquad b=2(d_x o_x + d_y o_y),\qquad c=o_x^2+o_y^2-r^2.
+$$
+
+**〈Compute cylinder quadratic coefficients〉 ≡ 288**
 
 ```rust
-   Interval t0, t1;
-   〈Compute cylinder quadratic coefficients 289〉
-   〈Compute cylinder quadratic discriminant discrim 372〉
-   〈Compute quadratic t values 275〉
+let a = di.x.sqr() + di.y.sqr();
+let b = 2.0 * (di.x * oi.x + di.y * oi.y);
+let c = oi.x.sqr() + oi.y.sqr() - Interval::from(self.radius).sqr();
 ```
 
-As with spheres, the ray–cylinder intersection formula can be found by substituting the ray equation into the cylinder’s implicit equation. The implicit equation for an infinitely long cylinder centered on the z axis with radius r is x2 + y2 − r2 = 0. Substituting the ray equation, Equation (3.4), we have
+As with spheres, the hit point is refined to reduce rounding error (Section 6.8.5); then we invert the parametric description to compute $\phi$ from $x$ and $y$, which gives the same expression as for the sphere.
 
-```text
-                                    (ox + tdx)2 + (oy + tdy)2 = r2.
-```
-
-When we expand this equation and find the coefficients of the quadratic equation at2 + bt + c = 0, we
-
-have
-
-〈Compute cylinder quadratic coefficients〉 ≡ 288
+**〈Compute cylinder hit point and phi〉 ≡ 288, 289**
 
 ```rust
-   Interval a = Sqr(di.x) + Sqr(di.y);
-   Interval b = 2 * (di.x * oi.x + di.y * oi.y);
-   Interval c = Sqr(oi.x) + Sqr(oi.y) - Sqr(Interval(radius));
+p_hit = Point3f::from(oi) + t_shape_hit.to_float() * Vector3f::from(di);
+// 〈Refine cylinder intersection point 375〉
+phi = p_hit.y.atan2(p_hit.x);
+if phi < 0.0 { phi += 2.0 * PI; }
 ```
 
-As with spheres, the implementation refines the computed intersection point to reduce the rounding error in the point computed by evaluating the ray equation; see Section 6.8.5. Afterward, we invert the parametric description of the cylinder to compute ϕ from x and y; it turns out that the result is the same as for the sphere.
+The next step verifies the hit lies in the $z$ range and that $\phi$ is acceptable. If not, it rejects the hit and checks $t_1$ if it has not already been considered; the logic resembles `Sphere::Intersect()`.
 
-〈Compute cylinder hit point and ϕ〉 ≡ 288, 289
+**〈Test cylinder intersection against clipping parameters〉 ≡ 288**
 
 ```rust
-   pHit = Point3f(oi) + (Float)tShapeHit * Vector3f(di);
-   〈Refine cylinder intersection point 375〉
-   phi = std::atan2(pHit.y, pHit.x);
-   if (phi < 0) phi += 2 * Pi;
+if p_hit.z < self.z_min || p_hit.z > self.z_max || phi > self.phi_max {
+    if t_shape_hit == t1 { return None; }
+    t_shape_hit = t1;
+    if t1.upper_bound() > t_max { return None; }
+    // 〈Compute cylinder hit point and phi 289〉
+    if p_hit.z < self.z_min || p_hit.z > self.z_max || phi > self.phi_max {
+        return None;
+    }
+}
 ```
 
-The next step in the intersection method makes sure that the hit is in the specified z range and that the angle ϕ is acceptable. If not, it rejects the hit and checks t1 if it has not already been considered—these tests resemble the conditional logic in `Sphere::Intersect()`.
+<details>
+<summary>Reference / notes</summary>
 
-〈Test cylinder intersection against clipping parameters〉 ≡ 288
+`Cylinder::BasicIntersect()` 288 · `Cylinder::phiMax` 287 · `Cylinder::zMax` 287 · `Cylinder::zMin` 287 · `Float` 23 · `Infinity` 361 · `Interval` 1057 · `Interval::UpperBound()` 1059 · `Pi` 1033 · `Point3f` 92 · `QuadricIntersection` 273 · `Ray` 95 · `Sphere::Intersect()` 273 · `Sqr()` 1034 · `SurfaceInteraction` 138 · `Vector3f` 86
+
+</details>
+
+For a successful intersection the same three values suffice for later construction of the `SurfaceInteraction`:
+
+**〈Return QuadricIntersection for cylinder intersection〉 ≡ 288**
 
 ```rust
-   if (pHit.z < zMin || pHit.z > zMax || phi > phiMax) {
-          if (tShapeHit == t1)
-             return {};
-          tShapeHit = t1;
-          if (t1.UpperBound() > tMax)
-             return {};
-          〈Compute cylinder hit point and ϕ 289〉
-          if (pHit.z < zMin || pHit.z > zMax || phi > phiMax)
-             return {};
-   }
+Some(QuadricIntersection { t_hit: t_shape_hit.to_float(), p_obj: p_hit, phi })
 ```
+
+As with the sphere, `IntersectP()` wraps `BasicIntersect()`:
+
+**〈Cylinder Public Methods〉 +≡**
 
 ```rust
-    Cylinder::BasicIntersect() 288
-    Cylinder::phiMax 287
-    Cylinder::zMax 287
-    Cylinder::zMin 287
-    Float 23
-    Infinity 361
-    Interval 1057
-    Interval::UpperBound() 1059
-    Pi 1033
-    Point3f 92
-    QuadricIntersection 273
-    Ray 95
-    Sphere::Intersect() 273
-    Sqr() 1034
-    SurfaceInteraction 138
-    Vector3f 86
+fn intersect_p(&self, r: &Ray, t_max: Float) -> bool {
+    self.basic_intersect(r, t_max).is_some()
+}
 ```
 
-For a successful intersection, the same three values suffice to provide enough information to later compute the corresponding `SurfaceInteraction`.
+`InteractionFromIntersection()` computes everything needed to initialize a `SurfaceInteraction` from a cylinder's `QuadricIntersection`.
 
-〈Return QuadricIntersection for cylinder intersection〉 ≡ 288
+**〈Cylinder Public Methods〉 +≡ 286**
 
 ```rust
-   return QuadricIntersection{Float(tShapeHit), pHit, phi};
+fn interaction_from_intersection(
+    &self,
+    isect: &QuadricIntersection,
+    wo: Vector3f,
+    time: Float,
+) -> SurfaceInteraction {
+    let p_hit = isect.p_obj;
+    let phi = isect.phi;
+    // 〈Find parametric representation of cylinder hit 290〉
+    // 〈Compute error bounds for cylinder intersection 375〉
+    // 〈Return SurfaceInteraction for quadric intersection 279〉
+}
 ```
 
-As with the sphere, `IntersectP()`’s implementation is a simple wrapper around Basic `Intersect()`.
+Again, $u$ is computed by scaling $\phi$ into $[0,1]$ and $v$ by inverting the parametric $z$ equation:
 
-〈Cylinder Public Methods〉 +≡
+**〈Find parametric representation of cylinder hit〉 ≡ 290**
 
 ```rust
-bool IntersectP(const Ray &r, Float tMax = Infinity) const { return BasicIntersect(r, tMax).has_value(); }
+let u = phi / self.phi_max;
+let v = (p_hit.z - self.z_min) / (self.z_max - self.z_min);
+// 〈Compute cylinder dpdu and dpdv 290〉
+// 〈Compute cylinder dndu and dndv 290〉
 ```
 
-`InteractionFromIntersection()` computes all the quantities needed to initialize a `SurfaceInteraction` from a cylinder’s `QuadricIntersection`.
+The partial derivatives are easy to derive from the parametric form:
 
-〈Cylinder Public Methods〉 +≡ 286
+**〈Compute cylinder dpdu and dpdv〉 ≡ 290**
 
 ```rust
-   SurfaceInteraction InteractionFromIntersection(
-           const QuadricIntersection &isect, Vector3f wo, Float time) const {
-        Point3f pHit = isect.pObj;
-        Float phi = isect.phi;
-        〈Find parametric representation of cylinder hit 290〉
-        〈Compute error bounds for cylinder intersection 375〉
-        〈Return SurfaceInteraction for quadric intersection 279〉
-   }
+let dpdu = Vector3f::new(-self.phi_max * p_hit.y, self.phi_max * p_hit.x, 0.0);
+let dpdv = Vector3f::new(0.0, 0.0, self.z_max - self.z_min);
 ```
 
-Again the parametric u value is computed by scaling ϕ to lie between 0 and 1. Inversion of the parametric equation for the cylinder’s z value gives the v parametric coordinate.
+We again use the Weingarten equations for the normal derivatives. The relevant second derivatives are
 
-〈Find parametric representation of cylinder hit〉 ≡ 290
+$$
+\frac{\partial^2\mathbf p}{\partial u^2}=-\phi_{\max}^2(x,y,0),
+\qquad
+\frac{\partial^2\mathbf p}{\partial u\,\partial v}=\mathbf 0,
+\qquad
+\frac{\partial^2\mathbf p}{\partial v^2}=\mathbf 0.
+$$
+
+**〈Compute cylinder dndu and dndv〉 ≡ 290**
 
 ```rust
-   Float u = phi / phiMax;
-   Float v = (pHit.z - zMin) / (zMax - zMin);
-   〈Compute cylinder ∂p/∂u and ∂p/∂v 290〉
-   〈Compute cylinder ∂n/∂u and ∂n/∂v 290〉
+let d2_pduu = -self.phi_max.powi(2) * Vector3f::new(p_hit.x, p_hit.y, 0.0);
+let d2_pduv = Vector3f::ZERO;
+let d2_pdvv = Vector3f::ZERO;
+// 〈Compute coefficients for fundamental forms 279〉
+// 〈Compute dndu and dndv from fundamental form coefficients 279〉
 ```
 
-The partial derivatives for a cylinder are easy to derive:
+<details>
+<summary>Reference / notes</summary>
 
-〈Compute cylinder ∂p/∂u and ∂p/∂v〉 ≡ 290
+`Cylinder::phiMax` 287 · `Cylinder::zMax` 287 · `Cylinder::zMin` 287 · `Float` 23 · `Point3f` 92 · `QuadricIntersection` 273 · `QuadricIntersection::phi` 273 · `QuadricIntersection::pObj` 273 · `SurfaceInteraction` 138 · `Vector3f` 86
+
+</details>
+
+### 6.3.3 Sampling
+
+Uniformly sampling a cylinder's surface area is straightforward: uniform sampling of height and $\phi$ gives uniform area sampling. Intuitively this works because a cylinder is just a rolled-up rectangle.
+
+**〈Cylinder Public Methods〉 +≡ 286**
 
 ```rust
-   Vector3f dpdu(-phiMax * pHit.y, phiMax * pHit.x, 0);
-   Vector3f dpdv(0, 0, zMax - zMin);
+fn sample(&self, u: Point2f) -> Option<ShapeSample> {
+    let z = lerp(u[0], self.z_min, self.z_max);
+    let phi = u[1] * self.phi_max;
+    // 〈Compute cylinder sample position pi and normal n from z and phi〉
+    let uv = Point2f::new(phi / self.phi_max, (p_obj.z - self.z_min) / (self.z_max - self.z_min));
+    Some(ShapeSample { intr: Interaction::new(pi, n, uv), pdf: 1.0 / self.area() })
+}
 ```
 
-We again use the Weingarten equations to compute the parametric partial derivatives of the cylinder
+Given $z$ and $\phi$, the object-space position and normal follow directly:
 
-normal. The relevant partial derivatives are
-
-〈Compute cylinder ∂n/∂u and ∂n/∂v〉 ≡ 290
+**〈Compute cylinder sample position pi and normal n from z and phi〉 ≡ 291**
 
 ```rust
-   Vector3f d2Pduu = -phiMax * phiMax * Vector3f(pHit.x, pHit.y, 0);
-   Vector3f d2Pduv(0, 0, 0), d2Pdvv(0, 0, 0);
-   〈Compute coefficients for fundamental forms 279〉
-   〈Compute ∂n/∂u and ∂n/∂v from fundamental form coefficients 279〉
+let p_obj = Point3f::new(self.radius * phi.cos(), self.radius * phi.sin(), z);
+// 〈Reproject pObj to cylinder surface and compute pObjError 376〉
+let pi = self.render_from_object.apply(Point3fi::new(p_obj, p_obj_error));
+let mut n = normalize(self.render_from_object.apply(
+    Normal3f::new(p_obj.x, p_obj.y, 0.0)));
+if self.reverse_orientation { n = -n; }
 ```
 
-```text
-    Cylinder::phiMax 287
-    Cylinder::zMax 287
-    Cylinder::zMin 287
-    Float 23
-    Point3f 92
-    QuadricIntersection 273
-    QuadricIntersection::phi 273
-    QuadricIntersection::pObj 273
-    SurfaceInteraction 138
-    Vector3f 86
-```
-
-### 6.3.3 SAMPLING
-
-Uniformly sampling the surface area of a cylinder is straightforward: uniform sampling of the height and ϕ give uniform area sampling. Intuitively, it can be understood that this approach works because a cylinder is just a rolled-up rectangle.
-
-〈Cylinder Public Methods〉 +≡ 286
+**〈Cylinder Public Methods〉 +≡ 286**
 
 ```rust
-   Option<ShapeSample> Sample(Point2f u) const {
-        Float z = Lerp(u[0], zMin, zMax);
-        Float phi = u[1] * phiMax;
-        〈Compute cylinder sample position pi and normal n from z and ϕ 291〉
-        Point2f uv(phi / phiMax, (pObj.z - zMin) / (zMax - zMin));
-        return ShapeSample{Interaction(pi, n, uv), 1 / Area()};
-   }
+fn pdf(&self, _intr: &Interaction) -> Float { 1.0 / self.area() }
 ```
 
-Given z and ϕ, the corresponding object-space position and normal are easily found.
+Unlike `Sphere`, pbrt's `Cylinder` has no specialized solid-angle sampling method. Instead it samples a point uniformly by area without using the reference point, then converts the area density to a solid-angle density before returning. Both methods reuse the fragments used for solid-angle sampling of reference points inside spheres.
 
-〈Compute cylinder sample position pi and normal n from z and ϕ〉 ≡ 291
+**〈Cylinder Public Methods〉 +≡ 286**
 
 ```rust
-Point3f pObj = Point3f(radius * std::cos(phi), radius * std::sin(phi), z); 〈Reproject pObj to cylinder surface and compute pObjError 376〉 Point3fi pi = (*renderFromObject)(Point3fi(pObj, pObjError)); Normal3f n = Normalize((*renderFromObject)(Normal3f(pObj.x, pObj.y, 0))); if (reverseOrientation) n *= -1;
+fn sample(&self, ctx: &ShapeSampleContext, u: Point2f) -> Option<ShapeSample> {
+    // 〈Sample shape by area and compute incident direction wi 282〉
+    // 〈Convert area sampling PDF in ss to solid angle measure 282〉
+    ss
+}
+
+fn pdf(&self, ctx: &ShapeSampleContext, wi: Vector3f) -> Float {
+    // 〈Intersect sample ray with shape geometry 285〉
+    // 〈Compute PDF in solid angle measure from shape intersection point 285〉
+    pdf
+}
 ```
 
-〈Cylinder Public Methods〉 +≡ 286
+<details>
+<summary>Reference / notes</summary>
 
-```rust
-   Float PDF(const Interaction &) const { return 1 / Area(); }
+`Cylinder::Area()` 287 · `Cylinder::phiMax` 287 · `Cylinder::radius` 287 · `Cylinder::reverseOrientation` 287 · `Cylinder::Sample()` 291 · `Cylinder::zMax` 287 · `Cylinder::zMin` 287 · `Disk` 292 · `Float` 23 · `Interaction` 136 · `Lerp()` 72 · `Normal3f` 94 · `Point2f` 92 · `Point3f` 92 · `Point3fi` 1061 · `ShapeSample` 268 · `ShapeSampleContext` 268 · `Sphere` 271 · `Vector3f` 86
+
+</details>
+
+## 6.4 Disks
+
+The disk is an interesting quadric because its intersection routine is particularly straightforward—it avoids solving the quadratic equation entirely. In pbrt a `Disk` is a circular disk of radius $r$ at height $h$ along the $z$ axis.
+
+*Figure 6.9: Basic Setting for the Disk Shape. The disk has radius $r$ and lies at height $h$ along the $z$ axis. A partial disk is described by a maximum $\phi$ value and an inner radius $r_i$.*
+
+```mermaid
+flowchart TD
+    H["Plane z = h"] --> R["Outer radius r, inner radius r_i (annulus)"]
+    R --> P["phi in [0, phi_max]"]
+    P --> EQ["Parametric form:<br/>phi = u * phi_max<br/>x = ((1-v) r + v r_i) cos(phi)<br/>y = ((1-v) r + v r_i) sin(phi)<br/>z = h"]
 ```
 
-Unlike the `Sphere`, pbrt’s `Cylinder` does not have a specialized solid angle sampling method. Instead, it samples a point on the cylinder uniformly by area without making use of the reference point before converting the area density for that point to a solid angle density before returning it. Both the `Sample()` and `PDF()` methods can be implemented using the same fragments that were used for solid angle sampling of reference points inside spheres.
+To describe partial disks, the user may specify a maximum $\phi$ beyond which the disk is cut off. The disk can also be generalized to an annulus with an inner radius $r_i$. In parametric form,
 
-〈Cylinder Public Methods〉 +≡ 286
-
-```rust
-pstd::optional<ShapeSample> Sample(const ShapeSampleContext &ctx, Point2f u) const { 〈Sample shape by area and compute incident direction wi 282〉 〈Convert area sampling PDF in ss to solid angle measure 282〉 return ss; } 〈Cylinder Public Methods〉 +≡ 286
-```
-
-```rust
-   Float PDF(const ShapeSampleContext &ctx, Vector3f wi) const {
-        〈Intersect sample ray with shape geometry 285〉
-        〈Compute PDF in solid angle measure from shape intersection point 285〉
-        return pdf;
-   }
-```
-
-```rust
-    Cylinder::Area() 287
-    Cylinder::phiMax 287
-    Cylinder::radius 287
-    Cylinder::reverseOrientation 287
-    Cylinder::zMax 287
-    Cylinder::zMin 287
-    Disk 292
-    Float 23
-    Interaction 136
-    Lerp() 72
-    Normal3f 94
-    Point2f 92
-```
-
-```text
-    Point3f 92
-    Point3fi 1061
-    ShapeSample 268
-    ShapeSampleContext 268
-    Sphere 271
-    Vector3f 86
-```
-
-## 6.4 DISKS
-
-The disk is an interesting quadric since it has a particularly straightforward intersection routine that avoids solving the quadratic equation. In pbrt, a `Disk` is a circular disk of radius r at height h along the z axis.
-
-To describe partial disks, the user may specify a maximum ϕ value beyond which the disk is cut off (Figure 6.9). The disk can also be generalized to an annulus by specifying an inner radius, ri. In parametric form, it is described by
-
-![Figure 6.9](images/img-445-038.png)
-
-
-*Figure 6.9: Basic Setting for the Disk Shape. The disk has radius r and is located at height h along the z axis. A partial disk may be swept by specifying a maximum ϕ value and an inner radius ri.*
-
-![Figure 6.10](images/img-446-039.png)
-
-
-*Figure 6.10: Two Disks. A partial disk is on the left, and a complete disk is on the right.*
-
-```text
-                       ϕ = u ϕmax
-                       x = ((1 − v)r + vri) cos ϕ
-                       y = ((1 − v)r + vri) sin ϕ
-                       z = h.
-```
+$$
+\phi=u\,\phi_{\max},\qquad
+x=\big((1-v)r+v r_i\big)\cos\phi,\qquad
+y=\big((1-v)r+v r_i\big)\sin\phi,\qquad
+z=h.
+$$
 
 *Figure 6.10 is a rendered image of two disks.*
 
-〈Disk Definition〉 ≡
+<details>
+<summary>Reference / notes</summary>
+
+`Cylinder::Intersect()` 288 · `Disk` 292 · `QuadricIntersection` 273 · `Sphere::Intersect()` 273
+
+</details>
+
+*Figure 6.10: Two Disks. A partial disk is on the left and a complete disk on the right.*
+
+<details>
+<summary>Figure 6.10 — pictorial image (keep)</summary>
+
+![Figure 6.10](images/img-446-039.png)
+
+</details>
+
+**〈Disk Definition〉 ≡**
 
 ```rust
-class Disk { public: 〈Disk Public Methods 293〉 private: 〈Disk Private Members 293〉 };
+struct Disk {
+    // 〈Disk Public Methods〉
+    // 〈Disk Private Members〉
+}
 ```
 
-The `Disk` constructor directly initializes its various member variables from the values passed to it. We have omitted it here because it is trivial.
+The `Disk` constructor directly initializes its member variables from the values passed to it; we omit it because it is trivial.
 
-〈Disk Private Members〉 ≡ 292
+**〈Disk Private Members〉 ≡ 292**
 
 ```rust
-   const Transform *renderFromObject, *objectFromRender;
-   bool reverseOrientation, transformSwapsHandedness;
-   Float height, radius, innerRadius, phiMax;
+struct Disk {
+    render_from_object: Transform,
+    object_from_render: Transform,
+    reverse_orientation: bool,
+    transform_swaps_handedness: bool,
+    height: Float,
+    radius: Float,
+    inner_radius: Float,
+    phi_max: Float,
+}
 ```
 
-### 6.4.1 AREA AND BOUNDING
+### 6.4.1 Area and Bounding
 
-Disks have easily computed surface area, since they are just portions of an annulus:
+Disks have easily computed surface area, since they are portions of an annulus:
 
-〈Disk Public Methods〉 ≡ 292
+**〈Disk Public Methods〉 ≡ 292**
 
 ```rust
-   Float Area() const {
-        return phiMax * 0.5f * (Sqr(radius) - Sqr(innerRadius));
-   }
+fn area(&self) -> Float {
+    self.phi_max * 0.5 * (self.radius.sqr() - self.inner_radius.sqr())
+}
 ```
 
-The bounding method is also quite straightforward; it computes a bounding box centered at the height of the disk along z, with extent of radius in both the x and y directions.
+The bounding method is straightforward: a box centered at the disk's height in $z$, extending to $\pm r$ in $x$ and $y$.
 
-〈Disk Method Definitions〉 ≡
+**〈Disk Method Definitions〉 ≡**
 
 ```rust
-Bounds3f Disk::Bounds() const { return (*renderFromObject)( Bounds3f(Point3f(-radius, -radius, height), Point3f( radius, radius, height))); }
+fn bounds(&self) -> Bounds3f {
+    self.render_from_object.apply(Bounds3f::new(
+        Point3f::new(-self.radius, -self.radius, self.height),
+        Point3f::new( self.radius,  self.radius, self.height),
+    ))
+}
 ```
 
 A disk has a single surface normal.
 
-〈Disk Method Definitions〉 +≡
+**〈Disk Method Definitions〉 +≡**
 
 ```rust
-DirectionCone Disk::NormalBounds() const { Normal3f n = (*renderFromObject)(Normal3f(0, 0, 1)); if (reverseOrientation) n = -n; return DirectionCone(Vector3f(n)); }
+fn normal_bounds(&self) -> DirectionCone {
+    let mut n = self.render_from_object.apply(Normal3f::new(0.0, 0.0, 1.0));
+    if self.reverse_orientation { n = -n; }
+    DirectionCone::new(Vector3f::from(n))
+}
 ```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Bounds3f` 97 · `Cylinder::Intersect()` 288 · `DirectionCone` 114 · `Disk::height` 293 · `Disk::innerRadius` 293 · `Disk::phiMax` 293 · `Disk::radius` 293 · `Disk::renderFromObject` 293 · `Disk::reverseOrientation` 293 · `Float` 23 · `Normal3f` 94 · `Point3f` 92 · `QuadricIntersection` 273 · `Ray` 95 · `Sphere::Intersect()` 273 · `Sqr()` 1034 · `Transform` 120 · `Vector3f` 86
+
+</details>
+
+### 6.4.2 Intersection Tests
+
+The `Disk` methods follow the same form as the earlier quadrics. We omit `Intersect()`, which is identical to `Sphere::Intersect()` and `Cylinder::Intersect()` with calls to `BasicIntersect()` and then `InteractionFromIntersection()`.
+
+The basic test is easy: find where the ray intersects the plane $z=h$ containing the disk, then check whether that point lies inside the disk.
+
+**〈Disk Public Methods〉 +≡ 292**
 
 ```rust
-    Bounds3f 97
-    Cylinder::Intersect() 288
-    DirectionCone 114
-    Disk::height 293
-    Disk::innerRadius 293
-    Disk::phiMax 293
-    Disk::radius 293
-    Disk::renderFromObject 293
-    Disk::reverseOrientation 293
-    Float 23
-    Normal3f 94
-    Point3f 92
-    QuadricIntersection 273
+fn basic_intersect(&self, r: &Ray, t_max: Float) -> Option<QuadricIntersection> {
+    let phi: Float;
+    // 〈Transform Ray origin and direction to object space 273〉
+    // 〈Compute plane intersection for disk 294〉
+    // 〈See if hit point is inside disk radii and phi_max 294〉
+    // 〈Return QuadricIntersection for disk intersection 295〉
+}
 ```
 
-```text
-    Ray 95
-    Sphere::Intersect() 273
-    Sqr() 1034
-    Transform 120
-    Vector3f 86
-```
+We want $t$ such that the $z$ component of the ray's position equals the disk's height:
 
-### 6.4.2 INTERSECTION TESTS
+$$
+h = o_z + t\,d_z \quad\Longrightarrow\quad t = \frac{h-o_z}{d_z}.
+$$
 
-The `Disk` intersection test methods follow the same form as the earlier quadrics. We omit `Intersect()`, as it is exactly the same as `Sphere::Intersect()` and `Cylinder::Intersect()`, with calls to `BasicIntersect()` and then `InteractionFromIntersection()`.
+The method computes $t$ and checks it lies in $(0,t_{\max})$; otherwise there is no intersection.
 
-The basic intersection test for a ray with a disk is easy. The intersection of the ray with the z = h plane that the disk lies in is found and then the intersection point is checked to see if it lies inside the disk.
-
-〈Disk Public Methods〉 +≡ 292
+**〈Compute plane intersection for disk〉 ≡ 293**
 
 ```rust
-   Option<QuadricIntersection> BasicIntersect(const Ray &r,
-                                                                 Float tMax) const {
-        〈Transform Ray origin and direction to object space 273〉
-        〈Compute plane intersection for disk 294〉
-        〈See if hit point is inside disk radii and ϕmax 294〉
-         〈Return QuadricIntersection for disk intersection 295〉
-    }
+// 〈Reject disk intersections for rays parallel to the disk's plane 294〉
+let t_shape_hit = (self.height - oi.z.to_float()) / di.z.to_float();
+if t_shape_hit <= 0.0 || t_shape_hit >= t_max { return None; }
 ```
 
-The first step is to compute the parametric t value where the ray intersects the plane that the disk lies in. We want to find t such that the z component of the ray’s position is equal to the height of the disk. Thus, h = oz + tdz
+If the ray is parallel to the disk's plane ($d_z=0$), no intersection is reported. The case of a ray lying *in* the plane is ambiguous, but it is most reasonable to define an edge-on hit as "no intersection". This must be handled explicitly so the code below does not generate NaN.
 
-and so
-
-The intersection method computes a t value and checks to see if it is inside the range of values (0, tMax). If not, the routine can report that there is no intersection.
-
-〈Compute plane intersection for disk〉 ≡ 293
+**〈Reject disk intersections for rays parallel to the disk's plane〉 ≡ 294**
 
 ```rust
-   〈Reject disk intersections for rays parallel to the disk’s plane 294〉
-   Float tShapeHit = (height - Float(oi.z)) / Float(di.z);
-   if (tShapeHit <= 0 || tShapeHit >= tMax)
-        return {};
+if di.z.to_float() == 0.0 { return None; }
 ```
 
-If the ray is parallel to the disk’s plane (i.e., the z component of its direction is zero), no intersection is reported. The case where a ray is both parallel to the disk’s plane and lies within the plane is somewhat ambiguous, but it is most reasonable to define intersecting a disk edge-on as “no intersection.” This case must be handled explicitly so that not-a-number floating-point values are not generated by the following code.
+Next the point $\mathbf p_{\mathrm{hit}}$ where the ray meets the plane is computed. An invalid intersection is returned if its distance from the disk center exceeds `Disk::radius` or is less than `Disk::innerRadius`. This check is optimized by computing the squared distance to the center: the center's $x$ and $y$ are zero and `pHit.z` equals the height.
 
-〈Reject disk intersections for rays parallel to the disk’s plane〉 ≡ 294
+**〈See if hit point is inside disk radii and phi_max〉 ≡ 293**
 
 ```rust
-   if (Float(di.z) == 0)
-         return {};
+let p_hit = Point3f::from(oi) + t_shape_hit * Vector3f::from(di);
+let dist2 = p_hit.x.sqr() + p_hit.y.sqr();
+if dist2 > self.radius.sqr() || dist2 < self.inner_radius.sqr() { return None; }
+// 〈Test disk phi value against phi_max 294〉
 ```
 
-Now the intersection method can compute the point pHit where the ray intersects the plane. Once the plane intersection is known, an invalid intersection is returned if the distance from the hit to the center of the disk is more than `Disk::radius` or less than `Disk::innerRadius`. This check can be optimized by computing the squared distance to the center, taking advantage of the fact that the x and y coordinates of the center point (0, 0, height) are zero, and the z coordinate of pHit is equal to height.
+If the distance check passes, a final test ensures $\phi\in[0,\phi_{\max}]$. Inverting the disk's parameterization gives the same expression for $\phi$ as the other quadrics. Because a ray can hit a disk only once, there is no need to consider a second intersection if this test fails.
 
-〈See if hit point is inside disk radii and ϕmax〉 ≡ 293
+<details>
+<summary>Reference / notes</summary>
+
+`Disk::height` 293 · `Disk::innerRadius` 293 · `Disk::phiMax` 293 · `Disk::radius` 293 · `Float` 23 · `Pi` 1033 · `Point3f` 92 · `Sqr()` 1034 · `Vector3f` 86
+
+</details>
+
+**〈Test disk phi value against phi_max〉 ≡ 294**
 
 ```rust
-    Point3f pHit = Point3f(oi) + (Float)tShapeHit * Vector3f(di);
-    Float dist2 = Sqr(pHit.x) + Sqr(pHit.y);
-    if (dist2 > Sqr(radius) || dist2 < Sqr(innerRadius))
-         return {};
-    〈Test disk ϕ value against ϕmax 294〉
+let mut phi = p_hit.y.atan2(p_hit.x);
+if phi < 0.0 { phi += 2.0 * PI; }
+if phi > self.phi_max { return None; }
 ```
 
-If the distance check passes, a final test makes sure that the ϕ value of the hit point is between zero and ϕmax, specified by the caller. Inverting the disk’s parameterization gives the same expression for ϕ as the other quadric shapes. Because a ray can only intersect a disk once, there is no need to consider a second intersection if this test fails, as was the case with the two earlier quadrics.
+**〈Return QuadricIntersection for disk intersection〉 ≡ 293**
 
 ```rust
-    Disk::height 293
-    Disk::innerRadius 293
-    Disk::phiMax 293
-    Disk::radius 293
-    Float 23
-    Pi 1033
-    Point3f 92
-    Sqr() 1034
-    Vector3f 86
+Some(QuadricIntersection { t_hit: t_shape_hit, p_obj: p_hit, phi })
 ```
 
-〈Test disk ϕ value against ϕmax〉 ≡ 294
+Finding the `SurfaceInteraction` for a disk intersection follows the same process of inverting the parametric representation seen before.
+
+**〈Disk Public Methods〉 +≡ 292**
 
 ```rust
-    Float phi = std::atan2(pHit.y, pHit.x);
-    if (phi < 0) phi += 2 * Pi;
-    if (phi > phiMax)
-        return {};
+fn interaction_from_intersection(
+    &self,
+    isect: &QuadricIntersection,
+    wo: Vector3f,
+    time: Float,
+) -> SurfaceInteraction {
+    let p_hit = isect.p_obj;
+    let phi = isect.phi;
+    // 〈Find parametric representation of disk hit 295〉
+    // 〈Refine disk intersection point 375〉
+    // 〈Compute error bounds for disk intersection 376〉
+    // 〈Return SurfaceInteraction for quadric intersection 279〉
+}
 ```
 
-〈Return QuadricIntersection for disk intersection〉 ≡ 293
+The parameter $u$ is scaled to reflect the partial disk specified by $\phi_{\max}$; $v$ is computed by inverting the parametric equation. The partial derivatives at the hit point are derived as for the previous quadrics. Because a disk's normal is the same everywhere, $\partial\mathbf n/\partial u$ and $\partial\mathbf n/\partial v$ are both trivially $(0,0,0)$, and
+
+$$
+\frac{\partial\mathbf p}{\partial u}=\phi_{\max}(-y,x,0),\qquad
+\frac{\partial\mathbf p}{\partial v}=\frac{(r_i-r)}{r_{\mathrm{hit}}}(x,y,0),
+\quad r_{\mathrm{hit}}=\sqrt{x^2+y^2}.
+$$
+
+**〈Find parametric representation of disk hit〉 ≡ 295**
 
 ```rust
-   return QuadricIntersection{tShapeHit, pHit, phi};
+let u = phi / self.phi_max;
+let r_hit = (p_hit.x.sqr() + p_hit.y.sqr()).sqrt();
+let v = (self.radius - r_hit) / (self.radius - self.inner_radius);
+let dpdu = Vector3f::new(-self.phi_max * p_hit.y, self.phi_max * p_hit.x, 0.0);
+let dpdv = Vector3f::new(p_hit.x, p_hit.y, 0.0) * (self.inner_radius - self.radius) / r_hit;
+let dndu = Normal3f::ZERO;
+let dndv = Normal3f::ZERO;
 ```
 
-Finding the `SurfaceInteraction` corresponding to a disk intersection follows the same process of inverting the parametric representation we have seen before.
+As usual, `IntersectP()` is straightforward:
 
-〈Disk Public Methods〉 +≡ 292
+**〈Disk Public Methods〉 +≡ 292**
 
 ```rust
-   SurfaceInteraction InteractionFromIntersection(
-           const QuadricIntersection &isect, Vector3f wo, Float time) const {
-        Point3f pHit = isect.pObj;
-        Float phi = isect.phi;
-        〈Find parametric representation of disk hit 295〉
-        〈Refine disk intersection point 375〉
-        〈Compute error bounds for disk intersection 376〉
-        〈Return SurfaceInteraction for quadric intersection 279〉
-   }
+fn intersect_p(&self, r: &Ray, t_max: Float) -> bool {
+    self.basic_intersect(r, t_max).is_some()
+}
 ```
 
-The parameter u is first scaled to reflect the partial disk specified by ϕmax, and v is computed by inverting the parametric equation. The equations for the partial derivatives at the hit point can be derived with a process similar to that used for the previous quadrics. Because the normal of a disk is the same everywhere, the partial derivatives ∂n/∂u and ∂n/∂v are both trivially (0, 0, 0).
+<details>
+<summary>Reference / notes</summary>
 
-〈Find parametric representation of disk hit〉 ≡ 295
+`Disk` 292 · `Disk::Area()` 293 · `Disk::BasicIntersect()` 293 · `Disk::height` 293 · `Disk::innerRadius` 293 · `Disk::phiMax` 293 · `Disk::radius` 293 · `Disk::renderFromObject` 293 · `Disk::reverseOrientation` 293 · `Disk::Sample()` 295 · `Float` 23 · `Infinity` 361 · `Interaction` 136 · `Normal3f` 94 · `Normalize()` 88 · `Point2f` 92 · `Point3f` 92 · `Point3fi` 1061 · `QuadricIntersection` 273 · `Ray` 95 · `SampleUniformDiskConcentric()` 1014 · `ShapeSample` 268 · `Sqr()` 1034 · `SurfaceInteraction` 138 · `Vector3f` 86
+
+</details>
+
+### 6.4.3 Sampling
+
+The `Disk` area-sampling method uses the utility `SampleUniformDiskConcentric()`, which uniformly samples a unit disk (Section A.5.1). The returned point is scaled by the radius and offset in $z$ to lie on the disk of given radius and height. Note that our implementation here does *not* account for partial disks due to a nonzero `Disk::innerRadius` or `Disk::phiMax<2\pi`; fixing this bug is left as an exercise.
+
+**〈Disk Public Methods〉 +≡ 292**
 
 ```rust
-   Float u = phi / phiMax;
-   Float rHit = std::sqrt(Sqr(pHit.x) + Sqr(pHit.y));
-   Float v = (radius - rHit) / (radius - innerRadius);
+fn sample(&self, u: Point2f) -> Option<ShapeSample> {
+    let pd = sample_uniform_disk_concentric(u);
+    let p_obj = Point3f::new(pd.x * self.radius, pd.y * self.radius, self.height);
+    let pi = self.render_from_object.apply(Point3fi::from(p_obj));
+    let mut n = normalize(self.render_from_object.apply(Normal3f::new(0.0, 0.0, 1.0)));
+    if self.reverse_orientation { n = -n; }
+    // 〈Compute (u, v) for sampled point on disk 296〉
+    Some(ShapeSample { intr: Interaction::new(pi, n, uv), pdf: 1.0 / self.area() })
+}
 ```
+
+The same computation as in `Intersect()` gives the parametric $(u,v)$ for the sampled point:
+
+**〈Compute (u, v) for sampled point on disk〉 ≡ 295**
 
 ```rust
-    Vector3f dpdu(-phiMax * pHit.y, phiMax * pHit.x, 0);
-    Vector3f dpdv = Vector3f(pHit.x, pHit.y, 0) * (innerRadius - radius) /
-    rHit;
-    Normal3f dndu(0, 0, 0), dndv(0, 0, 0);
+let mut phi = pd.y.atan2(pd.x);
+if phi < 0.0 { phi += 2.0 * PI; }
+let radius_sample = (p_obj.x.sqr() + p_obj.y.sqr()).sqrt();
+let uv = Point2f::new(phi / self.phi_max,
+                      (self.radius - radius_sample) / (self.radius - self.inner_radius));
 ```
 
-As usual, the implementation of `IntersectP()` is straightforward.
-
-〈Disk Public Methods〉 +≡ 292
+**〈Disk Public Methods〉 +≡ 292**
 
 ```rust
-   bool IntersectP(const Ray &r, Float tMax = Infinity) const {
-        return BasicIntersect(r, tMax).has_value();
-   }
+fn pdf(&self, _intr: &Interaction) -> Float { 1.0 / self.area() }
 ```
 
-```rust
-    Disk 292
-    Disk::Area() 293
-    Disk::BasicIntersect() 293
-    Disk::height 293
-    Disk::innerRadius 293
-    Disk::phiMax 293
-    Disk::radius 293
-    Disk::renderFromObject 293
-    Disk::reverseOrientation 293
-    Float 23
-    Infinity 361
-    Interaction 136
-    Normal3f 94
-    Normalize() 88
-    Point2f 92
-    Point3f 92
-    Point3fi 1061
-    QuadricIntersection 273
-    Ray 95
-    SampleUniformDiskConcentric() 1014
-    ShapeSample 268
-    Sqr() 1034
-    SurfaceInteraction 138
-    Vector3f 86
-```
+We do not provide a specialized solid-angle sampling method for disks; we follow the same approach as for cylinders—sample uniformly by area and then compute the probability density with respect to solid angle. Those implementations are not included here because they are the same as for cylinders.
 
-### 6.4.3 SAMPLING
+## 6.5 Triangle Meshes
 
-The `Disk` area sampling method uses a utility routine, `SampleUniformDiskConcentric()`, that uniformly samples a unit disk. (It is defined in Section A.5.1.) The point that it returns is then scaled by the radius and offset in z so that it lies on the disk of a given radius and height. Note that our implementation here does not account for partial disks due to `Disk::innerRadius` being nonzero or `Disk::phiMax` being less than 2π. Fixing this bug is left for an exercise at the end of the chapter.
+The triangle is one of the most commonly used shapes in computer graphics; complex scenes may use millions of triangles to achieve great detail (Figure 6.11 shows a mesh of over four million triangles). A natural representation would be a `Triangle` shape storing its three vertex positions, but a more memory-efficient representation stores whole meshes as an array of vertex positions, with each triangle storing three offsets into that array.
 
-〈Disk Public Methods〉 +≡ 292
+To see why, consider the Euler–Poincaré formula, relating vertices $V$, edges $E$, and faces $F$ of a closed discrete mesh:
 
-```rust
-   Option<ShapeSample> Sample(Point2f u) const {
-        Point2f pd = SampleUniformDiskConcentric(u);
-        Point3f pObj(pd.x * radius, pd.y * radius, height);
-        Point3fi pi = (*renderFromObject)(Point3fi(pObj));
-        Normal3f n = Normalize((*renderFromObject)(Normal3f(0, 0, 1)));
-        if (reverseOrientation)
-             n *= -1;
-        〈Compute (u, v) for sampled point on disk 296〉
-        return ShapeSample{Interaction(pi, n, uv), 1 / Area()};
-   }
-```
+$$
+V-E+F = 2(1-g),
+$$
 
-The same computation as in the `Intersect()` method gives the parametric (u, v) for the sampled point.
+where $g\in\mathbb N$ is the genus, usually a small number interpreted as the number of "handles" in the mesh (analogous to a teacup handle). On a triangle mesh the numbers of edges and vertices are further related by
 
-〈Compute (u, v) for sampled point on disk〉 ≡ 295
+$$
+2E = 3F.
+$$
 
-```rust
-Float phi = std::atan2(pd.y, pd.x); if (phi < 0) phi += 2 * Pi; Float radiusSample = std::sqrt(Sqr(pObj.x) + Sqr(pObj.y)); Point2f uv(phi / phiMax, (radius - radiusSample) / (radius - innerRadius));
-```
+This follows by dividing each edge into two half-edges associated with the two adjacent triangles: there are $3F$ half-edges, and colocated pairs constitute the $E$ mesh edges. For large closed meshes the genus becomes negligible, so combining the two equations with $g=0$ gives $F\approx 2V$.
 
-〈Disk Public Methods〉 +≡ 292
+In other words, there are about twice as many faces as vertices. Since each face references three vertices, each vertex is referenced about six times on average. With shared vertices the amortized storage per triangle is 12 bytes for the three 32-bit integer offsets plus half of a vertex's storage—6 bytes, assuming three 4-byte floats—for **18 bytes per triangle**, much better than the 36 bytes required to store three positions directly. The savings are even greater when meshes carry per-vertex normals or texture coordinates.
 
-```rust
-   Float PDF(const Interaction &) const { return 1 / Area(); }
-```
+*Figure 6.11: Ganesha Model. This triangle mesh contains over four million individual triangles, created from a real statue with a structured-light 3D scanner.*
 
-We do not provide a specialized solid angle sampling method for disks, but follow the same approach that we did for cylinders, sampling uniformly by area and then computing the probability density to be with respect to solid angle. The implementations of those methods are not included here, as they are the same as they were for cylinders.
-
-## 6.5 TRIANGLE MESHES
-
-The triangle is one of the most commonly used shapes in computer graphics; complex scenes may be modeled using millions of triangles to achieve great detail. (Figure 6.11 shows an image of a complex triangle mesh of over four million triangles.) While a natural representation would be to have a `Triangle` shape implementation where each triangle stored the positions of its three vertices, a more memory-efficient representation is to separately store entire triangle meshes with an array of vertex positions where each individual triangle just stores three offsets into this array for its three vertices. To see why this is the case, consider the celebrated Euler–Poincaré formula, which relates the number of vertices V, edges E, and faces F on closed discrete meshes as V − E + F = 2(1 − g), where g ∈ ℕ is the genus of the mesh. The genus is usually a small number and can be interpreted as the number of “handles” in the mesh (analogous to a handle of a teacup). On a triangle mesh, the
-
-number of edges and vertices is furthermore related by the identity This can be seen by dividing each edge into two parts associated with the two adjacent triangles. There are 3F such half-edges, and all colocated pairs constitute the E mesh edges. For large closed triangle meshes, the overall effect of the genus usually becomes negligible and we can combine the previous two equations (with g = 0) to obtain F ≈ 2V.
-
-```rust
-    Disk::Area() 293
-    Disk::innerRadius 293
-    Disk::phiMax 293
-    Disk::radius 293
-    Float 23
-    Interaction 136
-    Pi 1033
-    Point2f 92
-    Sqr() 1034
-```
-
-In other words, there are approximately twice as many faces as vertices. Since each face references three vertices, every vertex is (on average) referenced a total of six times. Thus, when vertices are shared, the total amortized storage required per triangle will be 12 bytes of memory for the offsets (at 4 bytes for three 32-bit integer offsets) plus half of the storage for one vertex—6 bytes, assuming three 4-byte floats are used to store the vertex position—for a total of 18 bytes per triangle. This is much better than the 36 bytes per triangle that storing the three positions directly would require. The relative storage savings are even better when there are per-vertex surface normals or texture coordinates in a mesh.
+<details>
+<summary>Figure 6.11 — pictorial image (keep)</summary>
 
 ![Figure 6.11](images/img-454-040.png)
 
+</details>
 
-*Figure 6.11: Ganesha Model. This triangle mesh contains over four million individual triangles. It was created from a real statue using a 3D scanner that uses structured light to determine shapes of objects.*
+### 6.5.1 Mesh Representation and Storage
 
-### 6.5.1 MESH REPRESENTATION AND STORAGE
+pbrt uses `TriangleMesh` to store the shared information about a mesh, defined in `util/mesh.rs`.
 
-pbrt uses the `TriangleMesh` class to store the shared information about a triangle mesh. It is defined in the files `util/mesh.rs` and `util/mesh.rs`.
-
-〈TriangleMesh Definition〉 ≡
-
-```rust
-class TriangleMesh { public: 〈TriangleMesh Public Methods〉 〈TriangleMesh Public Members 298〉 };
-```
-
-In addition to the mesh vertex positions and vertex indices, per-vertex normals n, tangent vectors s, and texture coordinates uv may be provided. The corresponding vectors should be empty if there are no such values or should be the same size as p otherwise.
-
-```text
-    TriangleMesh 297
-```
-
-〈TriangleMesh Method Definitions〉 ≡ TriangleMesh::TriangleMesh( const Transform &renderFromObject, bool reverseOrientation, std::vector<int> indices, std::vector<Point3f> p, std::vector<Vector3f> s, std::vector<Normal3f> n, std::vector<Point2f> uv, std::vector<int> faceIndices, Allocator alloc) : nTriangles(indices.size() / 3), nVertices(p.size()) { 〈Initialize mesh vertexIndices 298〉 〈Transform mesh vertices to rendering space and initialize mesh p 301〉 〈Remainder of TriangleMesh constructor〉 }
-
-The mesh data is made available via public member variables; as with things like coordinates of points or rays’ directions, there would be little benefit and some bother from information hiding in this case.
-
-〈TriangleMesh Public Members〉 ≡ 297
+**〈TriangleMesh Definition〉 ≡**
 
 ```rust
-   int nTriangles, nVertices;
-   const int *vertexIndices = nullptr;
-   const Point3f *p = nullptr;
+struct TriangleMesh {
+    // 〈TriangleMesh Public Methods〉
+    // 〈TriangleMesh Public Members〉
+}
 ```
 
-Although its constructor takes `std::vector` parameters, `TriangleMesh` stores plain pointers to its data arrays. The vertexIndices pointer points to 3 * nTriangles values, and the per-vertex pointers, if not nullptr, point to nVertices values.
+In addition to vertex positions and indices, per-vertex normals $\mathbf n$, tangent vectors $\mathbf s$, and texture coordinates $\mathbf{uv}$ may be provided. The corresponding vectors should be empty if there are no such values, or have the same size as $\mathbf p$ otherwise.
 
-We chose this design so that different TriangleMeshes could potentially point to the same arrays in memory in the case that they were both given the same values for some or all of their parameters. Although pbrt offers capabilities for object instancing, where multiple copies of the same geometry can be placed in the scene with different transformation matrices (e.g., via the `TransformedPrimitive` that is described in Section 7.1.2), the scenes provided to it do not always make full use of this capability. For example, with the landscape scene in Figures 5.11 and 7.2, over 400 MB is saved from detecting such redundant arrays.
+<details>
+<summary>Reference / notes</summary>
 
-The `BufferCache` class handles the details of storing a single unique copy of each buffer provided to it. Its `LookupOrAdd()` method, to be defined shortly, takes a `std::vector` of the type it manages and returns a pointer to memory that stores the same values.
+`TriangleMesh` 297
 
-〈Initialize mesh vertexIndices〉 ≡ 298
+</details>
+
+**〈TriangleMesh Method Definitions〉 ≡**
 
 ```rust
-    vertexIndices = intBufferCache->LookupOrAdd(indices, alloc);
-```
-
-```text
-    Allocator 40
-    BufferCache 299
-    BufferCache::LookupOrAdd() 300
-    intBufferCache 298
-    Normal3f 94
-    Point2f 92
-    Point3f 92
-    Transform 120
-    TransformedPrimitive 403
-    TriangleMesh 297
-    TriangleMesh::vertexIndices 298
-    Vector3f 86
-```
-
-The BufferCaches are made available through global variables in the pbrt namespace. Additional ones, not included here, handle normals, tangent vectors, and texture coordinates.
-
-〈BufferCache Global Declarations〉 ≡
-
-```rust
-extern BufferCache<int> *intBufferCache; extern BufferCache<Point3f> *point3BufferCache;
-```
-
-The `BufferCache` class is templated based on the array element type that it stores.
-
-〈BufferCache Definition〉 ≡
-
-```rust
-template <typename T> class BufferCache { public: 〈BufferCache Public Methods 300〉 private: 〈BufferCache::Buffer Definition 299〉 〈BufferCache::BufferHasher Definition 300〉 〈BufferCache Private Members 299〉 };
-```
-
-`BufferCache` allows concurrent use by multiple threads so that multiple meshes can be added to the scene in parallel; the scene construction code in Appendix C takes advantage of this capability. While a single mutex could be used to manage access to it, contention over that mutex by multiple threads can inhibit concurrency, reducing the benefits of multi-threading. Therefore, the cache is broken into 64 independent shards, each holding a subset of the entries. Each shard has its own mutex, allowing different threads to concurrently access different shards.
-
-〈BufferCache Private Members〉 ≡ 299
-
-```rust
-   static constexpr int logShards = 6;
-   static constexpr int nShards = 1 << logShards;
-```
-
-```rust
-   std::shared_mutex mutex[nShards];
-   std::unordered_set<Buffer, BufferHasher> cache[nShards];
-```
-
-Buffer is a small helper class that wraps an allocation managed by the `BufferCache`.
-
-〈BufferCache::Buffer Definition〉 ≡ 299
-
-```rust
-   struct Buffer {
-        〈BufferCache::Buffer Public Methods 299〉
-        const T *ptr = nullptr;
-        size_t size = 0, hash;
-   };
-```
-
-The Buffer constructor computes the buffer’s hash, which is stored in a member variable.
-
-〈BufferCache::Buffer Public Methods〉 ≡ 299
-
-```rust
-   Buffer(const T *ptr, size_t size) : ptr(ptr), size(size) {
-        hash = HashBuffer(ptr, size);
-   }
-```
-
-An equality operator, which is required by the `std::unordered_set`, only returns true if both buffers are the same size and store the same values.
-
-〈BufferCache::Buffer Public Methods〉 +≡ 299
-
-```rust
-   bool operator==(const Buffer &b) const {
-        return size == b.size && hash == b.hash &&
-            std::memcmp(ptr, b.ptr, size * sizeof(T)) == 0;
-   }
-```
-
-```text
-    BufferCache::Buffer::hash 299
-    BufferCache::Buffer::ptr 299
-    BufferCache::Buffer::size 299
-    BufferCache::logShards 299
-    BufferCache::nShards 299
-    HashBuffer() 1042
-```
-
-BufferHasher is another helper class, used by `std::unordered_set`. It returns the buffer’s already-computed hash.
-
-〈BufferCache::BufferHasher Definition〉 ≡ 299
-
-```rust
-   struct BufferHasher {
-        size_t operator()(const Buffer &b) const {
-            return b.hash;
-```
-
-```rust
-         }
-    };
-```
-
-The `BufferCache` LookUpOrAdd() method checks to see if the values stored by the provided buffer are already in the cache and returns a pointer to them if so. Otherwise, it allocates memory to store them and returns a pointer to it.
-
-〈BufferCache Public Methods〉 ≡ 299
-
-```rust
-   const T *LookupOrAdd(pstd::span<const T> buf, Allocator alloc) {
-        〈Return pointer to data if buf contents are already in the cache 300〉
-        〈Add buf contents to cache and return pointer to cached copy 300〉
-   }
-```
-
-The `pstd::span`’s contents need to be wrapped in a Buffer instance to be able to search for a matching buffer in the cache. The buffer’s pointer is returned if it is already present. Because the cache is only read here and is not being modified, the lock_shared() capability of `std::shared_mutex` is used here, allowing multiple threads to read the hash table concurrently.
-
-〈Return pointer to data if buf contents are already in the cache〉 ≡ 300
-
-```rust
-   Buffer lookupBuffer(buf.data(), buf.size());
-   int shardIndex = uint32_t(lookupBuffer.hash) >> (32 - logShards);
-   mutex[shardIndex].lock_shared();
-   if (auto iter = cache[shardIndex].find(lookupBuffer);
-        iter != cache[shardIndex].end()) {
-        const T *ptr = iter->ptr;
-        mutex[shardIndex].unlock_shared();
-        return ptr;
-   }
-```
-
-Otherwise, memory is allocated using the allocator to store the buffer, and the values are copied from the provided span before the Buffer is added to the cache. An exclusive lock to the mutex must be held in order to modify the cache; one is acquired by giving up the shared lock and then calling the regular lock() method.
-
-〈Add buf contents to cache and return pointer to cached copy〉 ≡ 300
-
-```rust
-   mutex[shardIndex].unlock_shared();
-   T *ptr = alloc.allocate_object<T>(buf.size());
-   std::copy(buf.begin(), buf.end(), ptr);
-   mutex[shardIndex].lock();
-   〈Handle the case of another thread adding the buffer first 301〉
-   cache[shardIndex].insert(Buffer(ptr, buf.size()));
-   mutex[shardIndex].unlock();
-```
-
-```rust
-    return ptr;
-```
-
-```text
-    Allocator 40
-    BufferCache::Buffer::hash 299
-    BufferCache::cache 299
-    BufferCache::mutex 299
-    std::pmr::polymorphic_allocator::allocate_object() 41
-```
-
-It is possible that another thread may have added the buffer to the cache before the current thread is able to; if the same buffer is being added by multiple threads concurrently, then one will end up acquiring the exclusive lock before the other. In that rare case, a pointer to the already-added buffer is returned and the memory allocated by this thread is released.
-
-〈Handle the case of another thread adding the buffer first〉 ≡ 300
-
-```rust
-if (auto iter = cache[shardIndex].find(lookupBuffer); iter != cache[shardIndex].end()) { const T *cachePtr = iter->ptr; mutex[shardIndex].unlock(); alloc.deallocate_object(ptr, buf.size()); return cachePtr; }
-```
-
-Returning now to the `TriangleMesh` constructor, the vertex positions are processed next. Unlike the other shapes that leave the shape description in object space and then transform incoming rays from rendering space to object space, triangle meshes transform the shape into rendering space and thus save the work of transforming incoming rays into object space and the work of transforming the intersection’s geometric representation out to rendering space. This is a good idea because this operation can be performed once at startup, avoiding transforming rays many times during rendering. Using this approach with quadrics is more complicated, although possible—see Exercise 6.1 at the end of the chapter.
-
-The resulting points are also provided to the buffer cache, though after the rendering from object transformation has been applied. Because the positions were transformed to rendering space, this cache lookup is rarely successful. The hit rate would likely be higher if positions were left in object space, though doing so would require additional computation to transform vertex positions when they were accessed. Vertex indices and uv texture coordinates fare better with the buffer cache, however.
-
-〈Transform mesh vertices to rendering space and initialize mesh p〉 ≡ 298
-
-```rust
-   for (Point3f &pt : p)
-        pt = renderFromObject(pt);
-   this->p = point3BufferCache->LookupOrAdd(p, alloc);
-```
-
-We will omit the remainder of the `TriangleMesh` constructor, as handling the other per-vertex buffer types is similar to how the positions are processed. The remainder of its member variables are below. In addition to the remainder of the mesh vertex and face data, the `TriangleMesh` records whether the normals should be flipped by way of the values of reverseOrientation and transformSwapsHandedness. Because these two have the same value for all triangles in a mesh, memory can be saved by storing them once with the mesh itself rather than redundantly with each of the triangles.
-
-〈TriangleMesh Public Members〉 +≡ 297
-
-```rust
-   const Normal3f *n = nullptr;
-   const Vector3f *s = nullptr;
-   const Point2f *uv = nullptr;
-   bool reverseOrientation, transformSwapsHandedness;
-```
-
-```text
-    BufferCache::Buffer::ptr 299
-    BufferCache::cache 299
-    BufferCache::LookupOrAdd() 300
-    BufferCache::mutex 299
-    Normal3f 94
-    Point2f 92
-    point3BufferCache 298
-    Point3f 92
-    Shape 261
-    std::pmr::polymorphic_allocator:: deallocate_object() 41
-    Triangle 301
-    TriangleMesh 297
-    TriangleMesh::p 298
-    Vector3f 86
-```
-
-### 6.5.2 `Triangle` CLASS
-
-The `Triangle` class actually implements the `Shape` interface. It represents a single triangle.
-
-〈Triangle Definition〉 ≡
-
-```rust
-class Triangle { public: 〈Triangle Public Methods 302〉 private: 〈Triangle Private Methods 302〉 〈Triangle Private Members 302〉 };
-```
-
-Because complex scenes may have billions of triangles, it is important to minimize the amount of memory that each triangle uses. pbrt stores pointers to all the TriangleMeshes for the scene in a vector, which allows each triangle to be represented using just two integers: one to record which mesh it is a part of and another to record which triangle in the mesh it represents. With 4-byte ints, each `Triangle` uses just 8 bytes of memory.
-
-Given this compact representation of triangles, recall the discussion in Section 1.5.7 about the memory cost of classes with virtual functions: if `Triangle` inherited from an abstract `Shape` base class that defined pure virtual functions, the virtual function pointer with each `Triangle` alone would double its size, assuming a 64-bit architecture with 8-byte pointers.
-
-〈Triangle Public Methods〉 ≡ 301
-
-```rust
-Triangle(int meshIndex, int triIndex) : meshIndex(meshIndex), triIndex(triIndex) {}
-```
-
-〈Triangle Private Members〉 ≡ 301
-
-```rust
-   int meshIndex = -1, triIndex = -1;
-   static pstd::vector<const TriangleMesh *> *allMeshes;
-```
-
-The bounding box of a triangle is easily found by computing a bounding box that encompasses its three vertices. Because the vertices have already been transformed to rendering space, no transformation of the bounds is necessary.
-
-〈Triangle Method Definitions〉 ≡
-
-```rust
-Bounds3f Triangle::Bounds() const { 〈Get triangle vertices in p0, p1, and p2 302〉 return Union(Bounds3f(p0, p1), p2); }
-```
-
-Finding the positions of the three triangle vertices requires some indirection: first the mesh pointer must be found; then the indices of the three triangle vertices can be found given the triangle’s index in the mesh; finally, the positions can be read from the mesh’s p array. We will reuse this fragment repeatedly in the following, as the vertex positions are needed in many of the `Triangle` methods.
-
-〈Get triangle vertices in p0, p1, and p2〉 ≡ 302, 303, 309, 313, 317,
-
-```rust
-   const TriangleMesh *mesh = GetMesh();
-   const int *v = &mesh->vertexIndices[3 * triIndex];
-   Point3f p0 = mesh->p[v[0]], p1 = mesh->p[v[1]], p2 = mesh->p[v[2]];
-```
-
-The `GetMesh()` method encapsulates the indexing operation to get the mesh’s pointer.
-
-〈Triangle Private Methods〉 ≡ 301
-
-```rust
-   const TriangleMesh *GetMesh() const {
-         return (*allMeshes)[meshIndex];
-```
-
-```rust
+impl TriangleMesh {
+    fn new(
+        render_from_object: &Transform,
+        reverse_orientation: bool,
+        indices: Vec<i32>,
+        mut p: Vec<Point3f>,
+        s: Vec<Vector3f>,
+        n: Vec<Normal3f>,
+        uv: Vec<Point2f>,
+        face_indices: Vec<i32>,
+        alloc: Allocator,
+    ) -> Self {
+        let n_triangles = indices.len() / 3;
+        let n_vertices = p.len();
+        // 〈Initialize mesh vertexIndices 298〉
+        // 〈Transform mesh vertices to rendering space and initialize mesh p 301〉
+        // 〈Remainder of TriangleMesh constructor〉
     }
+}
 ```
+
+The mesh data is exposed through public member variables; as with point coordinates or ray directions, information hiding offers little benefit here.
+
+**〈TriangleMesh Public Members〉 ≡ 297**
 
 ```rust
-    Bounds3::Union() 99
-    Bounds3f 97
-    Cross() 91
-    Float 23
-    Length() 88
-    Point3f 92
-    Triangle 301
-    Triangle::GetMesh() 302
-    Triangle::triIndex 302
-    TriangleMesh 297
-    TriangleMesh::p 298
-    TriangleMesh::vertexIndices 298
+struct TriangleMesh {
+    n_triangles: usize,
+    n_vertices: usize,
+    vertex_indices: &'static [i32],
+    p: &'static [Point3f],
+    // 〈additional per-vertex buffers + orientation flags〉
+}
 ```
 
-Using the fact that the area of a parallelogram is given by the length of the cross product of the two vectors along its sides, the `Area()` method computes the triangle area as half the area of the parallelogram formed by two of its edge vectors (see Figure 6.13).
+Although the constructor takes `Vec` parameters, `TriangleMesh` stores plain slices pointing to its data arrays. `vertex_indices` holds $3\,n_{\mathrm{triangles}}$ values, and each per-vertex slice, if present, holds $n_{\mathrm{vertices}}$ values.
 
-〈Triangle Public Methods〉 +≡ 301
+This design lets different meshes point to the same arrays when given identical values for some or all parameters. pbrt supports object instancing via `TransformedPrimitive` (Section 7.1.2), but scenes do not always exploit it: for the landscape scene in Figures 5.11 and 7.2, over 400 MB is saved by detecting redundant arrays.
+
+`BufferCache` stores a single unique copy of each buffer. Its `LookupOrAdd()` takes a slice of the managed type and returns a pointer to memory holding the same values.
+
+**〈Initialize mesh vertexIndices〉 ≡ 298**
 
 ```rust
-   Float Area() const {
-         〈Get triangle vertices in p0, p1, and p2 302〉
-         return 0.5f * Length(Cross(p1 - p0, p2 - p0));
-   }
+self.vertex_indices = int_buffer_cache.lookup_or_add(&indices, alloc);
 ```
 
-Bounding the triangle’s normal should be trivial: a cross product of appropriate edges gives its single normal vector direction. However, two subtleties that affect the orientation of the normal must be handled before the bounds are returned.
+<details>
+<summary>Reference / notes</summary>
 
-〈Triangle Method Definitions〉 +≡
+`Allocator` 40 · `BufferCache` 299 · `BufferCache::LookupOrAdd()` 300 · `intBufferCache` 298 · `Normal3f` 94 · `Point2f` 92 · `Point3f` 92 · `Transform` 120 · `TransformedPrimitive` 403 · `TriangleMesh` 297 · `TriangleMesh::vertexIndices` 298 · `Vector3f` 86
+
+</details>
+
+The buffer caches are global variables in the pbrt namespace; additional ones handle normals, tangents, and texture coordinates.
+
+**〈BufferCache Global Declarations〉 ≡**
 
 ```rust
-DirectionCone Triangle::NormalBounds() const { 〈Get triangle vertices in p0, p1, and p2 302〉 Normal3f n = Normalize(Normal3f(Cross(p1 - p0, p2 - p0))); 〈Ensure correct orientation of geometric normal for normal bounds 303〉 return DirectionCone(Vector3f(n)); }
+static mut INT_BUFFER_CACHE: Option<BufferCache<i32>> = None;
+static mut POINT3_BUFFER_CACHE: Option<BufferCache<Point3f>> = None;
 ```
 
-The first issue with the returned normal comes from the presence of per-vertex normals, even though it is a bound on geometric normals that `NormalBounds()` is supposed to return. pbrt requires that both the geometric normal and the interpolated per-vertex normal lie on the same side of the surface. If the two of them are on different sides, then pbrt follows the convention that the geometric normal is the one that should be flipped.
+`BufferCache` is generic over the array element type:
 
-Furthermore, if there are not per-vertex normals, then—as with earlier shapes—the normal is flipped if either ReverseOrientation was specified in the scene description or the rendering to object transformation swaps the coordinate system handedness, but not both. Both of these considerations must be accounted for in the normal returned for the normal bounds.
-
-〈Ensure correct orientation of geometric normal for normal bounds〉 ≡ 303
+**〈BufferCache Definition〉 ≡**
 
 ```rust
-   if (mesh->n) {
-        Normal3f ns(mesh->n[v[0]] + mesh->n[v[1]] + mesh->n[v[2]]);
-        n = FaceForward(n, ns);
-   } else if (mesh->reverseOrientation ^ mesh->transformSwapsHandedness)
-        n *= -1;
+struct BufferCache<T> {
+    // 〈BufferCache Public Methods〉
+    // 〈BufferCache::Buffer Definition〉
+    // 〈BufferCache::BufferHasher Definition〉
+    // 〈BufferCache Private Members〉
+}
 ```
 
-Although it is not required by the `Shape` interface, we will find it useful to be able to compute the solid angle that a triangle subtends from a reference point. The previously defined `SphericalTriangleArea()` function takes care of this directly.
+`BufferCache` allows concurrent use by multiple threads so meshes can be added in parallel (Appendix C). A single mutex would serialize all access, so the cache is split into 64 independent shards, each with its own mutex, allowing different threads to access different shards concurrently.
 
-〈Triangle Public Methods〉 +≡ 301
+**〈BufferCache Private Members〉 ≡ 299**
 
 ```rust
-   Float SolidAngle(Point3f p) const {
-         〈Get triangle vertices in p0, p1, and p2 302〉
-         return SphericalTriangleArea(Normalize(p0 - p), Normalize(p1 - p),
-                                    Normalize(p2 - p));
-   }
+const LOG_SHARDS: u32 = 6;
+const N_SHARDS: usize = 1 << LOG_SHARDS;
+mutex: [RwLock<()>; N_SHARDS],
+cache: [HashSet<Buffer<T>, BufferHasher>; N_SHARDS],
 ```
+
+`Buffer` is a small helper wrapping an allocation managed by the cache.
+
+**〈BufferCache::Buffer Definition〉 ≡ 299**
 
 ```rust
-    Cross() 91
-    DirectionCone 114
-    FaceForward() 94
-    Float 23
-    Normal3f 94
-    Normalize() 88
-    Point3f 92
-    Ray 95
-    SphericalTriangleArea() 106
-    Triangle 301
-    TriangleIntersection 309
-    TriangleMesh 297
-    TriangleMesh::n 301
-    TriangleMesh:: reverseOrientation 301
-    TriangleMesh:: transformSwapsHandedness 301
-    Vector3f 86
+struct Buffer<T> {
+    // 〈BufferCache::Buffer Public Methods〉
+    ptr: *const T,
+    size: usize,
+    hash: u64,
+}
 ```
 
-### 6.5.3 RAY–TRIANGLE INTERSECTION
+Its constructor computes the buffer's hash, stored in a member variable.
 
-Unlike the other shapes so far, pbrt provides a stand-alone triangle intersection function that takes a ray and the three triangle vertices directly. Having this functionality available without needing to instantiate both a `Triangle` and a `TriangleMesh` in order to do a ray–triangle intersection test is helpful in a few other parts of the system. The `Triangle` class intersection methods, described next, use this function in their implementations.
-
-〈Triangle Functions〉 ≡
+**〈BufferCache::Buffer Public Methods〉 ≡ 299**
 
 ```rust
-pstd::optional<TriangleIntersection> IntersectTriangle(const Ray &ray, Float tMax, Point3f p0, Point3f p1, Point3f p2) { 〈Return no intersection if triangle is degenerate 304〉 〈Transform triangle vertices to ray coordinate space 304〉 〈Compute edge function coefficients e0, e1, and e2 307〉 〈Fall back to double-precision test at triangle edges〉 〈Perform triangle edge and determinant tests 308〉 〈Compute scaled hit distance to triangle and test against ray t range 308〉 〈Compute barycentric coordinates and t value for triangle intersection 309〉 〈Ensure that computed triangle t is conservatively greater than zero 384〉 〈Return TriangleIntersection for intersection 309〉 }
+impl<T> Buffer<T> {
+    fn new(ptr: *const T, size: usize) -> Self {
+        Self { ptr, size, hash: hash_buffer(ptr, size) }
+    }
+}
 ```
 
-pbrt’s ray–triangle intersection test is based on first computing an affine transformation that transforms the ray such that its origin is at (0, 0, 0) in the transformed coordinate system and such that its direction is along the +z axis. `Triangle` vertices are also transformed into this coordinate system before the intersection test is performed. In the following, we will see that applying this coordinate system transformation simplifies the intersection test logic since, for example, the x and y coordinates of any intersection point must be zero. Later, in Section 6.8.4, we will see that this transformation makes it possible to have a watertight ray–triangle intersection algorithm, such that intersections with tricky rays like those that hit the triangle right on the edge are never incorrectly reported as misses.
+An equality operator, required by the hash set, returns true only if both buffers have the same size and contents:
 
-One side effect of the transformation that we will apply to the vertices is that, due to floating-point round-off error, a degenerate triangle may be transformed into a non-degenerate triangle. If an intersection is reported with a degenerate triangle, then later code that tries to compute the geometric properties of the intersection will be unable to compute valid results. Therefore, this function starts with testing for a degenerate triangle and returning immediately if one was provided.
-
-〈Return no intersection if triangle is degenerate〉 ≡ 303
+**〈BufferCache::Buffer Public Methods〉 +≡ 299**
 
 ```rust
-   if (LengthSquared(Cross(p2 - p0, p1 - p0)) == 0)
-        return {};
+fn eq(&self, b: &Self) -> bool {
+    self.size == b.size && self.hash == b.hash
+        && unsafe { slice::from_raw_parts(self.ptr, self.size)
+                 == slice::from_raw_parts(b.ptr, b.size) }
+}
 ```
 
-There are three steps to computing the transformation from rendering space to the ray–triangle intersection coordinate space: a translation T, a coordinate permutation P, and a shear S. Rather than computing explicit transformation matrices for each of these and then computing an aggregate transformation matrix M = SPT to transform vertices to the coordinate space, the following
+<details>
+<summary>Reference / notes</summary>
 
-implementation applies each step of the transformation directly, which ends up being a more efficient approach.
+`BufferCache::Buffer::hash` 299 · `BufferCache::Buffer::ptr` 299 · `BufferCache::Buffer::size` 299 · `BufferCache::logShards` 299 · `BufferCache::nShards` 299 · `HashBuffer()` 1042
 
-〈Transform triangle vertices to ray coordinate space〉 ≡ 303
+</details>
 
-```text
-   〈Translate vertices based on ray origin 305〉
-   〈Permute components of triangle vertices and ray direction 305〉
-   〈Apply shear transformation to translated vertex positions 305〉
-```
+`BufferHasher` is another helper class, used by the hash set; it returns the buffer's already-computed hash.
 
-The translation that places the ray origin at the origin of the coordinate system is:
-
-This transformation does not need to be explicitly applied to the ray origin, but we will apply it to the three triangle vertices.
-
-```text
-    Cross() 91
-    LengthSquared() 87
-```
-
-〈Translate vertices based on ray origin〉 ≡ 304
+**〈BufferCache::BufferHasher Definition〉 ≡ 299**
 
 ```rust
-   Point3f p0t = p0 - Vector3f(ray.o);
-   Point3f p1t = p1 - Vector3f(ray.o);
-   Point3f p2t = p2 - Vector3f(ray.o);
+struct BufferHasher;
+impl<T> Hash for Buffer<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) { self.hash.hash(state); }
+}
 ```
 
-Next, the three dimensions of the space are permuted so that the z dimension is the one where the absolute value of the ray’s direction is largest. The x and y dimensions are arbitrarily assigned to the other two dimensions. This step ensures that if, for example, the original ray’s z direction is zero, then a dimension with nonzero magnitude is mapped to +z.
+`LookupOrAdd()` checks whether the provided buffer's values are already cached and returns a pointer to them if so; otherwise it allocates memory and copies the values in.
 
-For example, if the ray’s direction had the largest magnitude in x, the permutation would be:
-
-As before, it is easiest to permute the dimensions of the ray direction and the translated triangle vertices directly.
-
-〈Permute components of triangle vertices and ray direction〉 ≡ 304
+**〈BufferCache Public Methods〉 ≡ 299**
 
 ```rust
-   int kz = MaxComponentIndex(Abs(ray.d));
-   int kx = kz + 1; if (kx == 3) kx = 0;
+fn lookup_or_add(&self, buf: &[T], alloc: Allocator) -> &'static [T] {
+    // 〈Return pointer to data if buf contents are already in the cache 300〉
+    // 〈Add buf contents to cache and return pointer to cached copy 300〉
+}
 ```
+
+The slice's contents are wrapped in a `Buffer` to search the cache. The buffer's pointer is returned if present. Because the cache is only read here, a shared (read) lock is used, allowing multiple threads to read the hash table concurrently.
+
+**〈Return pointer to data if buf contents are already in the cache〉 ≡ 300**
 
 ```rust
-    int ky = kx + 1; if (ky == 3) ky = 0;
-    Vector3f d = Permute(ray.d, {kx, ky, kz});
-    p0t = Permute(p0t, {kx, ky, kz});
-    p1t = Permute(p1t, {kx, ky, kz});
-    p2t = Permute(p2t, {kx, ky, kz});
+let lookup_buffer = Buffer::new(buf.as_ptr(), buf.len());
+let shard_index = (lookup_buffer.hash as u32) >> (32 - LOG_SHARDS);
+{
+    let guard = self.mutex[shard_index].read().unwrap();
+    if let Some(entry) = self.cache[shard_index].get(&lookup_buffer) {
+        return unsafe { slice::from_raw_parts(entry.ptr, entry.size) };
+    }
+}
 ```
 
-Finally, a shear transformation aligns the ray direction with the +z axis:
+Otherwise memory is allocated, values copied, and the `Buffer` added to the cache. An exclusive lock is needed to modify the cache; the shared lock is released before acquiring it.
 
-To see how this transformation works, consider its operation on the ray direction vector [dx dy dz 0]T.
-
-For now, only the x and y dimensions are sheared; we can wait and shear the z dimension only if the ray intersects the triangle.
-
-〈Apply shear transformation to translated vertex positions〉 ≡ 304
+**〈Add buf contents to cache and return pointer to cached copy〉 ≡ 300**
 
 ```rust
-   Float Sx = -d.x / d.z;
-   Float Sy = -d.y / d.z;
-   Float Sz = 1 / d.z;
-   p0t.x += Sx * p0t.z;
-   p0t.y += Sy * p0t.z;
-   p1t.x += Sx * p1t.z;
-   p1t.y += Sy * p1t.z;
-   p2t.x += Sx * p2t.z;
-   p2t.y += Sy * p2t.z;
+let ptr = alloc.allocate_slice(buf.len());
+ptr.copy_from_slice(buf);
+let mut guard = self.mutex[shard_index].write().unwrap();
+// 〈Handle the case of another thread adding the buffer first 301〉
+self.cache[shard_index].insert(Buffer::new(ptr.as_ptr(), buf.len()));
+drop(guard);
+ptr
 ```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Allocator` 40 · `BufferCache::Buffer::hash` 299 · `BufferCache::cache` 299 · `BufferCache::mutex` 299 · `std::pmr::polymorphic_allocator::allocate_object()` 41
+
+</details>
+
+Another thread may have added the buffer first; in that rare case we return the already-added pointer and release the memory allocated by this thread.
+
+**〈Handle the case of another thread adding the buffer first〉 ≡ 300**
 
 ```rust
-    Float 23
-    Point3f 92
-    Ray::d 95
-    Ray::o 95
-    Tuple3::MaxComponentIndex() 85
-    Tuple3::Permute() 85
-    Vector3f 86
+if let Some(entry) = self.cache[shard_index].get(&lookup_buffer) {
+    let cached = unsafe { slice::from_raw_parts(entry.ptr, entry.size) };
+    drop(guard);
+    alloc.deallocate_slice(ptr);
+    return cached;
+}
 ```
 
-Note that the calculations for the coordinate permutation and the shear coefficients only depend on the given ray; they are independent of the triangle. In a high-performance ray tracer, it may be worthwhile to compute these values once and store them in the `Ray` class, rather than recomputing them for each triangle the ray is intersected with.
+Returning to the `TriangleMesh` constructor, the vertex positions are processed next. Unlike the other shapes—which leave their description in object space and transform incoming rays to object space—triangle meshes transform themselves into rendering space once at startup, saving the work of transforming rays and intersection geometry during rendering. This is more complicated for quadrics but possible (Exercise 6.1).
 
-![Figure 6.12](images/img-467-041.png)
+The transformed points are also offered to the buffer cache, though after the transform the lookup rarely succeeds; leaving positions in object space would improve the hit rate at the cost of per-access transformations. Vertex indices and texture coordinates fare better with the cache.
 
-
-*Figure 6.12: In the ray–triangle intersection coordinate system, the ray starts at the origin and goes along the +z axis. The intersection test can be performed by considering only the xy projection of the ray and the triangle vertices, which in turn reduces to determining if the 2D point (0, 0) is within the triangle.*
-
-![Figure 6.13](images/img-467-042.png)
-
-
-*Figure 6.13: The area of a triangle with two edges given by vectors v1 and v2 is one-half of the area of the parallelogram shown here. The parallelogram area is given by the length of the cross product of v1 and v2.*
-
-With the triangle vertices transformed to this coordinate system, our task now is to find whether the ray starting from the origin and traveling along the +z axis intersects the transformed triangle. Because of the way the coordinate system was constructed, this problem is equivalent to the 2D problem of determining if the x, y coordinates (0, 0) are inside the xy projection of the triangle (Figure 6.12).
-
-To understand how the intersection algorithm works, first recall from Figure 3.6 that the length of the cross product of two vectors gives the area of the parallelogram that they define. In 2D, with vectors a and b, the area is axby − bxay.
-
-Half of this area is the area of the triangle that they define. Thus, we can see that in 2D, the area of a
-
-triangle with vertices p0, p1, and p2 is Figure 6.13 visualizes this idea geometrically.
-
-We will use this expression of triangle area to define a signed edge function: given two triangle vertices p0 and p1, we can define the directed edge function e as the function that gives twice the area of the triangle given by p0, p1, and a given third point p:
-
-![Figure 6.14](images/img-468-043.png)
-
-
-*Figure 6.14: The edge function e(p) characterizes points with respect to an oriented line between two points p0 and p1. The value of the edge function is positive for points p to the right of the line, zero for points on the line, and negative for points to the left of the line. The ray–triangle intersection algorithm uses an edge function that is twice the signed area of the triangle formed by the three points.*
-
-(See Figure 6.14.)
-
-The edge function gives a positive value for points to the left of the line, and a negative value for points to the right. Thus, if a point has edge function values of the same sign for all three edges of a triangle, it must be on the same side of all three edges and thus must be inside the triangle.
-
-Thanks to the coordinate system transformation, the point p that we are testing has coordinates (0, 0). This simplifies the edge function expressions. For example, for the edge e0 from p1 to p2, we have:
-
-In the following, we will use the indexing scheme that the edge function ei corresponds to the directed edge from vertex p(i+1) mod 3 to p(i+2) mod 3.
-
-〈Compute edge function coefficients e0, e1, and e2〉 ≡ 303
+**〈Transform mesh vertices to rendering space and initialize mesh p〉 ≡ 298**
 
 ```rust
-   Float e0 = DifferenceOfProducts(p1t.x, p2t.y, p1t.y, p2t.x);
-   Float e1 = DifferenceOfProducts(p2t.x, p0t.y, p2t.y, p0t.x);
-   Float e2 = DifferenceOfProducts(p0t.x, p1t.y, p0t.y, p1t.x);
+for pt in &mut p { *pt = render_from_object.apply(*pt); }
+self.p = point3_buffer_cache.lookup_or_add(&p, alloc);
 ```
 
-In the rare case that any of the edge function values is exactly zero, it is not possible to be sure if the ray hits the triangle or not, and the edge equations are reevaluated using double-precision floating-point arithmetic. (Section 6.8.4 discusses the need for this step in more detail.) The fragment that implements this computation, 〈Fall back to double-precision test at triangle edges〉, is just a reimplementation of 〈Compute edge function coefficients e0, e1, and e2〉 using doubles and so is not included here.
+We omit the rest of the constructor, since other per-vertex buffers are handled similarly. The remaining members are listed below. In addition to mesh vertex and face data, `TriangleMesh` records whether normals should be flipped via `reverse_orientation` and `transform_swaps_handedness`. These are identical for all triangles in a mesh, so storing them once saves memory.
+
+**〈TriangleMesh Public Members〉 +≡ 297**
 
 ```rust
-    DifferenceOfProducts() 1044
-    Float 23
+struct TriangleMesh {
+    n: &'static [Normal3f],
+    s: &'static [Vector3f],
+    uv: &'static [Point2f],
+    reverse_orientation: bool,
+    transform_swaps_handedness: bool,
+    // ...
+}
 ```
 
-Given the values of the three edge functions, we have our first two opportunities to determine that there is no intersection. First, if the signs of the edge function values differ, then the point (0, 0) is not on the same side of all three edges and therefore is outside the triangle. Second, if the sum of the three edge function values is zero, then the ray is approaching the triangle edge-on, and we report no intersection. (For a closed triangle mesh, the ray will hit a neighboring triangle instead.)
+<details>
+<summary>Reference / notes</summary>
 
-〈Perform triangle edge and determinant tests〉 ≡ 303
+`BufferCache::Buffer::ptr` 299 · `BufferCache::cache` 299 · `BufferCache::LookupOrAdd()` 300 · `BufferCache::mutex` 299 · `Normal3f` 94 · `Point2f` 92 · `point3BufferCache` 298 · `Point3f` 92 · `Shape` 261 · `std::pmr::polymorphic_allocator::deallocate_object()` 41 · `Triangle` 301 · `TriangleMesh` 297 · `TriangleMesh::p` 298 · `Vector3f` 86
+
+</details>
+
+### 6.5.2 `Triangle` Class
+
+The `Triangle` class actually implements the `Shape` interface, representing a single triangle.
+
+**〈Triangle Definition〉 ≡**
 
 ```rust
-   if ((e0 < 0 || e1 < 0 || e2 < 0) && (e0 > 0 || e1 > 0 || e2 > 0))
-        return {};
-   Float det = e0 + e1 + e2;
-   if (det == 0)
-        return {};
+struct Triangle {
+    // 〈Triangle Public Methods〉
+    // 〈Triangle Private Methods〉
+    // 〈Triangle Private Members〉
+}
 ```
 
-Because the ray starts at the origin, has unit length, and is along the +z axis, the z coordinate value of the intersection point is equal to the intersection’s parametric t value. To compute this z value, we first need to go ahead and apply the shear transformation to the z coordinates of the triangle vertices. Given these z values, the barycentric coordinates of the intersection point in the triangle can be used to interpolate them across the triangle. They are given by dividing each edge function value by the sum
+Because scenes may have billions of triangles, minimizing per-triangle memory is important. pbrt stores pointers to all meshes in a vector, so each triangle is just two integers: which mesh it belongs to and which triangle within the mesh. With 4-byte integers, a `Triangle` uses only 8 bytes. Recall Section 1.5.7: if `Triangle` inherited from an abstract `Shape` base class with pure virtual functions, the vtable pointer alone would double its size on a 64-bit architecture.
 
-of edge function values: Thus, the bi sum to one.
-
-The interpolated z value is given by
-
-z = b0z0 + b1z1 + b2z2, where zi are the coordinates of the three vertices in the ray–triangle
-intersection coordinate system.
-
-To save the cost of the floating-point division to compute bi in cases where the final t value is out of the range of valid t values, the implementation here first computes t by interpolating zi with ei (in other words, not yet performing the division by d = e0 + e1 + e2). If the sign of d and the sign of the interpolated t value are different, then the final t value will certainly be negative and thus not a valid intersection.
-
-Along similar lines, the check t < tmax can be equivalently performed in two ways:
-
-〈Compute scaled hit distance to triangle and test against ray t range〉 ≡ 303
+**〈Triangle Public Methods〉 ≡ 301**
 
 ```rust
-   p0t.z *= Sz;
-   p1t.z *= Sz;
-   p2t.z *= Sz;
-   Float tScaled = e0 * p0t.z + e1 * p1t.z + e2 * p2t.z;
-   if (det < 0 && (tScaled >= 0 || tScaled < tMax * det))
-       return {};
-   else if (det > 0 && (tScaled <= 0 || tScaled > tMax * det))
-       return {};
+impl Triangle {
+    fn new(mesh_index: i32, tri_index: i32) -> Self {
+        Self { mesh_index, tri_index }
+    }
+}
 ```
 
-Given a valid intersection, the actual barycentric coordinates and t value for the intersection are found.
-
-```text
-    Float 23
-```
-
-〈Compute barycentric coordinates and t value for triangle intersection〉 ≡ 303
+**〈Triangle Private Members〉 ≡ 301**
 
 ```rust
-   Float invDet = 1 / det;
-   Float b0 = e0 * invDet, b1 = e1 * invDet, b2 = e2 * invDet;
-   Float t = tScaled * invDet;
+struct Triangle {
+    mesh_index: i32,
+    tri_index: i32,
+    // static mut ALL_MESHES: Vec<&'static TriangleMesh>;
+}
 ```
 
-After a final test on the t value that will be discussed in Section 6.8.7, a `TriangleIntersection` object that represents the intersection can be returned.
+The bounding box is found by encompassing the three vertices. Because vertices are already in rendering space, no transformation is necessary.
 
-〈Return TriangleIntersection for intersection〉 ≡ 303
+**〈Triangle Method Definitions〉 ≡**
 
 ```rust
-   return TriangleIntersection{b0, b1, b2, t};
+fn bounds(&self) -> Bounds3f {
+    // 〈Get triangle vertices in p0, p1, and p2 302〉
+    Bounds3f::new(p0, p1).union(p2)
+}
 ```
 
-`TriangleIntersection` just records the barycentric coordinates and the t value along the ray where the intersection occurred.
+Reading the three vertices requires indirection: find the mesh pointer, then the three vertex indices from the triangle's index, then the positions from the mesh's `p` array. This fragment is reused repeatedly.
 
-〈TriangleIntersection Definition〉 ≡
+**〈Get triangle vertices in p0, p1, and p2〉 ≡ 302, 303, 309, 313, 317**
 
 ```rust
-struct TriangleIntersection { Float b0, b1, b2; Float t; };
+let mesh = self.get_mesh();
+let v = &mesh.vertex_indices[3 * self.tri_index as usize..];
+let (p0, p1, p2) = (mesh.p[v[0] as usize], mesh.p[v[1] as usize], mesh.p[v[2] as usize]);
 ```
 
-The structure of the `Triangle::Intersect()` method follows the form of earlier intersection test methods.
+`GetMesh()` encapsulates the indexing operation.
 
-〈Triangle Method Definitions〉 +≡
+**〈Triangle Private Methods〉 ≡ 301**
 
 ```rust
-pstd::optional<ShapeIntersection> Triangle::Intersect(const Ray &ray, Float tMax) const { 〈Get triangle vertices in p0, p1, and p2 302〉 pstd::optional<TriangleIntersection> triIsect = IntersectTriangle(ray, tMax, p0, p1, p2); if (!triIsect) return {}; SurfaceInteraction intr = InteractionFromIntersection( mesh, triIndex, *triIsect, ray.time, -ray.d); return ShapeIntersection{intr, triIsect->t}; }
+fn get_mesh(&self) -> &'static TriangleMesh {
+    &ALL_MESHES[self.mesh_index as usize]
+}
 ```
 
-We will not include the `Triangle::IntersectP()` method here, as it is just based on calling `IntersectTriangle()`.
+<details>
+<summary>Reference / notes</summary>
 
-The `InteractionFromIntersection()` method is different than the corresponding methods in the quadrics in that it is a stand-alone function rather than a regular member function. Because a call to it is thus not associated with a specific `Triangle` instance, it takes a `TriangleMesh` and the index of a triangle in the mesh as parameters. In the context of its usage in the `Intersect()` method, this may seem gratuitous—why pass that information as parameters rather than access it directly in a non-static method?
+`Bounds3::Union()` 99 · `Bounds3f` 97 · `Cross()` 91 · `Float` 23 · `Length()` 88 · `Point3f` 92 · `Triangle` 301 · `Triangle::GetMesh()` 302 · `Triangle::triIndex` 302 · `TriangleMesh` 297 · `TriangleMesh::p` 298 · `TriangleMesh::vertexIndices` 298
 
-We have designed the interface in this way so that we are able to use this method in pbrt’s GPU rendering path, where the `Triangle` class is not used. There, the representation of triangles in the scene is abstracted by a ray intersection API and the geometric ray–triangle intersection test is performed using specialized hardware. Given an intersection, it provides the triangle index, a pointer to the mesh that the triangle is a part of, and the barycentric coordinates of the intersection. That information is sufficient to call this method, which then allows us to find the `SurfaceInteraction` for such intersections using the same code as executes on the CPU.
+</details>
+
+Using the fact that a parallelogram's area is the length of the cross product of its edge vectors, `Area()` computes half the area of the parallelogram formed by two edge vectors (Figure 6.13):
+
+**〈Triangle Public Methods〉 +≡ 301**
 
 ```rust
-    Float 23
-    IntersectTriangle() 303
-    Ray 95
-    Ray::d 95
-    Ray::time 95
+fn area(&self) -> Float {
+    // 〈Get triangle vertices in p0, p1, and p2 302〉
+    0.5 * length(cross(p1 - p0, p2 - p0))
+}
 ```
 
-```text
-    ShapeIntersection 266
-    SurfaceInteraction 138
-    Triangle:: InteractionFromIntersection() 310
-    Triangle::triIndex 302
-    TriangleIntersection 309
-    TriangleIntersection::t 309
-    TriangleMesh 297
-```
+Bounding the normal should be trivial—a cross product of appropriate edges gives the single normal direction—but two subtleties affecting orientation must be handled.
 
-〈Triangle Public Methods〉 +≡ 301
+**〈Triangle Method Definitions〉 +≡**
 
 ```rust
-   static SurfaceInteraction InteractionFromIntersection(
-             const TriangleMesh *mesh, int triIndex,
-             TriangleIntersection ti, Float time, Vector3f wo) {
-         const int *v = &mesh->vertexIndices[3 * triIndex];
-         Point3f p0 = mesh->p[v[0]], p1 = mesh->p[v[1]], p2 = mesh->p[v[2]];
-         〈Compute triangle partial derivatives 311〉
-         〈Interpolate (u, v) parametric coordinates and hit point 311〉
-         〈Return SurfaceInteraction for triangle hit 312〉
-   }
+fn normal_bounds(&self) -> DirectionCone {
+    // 〈Get triangle vertices in p0, p1, and p2 302〉
+    let mut n = normalize(Normal3f::from(cross(p1 - p0, p2 - p0)));
+    // 〈Ensure correct orientation of geometric normal for normal bounds 303〉
+    DirectionCone::new(Vector3f::from(n))
+}
 ```
 
-To generate consistent tangent vectors over triangle meshes, it is necessary to compute the partial derivatives ∂p/∂u and ∂p/∂v using the parametric (u, v) values at the triangle vertices, if provided. Although the partial derivatives are the same at all points on the triangle, the implementation here recomputes them each time an intersection is found. Although this results in redundant computation, the storage savings for large triangle meshes can be significant.
+First, although `NormalBounds()` is supposed to bound *geometric* normals, per-vertex normals may be present. pbrt requires the geometric normal and interpolated shading normal to lie on the same side of the surface; if they differ, the convention is to flip the geometric normal. Second, without per-vertex normals the normal is flipped if `ReverseOrientation` was specified or if the rendering-to-object transform swaps handedness, but not both.
 
-A triangle can be described by the set of points
-
-for some po, where u and v range over the parametric coordinates of the triangle. We also know the three vertex positions pi, i = 0, 1, 2, and the texture coordinates (ui, vi) at each vertex. From this it
-
-follows that the partial derivatives of p must satisfy In other words, there is a unique affine mapping from the 2D (u, v) space to points on the triangle. (Such a mapping exists even though the triangle is specified in 3D because the triangle is planar.) To compute expressions for ∂p/∂u and ∂p/∂v, we start by computing the differences p0 − p2 and p1 − p2,
-
-giving the matrix equation Thus,
-
-```text
-    Float 23
-    Point3f 92
-    SurfaceInteraction 138
-    TriangleIntersection 309
-    TriangleMesh 297
-    TriangleMesh::p 298
-    TriangleMesh::vertexIndices 298
-    Vector3f 86
-```
-
-Inverting a 2×2 matrix is straightforward. The inverse of the (u, v) differences matrix is
-
-This computation is performed by the 〈Compute triangle partial derivatives〉 fragment, with handling for various additional corner cases.
-
-〈Compute triangle partial derivatives〉 ≡ 310
+**〈Ensure correct orientation of geometric normal for normal bounds〉 ≡ 303**
 
 ```rust
-   〈Compute deltas and matrix determinant for triangle partial derivatives 311〉
-   Vector3f dpdu, dpdv;
-   bool degenerateUV = std::abs(determinant) < 1e-9f;
-   if (!degenerateUV) {
-       〈Compute triangle ∂p/∂u and ∂p/∂v via matrix inversion 311〉
-   }
-   〈Handle degenerate triangle (u, v) parameterization or partial derivatives 311〉
+if let Some(normals) = mesh.n {
+    let ns = Normal3f::new(
+        normals[v[0]] + normals[v[1]] + normals[v[2]]);
+    n = face_forward(n, ns);
+} else if mesh.reverse_orientation ^ mesh.transform_swaps_handedness {
+    n = -n;
+}
 ```
 
-The triangle’s uv coordinates are found by indexing into the `TriangleMesh::uv` array, if present. Otherwise, a default parameterization is used. We will not include the fragment that initializes uv here.
+Although not required by the `Shape` interface, it is useful to compute the solid angle a triangle subtends from a reference point; `SphericalTriangleArea()` does this directly.
 
-〈Compute deltas and matrix determinant for triangle partial derivatives〉 ≡ 311
+**〈Triangle Public Methods〉 +≡ 301**
 
 ```rust
-   〈Get triangle texture coordinates in uv array〉
-   Vector2f duv02 = uv[0] - uv[2], duv12 = uv[1] - uv[2];
-   Vector3f dp02 = p0 - p2, dp12 = p1 - p2;
-   Float determinant =
-        DifferenceOfProducts(duv02[0], duv12[1], duv02[1], duv12[0]);
+fn solid_angle(&self, p: Point3f) -> Float {
+    // 〈Get triangle vertices in p0, p1, and p2 302〉
+    spherical_triangle_area(normalize(p0 - p), normalize(p1 - p), normalize(p2 - p))
+}
 ```
 
-In the usual case, the 2 × 2 matrix is non-degenerate, and the partial derivatives are computed using Equation (6.7).
+<details>
+<summary>Reference / notes</summary>
 
-〈Compute triangle ∂p/∂u and ∂p/∂v via matrix inversion〉 ≡ 311
+`Cross()` 91 · `DirectionCone` 114 · `FaceForward()` 94 · `Float` 23 · `Normal3f` 94 · `Normalize()` 88 · `Point3f` 92 · `Ray` 95 · `SphericalTriangleArea()` 106 · `Triangle` 301 · `TriangleIntersection` 309 · `TriangleMesh` 297 · `TriangleMesh::n` 301 · `TriangleMesh::reverseOrientation` 301 · `TriangleMesh::transformSwapsHandedness` 301 · `TriangleMesh::uv` 301 · `Vector3f` 86
+
+</details>
+
+### 6.5.3 Ray–Triangle Intersection
+
+Unlike the other shapes, pbrt provides a stand-alone triangle intersection function taking a ray and three vertices directly. This is useful elsewhere without requiring a `Triangle` and `TriangleMesh` instance; the `Triangle` methods use it.
+
+**〈Triangle Functions〉 ≡**
 
 ```rust
-   Float invdet = 1 / determinant;
-   dpdu = DifferenceOfProducts(duv12[1], dp02, duv02[1], dp12) * invdet;
+fn intersect_triangle(
+    ray: &Ray,
+    t_max: Float,
+    p0: Point3f,
+    p1: Point3f,
+    p2: Point3f,
+) -> Option<TriangleIntersection> {
+    // 〈Return no intersection if triangle is degenerate 304〉
+    // 〈Transform triangle vertices to ray coordinate space 304〉
+    // 〈Compute edge function coefficients e0, e1, and e2 307〉
+    // 〈Fall back to double-precision test at triangle edges〉
+    // 〈Perform triangle edge and determinant tests 308〉
+    // 〈Compute scaled hit distance to triangle and test against ray t range 308〉
+    // 〈Compute barycentric coordinates and t value for triangle intersection 309〉
+    // 〈Ensure that computed triangle t is conservatively greater than zero 384〉
+    // 〈Return TriangleIntersection for intersection 309〉
+}
 ```
+
+pbrt's test first computes an affine transformation putting the ray origin at $(0,0,0)$ and its direction along $+z$; the triangle vertices are transformed too. In this space the $x$ and $y$ coordinates of any intersection must be zero, which simplifies the logic. Section 6.8.4 shows that this transformation also makes the algorithm *watertight*: rays hitting an edge or vertex shared by two triangles are never incorrectly reported as misses.
+
+A side effect of transforming vertices is that round-off can turn a degenerate triangle into a non-degenerate one. If an intersection were reported with a degenerate triangle, later code could not compute valid geometric properties, so the function first tests for degeneracy.
+
+**〈Return no intersection if triangle is degenerate〉 ≡ 303**
 
 ```rust
-    dpdv = DifferenceOfProducts(duv02[0], dp12, duv12[0], dp02) * invdet;
+if length_squared(cross(p2 - p0, p1 - p0)) == 0.0 { return None; }
 ```
 
-However, there are a number of rare additional cases that must be handled. For example, the user may have provided (u, v) coordinates that specify a degenerate parameterization, such as the same (u, v) at all three vertices. Alternatively, the computed dpdu and dpdv values may have a degenerate cross product due to rounding error. In such cases we fall back to computing dpdu and dpdv that at least give the correct normal vector.
+There are three steps in the transformation: translation $T$, a coordinate permutation $P$, and a shear $S$. Rather than building explicit matrices and composing $M=SPT$, the implementation applies each step directly, which is more efficient.
 
-〈Handle degenerate triangle (u, v) parameterization or partial derivatives〉 ≡ 311
+**〈Transform triangle vertices to ray coordinate space〉 ≡ 303**
 
 ```rust
-if (degenerateUV || LengthSquared(Cross(dpdu, dpdv)) == 0) { Vector3f ng = Cross(p2 - p0, p1 - p0); if (LengthSquared(ng) == 0) ng = Vector3f(Cross(Vector3<double>(p2 - p0), Vector3<double>(p1 - p0))); CoordinateSystem(Normalize(ng), &dpdu, &dpdv); }
+// 〈Translate vertices based on ray origin 305〉
+// 〈Permute components of triangle vertices and ray direction 305〉
+// 〈Apply shear transformation to translated vertex positions 305〉
 ```
+
+The translation placing the ray origin at the origin is
+
+$$
+T(\mathbf p) = \mathbf p - \mathbf o,
+$$
+
+applied to the three vertices (not explicitly to the ray origin).
+
+**〈Translate vertices based on ray origin〉 ≡ 304**
 
 ```rust
-    CoordinateSystem() 92
-    Cross() 91
-    DifferenceOfProducts() 1044
-    Float 23
-    LengthSquared() 87
-    Normalize() 88
-    Point2f 92
-    Point3f 92
-    SurfaceInteraction 138
-    TriangleIntersection::b0 309
-    TriangleIntersection::b1 309
-    TriangleIntersection::b2 309
-    TriangleMesh::uv 301
-    Vector2f 86
-    Vector3 86
-    Vector3f 86
+let p0t = p0 - Vector3f::from(ray.o);
+let p1t = p1 - Vector3f::from(ray.o);
+let p2t = p2 - Vector3f::from(ray.o);
 ```
 
-To compute the intersection point and the (u, v) parametric coordinates at the hit point, the barycentric interpolation formula is applied to the vertex positions and the (u, v) coordinates at the vertices. As we will see in Section 6.8.5, this gives a more accurate result for the intersection point than evaluating the parametric ray equation using t.
+Next the dimensions are permuted so that $z$ is the direction of largest absolute ray component; $x$ and $y$ are assigned arbitrarily to the others. This ensures a nonzero component maps to $+z$ even if the original $z$ direction was zero.
 
-〈Interpolate (u, v) parametric coordinates and hit point〉 ≡ 310
+**〈Permute components of triangle vertices and ray direction〉 ≡ 304**
 
 ```rust
-   Point3f pHit = ti.b0 * p0 + ti.b1 * p1 + ti.b2 * p2;
-   Point2f uvHit = ti.b0 * uv[0] + ti.b1 * uv[1] + ti.b2 * uv[2];
+let kz = max_component_index(abs(ray.d));
+let mut kx = kz + 1; if kx == 3 { kx = 0; }
+let mut ky = kx + 1; if ky == 3 { ky = 0; }
+let d = permute(ray.d, [kx, ky, kz]);
+let p0t = permute(p0t, [kx, ky, kz]);
+let p1t = permute(p1t, [kx, ky, kz]);
+let p2t = permute(p2t, [kx, ky, kz]);
 ```
 
-Unlike with the shapes we have seen so far, it is not necessary to transform the `SurfaceInteraction` here to rendering space, since the geometric per-vertex values are already in rendering space. Like the disk, the partial derivatives of the triangle’s normal are also both (0, 0, 0), since it is flat.
+Finally a shear aligns the ray direction with $+z$:
 
-〈Return SurfaceInteraction for triangle hit〉 ≡ 310
+$$
+S = \begin{pmatrix}
+1 & 0 & -d_x/d_z \\
+0 & 1 & -d_y/d_z \\
+0 & 0 & 1/d_z
+\end{pmatrix},
+$$
+
+so applied to $[d_x\;d_y\;d_z\;0]^T$ it yields $[0\;0\;1\;0]^T$. Only $x$ and $y$ are sheared now; the $z$ shear is deferred until the ray actually intersects the triangle.
+
+**〈Apply shear transformation to translated vertex positions〉 ≡ 304**
 
 ```rust
-   bool          flipNormal         =       mesh->reverseOrientation    ^  mesh->transformSwapsHandedness;
-   〈Compute error bounds pError for triangle intersection 377〉
-   SurfaceInteraction isect(Point3fi(pHit, pError), uvHit, wo, dpdu, dpdv,
-                                Normal3f(), Normal3f(), time, flipNormal);
-   〈Set final surface normal and shading geometry for triangle 312〉
-         return isect;
+let sx = -d.x / d.z;
+let sy = -d.y / d.z;
+let sz = 1.0 / d.z;
+let mut p0t = p0t; let mut p1t = p1t; let mut p2t = p2t;
+p0t.x += sx * p0t.z; p0t.y += sy * p0t.z;
+p1t.x += sx * p1t.z; p1t.y += sy * p1t.z;
+p2t.x += sx * p2t.z; p2t.y += sy * p2t.z;
 ```
 
-Before the `SurfaceInteraction` is returned, some final details related to its surface normal and shading geometry must be taken care of.
+<details>
+<summary>Reference / notes</summary>
 
-〈Set final surface normal and shading geometry for triangle〉 ≡ 312
+`Float` 23 · `Point3f` 92 · `Ray::d` 95 · `Ray::o` 95 · `Tuple3::MaxComponentIndex()` 85 · `Tuple3::Permute()` 85 · `Vector3f` 86
+
+</details>
+
+Note that the permutation and shear coefficients depend only on the ray, not on the triangle. In a high-performance ray tracer it may be worthwhile to compute them once and store them in `Ray`, rather than recomputing per triangle.
+
+*Figure 6.12: In the ray–triangle intersection coordinate system the ray starts at the origin and travels along $+z$. The test reduces to checking whether the 2D point $(0,0)$ lies inside the $xy$ projection of the triangle.*
+
+```mermaid
+flowchart LR
+    O["Ray origin (0,0,0)"] -- "+z" --> Z["(0,0,z')"]
+    T["Transformed triangle in x,y"] --> Q{"Is (0,0) inside<br/>the xy projection?"}
+    Q -- yes --> H["Compute barycentrics and z' = t"]
+    Q -- no --> M["Miss"]
+```
+
+*Figure 6.13: The area of a triangle with edges $\mathbf v_1$ and $\mathbf v_2$ is half the parallelogram area, $\tfrac12\lVert\mathbf v_1\times\mathbf v_2\rVert$.*
+
+```mermaid
+flowchart LR
+    V["Edges v1 = p1-p0, v2 = p2-p0"] --> P["Parallelogram area = |v1 x v2|"]
+    P --> A["Triangle area = 1/2 |v1 x v2|"]
+```
+
+With the vertices transformed, the task is to determine whether the ray from the origin along $+z$ hits the transformed triangle. Because of how the coordinate system was constructed, this is equivalent to asking whether $(0,0)$ lies inside the $xy$ projection of the triangle (Figure 6.12).
+
+Recall from Figure 3.6 that the length of the cross product of two vectors gives their parallelogram's area. In 2D, for vectors $\mathbf a$ and $\mathbf b$, the area is $a_xb_y-b_xa_y$, so the area of a triangle with vertices $\mathbf p_0,\mathbf p_1,\mathbf p_2$ is
+
+$$
+A=\tfrac12\big[(p_{1x}-p_{0x})(p_{2y}-p_{0y})-(p_{1y}-p_{0y})(p_{2x}-p_{0x})\big].
+$$
+
+We use this to define a signed *edge function*: given two vertices $\mathbf p_0$ and $\mathbf p_1$, the directed edge function $e$ gives twice the signed area of the triangle $(\mathbf p_0,\mathbf p_1,\mathbf p)$:
+
+$$
+e(\mathbf p_0,\mathbf p_1,\mathbf p)=(p_{1x}-p_{0x})(p_y-p_{0y})-(p_{1y}-p_{0y})(p_x-p_{0x}).
+$$
+
+*Figure 6.14: The edge function $e(\mathbf p)$ characterizes points relative to an oriented line through $\mathbf p_0$ and $\mathbf p_1$: positive to the right of the line, zero on it, negative to the left. The ray–triangle test uses an edge function equal to twice the signed area of the triangle formed by the three points.*
+
+```mermaid
+flowchart LR
+    L["Oriented line p0 -> p1"] --> S["e(p) > 0: one side"]
+    L --> N["e(p) < 0: other side"]
+    L --> Z["e(p) = 0: on the line"]
+    S --> IN["Same sign for all 3 edges<br/>=> point inside triangle"]
+    N --> IN
+```
+
+(See Figure 6.14.) The edge function is positive for points to the left of the line and negative for points to the right, so a point with the same sign for all three edges is inside the triangle.
+
+Thanks to the coordinate transformation, the point being tested is $\mathbf p=(0,0)$, which simplifies the expressions. For the edge $e_0$ from $\mathbf p_1$ to $\mathbf p_2$,
+
+$$
+e_0 = p_{1t,x}\,p_{2t,y} - p_{1t,y}\,p_{2t,x}.
+$$
+
+We use the indexing scheme where $e_i$ corresponds to the directed edge from $\mathbf p_{(i+1)\bmod 3}$ to $\mathbf p_{(i+2)\bmod 3}$.
+
+**〈Compute edge function coefficients e0, e1, and e2〉 ≡ 303**
 
 ```rust
-   〈Override surface normal in isect for triangle 312〉
-   if (mesh->n || mesh->s) {
-          〈Initialize Triangle shading geometry 312〉
-   }
+let e0 = difference_of_products(p1t.x, p2t.y, p1t.y, p2t.x);
+let e1 = difference_of_products(p2t.x, p0t.y, p2t.y, p0t.x);
+let e2 = difference_of_products(p0t.x, p1t.y, p0t.y, p1t.x);
 ```
 
-The `SurfaceInteraction` constructor initializes the geometric normal n as the normalized cross product of dpdu and dpdv. This works well for most shapes, but in the case of triangle meshes it is preferable to rely on an initialization that does not depend on the underlying texture coordinates: it is fairly common to encounter meshes with bad parameterizations that do not preserve the orientation of the mesh, in which case the geometric normal would have an incorrect orientation.
+In the rare case that an edge function value is exactly zero, it is impossible to be sure whether the ray hits; the edge equations are reevaluated in double precision. (Section 6.8.4 discusses the need for this.) `〈Fall back to double-precision test at triangle edges〉` simply reimplements `〈Compute edge function coefficients e0, e1, and e2〉` using doubles and is not included.
 
-We therefore initialize the geometric normal using the normalized cross product of the edge vectors dp02 and dp12, which results in the same normal up to a potential sign difference that depends on the exact order of triangle vertices (also known as the triangle’s winding order).3 3D modeling packages generally try to ensure that triangles in a mesh have consistent winding orders, which makes this approach more robust.
+<details>
+<summary>Reference / notes</summary>
 
-〈Override surface normal in isect for triangle〉 ≡ 312
+`DifferenceOfProducts()` 1044 · `Float` 23
+
+</details>
+
+The three edge functions give two opportunities to determine a miss. First, if their signs differ, $(0,0)$ is not on the same side of all three edges. Second, if their sum is zero, the ray approaches the triangle edge-on and we report a miss (for a closed mesh, the ray hits a neighboring triangle instead).
+
+**〈Perform triangle edge and determinant tests〉 ≡ 303**
 
 ```rust
-isect.n = isect.shading.n = Normal3f(Normalize(Cross(dp02, dp12))); if (mesh->reverseOrientation ^ mesh->transformSwapsHandedness) isect.n = isect.shading.n = -isect.n;
+if (e0 < 0.0 || e1 < 0.0 || e2 < 0.0) && (e0 > 0.0 || e1 > 0.0 || e2 > 0.0) {
+    return None;
+}
+let det = e0 + e1 + e2;
+if det == 0.0 { return None; }
 ```
 
-With Triangles, the user can provide normal vectors and tangent vectors at the vertices of the mesh that are interpolated to give normals and tangents at points on the faces of triangles. Shading geometry with interpolated normals can make otherwise faceted triangle meshes appear to be smoother than they geometrically are. If either shading normals or shading tangents have been provided, they are used to initialize the shading geometry in the `SurfaceInteraction`.
+Because the ray starts at the origin, has unit length, and points along $+z$, the intersection's $z$ coordinate equals its parametric $t$. We first apply the shear to the vertices' $z$ coordinates, then interpolate with barycentric coordinates
 
-```text
-    Cross() 91
-    Interaction::n 137
-    Normal3f 94
-    Normalize() 88
-    Point3fi 1061
-    SurfaceInteraction 138
-    SurfaceInteraction:: SetShadingGeometry() 140
-    SurfaceInteraction:: shading::n 139
-    TriangleMesh::n 301
-    TriangleMesh:: reverseOrientation 301
-    TriangleMesh::s 301
-    TriangleMesh:: transformSwapsHandedness 301
-```
+$$
+b_i = \frac{e_i}{e_0+e_1+e_2}, \qquad b_0+b_1+b_2=1,
+$$
 
-〈Initialize Triangle shading geometry〉 ≡ 312
+so $z=b_0z_0+b_1z_1+b_2z_2$. To avoid a division when the final $t$ is out of range, the implementation first computes $t$ by interpolating $z_i$ with $e_i$—without dividing by $\det$—and checks the sign. The test $t<t_{\max}$ can equivalently be applied to the scaled value, as shown below.
+
+**〈Compute scaled hit distance to triangle and test against ray t range〉 ≡ 303**
 
 ```rust
-   〈Compute shading normal ns for triangle 313〉
-   〈Compute shading tangent ss for triangle 313〉
-   〈Compute shading bitangent ts for triangle and adjust ss 313〉
-   〈Compute ∂n/∂u and ∂n/∂v for triangle shading geometry〉
-   isect.SetShadingGeometry(ns, ss, ts, dndu, dndv, true);
+let mut p0t = p0t; let mut p1t = p1t; let mut p2t = p2t;
+p0t.z *= sz; p1t.z *= sz; p2t.z *= sz;
+let t_scaled = e0 * p0t.z + e1 * p1t.z + e2 * p2t.z;
+if det < 0.0 && (t_scaled >= 0.0 || t_scaled < t_max * det) { return None; }
+else if det > 0.0 && (t_scaled <= 0.0 || t_scaled > t_max * det) { return None; }
 ```
 
-Given the barycentric coordinates of the intersection point, it is easy to compute the shading normal by interpolating among the appropriate vertex normals, if present.
+Given a valid intersection, the actual barycentric coordinates and $t$ are found:
 
-〈Compute shading normal ns for triangle〉 ≡ 312
+**〈Compute barycentric coordinates and t value for triangle intersection〉 ≡ 303**
 
 ```rust
-   Normal3f ns;
-   if (mesh->n) {
-       ns = ti.b0 * mesh->n[v[0]] + ti.b1 * mesh->n[v[1]] + ti.b2 * mesh->n[v[2]];
-       ns = LengthSquared(ns) > 0 ? Normalize(ns) : isect.n;
-   } else
-       ns = isect.n;
+let inv_det = 1.0 / det;
+let b0 = e0 * inv_det;
+let b1 = e1 * inv_det;
+let b2 = e2 * inv_det;
+let t = t_scaled * inv_det;
 ```
 
-The shading tangent is computed similarly.
+After a final test on $t$ (Section 6.8.7), the `TriangleIntersection` is returned.
 
-〈Compute shading tangent ss for triangle〉 ≡ 312
+**〈Return TriangleIntersection for intersection〉 ≡ 303**
 
 ```rust
-   Vector3f ss;
-   if (mesh->s) {
-       ss = ti.b0 * mesh->s[v[0]] + ti.b1 * mesh->s[v[1]] + ti.b2 * mesh->s[v[2]];
-       if (LengthSquared(ss) == 0)
-          ss = isect.dpdu;
-   } else
+Some(TriangleIntersection { b0, b1, b2, t })
 ```
+
+**〈TriangleIntersection Definition〉 ≡**
 
 ```rust
-         ss = isect.dpdu;
+struct TriangleIntersection {
+    b0: Float,
+    b1: Float,
+    b2: Float,
+    t: Float,
+}
 ```
 
-The bitangent vector ts is found using the cross product of ns and ss, giving a vector orthogonal to the two of them. Next, ss is overwritten with the cross product of ts and ns; this ensures that the cross product of ss and ts gives ns. Thus, if per-vertex n and s values are provided and if the interpolated n and s values are not perfectly orthogonal, n will be preserved and s will be modified so that the coordinate system is orthogonal.
+The `Triangle::Intersect()` method follows the form of earlier tests.
 
-〈Compute shading bitangent ts for triangle and adjust ss〉 ≡ 312
+**〈Triangle Method Definitions〉 +≡**
 
 ```rust
-   Vector3f ts = Cross(ns, ss);
-   if (LengthSquared(ts) > 0)
-       ss = Cross(ts, ns);
+fn intersect(&self, ray: &Ray, t_max: Float) -> Option<ShapeIntersection> {
+    // 〈Get triangle vertices in p0, p1, and p2 302〉
+    let tri = intersect_triangle(ray, t_max, p0, p1, p2)?;
+    let intr = Self::interaction_from_intersection(
+        mesh, self.tri_index, tri, ray.time, -ray.d);
+    Some(ShapeIntersection { intr, t_hit: tri.t })
+}
 ```
+
+We omit `Triangle::IntersectP()`, which just calls `IntersectTriangle()`.
+
+`InteractionFromIntersection()` differs from the quadrics' version in being a stand-alone function: since a call is not associated with a specific `Triangle` instance, it takes a `TriangleMesh` and a triangle index as parameters. In the context of `Intersect()` this may seem gratuitous—why not access them directly in a non-static method?
+
+The reason is pbrt's GPU path, where the `Triangle` class is not used: triangles are abstracted by a ray-intersection API, and the geometric test is performed by specialized hardware. Given a hit, that API provides the triangle index, a pointer to its mesh, and the barycentric coordinates—exactly what this method needs, allowing the CPU and GPU paths to share the same `SurfaceInteraction` construction code.
+
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `IntersectTriangle()` 303 · `Ray` 95 · `Ray::d` 95 · `Ray::time` 95 · `ShapeIntersection` 266 · `SurfaceInteraction` 138 · `Triangle::InteractionFromIntersection()` 310 · `Triangle::triIndex` 302 · `TriangleIntersection` 309 · `TriangleIntersection::t` 309 · `TriangleMesh` 297
+
+</details>
+
+**〈Triangle Public Methods〉 +≡ 301**
 
 ```rust
-    else
-           CoordinateSystem(ns, &ss, &ts);
+fn interaction_from_intersection(
+    mesh: &TriangleMesh,
+    tri_index: i32,
+    ti: TriangleIntersection,
+    time: Float,
+    wo: Vector3f,
+) -> SurfaceInteraction {
+    let v = &mesh.vertex_indices[3 * tri_index as usize..];
+    let (p0, p1, p2) = (mesh.p[v[0] as usize], mesh.p[v[1] as usize], mesh.p[v[2] as usize]);
+    // 〈Compute triangle partial derivatives 311〉
+    // 〈Interpolate (u, v) parametric coordinates and hit point 311〉
+    // 〈Return SurfaceInteraction for triangle hit 312〉
+}
 ```
 
-The code to compute the partial derivatives ∂n/∂u and ∂n/∂v of the shading normal is almost identical to the code to compute the partial derivatives ∂p/∂u and ∂p/∂v. Therefore, it has been elided from the text here.
+To generate consistent tangent vectors over meshes, $\partial\mathbf p/\partial u$ and $\partial\mathbf p/\partial v$ are computed from the parametric $(u,v)$ values at the vertices, if provided. Although the derivatives are constant over a triangle, they are recomputed at each hit: the redundant work buys significant storage savings for large meshes.
 
-```text
-    CoordinateSystem() 92
-    Cross() 91
-    Interaction 136
-    Interaction::n 137
-    LengthSquared() 87
-    Normal3f 94
-    Normalize() 88
-    Point2f 92
-    Point3fi 1061
-    ShapeSample 268
-    SurfaceInteraction::dpdu 138
-    Triangle::Area() 302
-    TriangleIntersection::b0 309
-    TriangleIntersection::b1 309
-    TriangleIntersection::b2 309
-    TriangleMesh::n 301
-    TriangleMesh::s 301
-    Vector3f 86
-```
+A triangle can be described as
 
-⋆ 6.5.4 SAMPLING The uniform area triangle sampling method is based on mapping the provided random sample u to barycentric coordinates that are uniformly distributed over the triangle.
+$$
+\mathbf p(u,v) = \mathbf p_0 + u(\mathbf p_1-\mathbf p_0) + v(\mathbf p_2-\mathbf p_0),
+$$
 
-〈Triangle Public Methods〉 +≡ 301
+with $(u,v)$ over the triangle's parametric coordinates. Given vertex positions $\mathbf p_i$ and texture coordinates $(u_i,v_i)$, the derivatives satisfy a unique affine mapping from 2D $(u,v)$ space to points on the (planar) triangle. Starting from the differences $\mathbf p_0-\mathbf p_2$ and $\mathbf p_1-\mathbf p_2$ we get the matrix equation
+
+$$
+\begin{bmatrix}\mathbf p_0-\mathbf p_2 & \mathbf p_1-\mathbf p_2\end{bmatrix}
+\begin{bmatrix}u\\v\end{bmatrix} = \mathbf p-\mathbf p_2,
+$$
+
+whose 2×2 coefficient matrix has inverse
+
+$$
+\frac{1}{\det}
+\begin{bmatrix}
+\Delta v_{12} & -\Delta v_{02}\\
+-\Delta u_{12} & \Delta u_{02}
+\end{bmatrix},
+\qquad
+\det = \Delta u_{02}\Delta v_{12}-\Delta u_{12}\Delta v_{02}.
+$$
+
+This computation is performed by `〈Compute triangle partial derivatives〉`, with handling for corner cases.
+
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Point3f` 92 · `SurfaceInteraction` 138 · `TriangleIntersection` 309 · `TriangleMesh` 297 · `TriangleMesh::p` 298 · `TriangleMesh::vertexIndices` 298 · `Vector2f` 86 · `Vector3f` 86
+
+</details>
+
+**〈Compute triangle partial derivatives〉 ≡ 310**
 
 ```rust
-   Option<ShapeSample> Sample(Point2f u) const {
-         〈Get triangle vertices in p0, p1, and p2 302〉
-         〈Sample point on triangle uniformly by area 314〉
-         〈Compute surface normal for sampled point on triangle 314〉
-         〈Compute (u, v) for sampled point on triangle 314〉
-         〈Compute error bounds pError for sampled point on triangle 377〉
-         return ShapeSample{Interaction(Point3fi(p, pError), n, uvSample),
-                                 1 / Area()};
-   }
+// 〈Compute deltas and matrix determinant for triangle partial derivatives 311〉
+let mut dpdu = Vector3f::ZERO;
+let mut dpdv = Vector3f::ZERO;
+let degenerate_uv = determinant.abs() < 1e-9;
+if !degenerate_uv {
+    // 〈Compute triangle dpdu and dpdv via matrix inversion 311〉
+}
+// 〈Handle degenerate triangle (u, v) parameterization or partial derivatives 311〉
 ```
 
-Uniform barycentric sampling is provided via a stand-alone utility function (to be described shortly), which makes it easier to reuse this functionality elsewhere.
+The $uv$ coordinates come from `TriangleMesh::uv` if present, otherwise a default parameterization is used; we omit that fragment.
 
-〈Sample point on triangle uniformly by area〉 ≡ 313
+**〈Compute deltas and matrix determinant for triangle partial derivatives〉 ≡ 311**
 
 ```rust
-   pstd::array<Float, 3> b = SampleUniformTriangle(u);
-   Point3f p = b[0] * p0 + b[1] * p1 + b[2] * p2;
+// 〈Get triangle texture coordinates in uv array〉
+let duv02 = uv[0] - uv[2];
+let duv12 = uv[1] - uv[2];
+let dp02 = p0 - p2;
+let dp12 = p1 - p2;
+let determinant = difference_of_products(duv02[0], duv12[1], duv02[1], duv12[0]);
 ```
 
-As with `Triangle::NormalBounds()`, the surface normal of the sampled point is affected by the orientation of the shading normal, if present.
+In the usual case the 2×2 matrix is non-degenerate and Equation (6.7) gives:
 
-〈Compute surface normal for sampled point on triangle〉 ≡ 313, 318
+**〈Compute triangle dpdu and dpdv via matrix inversion〉 ≡ 311**
 
 ```rust
-   Normal3f n = Normalize(Normal3f(Cross(p1 - p0, p2 - p0)));
-   if (mesh->n) {
-       Normal3f ns(b[0] * mesh->n[v[0]] + b[1] * mesh->n[v[1]] +
-                    (1 - b[0] - b[1]) * mesh->n[v[2]]);
-       n = FaceForward(n, ns);
-   } else if (mesh->reverseOrientation ^ mesh->transformSwapsHandedness)
-       n *= -1;
+let invdet = 1.0 / determinant;
+dpdu = (difference_of_products(duv12[1], dp02, duv02[1], dp12)) * invdet;
+dpdv = (difference_of_products(duv02[0], dp12, duv12[0], dp02)) * invdet;
 ```
 
-The (u, v) coordinates for the sampled point are also found with barycentric interpolation.
+Rare cases remain: the user may provide a degenerate parameterization (e.g., identical $(u,v)$ at all vertices), or the computed cross product may degenerate due to round-off. Then we fall back to derivatives that at least give the correct normal.
 
-〈Compute (u, v) for sampled point on triangle〉 ≡ 313, 318
+**〈Handle degenerate triangle (u, v) parameterization or partial derivatives〉 ≡ 311**
 
 ```rust
-   〈Get triangle texture coordinates in uv array〉
-   Point2f uvSample = b[0] * uv[0] + b[1] * uv[1] + b[2] * uv[2];
+if degenerate_uv || length_squared(cross(dpdu, dpdv)) == 0.0 {
+    let mut ng = cross(p2 - p0, p1 - p0);
+    if length_squared(ng) == 0.0 {
+        ng = cross(Vector3::<f64>::from(p2 - p0), Vector3::<f64>::from(p1 - p0));
+    }
+    coordinate_system(normalize(ng), &mut dpdu, &mut dpdv);
+}
 ```
 
-Because barycentric interpolation is linear, it can be shown that if we can find barycentric coordinates that uniformly sample a specific triangle, then those barycentrics can be used to uniformly sample any triangle. To derive the sampling algorithm, we will therefore consider the case of uniformly sampling a unit right triangle. Given a uniform sample in [0, 1)2 that we would like to map to the triangle, the task can also be considered as finding an area-preserving mapping from the unit square to the unit triangle.
+Barycentric interpolation gives the hit point and $(u,v)$ coordinates. As shown in Section 6.8.5 this is more accurate than evaluating the parametric ray equation with $t$.
 
-A straightforward approach is suggested by Figure 6.15: the unit square could be folded over onto itself, such that samples that are on the side of the diagonal that places them outside the triangle are reflected across the diagonal to be inside it. While this would provide a valid sampling technique, it is undesirable since it causes samples that were originally far away in [0, 1)2 to be close together on the triangle. (For example, (0.01, 0.01) and (0.99, 0.99) in the unit square would both map to the same point in the triangle.) The effect would be that sampling techniques that generate well-distributed uniform samples such as those discussed in Chapter 8 were less effective at reducing error.
+**〈Interpolate (u, v) parametric coordinates and hit point〉 ≡ 310**
 
 ```rust
-    Cross() 91
-    FaceForward() 94
-    Float 23
-    Normal3f 94
+let p_hit = ti.b0 * p0 + ti.b1 * p1 + ti.b2 * p2;
+let uv_hit = ti.b0 * uv[0] + ti.b1 * uv[1] + ti.b2 * uv[2];
 ```
 
-```text
-    Normalize() 88
-    Point2f 92
-    Point3f 92
-    SampleUniformTriangle() 315
-    Triangle::NormalBounds() 303
-    TriangleMesh::n 301
-    TriangleMesh:: reverseOrientation 301
-    TriangleMesh:: transformSwapsHandedness 301
-```
+Unlike the earlier shapes, no transform to rendering space is needed—the per-vertex geometric values are already there. Like the disk, the triangle's normal derivatives are both $(0,0,0)$ because it is flat.
 
-![Figure 6.15](images/pages/page-0479.png)
-*Figure 6.15: Samples from the unit square can be mapped to the unit right triangle by reflecting across the x + y = 1 diagonal, though doing so causes far away samples on the square to map to nearby points on the triangle.*
-
-A better mapping translates points along the diagonal by a varying amount that brings the two opposite sides of the unit square to the triangle’s diagonal.
-
-The determinant of the Jacobian matrix for this mapping is a constant and therefore this mapping is area preserving and uniformly distributed samples in the unit square are uniform in the triangle. (Recall Section 2.4.1, which presented the mathematics of transforming samples from one domain to the other; there it was shown that if the Jacobian of the transformation is constant, the mapping is area-preserving.)
-
-〈Sampling Inline Functions〉 +≡
+**〈Return SurfaceInteraction for triangle hit〉 ≡ 310**
 
 ```rust
-pstd::array<Float, 3> SampleUniformTriangle(Point2f u) { Float b0, b1; if (u[0] < u[1]) { b0 = u[0] / 2; b1 = u[1] - b0; } else { b1 = u[1] / 2; b0 = u[0] - b1;
+let flip_normal = mesh.reverse_orientation ^ mesh.transform_swaps_handedness;
+// 〈Compute error bounds pError for triangle intersection 377〉
+let mut isect = SurfaceInteraction::new(
+    Point3fi::new(p_hit, p_error), uv_hit, wo, dpdu, dpdv,
+    Normal3f::ZERO, Normal3f::ZERO, time, flip_normal);
+// 〈Set final surface normal and shading geometry for triangle 312〉
+isect
 ```
 
-} return {b0, b1, 1 - b0 - b1}; }
+Before returning, some final details concerning the normal and shading geometry must be handled.
 
-The usual normalization constraint gives the PDF in terms of the triangle’s surface area. 〈Triangle Public Methods〉 +≡ 301
+**〈Set final surface normal and shading geometry for triangle〉 ≡ 312**
 
 ```rust
-Float PDF(const Interaction &) const { return 1 / Area(); }
+// 〈Override surface normal in isect for triangle 312〉
+if mesh.n || mesh.s {
+    // 〈Initialize Triangle shading geometry 312〉
+}
 ```
 
-In order to sample points on spheres with respect to solid angle from a reference point, we derived a specialized sampling method that only sampled from the potentially visible region of the sphere. For the cylinder and disk, we just sampled uniformly by area and rescaled the PDF to account for the change of measure from area to solid angle. It is tempting to do the same for triangles (and, indeed, all three previous editions of this book did so), but going through the work to apply a solid angle sampling approach can lead to much better results. To see why, consider a simplified form of the reflection integral from the
+The `SurfaceInteraction` constructor initializes the geometric normal as the normalized cross product of `dpdu` and `dpdv`. That works for most shapes, but triangle meshes often have bad parameterizations that do not preserve orientation, giving a wrongly oriented normal. We therefore initialize the geometric normal from the normalized cross product of the edge vectors $\mathbf p_0-\mathbf p_2$ and $\mathbf p_1-\mathbf p_2$, which gives the same normal up to a sign depending on the winding order.[^3] Modeling packages generally try to keep winding orders consistent, making this more robust.
 
-scattering equation, (4.14): where the BRDF f has been replaced with a constant ρ, which corresponds to a diffuse surface. If we consider the case of incident radiance only coming from a triangular light source that emits uniform diffuse radiance
-
-Le, then we can rewrite this integral as
+**〈Override surface normal in isect for triangle〉 ≡ 312**
 
 ```rust
-   Float 23
-   Interaction 136
-   Point2f 92
-   Triangle::Area() 302
+isect.n = isect.shading.n = Normal3f::from(normalize(cross(dp02, dp12)));
+if mesh.reverse_orientation ^ mesh.transform_swaps_handedness {
+    isect.n = isect.shading.n = -isect.n;
+}
 ```
 
-where V is a visibility function that is 1 if the ray from p in direction ωi hits the light source and 0 if it misses or is occluded by another object. If we sample the triangle uniformly within the solid angle that it subtends from
+With triangles, the user may provide normals and tangents at the mesh vertices, interpolated over the faces. Interpolated shading normals can make faceted meshes look smoother. If either is present, they initialize the shading geometry.
 
-the reference point, we end up with the estimator where Asolid is the subtended solid angle. The constant values have been pulled out, leaving just the two factors in parentheses that vary based on p′.
+<details>
+<summary>Reference / notes</summary>
 
-They are the only source of variance in estimates of the integral. As an alternative, consider a Monte Carlo estimate of this function where a point p′ has been uniformly sampled on the surface of the triangle. If the triangle’s area is A, then the PDF is p(p′) = 1/A. Applying the standard Monte Carlo estimator and defining a new visibility function V that is
+`Cross()` 91 · `Interaction::n` 137 · `Normal3f` 94 · `Normalize()` 88 · `Point3fi` 1061 · `SurfaceInteraction` 138 · `SurfaceInteraction::SetShadingGeometry()` 140 · `SurfaceInteraction::shading::n` 139 · `TriangleMesh::n` 301 · `TriangleMesh::reverseOrientation` 301 · `TriangleMesh::s` 301 · `TriangleMesh::transformSwapsHandedness` 301
 
-between two points, we end up with where the last factor accounts for the change of variables and where cos θl is the angle between the light source’s surface normal and the vector between the two points. The values of the four factors inside the parentheses in this estimator all depend on the choice of p′. With area sampling, the |cos θl| factor adds some additional variance, though not too much, since it is between 0 and 1. However, 1/‖p′ − p‖2 can have unbounded variation over the surface of the triangle, which can lead to high variance in the estimator since the method used to sample p′ does not account for it at all. This variance increases the larger the triangle is and the closer the reference point is to it. Figure 6.16 shows a scene where solid angle sampling significantly reduces error. The `Triangle::Sample()` method that takes a reference point therefore samples a point according to solid angle.
+</details>
+
+**〈Initialize Triangle shading geometry〉 ≡ 312**
+
+```rust
+// 〈Compute shading normal ns for triangle 313〉
+// 〈Compute shading tangent ss for triangle 313〉
+// 〈Compute shading bitangent ts for triangle and adjust ss 313〉
+// 〈Compute dndu and dndv for triangle shading geometry〉
+isect.set_shading_geometry(ns, ss, ts, dndu, dndv, true);
+```
+
+Given the barycentric coordinates, the shading normal is interpolated among the vertex normals if present:
+
+**〈Compute shading normal ns for triangle〉 ≡ 312**
+
+```rust
+let ns = if let Some(normals) = mesh.n {
+    let mut ns = Normal3f::new(
+        ti.b0 * normals[v[0]] + ti.b1 * normals[v[1]] + ti.b2 * normals[v[2]]);
+    if length_squared(ns) > 0.0 { normalize(ns) } else { isect.n }
+} else { isect.n };
+```
+
+The shading tangent is computed similarly:
+
+**〈Compute shading tangent ss for triangle〉 ≡ 312**
+
+```rust
+let ss = if let Some(s) = mesh.s {
+    let mut ss = ti.b0 * s[v[0]] + ti.b1 * s[v[1]] + ti.b2 * s[v[2]];
+    if length_squared(ss) == 0.0 { isect.dpdu } else { ss }
+} else { isect.dpdu };
+```
+
+The bitangent $\mathbf t_s=\mathbf n_s\times\mathbf s_s$ is orthogonal to both. Then $\mathbf s_s$ is overwritten with $\mathbf t_s\times\mathbf n_s$ so that $\mathbf s_s\times\mathbf t_s=\mathbf n_s$: if provided normals and tangents are not perfectly orthogonal, $\mathbf n_s$ is preserved and $\mathbf s_s$ adjusted.
+
+**〈Compute shading bitangent ts for triangle and adjust ss〉 ≡ 312**
+
+```rust
+let mut ts = cross(ns, ss);
+if length_squared(ts) > 0.0 { ss = cross(ts, ns); }
+else { coordinate_system(ns, &mut ss, &mut ts); }
+```
+
+The code computing the partial derivatives $\partial\mathbf n/\partial u$ and $\partial\mathbf n/\partial v$ of the shading normal is almost identical to that for $\partial\mathbf p/\partial u$ and $\partial\mathbf p/\partial v$, so it is elided.
+
+<details>
+<summary>Reference / notes</summary>
+
+`CoordinateSystem()` 92 · `Cross()` 91 · `Interaction` 136 · `Interaction::n` 137 · `LengthSquared()` 87 · `Normal3f` 94 · `Normalize()` 88 · `Point2f` 92 · `Point3fi` 1061 · `ShapeSample` 268 · `SurfaceInteraction::dpdu` 138 · `Triangle::Area()` 302 · `TriangleIntersection::b0` 309 · `TriangleIntersection::b1` 309 · `TriangleIntersection::b2` 309 · `TriangleMesh::n` 301 · `TriangleMesh::s` 301 · `Vector3f` 86
+
+</details>
+
+#### GPU version (WGSL)
+
+The watertight edge-function test maps to WGSL almost line for line. This is the closest-hit/any-hit kernel body for one triangle; `t` and the barycentrics are returned through a struct, and the double-precision edge fallback is omitted here (it is rarely taken).
+
+```wgsl
+struct TriHit { t: f32, b0: f32, b1: f32, b2: f32 };
+
+fn intersect_triangle(o: vec3f, d: vec3f, t_max: f32,
+                      p0: vec3f, p1: vec3f, p2: vec3f) -> TriHit {
+  // Degenerate triangle: cross product has zero length.
+  if (dot(cross(p2 - p0, p1 - p0), cross(p2 - p0, p1 - p0)) == 0.0) {
+    return TriHit(-1.0, 0.0, 0.0, 0.0);
+  }
+  // Translate, permute (z = largest |d|), shear.
+  var p0t = p0 - o; var p1t = p1 - o; var p2t = p2 - o;
+  let ad = abs(d);
+  let kz = select(select(0u, 1u, ad.y > ad.x), 2u, ad.z > max(ad.x, ad.y));
+  let kx = (kz + 1u) % 3u; let ky = (kx + 1u) % 3u;
+  let dd = permute3(d, kx, ky, kz);
+  p0t = permute3(p0t, kx, ky, kz);
+  p1t = permute3(p1t, kx, ky, kz);
+  p2t = permute3(p2t, kx, ky, kz);
+  let sx = -dd.x / dd.z; let sy = -dd.y / dd.z; let sz = 1.0 / dd.z;
+  p0t.x += sx * p0t.z; p0t.y += sy * p0t.z;
+  p1t.x += sx * p1t.z; p1t.y += sy * p1t.z;
+  p2t.x += sx * p2t.z; p2t.y += sy * p2t.z;
+  // Edge functions via fused multiply-add (DifferenceOfProducts).
+  let e0 = fma(p1t.x, p2t.y, -p1t.y * p2t.x);
+  let e1 = fma(p2t.x, p0t.y, -p2t.y * p0t.x);
+  let e2 = fma(p0t.x, p1t.y, -p0t.y * p1t.x);
+  if ((e0 < 0.0 || e1 < 0.0 || e2 < 0.0) &&
+      (e0 > 0.0 || e1 > 0.0 || e2 > 0.0)) { return TriHit(-1.0,0.0,0.0,0.0); }
+  let det = e0 + e1 + e2;
+  if (det == 0.0) { return TriHit(-1.0,0.0,0.0,0.0); }
+  p0t.z *= sz; p1t.z *= sz; p2t.z *= sz;
+  let t_scaled = e0*p0t.z + e1*p1t.z + e2*p2t.z;
+  if (det < 0.0 && (t_scaled >= 0.0 || t_scaled < t_max*det)) { return TriHit(-1.0,0.0,0.0,0.0); }
+  if (det > 0.0 && (t_scaled <= 0.0 || t_scaled > t_max*det)) { return TriHit(-1.0,0.0,0.0,0.0); }
+  let inv = 1.0 / det;
+  return TriHit(t_scaled*inv, e0*inv, e1*inv, e2*inv);
+}
+```
+
+#### 6.5.4 Sampling
+
+The uniform area triangle sampling method maps a sample $\mathbf u$ to barycentric coordinates uniformly distributed over the triangle.
+
+**〈Triangle Public Methods〉 +≡ 301**
+
+```rust
+fn sample(&self, u: Point2f) -> Option<ShapeSample> {
+    // 〈Get triangle vertices in p0, p1, and p2 302〉
+    // 〈Sample point on triangle uniformly by area 314〉
+    // 〈Compute surface normal for sampled point on triangle 314〉
+    // 〈Compute (u, v) for sampled point on triangle 314〉
+    // 〈Compute error bounds pError for sampled point on triangle 377〉
+    Some(ShapeSample {
+        intr: Interaction::new(Point3fi::new(p, p_error), n, uv_sample),
+        pdf: 1.0 / self.area(),
+    })
+}
+```
+
+Uniform barycentric sampling comes from a stand-alone utility function, making it reusable elsewhere.
+
+**〈Sample point on triangle uniformly by area〉 ≡ 313**
+
+```rust
+let b = sample_uniform_triangle(u);
+let p = b[0] * p0 + b[1] * p1 + b[2] * p2;
+```
+
+As with `Triangle::NormalBounds()`, the sampled point's surface normal depends on the orientation of the shading normal, if present.
+
+**〈Compute surface normal for sampled point on triangle〉 ≡ 313, 318**
+
+```rust
+let mut n = normalize(Normal3f::from(cross(p1 - p0, p2 - p0)));
+if let Some(normals) = mesh.n {
+    let ns = Normal3f::new(b[0] * normals[v[0]] + b[1] * normals[v[1]]
+                          + (1.0 - b[0] - b[1]) * normals[v[2]]);
+    n = face_forward(n, ns);
+} else if mesh.reverse_orientation ^ mesh.transform_swaps_handedness {
+    n = -n;
+}
+```
+
+The $(u,v)$ coordinates at the sampled point are also found by barycentric interpolation:
+
+**〈Compute (u, v) for sampled point on triangle〉 ≡ 313, 318**
+
+```rust
+// 〈Get triangle texture coordinates in uv array〉
+let uv_sample = b[0] * uv[0] + b[1] * uv[1] + b[2] * uv[2];
+```
+
+Because barycentric interpolation is linear, barycentric coordinates that uniformly sample one triangle uniformly sample any triangle. To derive the algorithm we therefore consider a unit right triangle and seek an area-preserving map from the unit square to that triangle.
+
+*Figure 6.15: Samples from the unit square can be mapped to the unit right triangle by reflecting across the $x+y=1$ diagonal, though far-apart samples on the square then map to nearby points on the triangle.*
+
+```mermaid
+flowchart LR
+    S["Unit square [0,1)^2"] --> FOLD{"Fold across<br/>x + y = 1?"}
+    FOLD -- "reflection (bad)" --> C["(0.01,0.01) and (0.99,0.99)<br/>map to the same point:<br/>stratification is lost"]
+    FOLD -- "translate along diagonal (good)" --> D["Area-preserving warp:<br/>Jacobian determinant is constant"]
+    D --> T["Uniform samples on the unit right triangle"]
+```
+
+A straightforward approach is to fold the unit square over itself, reflecting samples outside the triangle across the diagonal. Although valid, this is undesirable: samples originally far apart in $[0,1)^2$ become close together on the triangle—$(0.01,0.01)$ and $(0.99,0.99)$ both map to the same point—so well-distributed sample sequences (Chapter 8) lose their effectiveness.
+
+A better mapping translates points along the diagonal by a varying amount that brings the two opposite sides of the square to the triangle's diagonal. The determinant of this mapping's Jacobian is constant, so the mapping is area preserving and uniform samples in the square remain uniform in the triangle (Section 2.4.1).
+
+**〈Sampling Inline Functions〉 +≡**
+
+```rust
+fn sample_uniform_triangle(u: Point2f) -> [Float; 3] {
+    let (b0, b1);
+    if u[0] < u[1] {
+        b0 = u[0] / 2.0;
+        b1 = u[1] - b0;
+    } else {
+        b1 = u[1] / 2.0;
+        b0 = u[0] - b1;
+    }
+    [b0, b1, 1.0 - b0 - b1]
+}
+```
+
+The usual normalization constraint gives the PDF in terms of the triangle's area:
+
+**〈Triangle Public Methods〉 +≡ 301**
+
+```rust
+fn pdf(&self, _intr: &Interaction) -> Float { 1.0 / self.area() }
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Interaction` 136 · `Point2f` 92 · `SampleUniformTriangle()` 315 · `Triangle::Area()` 302 · `Triangle::NormalBounds()` 303 · `Vector3` 86
+
+</details>
+
+In order to sample points on spheres with respect to solid angle, we derived a specialized method that samples only the potentially visible region. For cylinders and disks we simply sampled uniformly by area and rescaled the PDF. It is tempting to do the same for triangles—indeed, all three previous editions of this book did so—but a solid-angle sampling approach gives much better results.
+
+To see why, consider a simplified form of the reflection integral from the scattering equation (4.14), with the BRDF replaced by a constant $\rho$ (a diffuse surface). If incident radiance comes only from a triangular light emitting uniform diffuse radiance $L_e$, the integral becomes
+
+$$
+L_o = \frac{\rho}{\pi}\int_A L_e\, V(\mathbf p,\mathbf p')\,
+      \cos\theta_o\,\frac{\cos\theta_l}{\|\mathbf p'-\mathbf p\|^2}\,dA,
+$$
+
+where $V$ is 1 if the ray from $\mathbf p$ in direction $\omega_i$ hits the light and 0 if it misses or is occluded. Sampling the triangle uniformly within the solid angle $A_{\mathrm{solid}}$ it subtends gives the estimator
+
+$$
+L_o \approx \frac{\rho}{\pi}\,L_e\,\frac{A_{\mathrm{solid}}}{N}\sum_i
+          \big(\cos\theta_{o,i}\big)\big(\cos\theta_{l,i}\,V_i\big),
+$$
+
+with the constants pulled out: only the two factors in parentheses vary with $\mathbf p'$, and both lie in $[0,1]$, so variance is low.
+
+With area sampling, $\mathbf p'$ is uniform on the triangle ($p(\mathbf p')=1/A$) and the estimator contains four varying factors, including $1/\|\mathbf p'-\mathbf p\|^2$, which has unbounded variation over the triangle. This can produce high variance, especially for large triangles and reference points close to them. Figure 6.16 shows a scene where solid-angle sampling significantly reduces error. The `Triangle::Sample()` method taking a reference point therefore samples with respect to solid angle.
+
+*Figure 6.16: A Scene Where Solid Angle Triangle Sampling Is Beneficial. Uniform area sampling leaves high error near the emitter; sampling the triangle's subtended solid angle leaves both remaining non-constant factors in $[0,1]$ and reduces MSE by a factor of 3.86. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
+
+<details>
+<summary>Figure 6.16 — pictorial image (keep)</summary>
 
 ![Figure 6.16](images/img-483-045.png)
 
+</details>
 
-*Figure 6.16: A Scene Where Solid Angle Triangle Sampling Is Beneficial. When points on triangles are sampled using uniform area sampling, error is high at points on the ground close to the emitter. If points are sampled on the triangle by uniformly sampling the solid angle the triangle subtends, then the remaining non-constant factors in the estimator are both between 0 and 1, which results in much lower error. For this scene, mean squared error (MSE) is reduced by a factor of 3.86. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
-
-〈Triangle Public Methods〉 +≡ 301
-
-```rust
-pstd::optional<ShapeSample> Sample(const ShapeSampleContext &ctx, Point2f u) const { 〈Get triangle vertices in p0, p1, and p2 302〉 〈Use uniform area sampling for numerically unstable cases 317〉 〈Sample spherical triangle from reference point 317〉 〈Compute error bounds pError for sampled point on triangle 377〉 〈Return ShapeSample for solid angle sampled point on triangle 318〉 }
-```
-
-Triangles that subtend a very small solid angle as well as ones that cover nearly the whole hemisphere can encounter problems with floating-point
-
-accuracy in the following solid angle sampling approach. The sampling method falls back to uniform area sampling in those cases, which does not hurt results in practice: for very small triangles, the various additional factors tend not to vary as much over the triangle’s area. pbrt also samples the BSDF as part of the direct lighting calculation, which is an effective strategy for large triangles, so uniform area sampling is fine in that case as well. 〈Use uniform area sampling for numerically unstable cases〉 ≡ 317
+**〈Triangle Public Methods〉 +≡ 301**
 
 ```rust
-Float solidAngle = SolidAngle(ctx.p()); if (solidAngle < MinSphericalSampleArea || solidAngle > MaxSphericalSampleArea) { 〈Sample shape by area and compute incident direction wi 282〉 〈Convert area sampling PDF in ss to solid angle measure 282〉 return ss; } 〈Triangle Private Members〉 +≡ 301
+fn sample(&self, ctx: &ShapeSampleContext, u: Point2f) -> Option<ShapeSample> {
+    // 〈Get triangle vertices in p0, p1, and p2 302〉
+    // 〈Use uniform area sampling for numerically unstable cases 317〉
+    // 〈Sample spherical triangle from reference point 317〉
+    // 〈Compute error bounds pError for sampled point on triangle 377〉
+    // 〈Return ShapeSample for solid angle sampled point on triangle 318〉
+}
 ```
+
+Triangles subtending a very small solid angle, or nearly the whole hemisphere, can suffer floating-point problems in the following approach. The method falls back to uniform area sampling in those cases, which does not hurt results in practice—small triangles have little variation across their area, and for large triangles the BSDF is also sampled as part of direct lighting.
+
+**〈Use uniform area sampling for numerically unstable cases〉 ≡ 317**
 
 ```rust
-static constexpr Float MinSphericalSampleArea = 3e-4; static constexpr Float MaxSphericalSampleArea = 6.22;
+let solid_angle = self.solid_angle(ctx.p());
+if solid_angle < MIN_SPHERICAL_SAMPLE_AREA || solid_angle > MAX_SPHERICAL_SAMPLE_AREA {
+    // 〈Sample shape by area and compute incident direction wi 282〉
+    // 〈Convert area sampling PDF in ss to solid angle measure 282〉
+    return ss;
+}
 ```
 
-pbrt also includes an approximation to the effect of the |cos θ′| factor in its triangle sampling algorithm, which leaves visibility and error in that approximation as the only sources of variance. We will defer discussion of the fragment that handles that, 〈Apply warp product sampling for cosine factor at reference point〉, until after we have discussed the uniform solid angle sampling algorithm. For now we will note that it affects the final sampling PDF, which turns out to be the product of the PDF for uniform solid angle sampling of the triangle and a correction factor.
+**〈Triangle Private Members〉 +≡ 301**
 
 ```rust
-   Float 23
-   Point2f 92
-   SampleSphericalTriangle() 318
-   ShapeSample 268
-   ShapeSampleContext 268
-   ShapeSampleContext::p() 269
-   Triangle:: MaxSphericalSampleArea 317
-   Triangle:: MinSphericalSampleArea 317
-   Triangle::SolidAngle() 303
+const MIN_SPHERICAL_SAMPLE_AREA: Float = 3e-4;
+const MAX_SPHERICAL_SAMPLE_AREA: Float = 6.22;
 ```
 
-Uniform sampling of the solid angle that a triangle subtends is equivalent to uniformly sampling the spherical triangle that results from its projection on
+pbrt also approximates the effect of the incident cosine factor in its triangle sampling algorithm, leaving visibility and error in that approximation as the only sources of variance. We defer the fragment `〈Apply warp product sampling for cosine factor at reference point〉` until after the uniform solid-angle algorithm; for now we note that it affects the final PDF, which is the product of the uniform solid-angle PDF and a correction factor.
 
-the unit sphere (recall Section 3.8.2). Spherical triangle sampling is implemented in a separate function described shortly, `SampleSphericalTriangle()`, that returns the barycentric coordinates for the sampled point. 〈Sample spherical triangle from reference point〉 ≡ 317
+<details>
+<summary>Reference / notes</summary>
 
-〈Apply warp product sampling for cosine factor at reference point 324〉 Float triPDF; pstd::array<Float, 3> b = SampleSphericalTriangle({p0, p1, p2}, ctx.p(), u, &triPDF); if (triPDF == 0) return {}; pdf *= triPDF;
+`Float` 23 · `Point2f` 92 · `SampleSphericalTriangle()` 318 · `ShapeSample` 268 · `ShapeSampleContext` 268 · `ShapeSampleContext::p()` 269 · `Triangle::MaxSphericalSampleArea` 317 · `Triangle::MinSphericalSampleArea` 317 · `Triangle::SolidAngle()` 303
 
-![Figure 6.17](images/img-485-046.png)
+</details>
 
+Uniform sampling of a triangle's solid angle is equivalent to uniformly sampling the spherical triangle obtained by projecting it onto the unit sphere (Section 3.8.2). `SampleSphericalTriangle()` returns barycentric coordinates for the sampled point.
 
-*Figure 6.17: Geometric Setting for Spherical Triangles. Given vertices a, b, and c, the respective opposite edges are labeled ā, b, and c and the interior angles are labeled with Greek letters α, β, and γ.*
-
-Given the barycentric coordinates, it is simple to compute the sampled point. With that as well as the surface normal, computed by reusing a fragment from the other triangle sampling method, we have everything necessary to return a `ShapeSample`.
-
-〈Return ShapeSample for solid angle sampled point on triangle〉 ≡ 317
+**〈Sample spherical triangle from reference point〉 ≡ 317**
 
 ```rust
-Point3f p = b[0] * p0 + b[1] * p1 + b[2] * p2; 〈Compute surface normal for sampled point on triangle 314〉 〈Compute (u, v) for sampled point on triangle 314〉 return ShapeSample{Interaction(Point3fi(p, pError), n, ctx.time, uvSample), pdf};
+// 〈Apply warp product sampling for cosine factor at reference point 324〉
+let mut tri_pdf = 0.0;
+let b = sample_spherical_triangle([p0, p1, p2], ctx.p(), u, Some(&mut tri_pdf));
+if tri_pdf == 0.0 { return None; }
+pdf *= tri_pdf;
 ```
 
-The spherical triangle sampling function takes three triangle vertices v, a reference point p, and a uniform sample u. The value of the PDF for the sampled point is optionally returned via pdf, if it is not nullptr. Figure 6.17 shows the geometric setting.
+*Figure 6.17: Geometric Setting for Spherical Triangles. Given vertices $a$, $b$, and $c$, the opposite edges are $\bar a$, $\bar b$, $\bar c$ and the interior angles are $\alpha$, $\beta$, $\gamma$.*
 
-〈Sampling Function Definitions〉 ≡
+```mermaid
+flowchart TD
+    V["Vertices a, b, c on the unit sphere"] --> E["Opposite edges: a-bar, b-bar, c-bar"]
+    E --> AN["Interior angles: alpha at a,<br/>beta at b, gamma at c"]
+    AN --> G["Girard: A = alpha + beta + gamma - pi<br/>(spherical area = solid angle)"]
+```
+
+Given the barycentric coordinates, the sampled point is $\mathbf p = b_0\mathbf p_0+b_1\mathbf p_1+b_2\mathbf p_2$; with the normal from a reused fragment we have everything needed for a `ShapeSample`.
+
+**〈Return ShapeSample for solid angle sampled point on triangle〉 ≡ 317**
 
 ```rust
-pstd::array<Float, 3> SampleSphericalTriangle( const pstd::array<Point3f, 3> &v, Point3f p, Point2f u, Float *pdf) { 〈Compute vectors a, b, and c to spherical triangle vertices 318〉 〈Compute normalized cross products of all direction pairs 319〉 〈Find angles α, β, and γ at spherical triangle vertices 319〉 〈Uniformly sample triangle area A to compute A′ 320〉 〈Find cos β′ for point along b for sampled area 321〉 〈Sample c′ along the arc between b′ and a 321〉 〈Compute sampled spherical triangle direction and return barycentrics 322〉 }
+let p = b[0] * p0 + b[1] * p1 + b[2] * p2;
+// 〈Compute surface normal for sampled point on triangle 314〉
+// 〈Compute (u, v) for sampled point on triangle 314〉
+Some(ShapeSample {
+    intr: Interaction::with_time(Point3fi::new(p, p_error), n, ctx.time, uv_sample),
+    pdf,
+})
 ```
 
-Given the reference point, it is easy to project the vertices on the unit sphere to find the spherical triangle vertices a, b, and c.
+The spherical triangle sampling function takes three vertices, a reference point, and a uniform sample; the PDF is optionally returned via `pdf`.
+
+**〈Sampling Function Definitions〉 ≡**
 
 ```rust
-   Float 23
-   Interaction 136
-   Normalize() 88
-   Point2f 92
-   Point3f 92
-   Point3fi 1061
-   ShapeSample 268
-   ShapeSampleContext::time 268
-   Vector3f 86
+fn sample_spherical_triangle(
+    v: [Point3f; 3],
+    p: Point3f,
+    u: Point2f,
+    pdf: Option<&mut Float>,
+) -> [Float; 3] {
+    // 〈Compute vectors a, b, and c to spherical triangle vertices 318〉
+    // 〈Compute normalized cross products of all direction pairs 319〉
+    // 〈Find angles alpha, beta, and gamma at spherical triangle vertices 319〉
+    // 〈Uniformly sample triangle area A to compute A' 320〉
+    // 〈Find cos beta' for point along b for sampled area 321〉
+    // 〈Sample c' along the arc between b' and a 321〉
+    // 〈Compute sampled spherical triangle direction and return barycentrics 322〉
+}
 ```
 
-〈Compute vectors a, b, and c to spherical triangle vertices〉 ≡ 318, 325
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Interaction` 136 · `Normalize()` 88 · `Point2f` 92 · `Point3f` 92 · `Point3fi` 1061 · `ShapeSample` 268 · `ShapeSampleContext::time` 268 · `Vector3f` 86
+
+</details>
+
+Projecting the vertices onto the unit sphere gives the spherical triangle vertices $\mathbf a$, $\mathbf b$, $\mathbf c$:
+
+**〈Compute vectors a, b, and c to spherical triangle vertices〉 ≡ 318, 325**
 
 ```rust
-Vector3f a(v[0] - p), b(v[1] - p), c(v[2] - p); a = Normalize(a); b = Normalize(b); c = Normalize(c);
+let mut a = v[0] - p;
+let mut b = v[1] - p;
+let mut c = v[2] - p;
+a = normalize(a); b = normalize(b); c = normalize(c);
 ```
 
-Because the plane containing an edge also passes through the origin, we can compute the plane normal for an edge from a to b as
+Because the plane containing an edge also passes through the origin, an edge's plane normal is the cross product of its two vertex directions:
 
-![Figure 6.18](images/img-487-047.png)
+*Figure 6.18: (a) After sampling a triangle area, the first step finds the vertex $\mathbf c'$ giving a spherical triangle $\mathbf a\mathbf b\mathbf c'$ with that area; $\mathbf a$, $\mathbf b$ and edge $\bar{\mathbf c}$ are shared with the original triangle. (b) A direction $\omega$ is sampled along the arc between $\mathbf b$ and $\mathbf c'$.*
 
+```mermaid
+flowchart LR
+    A["abc: original spherical triangle"] --> AP["Sample area A' in [0, A]"]
+    AP --> C["Find c' on arc a->c<br/>so abc' has area A'"]
+    C --> W["Sample omega along arc b->c'<br/>with density increasing toward c'"]
+    W --> U["Uniform distribution inside abc"]
+```
 
-*Figure 6.18: (a) After sampling a triangle area, the first step of the sampling algorithm finds the vertex c′ that gives a spherical triangle abc′ with that area. The vertices a and b and the edge c are shared with the original triangle. (b) Given c′, a direction ω is sampled along the arc between b and c′.*
-
-and similarly for the other edges. If any of these normals are degenerate, then the triangle has zero area. 〈Compute normalized cross products of all direction pairs〉 ≡ 318, 325
+**〈Compute normalized cross products of all direction pairs〉 ≡ 318, 325**
 
 ```rust
-Vector3f n_ab = Cross(a, b), n_bc = Cross(b, c), n_ca = Cross(c, a); if (LengthSquared(n_ab) == 0 || LengthSquared(n_bc) == 0 || LengthSquared(n_ca) == 0) return {}; n_ab = Normalize(n_ab); n_bc = Normalize(n_bc); n_ca = Normalize(n_ca);
+let mut n_ab = cross(a, b);
+let mut n_bc = cross(b, c);
+let mut n_ca = cross(c, a);
+if length_squared(n_ab) == 0.0 || length_squared(n_bc) == 0.0 || length_squared(n_ca) == 0.0 {
+    return [0.0; 3]; // zero-area triangle
+}
+n_ab = normalize(n_ab); n_bc = normalize(n_bc); n_ca = normalize(n_ca);
 ```
 
-Given the pairs of plane normals, `AngleBetween()` gives the angles between them. In computing these angles, we can take advantage of the fact that the plane normal for the edge between two vertices b and a is the negation of the plane normal for the edge from a to b. 〈Find angles α, β, and γ at spherical triangle vertices〉 ≡ 318, 325
+`AngleBetween()` gives the angles between the plane normals; the normal of the edge from $\mathbf b$ to $\mathbf a$ is the negation of that from $\mathbf a$ to $\mathbf b$:
+
+**〈Find angles alpha, beta, and gamma at spherical triangle vertices〉 ≡ 318, 325**
 
 ```rust
-Float alpha = AngleBetween(n_ab, -n_ca); Float beta = AngleBetween(n_bc, -n_ab); Float gamma = AngleBetween(n_ca, -n_bc);
+let alpha = angle_between(n_ab, -n_ca);
+let beta  = angle_between(n_bc, -n_ab);
+let gamma = angle_between(n_ca, -n_bc);
 ```
 
-The spherical triangle sampling algorithm operates in two stages. The first step uniformly samples a new triangle with area A′ between 0 and the area of the original spherical triangle A using the first sample: A′ = ξ0A. This triangle is defined by finding a new vertex c′ along the arc between a and c such that the resulting triangle abc′ has area A′ (see Figure 6.18(a)). In the second step, a vertex ω is sampled along the arc between b and c′ with sampling density that is relatively lower near b and higher near c′; the result is a uniform distribution of points inside the spherical triangle (Figure 6.18(b)). (The need for a nonuniform density along the arc can be understood by considering the arcs bc′ as c′ sweeps from a to c: the velocity of a point on the arc increases the farther away from b and so the density of sampled points along a given arc must be adjusted accordingly.) `AngleBetween()` 89 `Cross()` 91 `Float` 23 `LengthSquared()` 87 `Normalize()` 88 `Vector3f` 86 Our implementation makes a small modification to the algorithm as described so far: rather than computing the triangle’s spherical area A and then sampling an area uniformly between 0 and A, it instead starts by computing its area plus π, which we will denote by Aπ.
+The algorithm operates in two stages. First, a new area $A'=\xi_0 A$ is uniformly sampled between 0 and the original area $A$; a vertex $\mathbf c'$ along the arc from $\mathbf a$ to $\mathbf c$ defines a triangle $\mathbf a\mathbf b\mathbf c'$ with that area (Figure 6.18a). Second, a vertex $\omega$ is sampled along the arc from $\mathbf b$ to $\mathbf c'$ with a density that is lower near $\mathbf b$ and higher near $\mathbf c'$, producing a uniform distribution inside the triangle (Figure 6.18b). A nonuniform density along the arc is necessary because the velocity of a point on the arc increases with distance from $\mathbf b$ as $\mathbf c'$ sweeps from $\mathbf a$ to $\mathbf c$.
 
-Doing so lets us avoid the subtraction of π from the sum of the interior angles that is present in the spherical triangle area equation, (3.5). For very small triangles, where α + β + γ ≈ π, the subtraction of π can cause a significant loss of floating-point accuracy. The remainder of the algorithm’s implementation is then adjusted to be based on in order to avoid needing to perform the subtraction. Given Aπ, the sampled area-plus-π is easily computed by uniformly sampling between π and Aπ.
+Our implementation makes a small modification: rather than computing the spherical area $A$ and sampling between 0 and $A$, it computes the area *plus* $\pi$, denoted $A_\pi$. This avoids subtracting $\pi$ from the sum of interior angles in Equation (3.5), which loses accuracy for tiny triangles where $\alpha+\beta+\gamma\approx\pi$. The rest of the algorithm is adjusted to work with $A_\pi$; the sampled area-plus-$\pi$ is found by sampling uniformly between $\pi$ and $A_\pi$.
 
-The returned PDF value can be initialized at this point; because the algorithm samples uniformly in the triangle’s solid angle, the probability
+The returned PDF can be initialized here: the algorithm samples uniformly in solid angle, so the density is one over the triangle's spherical area $A=A_\pi-\pi$.
 
-density function takes the constant value of one over the solid angle the triangle subtends, which is its spherical area. (For that, the value of π must be subtracted.) 〈Uniformly sample triangle area A to compute A′〉 ≡ 318
+**〈Uniformly sample triangle area A to compute A'〉 ≡ 318**
 
 ```rust
-Float A_pi = alpha + beta + gamma; Float Ap_pi = Lerp(u[0], Pi, A_pi); if (pdf) { Float A = A_pi - Pi; *pdf = (A <= 0) ? 0 : 1 / A; }
+let a_pi = alpha + beta + gamma;
+let ap_pi = lerp(u[0], PI, a_pi);
+if let Some(p) = pdf {
+    let a = a_pi - PI;
+    *p = if a <= 0.0 { 0.0 } else { 1.0 / a };
+}
 ```
 
-At this point, we need to determine more values related to the sampled triangle. We have the vertices a and b, the edge c, and the angle α all unchanged from the given triangle. The area-plus-π of the sampled triangle is known, but we do not have the vertex c′, the edges b′ or ā′, or the angles β′ or γ′. To find the vertex c′, it is sufficient to find the length of the arc b′. In this case, cos b′ will do, since 0 ≤ b′ < π. The first step is to apply one of the spherical cosine laws, which gives the equality
+At this point $\mathbf a$, $\mathbf b$, edge $\bar{\mathbf c}$, and angle $\alpha$ are unchanged. We know the sampled triangle's area-plus-$\pi$ but not its vertex $\mathbf c'$, edge $\bar{\mathbf b}'$, or angles $\beta'$, $\gamma'$. To find $\mathbf c'$ it suffices to find $\cos b'$ (since $0\le b'<\pi$). A spherical cosine law gives
 
-Although we do not know γ′, we can apply the definition of ,
+$$
+\cos A' = -\cos\alpha\cos b' + \sin\alpha\sin b'\cos\gamma',
+\tag{6.8}
+$$
 
-to express γ′ in terms of quantities that are either known or are β′:
+and the definition of $A'_\pi=\alpha+\beta'+\gamma'$ lets us express $\gamma'=A'_\pi-\alpha-\beta'$. Substituting into Equation (6.8) and solving for $\cos b'$ gives, after defining $\Phi=A'_\pi-\alpha$,
 
-Substituting this equality in Equation (6.8) and solving for cos b′ gives
+$$
+\cos b' = \frac{k_2 + (k_2\cos\Phi - k_1\sin\Phi)\cos\alpha}
+               {(k_2\sin\Phi + k_1\cos\Phi)\sin\alpha},
+\tag{6.9}
+$$
 
-Defining to simplify notation, we have
+where the cosine and sine sum identities were used and
 
-The cosine and sine sum identities then give
+$$
+k_1=\cos\Phi+\cos\alpha,\qquad k_2=\sin\Phi-\sin\alpha\cos c .
+$$
 
-The only remaining unknowns on the right hand side are the sines and cosines of β′.
+The only remaining unknowns are $\sin\beta'$ and $\cos\beta'$. Another spherical cosine law gives an equality that simplifies to
+
+$$
+0 = k_1\cos\beta' + k_2\sin\beta',
+$$
+
+whose solutions are $\cos\beta'=k_2/\sqrt{k_1^2+k_2^2}$ and $\sin\beta'=k_1/\sqrt{k_1^2+k_2^2}$. Substituting into Equation (6.9), taking the solution with positive cosine, and simplifying yields an expression with only known values on the right-hand side. The code also applies trig identities to compute $\sin\Phi$ and $\cos\Phi$ from other sines and cosines.
+
+<details>
+<summary>Reference / notes</summary>
+
+`Clamp()` 1033 · `DifferenceOfProducts()` 1044 · `Dot()` 89 · `Float` 23 · `GramSchmidt()` 90 · `Lerp()` 72 · `Normalize()` 88 · `Pi` 1033 · `SafeSqrt()` 1034 · `Sqr()` 1034 · `SumOfProducts()` 1044 · `Vector3f` 86
+
+</details>
+
+**〈Find cos beta' for point along b for sampled area〉 ≡ 318**
 
 ```rust
-   Float 23
-   Lerp() 72
-   Pi 1033
+let cos_alpha = alpha.cos();
+let sin_alpha = alpha.sin();
+let sin_phi = ap_pi.sin() * cos_alpha - ap_pi.cos() * sin_alpha;
+let cos_phi = ap_pi.cos() * cos_alpha + ap_pi.sin() * sin_alpha;
+let k1 = cos_phi + cos_alpha;
+let k2 = sin_phi - sin_alpha * dot(a, b); // cos c
+let mut cos_bp = (k2 + difference_of_products(k2, cos_phi, k1, sin_phi) * cos_alpha)
+    / (sum_of_products(k2, sin_phi, k1, cos_phi) * sin_alpha);
+cos_bp = cos_bp.clamp(-1.0, 1.0);
 ```
 
-To find sin β′ and cos β′, we can use another spherical cosine law, which gives the equality
+The great-circle arc between $\mathbf a$ and $\mathbf c$ can be parameterized as $\cos\theta\,\mathbf a+\sin\theta\,\mathbf c_\perp$, where $\mathbf c_\perp$ is the normalized component of $\mathbf c$ perpendicular to $\mathbf a$, given by `GramSchmidt()`. Then
 
-It can be simplified in a similar manner to find the equation
+$$
+\mathbf c' = \cos b'\,\mathbf a + \sin b'\,\frac{\mathbf c - (\mathbf a\cdot\mathbf c)\mathbf a}{\|\mathbf c-(\mathbf a\cdot\mathbf c)\mathbf a\|},
+$$
 
-The terms in parentheses are all known. We will denote them by k1 = cos ϕ + cos α and k2 = sin ϕ − sin α cos c. It is then easy to see that solutions to the equation 0 = k1 cos β′ + k2 sin β′
+and $\sin b'=\sqrt{1-\cos^2 b'}$ since it must be nonnegative.
 
-are given by
-
-Substituting these into Equation (6.9), taking the solution with a positive cosine, and simplifying gives
-
-which finally has only known values on the right hand side. The code to compute this cosine follows directly from this solution. In it, we have also applied trigonometric identities to compute sin ϕ and cos ϕ in terms of other sines and cosines. 〈Find cos β′ for point along b for sampled area〉 ≡ 318
+**〈Sample c' along the arc between b' and a〉 ≡ 318**
 
 ```rust
-Float cosAlpha = std::cos(alpha), sinAlpha = std::sin(alpha); Float sinPhi = std::sin(Ap_pi) * cosAlpha - std::cos(Ap_pi) * sinAlpha; Float cosPhi = std::cos(Ap_pi) * cosAlpha + std::sin(Ap_pi) * sinAlpha; Float k1 = cosPhi + cosAlpha; Float k2 = sinPhi - sinAlpha * Dot(a, b) /* cos c */; Float cosBp = (k2 + (DifferenceOfProducts(k2, cosPhi, k1, sinPhi)) * cosAlpha) / ((SumOfProducts(k2, sinPhi, k1, cosPhi)) * sinAlpha); cosBp = Clamp(cosBp, -1, 1);
+let sin_bp = safe_sqrt(1.0 - cos_bp.sqr());
+let cp = cos_bp * a + sin_bp * normalize(gram_schmidt(c, a));
 ```
 
-The arc of the great circle between the two points a and c can be parameterized by cos θa + sin θc⊥, where c⊥ is the normalized perpendicular component of c with respect to a. This vector is given by the `GramSchmidt()` function introduced earlier, which makes the computation of c′ straightforward. In this case, sin b′ can then be found using cos b′ with the Pythagorean identity, since we know that it must be nonnegative. 〈Sample c′ along the arc between b′ and a〉 ≡ 318
+For the samples to be uniform in the spherical triangle, if the edge from $\mathbf b$ to $\mathbf c'$ is parameterized analogously, $\cos\theta$ must be sampled as
+
+$$
+\cos\theta = 1 - u_1\big(1-\mathbf b\cdot\mathbf c'\big).
+\tag{6.10}
+$$
+
+(The "Further Reading" section points to the details.) The final sampled direction is
+
+$$
+\omega = \cos\theta\,\mathbf b + \sin\theta\,
+         \frac{\mathbf c'-(\mathbf b\cdot\mathbf c')\mathbf b}
+              {\|\mathbf c'-(\mathbf b\cdot\mathbf c')\mathbf b\|}.
+$$
+
+**〈Compute sampled spherical triangle direction and return barycentrics〉 ≡ 318**
 
 ```rust
-Float sinBp = SafeSqrt(1 - Sqr(cosBp)); Vector3f cp = cosBp * a + sinBp * Normalize(GramSchmidt(c, a));
+let cos_theta = 1.0 - u[1] * (1.0 - dot(cp, b));
+let sin_theta = safe_sqrt(1.0 - cos_theta.sqr());
+let w = cos_theta * b + sin_theta * normalize(gram_schmidt(cp, b));
+// 〈Find barycentric coordinates for sampled direction w 322〉
+// 〈Return clamped barycentrics for sampled direction 322〉
 ```
 
-```text
-   Clamp() 1033
-   DifferenceOfProducts() 1044
-```
+The barycentric coordinates of the corresponding point in the planar triangle come from part of the Möller–Trumbore ray–triangle algorithm (Möller and Trumbore 1997). Equating the ray's parametric form with barycentric interpolation, $\mathbf o+t\mathbf d=(1-b_0-b_1)\mathbf v_0+b_1\mathbf v_1+b_2\mathbf v_2$, and solving the linear system gives:
+
+**〈Find barycentric coordinates for sampled direction w〉 ≡ 322**
 
 ```rust
-   Dot() 89
-   Float 23
-   GramSchmidt() 90
-   Normalize() 88
-   SafeSqrt() 1034
-   Sqr() 1034
-   SumOfProducts() 1044
-   Vector3f 86
+let e1 = v[1] - v[0];
+let e2 = v[2] - v[0];
+let s1 = cross(w, e2);
+let divisor = dot(s1, e1);
+let inv_divisor = 1.0 / divisor;
+let s = p - v[0];
+let b1 = dot(s, s1) * inv_divisor;
+let b2 = dot(w, cross(s, e1)) * inv_divisor;
 ```
 
-For the sample points to be uniformly distributed in the spherical triangle, it can be shown that if the edge from b to c′ is parameterized using θ in the same way as was used for the edge from a to c, then cos θ should be sampled as (The “Further Reading” section has pointers to the details.) With that, we can compute the final sampled direction ω. The remaining step is to compute the barycentric coordinates for the sampled direction. 〈Compute sampled spherical triangle direction and return barycentrics〉 ≡ 318
+For very small or very large triangles the computed barycentrics may be invalid. They are clamped into the triangle before being returned:
+
+**〈Return clamped barycentrics for sampled direction〉 ≡ 322**
 
 ```rust
-Float cosTheta = 1 - u[1] * (1 - Dot(cp, b)); Float sinTheta = SafeSqrt(1 - Sqr(cosTheta)); Vector3f w = cosTheta * b + sinTheta * Normalize(GramSchmidt(cp, b)); 〈Find barycentric coordinates for sampled direction w 322〉 〈Return clamped barycentrics for sampled direction 322〉
+let mut b1 = b1.clamp(0.0, 1.0);
+let mut b2 = b2.clamp(0.0, 1.0);
+if b1 + b2 > 1.0 { b1 /= b1 + b2; b2 /= b1 + b2; }
+[1.0 - b1 - b2, b1, b2]
 ```
 
-The barycentric coordinates of the corresponding point in the planar triangle can be found using part of a ray–triangle intersection algorithm that finds the barycentrics along the way (Möller and Trumbore 1997). It starts with equating the parametric form of the ray with the barycentric interpolation of the triangle’s vertices vi, o + td = (1 − b0 − b1)v0 + b1v1 + b2v2, expressing this as a matrix equation, and solving the resulting linear system for the barycentrics. The solution is implemented in the following fragment, which includes the result of factoring out various common subexpressions. 〈Find barycentric coordinates for sampled direction w〉 ≡ 322
+Uniform solid-angle sampling does not account for the incident cosine factor at the reference point, and no analytic method to do so is known. However, a warping function on the uniform sample $\mathbf u$ can approximate it: $\cos\theta$ varies smoothly over the spherical triangle, and because the sampling algorithm maintains a continuous relationship between samples and points, its image in $[0,1]^2$ is also smooth (Figure 6.19). A chain-rule argument shows that transforming uniform $[0,1]^2$ points according to the distribution of $\cos\theta$ makes the resulting directions on the sphere include the cosine factor.
+
+*Figure 6.19: (a) The $\cos\theta$ factor varies smoothly over a spherical triangle. (b) Mapped back to $[0,1]^2$ it also varies smoothly, thanks to the sampling algorithm's continuity.*
+
+```mermaid
+flowchart LR
+    S["Spherical triangle: cos(theta) smooth"] --> INV["Inverse sample map"]
+    INV --> D["cos(theta) smooth over [0,1]^2"]
+    D --> W["Sample bilinear distribution<br/>of cos(theta)"]
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Clamp()` 1033 · `Cross()` 91 · `Dot()` 89 · `Float` 23 · `GramSchmidt()` 90 · `Normalize()` 88 · `SafeSqrt()` 1034 · `Sqr()` 1034 · `Vector3f` 86
+
+</details>
+
+*Figure 6.20: If (a) uniform sample points are warped to (b) approximate the distribution of the incident cosine factor in $[0,1]^2$, then (c) the resulting points in the triangle are approximately cosine-distributed.*
+
+```mermaid
+flowchart LR
+    A["(a) Uniform u in [0,1]^2"] --> B["(b) Warp by bilinear<br/>cos(theta) distribution"]
+    B --> C["(c) Points in triangle<br/>approx. cosine-distributed"]
+```
+
+The true function has no convenient analytic form, but it is smooth, so we approximate it with a bilinear function. Each corner of $[0,1]^2$ maps to one of the spherical triangle's vertices, and we set the bilinear function's value at each corner from the $\cos\theta$ factor computed at the corresponding vertex. Sampling then uses the initial uniform sample to draw from the bilinear distribution and feeds the resulting nonuniform point to the triangle sampling algorithm. The overall PDF is the product of the bilinear PDF and the spherical triangle PDF.
+
+This technique applies only to reference points on surfaces: for points in scattering media `ShapeSampleContext::ns` is degenerate and no warping is applied.
+
+**〈Apply warp product sampling for cosine factor at reference point〉 ≡ 317**
 
 ```rust
-Vector3f e1 = v[1] - v[0], e2 = v[2] - v[0]; Vector3f s1 = Cross(w, e2); Float divisor = Dot(s1, e1); Float invDivisor = 1 / divisor; Vector3f s = p - v[0];
+let mut pdf = 1.0;
+if ctx.ns != Normal3f::ZERO {
+    // 〈Compute cos theta-based weights w at sample domain corners 324〉
+    u = sample_bilinear(u, w);
+    pdf *= bilinear_pdf(u, w);
+}
 ```
+
+For the spherical triangle sampler, vertex $\mathbf v_0$ corresponds to sample $(0,1)$, $\mathbf v_1$ to $(0,0)$ and $(1,0)$ (and the line between them), and $\mathbf v_2$ to $(1,1)$. The weights therefore use the cosine of the direction to the corresponding vertex:
+
+**〈Compute cos theta-based weights w at sample domain corners〉 ≡ 324, 325**
 
 ```rust
-   Float b1 = Dot(s, s1) * invDivisor;
-   Float b2 = Dot(w, Cross(s, e1)) * invDivisor;
+let rp = ctx.p();
+let wi = [normalize(p0 - rp), normalize(p1 - rp), normalize(p2 - rp)];
+let w = [
+    abs_dot(ctx.ns, wi[1]).max(0.01),
+    abs_dot(ctx.ns, wi[1]).max(0.01),
+    abs_dot(ctx.ns, wi[0]).max(0.01),
+    abs_dot(ctx.ns, wi[2]).max(0.01),
+];
 ```
 
-The computed barycentrics may be invalid for very small and very large triangles. This happens rarely, but to protect against it, they are clamped to be within the triangle before they are returned. 〈Return clamped barycentrics for sampled direction〉 ≡ 322
+<details>
+<summary>Reference / notes</summary>
+
+`ShapeSampleContext::ns` 268
+
+</details>
+
+The associated `PDF()` is much simpler than the sampling routine.
+
+**〈Triangle Public Methods〉 +≡ 301**
 
 ```rust
-b1 = Clamp(b1, 0, 1); b2 = Clamp(b2, 0, 1); if (b1 + b2 > 1) { b1 /= b1 + b2; b2 /= b1 + b2; } return {Float(1 - b1 - b2), Float(b1), Float(b2)};
+fn pdf(&self, ctx: &ShapeSampleContext, wi: Vector3f) -> Float {
+    let solid_angle = self.solid_angle(ctx.p());
+    // 〈Return PDF based on uniform area sampling for challenging triangles 324〉
+    let mut pdf = 1.0 / solid_angle;
+    // 〈Adjust PDF for warp product sampling of triangle cos theta factor 325〉
+    pdf
+}
 ```
 
-As noted earlier, uniform solid angle sampling does not account for the incident cosine factor at the reference point. Indeed, there is no known analytic method to do so. However, it is possible to apply a warping function to the uniform samples u that approximately accounts for this factor. To understand the idea, first note that cos θ varies smoothly over the spherical triangle. Because the spherical triangle sampling algorithm that we have just defined maintains a continuous relationship between sample values and points in the triangle, then if we consider the image of the cos θ function back in the [0, 1]2 sampling domain, as would be found by mapping it through the inverse of the spherical triangle sampling algorithm, the cos θ function is smoothly varying there as well. (See Figure 6.19.) `Clamp()` 1033 `Cross()` 91 `Dot()` 89 `Float` 23 `GramSchmidt()` 90 `Normalize()` 88 `SafeSqrt()` 1034 `Sqr()` 1034
+It is important that `PDF()` makes exactly the same decisions as `Sample()` about which technique is used. It starts with the same check for very small and very large triangles:
 
-`Vector3f` 86 It can be shown through simple application of the chain rule that a suitable transformation of uniform [0, 1]2 sample points can account for the cos θ factor. Specifically, if transformed points are distributed according to the distribution of cos θ in [0, 1]2 and then used with the spherical triangle sampling algorithm, then the distribution of directions on the sphere will include the cos θ factor.
-
-![Figure 6.19](images/img-494-048.png)
-
-
-*Figure 6.19: (a) The cos θ factor varies smoothly over the area of a spherical triangle. (b) If it is mapped back to the [0, 1]2 sampling domain, it also varies smoothly there, thanks to the sampling algorithm not introducing any discontinuities or excessive distortion.*
-
-![Figure 6.20](images/img-495-049.png)
-
-
-*Figure 6.20: If (a) uniform sample points are warped to (b) approximate the distribution of the incident cosine factor in [0, 1]2 before being used with the spherical triangle sampling algorithm, then (c) the resulting points in the triangle are approximately cosine-distributed.*
-
-The true function has no convenient analytic form, but because it is smoothly varying, here we will approximate it with a bilinear function. Each corner of the [0, 1]2 sampling domain maps to one of the three vertices of the spherical triangle, and so we set the bilinear function’s value at each corner according to the cos θ factor computed at the associated triangle vertex. Sampling a point in the triangle then proceeds by using the initial uniform sample to sample the bilinear distribution and to use the resulting nonuniform point in [0, 1]2 with the triangle sampling algorithm. (See Figure 6.20.) Applying the principles of transforming between distributions that were introduced in Section 2.4.1, we can find that the overall PDF of such a sample is given by the product of the PDF for the bilinear sample and the PDF of the spherical triangle sample.
-
-```text
-   ShapeSampleContext::ns 268
-```
-
-This technique is only applied for reference points on surfaces. For points in scattering media, the surface normal `ShapeSampleContext::ns` is degenerate and no sample warping is applied. 〈Apply warp product sampling for cosine factor at reference point〉 ≡ 317
+**〈Return PDF based on uniform area sampling for challenging triangles〉 ≡ 324**
 
 ```rust
-Float pdf = 1;
+if solid_angle < MIN_SPHERICAL_SAMPLE_AREA || solid_angle > MAX_SPHERICAL_SAMPLE_AREA {
+    // 〈Intersect sample ray with shape geometry 285〉
+    // 〈Compute PDF in solid angle measure from shape intersection point 285〉
+    return pdf;
+}
 ```
+
+<details>
+<summary>Reference / notes</summary>
+
+`AbsDot()` 90 · `BilinearPDF()` 76 · `Float` 23 · `InvertSphericalTriangleSample()` 325 · `Normal3f` 94 · `Normalize()` 88 · `Point3f` 92 · `SampleBilinear()` 76 · `ShapeSampleContext` 268 · `ShapeSampleContext::ns` 268 · `ShapeSampleContext::p()` 269 · `Triangle::MaxSphericalSampleArea` 317 · `Triangle::MinSphericalSampleArea` 317 · `Triangle::SolidAngle()` 303 · `Vector3f` 86
+
+</details>
+
+If `Sample()` would have warped the uniform sample to account for $\cos\theta$, the corresponding change-of-variables factor must be included here. We invert the spherical triangle sampling algorithm to find the $\mathbf u$ that samples the point giving direction $\omega_i$; `InvertSphericalTriangleSample()` performs this computation.
+
+**〈Adjust PDF for warp product sampling of triangle cos theta factor〉 ≡ 324**
 
 ```rust
-   if (ctx.ns != Normal3f(0, 0, 0)) {
-       〈Compute cos θ-based weights w at sample domain corners 324〉
-       u = SampleBilinear(u, w);
-       pdf = BilinearPDF(u, w);
-   }
+if ctx.ns != Normal3f::ZERO {
+    // 〈Get triangle vertices in p0, p1, and p2 302〉
+    let u = invert_spherical_triangle_sample([p0, p1, p2], ctx.p(), wi);
+    // 〈Compute cos theta-based weights w at sample domain corners 324〉
+    pdf *= bilinear_pdf(u, w);
+}
 ```
 
-For the spherical triangle sampling algorithm, the vertex v0 corresponds to the sample (0, 1), v1 to (0, 0) and (1, 0) (and the line in between), and v2 to (1, 1). Therefore, the sampling weights at the corners of the [0, 1]2 domain are computed using the cosine of the direction to the corresponding vertex. 〈Compute cos θ-based weights w at sample domain corners〉 ≡ 324, 325
+The pair of sample values giving a direction $\omega$ is found by inverting each sampling operation in turn. The function starts with the same reused fragments computing the spherical triangle's vertex angles.
+
+**〈Sampling Function Definitions〉 +≡**
 
 ```rust
-Point3f rp = ctx.p(); Vector3f wi[3] = {Normalize(p0 - rp), Normalize(p1 - rp), Normalize(p2 - rp)}; pstd::array<Float, 4> w = pstd::array<Float, 4>{std::max<Float>(0.01, AbsDot(ctx.ns, wi[1])), std::max<Float>(0.01, AbsDot(ctx.ns, wi[1])), std::max<Float>(0.01, AbsDot(ctx.ns, wi[0])), std::max<Float>(0.01, AbsDot(ctx.ns, wi[2]))};
+fn invert_spherical_triangle_sample(
+    v: [Point3f; 3],
+    p: Point3f,
+    w: Vector3f,
+) -> Point2f {
+    // 〈Compute vectors a, b, and c to spherical triangle vertices 318〉
+    // 〈Compute normalized cross products of all direction pairs 319〉
+    // 〈Find angles alpha, beta, and gamma at spherical triangle vertices 319〉
+    // 〈Find vertex c' along ac arc for omega 326〉
+    // 〈Invert uniform area sampling to find u0 326〉
+    // 〈Invert arc sampling to find u1 and return result 326〉
+}
 ```
 
-The associated `PDF()` method is thankfully much simpler than the sampling routine. 〈Triangle Public Methods〉 +≡ 301
+Next it finds the vertex $\mathbf c'$ on the arc from $\mathbf a$ to $\mathbf c$ defining the subtriangle that would have been sampled: the intersection of the great circle through $\mathbf b$ and $\omega$ with the great circle through $\mathbf a$ and $\mathbf c$ (Figure 6.21). Since each great circle is the intersection of the sphere with a plane through the origin and two points, the two planes intersect in a line whose direction is the cross product of their normals. That line meets the sphere twice; we choose the point between $\mathbf a$ and $\mathbf c$.
+
+*Figure 6.21: Given a spherical triangle $\mathbf a\mathbf b\mathbf c$ and a direction $\omega$ inside it, $\mathbf c'$ along the edge from $\mathbf a$ to $\mathbf c$ is found from the intersection of the great circle through $\mathbf b$ and $\omega$ with the great circle through $\mathbf a$ and $\mathbf c$.*
+
+```mermaid
+flowchart LR
+    G1["Great circle through b and omega"] --> X["Intersect the two planes"]
+    G2["Great circle through a and c"] --> X
+    X --> CP["c' (choose the point<br/>between a and c)"]
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`BilinearPDF()` 76 · `InvertSphericalTriangleSample()` 325 · `Normal3f` 94 · `Point2f` 92 · `Point3f` 92 · `ShapeSampleContext::ns` 268 · `ShapeSampleContext::p()` 269 · `Vector3f` 86
+
+</details>
+
+**〈Find vertex c' along ac arc for omega〉 ≡ 325**
 
 ```rust
-Float PDF(const ShapeSampleContext &ctx, Vector3f wi) const { Float solidAngle = SolidAngle(ctx.p()); 〈Return PDF based on uniform area sampling for challenging triangles 324〉 Float pdf = 1 / solidAngle; 〈Adjust PDF for warp product sampling of triangle cos θ factor 325〉 return pdf; }
+let mut cp = normalize(cross(cross(b, w), cross(c, a)));
+if dot(cp, a + c) < 0.0 { cp = -cp; }
 ```
 
-It is important that the `PDF()` method makes exactly the same decisions about which technique is used to sample the triangle as the `Sample()` method does. This method therefore starts with the same check for very small and very large triangles to determine whether it should fall back to returning the PDF based on uniform area sampling.
+Given $\mathbf c'$, the area of triangle $\mathbf a\mathbf b\mathbf c'$ gives the first sample value $u_0=A'/A$. When $\mathbf a$ and $\mathbf c'$ are nearly coincident, computing $\gamma'$ may have high error and the subtriangle may even appear to have larger area than the original; a dot-product test catches that case.
+
+**〈Invert uniform area sampling to find u0〉 ≡ 325**
 
 ```rust
-   AbsDot() 90
-   BilinearPDF() 76
-   Float 23
+let u0;
+if dot(a, cp) > 0.99999847691 /* 0.1 degrees */ {
+    u0 = 0.0;
+} else {
+    // 〈Compute area A' of subtriangle 326〉
+    // 〈Compute sample u0 that gives the area A' 326〉
+}
 ```
 
-```text
-   InvertSphericalTriangleSample() 325
-   Normal3f 94
-   Normalize() 88
-   Point3f 92
-   SampleBilinear() 76
-   ShapeSampleContext 268
-   ShapeSampleContext::ns 268
-   ShapeSampleContext::p() 269
-   Triangle:: MaxSphericalSampleArea 317
-   Triangle:: MinSphericalSampleArea 317
-   Triangle::SolidAngle() 303
-   Vector3f 86
-```
+Otherwise Girard's theorem gives the subtriangle's area:
 
-〈Return PDF based on uniform area sampling for challenging triangles〉 ≡ 324
+**〈Compute area A' of subtriangle〉 ≡ 326**
 
 ```rust
-if (solidAngle < MinSphericalSampleArea || solidAngle > MaxSphericalSampleArea) { 〈Intersect sample ray with shape geometry 285〉 〈Compute PDF in solid angle measure from shape intersection point 285〉 return pdf; }
+let mut n_cpb = cross(cp, b);
+let mut n_acp = cross(a, cp);
+if length_squared(n_cpb) == 0.0 || length_squared(n_acp) == 0.0 {
+    return Point2f::new(0.5, 0.5);
+}
+n_cpb = normalize(n_cpb);
+n_acp = normalize(n_acp);
+let ap = alpha + angle_between(n_ab, n_cpb)
+              + angle_between(n_acp, -n_cpb) - PI;
 ```
 
-If `Sample()` would have warped the initial uniform random sample to account for the incident cos θ factor, it is necessary to incorporate the corresponding change of variables factor in the returned PDF here. To do so, we need to be able to invert the spherical triangle sampling algorithm in order to determine the sample value u that samples a point on the triangle that gives the incident direction wi at the reference point. The `InvertSphericalTriangleSample()` function performs this computation.
-
-〈Adjust PDF for warp product sampling of triangle cos θ factor〉 ≡ 324
+**〈Compute sample u0 that gives the area A'〉 ≡ 326**
 
 ```rust
-if (ctx.ns != Normal3f(0, 0, 0)) { 〈Get triangle vertices in p0, p1, and p2 302〉 Point2f u = InvertSphericalTriangleSample({p0, p1, p2}, ctx.p(), wi); 〈Compute cos θ-based weights w at sample domain corners 324〉 pdf *= BilinearPDF(u, w); }
+let a_area = alpha + beta + gamma - PI;
+u0 = ap / a_area;
 ```
 
-The pair of sample values that give a sampled direction ω can be found by inverting each of the sampling operations individually. The function that performs this computation starts out with a few reused fragments to compute the angles at the three vertices of the spherical triangle.
+Equation (6.10), the arc-sampling rule for $\omega$ along the arc through $\mathbf b$ and $\mathbf c'$, is easily inverted:
 
-〈Sampling Function Definitions〉 +≡ Point2f InvertSphericalTriangleSample(const pstd::array<Point3f, 3> &v, Point3f p, Vector3f w) { 〈Compute vectors a, b, and c to spherical triangle vertices 318〉 〈Compute normalized cross products of all direction pairs 319〉 〈Find angles α, β, and γ at spherical triangle vertices 319〉 〈Find vertex c′ along ac arc for ω 326〉 〈Invert uniform area sampling to find u0 326〉 〈Invert arc sampling to find u1 and return result 326〉 }
-
-Next, it finds the vertex c′ along the arc between a and c that defines the subtriangle that would have been sampled when sampling ω. This vertex can be found by computing the intersection of the great circle defined by b and ω and the great circle defined by a and c; see Figure 6.21. Recall from Section 3.8.2 that the great circle passing through two points on the sphere is given by the intersection of the sphere with a plane passing through the origin and those two points. Therefore, we can find the intersection between the two corresponding planes, which is a line. In 3D, the cross product of the plane normals gives this line’s direction. This line intersects the sphere at two points and so it is necessary to choose the one of them that is between a and c.
-
-![Figure 6.21](images/img-499-050.png)
-
-
-*Figure 6.21: Given a spherical triangle abc and a direction ω that is inside it, the vertex c′ along the edge from a to c can be found from the intersection of the great circle that passes through b and ω and the great circle that passes through a and c.*
-
-```text
-   BilinearPDF() 76
-   InvertSphericalTriangleSample() 325
-   Normal3f 94
-   Point2f 92
-   Point3f 92
-   ShapeSampleContext::ns 268
-   ShapeSampleContext::p() 269
-   Vector3f 86
-```
-
-〈Find vertex c′ along ac arc for ω〉 ≡ 325
+**〈Invert arc sampling to find u1 and return result〉 ≡ 325**
 
 ```rust
-Vector3f cp = Normalize(Cross(Cross(b, w), Cross(c, a))); if (Dot(cp, a + c) < 0) cp = -cp;
+let u1 = (1.0 - dot(w, b)) / (1.0 - dot(cp, b));
+Point2f::new(u0.clamp(0.0, 1.0), u1.clamp(0.0, 1.0))
 ```
 
-Given c′, it is easy to compute the area of the triangle abc′; the ratio of that area to the original area gives the first sample value u0. However, it is necessary to be aware of the case where a and c′ are nearly coincident; in that case, computation of the angle γ′ may have high error, sometimes to the point that the subtriangle abc′ seems to have larger area than the original triangle abc. That case is caught with a dot product test. 〈Invert uniform area sampling to find u0〉 ≡ 325
+<details>
+<summary>Reference / notes</summary>
 
-```rust
-   Float u0;
-   if (Dot(a, cp) > 0.99999847691f /* 0.1 degrees */)
-       u0 = 0;
-   else {
-       〈Compute area A′ of subtriangle 326〉
-       〈Compute sample u0 that gives the area A′ 326〉
-   }
-```
+`AngleBetween()` 89 · `Clamp()` 1033 · `Cross()` 91 · `Dot()` 89 · `Float` 23 · `LengthSquared()` 87 · `Normalize()` 88 · `Pi` 1033 · `Point2f` 92 · `Vector3f` 86
 
-Otherwise, the area of the subtriangle A′ is computed using Girard’s theorem. 〈Compute area A′ of subtriangle〉 ≡ 326
+</details>
 
-```rust
-Vector3f n_cpb = Cross(cp, b), n_acp = Cross(a, cp); if (LengthSquared(n_cpb) == 0 || LengthSquared(n_acp) == 0) return Point2f(0.5, 0.5); n_cpb = Normalize(n_cpb); n_acp = Normalize(n_acp); Float Ap = alpha + AngleBetween(n_ab, n_cpb) + AngleBetween(n_acp, -n_cpb) - Pi;
-```
+## 6.6 Bilinear Patches
 
-The first sample value is then easily found given these two areas. 〈Compute sample u0 that gives the area A′〉 ≡ 326
+It is useful to have a shape defined by four vertices. A planar quadrilateral is one option, but it is preferable not to require coplanarity. The bilinear patch is a parametric surface defined by four vertices $\mathbf p_{0,0}$, $\mathbf p_{1,0}$, $\mathbf p_{0,1}$, $\mathbf p_{1,1}$, each associated with a corner of the $(u,v)$ domain $[0,1]^2$. Points on the surface come from bilinear interpolation:
 
-```rust
-Float A = alpha + beta + gamma - Pi; u0 = Ap / A;
-```
+$$
+\mathbf p(u,v)=(1-u)(1-v)\mathbf p_{0,0}+u(1-v)\mathbf p_{1,0}
+             +(1-u)v\,\mathbf p_{0,1}+uv\,\mathbf p_{1,1}.
+\tag{6.11}
+$$
 
-The sampling method for choosing ω along the arc through b and c′, Equation (6.10), is also easily inverted. 〈Invert arc sampling to find u1 and return result〉 ≡ 325
+*Figure 6.22: Two Bilinear Patches. A bilinear patch is defined by four vertices that need not be planar and can represent a variety of simple curved surfaces.*
 
-```rust
-   Float u1 = (1 - Dot(w, b)) / (1 - Dot(cp, b));
-   return Point2f(Clamp(u0, 0, 1), Clamp(u1, 0, 1));
-```
-
-```rust
-   AngleBetween() 89
-   Clamp() 1033
-   Cross() 91
-   Dot() 89
-   Float 23
-   LengthSquared() 87
-   Normalize() 88
-   Pi 1033
-   Point2f 92
-   Vector3f 86
-```
-
-## 6.6 BILINEAR PATCHES
-
-It is useful to have a shape defined by four vertices. One option would be a planar quadrilateral, though not requiring all four vertices to be coplanar is preferable, as it is less restrictive. Such a shape is the bilinear patch, which is a parametric surface defined by four vertices p0,0, p1,0, p0,1, and p1,1. Each vertex gives the position associated with a corner of the parametric (u, v) domain [0, 1]2 and points on the surface are defined via bilinear interpolation:
+<details>
+<summary>Figure 6.22 — pictorial image (keep)</summary>
 
 ![Figure 6.22](images/img-501-051.png)
 
+</details>
 
-*Figure 6.22: Two Bilinear Patches. The bilinear patch is defined by four vertices that are not necessarily planar. It is able to represent a variety of simple curved surfaces.*
+The bilinear patch is a doubly ruled surface: two straight lines pass through every point on it. Fixing either $u$ or $v$ in Equation (6.11) leaves a linear function, so the patch can represent planar quadrilaterals as well as simple curved surfaces. It is a useful target for converting higher-order parametric surfaces into shapes amenable to direct ray intersection.
 
-The bilinear patch is a doubly ruled surface: there are two straight lines through every point on it. (This can be seen by considering a parametric point on the surface (u, v) and then fixing either of u and v and considering the function that results: it is linear.) Not only can bilinear patches be used to represent planar quadrilaterals, but they can also represent simple curved surfaces. They are a useful target for converting higher-order parametric surfaces to simpler shapes that are amenable to direct ray intersection. Figure 6.22 shows two bilinear patches.
+pbrt allows bilinear patch meshes for the same reasons as triangle meshes: to share per-vertex attributes and to store mesh-wide properties once. `BilinearPatchMesh` plays the role of `TriangleMesh`.
 
-pbrt allows the specification of bilinear patch meshes for the same reasons that triangle meshes can be specified: to allow per-vertex attributes like position and surface normal to be shared by multiple patches and to allow mesh-wide properties to be stored just once. To this end, `BilinearPatchMesh` plays the equivalent role to the `TriangleMesh`.
-
-〈BilinearPatchMesh Definition〉 ≡
-
-```rust
-class BilinearPatchMesh { public: 〈BilinearPatchMesh Public Methods〉 〈BilinearPatchMesh Public Members 327〉 };
-```
-
-We will skip past the `BilinearPatchMesh` constructor, as it mirrors the `TriangleMesh`’s, transforming the positions and normals to rendering space and using the `BufferCache` to avoid storing redundant buffers in memory.
-
-〈BilinearPatchMesh Public Members〉 ≡ 327
+**〈BilinearPatchMesh Definition〉 ≡**
 
 ```rust
-bool reverseOrientation, transformSwapsHandedness; int nPatches, nVertices; const int *vertexIndices = nullptr; const Point3f *p = nullptr; const Normal3f *n = nullptr; const Point2f *uv = nullptr;
+struct BilinearPatchMesh {
+    // 〈BilinearPatchMesh Public Methods〉
+    // 〈BilinearPatchMesh Public Members〉
+}
 ```
 
-```text
-   BilinearPatchMesh 327
-   BufferCache 299
-   Normal3f 94
-   Point2f 92
-   Point3f 92
-   Shape 261
-   TriangleMesh 297
-```
+We skip the constructor, which mirrors `TriangleMesh`'s: it transforms positions and normals to rendering space and uses `BufferCache` to avoid redundant buffers.
 
-The `BilinearPatch` class implements the `Shape` interface and represents a single patch in a bilinear patch mesh.
-
-〈BilinearPatch Definition〉 ≡
+**〈BilinearPatchMesh Public Members〉 ≡ 327**
 
 ```rust
-class BilinearPatch { public:
+struct BilinearPatchMesh {
+    reverse_orientation: bool,
+    transform_swaps_handedness: bool,
+    n_patches: usize,
+    n_vertices: usize,
+    vertex_indices: &'static [i32],
+    p: &'static [Point3f],
+    n: &'static [Normal3f],
+    uv: &'static [Point2f],
+    // imageDistribution: PiecewiseConstant2D, added below
+}
 ```
 
-〈BilinearPatch Public Methods 330〉 private: 〈BilinearPatch Private Methods 328〉 〈BilinearPatch Private Members 328〉 };
+<details>
+<summary>Reference / notes</summary>
 
-〈BilinearPatch Method Definitions〉 ≡
+`BilinearPatchMesh` 327 · `BufferCache` 299 · `Normal3f` 94 · `Point2f` 92 · `Point3f` 92 · `Shape` 261 · `TriangleMesh` 297
+
+</details>
+
+The `BilinearPatch` class implements `Shape` and represents a single patch in a mesh.
+
+**〈BilinearPatch Definition〉 ≡**
 
 ```rust
-BilinearPatch::BilinearPatch(const BilinearPatchMesh *mesh, int meshIndex, int blpIndex) : meshIndex(meshIndex), blpIndex(blpIndex) { 〈Store area of bilinear patch in area 329〉 }
+struct BilinearPatch {
+    // 〈BilinearPatch Public Methods〉
+    // 〈BilinearPatch Private Methods〉
+    // 〈BilinearPatch Private Members〉
+}
 ```
 
-Also similar to triangles, each `BilinearPatch` stores the index of the mesh that it is a part of as well as its own index in the mesh’s patches. 〈BilinearPatch Private Members〉 ≡ 328
-
-int meshIndex, blpIndex;
-
-The `GetMesh()` method makes it easy for a `BilinearPatch` to get the pointer to its associated mesh. 〈BilinearPatch Private Methods〉 ≡ 328
+**〈BilinearPatch Method Definitions〉 ≡**
 
 ```rust
-const BilinearPatchMesh *GetMesh() const { return (*allMeshes)[meshIndex]; }
+impl BilinearPatch {
+    fn new(mesh: &BilinearPatchMesh, mesh_index: i32, blp_index: i32) -> Self {
+        let mut patch = Self { mesh_index, blp_index, area: 0.0 };
+        // 〈Store area of bilinear patch in area 329〉
+        patch
+    }
+}
 ```
 
-There is a subtlety that comes with the use of a vector to store the meshes. pbrt’s scene initialization code in Appendix C does its best to parallelize its work, which includes the parallelization of reading binary files that encode meshes from disk. A mutex is used to protect adding meshes to this vector, though as this vector grows, it is periodically reallocated to make more space. A consequence is that the `BilinearPatch` constructor must not call the `GetMesh()` method to get its `BilinearPatchMesh` *, since `GetMesh()` accesses allMeshes without mutual exclusion. Thus, the mesh is passed to the constructor as a parameter above.
+Like triangles, each patch stores the index of its mesh and its own index in that mesh.
 
-〈BilinearPatch Private Members〉 +≡ 328
+**〈BilinearPatch Private Members〉 ≡ 328**
 
 ```rust
-static pstd::vector<const BilinearPatchMesh *> *allMeshes;
+struct BilinearPatch {
+    mesh_index: i32,
+    blp_index: i32,
+    area: Float,
+    // static allMeshes
+}
 ```
 
-The area of a parametric surface defined over [0, 1]2 is given by the integral
+`GetMesh()` returns the mesh pointer:
 
-The partial derivatives of a bilinear patch are easily derived. They are:
-
-```text
-   BilinearPatch 328
-   BilinearPatch::allMeshes 328
-   BilinearPatch::blpIndex 328
-   BilinearPatch::meshIndex 328
-   BilinearPatchMesh 327
-```
-
-However, it is not generally possible to evaluate the area integral from Equation (6.12) in closed form with these partial derivatives. Therefore, the `BilinearPatch` constructor caches the patch’s surface area in a member variable, using numerical integration to compute its value if necessary. Because bilinear patches are often used to represent rectangles, the constructor checks for that case and takes the product of the lengths of the sides of the rectangle to compute the area when appropriate. In the general case, the fragment 〈Compute approximate area of bilinear patch〉 uses a Riemann sum evaluated at 3 × 3 points to approximate Equation (6.12). We do not include that code fragment here. 〈Store area of bilinear patch in area〉 ≡ 328
-
-〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉 if (IsRectangle(mesh)) area = Distance(p00, p01) * Distance(p00, p10); else { 〈Compute approximate area of bilinear patch〉 } 〈BilinearPatch Private Members〉 +≡ 328
+**〈BilinearPatch Private Methods〉 ≡ 328**
 
 ```rust
-Float area;
+fn get_mesh(&self) -> &'static BilinearPatchMesh {
+    &ALL_MESHES[self.mesh_index as usize]
+}
 ```
 
-This fragment, which loads the four vertices of a patch into local variables, will be reused in many of the following methods. 〈Get bilinear patch vertices in p00, p01, p10, and p11〉 ≡ 329, 330, 335, 338, 342, 343, 344
+There is a subtlety in using a vector of meshes: pbrt's scene initialization parallelizes work, including reading mesh binary files. A mutex protects additions to the vector, but the vector is periodically reallocated as it grows. Consequently the `BilinearPatch` constructor must not call `GetMesh()` to obtain its mesh pointer, because `GetMesh()` accesses `allMeshes` without mutual exclusion; the mesh is therefore passed in as a parameter.
+
+**〈BilinearPatch Private Members〉 +≡ 328**
 
 ```rust
-const int *v = &mesh->vertexIndices[4 * blpIndex]; Point3f p00 = mesh->p[v[0]], p10 = mesh->p[v[1]]; Point3f p01 = mesh->p[v[2]], p11 = mesh->p[v[3]];
+// static mut ALL_MESHES: Vec<&'static BilinearPatchMesh> = Vec::new();
 ```
 
-In addition to the surface area computation, there will be a number of additional cases where we will find it useful to use specialized algorithms if a `BilinearPatch` is a rectangle. Therefore, this check is encapsulated in the `IsRectangle()` method.
+The area of a parametric surface over $[0,1]^2$ is
 
-It first tests to see if any two neighboring vertices are coincident, in which case the patch is certainly not a rectangle. This check is important to perform first, since the following ones would otherwise end up trying to perform invalid operations like normalizing degenerate vectors in that case. 〈BilinearPatch Private Methods〉 +≡ 328
+$$
+A=\int_0^1\!\!\int_0^1 \left\|\frac{\partial\mathbf p}{\partial u}
+                     \times\frac{\partial\mathbf p}{\partial v}\right\| du\,dv,
+\tag{6.12}
+$$
+
+and the partial derivatives of a bilinear patch are easily derived:
+
+$$
+\frac{\partial\mathbf p}{\partial u}=(1-v)(\mathbf p_{1,0}-\mathbf p_{0,0})
+                                     +v(\mathbf p_{1,1}-\mathbf p_{0,1}),
+\qquad
+\frac{\partial\mathbf p}{\partial v}=(1-u)(\mathbf p_{0,1}-\mathbf p_{0,0})
+                                     +u(\mathbf p_{1,1}-\mathbf p_{1,0}).
+\tag{6.13}
+$$
+
+In general Equation (6.12) cannot be evaluated in closed form with these derivatives. Therefore the constructor caches the area, using numerical integration when necessary. Because patches are often rectangles, it first checks for that case and takes the product of side lengths. Otherwise `〈Compute approximate area of bilinear patch〉` uses a 3×3 Riemann sum; we do not include it.
+
+**〈Store area of bilinear patch in area〉 ≡ 328**
 
 ```rust
-bool IsRectangle(const BilinearPatchMesh *mesh) const { 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉 if (p00 == p01 || p01 == p11 || p11 == p10 || p10 == p00) return false; 〈Check if bilinear patch vertices are coplanar 329〉 〈Check if planar vertices form a rectangle 330〉 }
+// 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+let area = if is_rectangle(mesh) {
+    distance(p00, p01) * distance(p00, p10)
+} else {
+    // 〈Compute approximate area of bilinear patch〉
+};
 ```
+
+This fragment loads the four patch vertices and is reused throughout.
+
+**〈Get bilinear patch vertices in p00, p01, p10, and p11〉 ≡ 329, 330, 335, 338, 342, 343, 344**
 
 ```rust
-   AbsDot() 90
-   BilinearPatch::area 329
-   BilinearPatch::blpIndex 328
-   BilinearPatch::IsRectangle() 329
-   BilinearPatchMesh 327
-   BilinearPatchMesh::p 327
-   BilinearPatchMesh:: vertexIndices 327
-   Cross() 91
-   Distance() 93
-   Float 23
-   Normal3f 94
-   Normalize() 88
-   Point3f 92
+let v = &mesh.vertex_indices[4 * self.blp_index as usize..];
+let p00 = mesh.p[v[0] as usize];
+let p10 = mesh.p[v[1] as usize];
+let p01 = mesh.p[v[2] as usize];
+let p11 = mesh.p[v[3] as usize];
 ```
 
-If the four vertices are not coplanar, then they do not form a rectangle. We can check this case by computing the surface normal of the plane formed by three of the vertices and then testing if the vector from one of those three to the fourth vertex is not (nearly) perpendicular to the plane normal. 〈Check if bilinear patch vertices are coplanar〉 ≡ 329
+In addition to area, several specialized algorithms need to know whether a patch is a rectangle, so that check is encapsulated in `IsRectangle()`.
+
+**〈BilinearPatch Private Methods〉 +≡ 328**
 
 ```rust
-Normal3f n(Normalize(Cross(p10 - p00, p01 - p00))); if (AbsDot(Normalize(p11 - p00), n) > 1e-5f) return false;
+fn is_rectangle(&self, mesh: &BilinearPatchMesh) -> bool {
+    // 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+    if p00 == p01 || p01 == p11 || p11 == p10 || p10 == p00 { return false; }
+    // 〈Check if bilinear patch vertices are coplanar 329〉
+    // 〈Check if planar vertices form a rectangle 330〉
+}
 ```
 
-Four coplanar vertices form a rectangle if they all have the same distance from the average of their positions. The implementation here computes the squared distance to save the square root operations and then tests the relative error with respect to the first squared distance. Because the test is based on relative error, it is not sensitive to the absolute size of the patch; scaling all the vertex positions does not affect it. 〈Check if planar vertices form a rectangle〉 ≡ 329
+The first test rejects coincident neighbors, since subsequent steps would otherwise normalize degenerate vectors. Four non-coplanar vertices cannot form a rectangle:
+
+**〈Check if bilinear patch vertices are coplanar〉 ≡ 329**
 
 ```rust
-Point3f pCenter = (p00 + p01 + p10 + p11) / 4; Float d2[4] = { DistanceSquared(p00, pCenter), DistanceSquared(p01, pCenter), DistanceSquared(p10, pCenter), DistanceSquared(p11, pCenter) }; for (int i = 1; i < 4; ++i) if (std::abs(d2[i] - d2[0]) / d2[0] > 1e-4f) return false; return true;
+let n = normalize(Normal3f::from(cross(p10 - p00, p01 - p00)));
+if abs_dot(normalize(p11 - p00), n) > 1e-5 { return false; }
 ```
 
-With the area cached, implementation of the `Area()` method is trivial. 〈BilinearPatch Public Methods〉 ≡ 328
+Four coplanar vertices form a rectangle if they are all the same distance from their average position. The implementation uses squared distances and a relative error test, so scaling the patch does not affect the result.
+
+**〈Check if planar vertices form a rectangle〉 ≡ 329**
 
 ```rust
-Float Area() const { return area; }
+let p_center = (p00 + p01 + p10 + p11) / 4.0;
+let d2 = [
+    distance_squared(p00, p_center), distance_squared(p01, p_center),
+    distance_squared(p10, p_center), distance_squared(p11, p_center),
+];
+for i in 1..4 { if (d2[i] - d2[0]).abs() / d2[0] > 1e-4 { return false; } }
+true
 ```
 
-The bounds of a bilinear patch are given by the bounding box that bounds its four corner vertices. As with Triangles, the mesh vertices are already in rendering space, so no further transformation is necessary here.
+<details>
+<summary>Reference / notes</summary>
 
-〈BilinearPatch Method Definitions〉 +≡
+`AbsDot()` 90 · `BilinearPatch::area` 329 · `BilinearPatch::blpIndex` 328 · `BilinearPatch::IsRectangle()` 329 · `BilinearPatchMesh` 327 · `BilinearPatchMesh::p` 327 · `BilinearPatchMesh::vertexIndices` 327 · `Cross()` 91 · `Distance()` 93 · `Float` 23 · `Normal3f` 94 · `Normalize()` 88 · `Point3f` 92
+
+</details>
+
+With the area cached, `Area()` is trivial:
+
+**〈BilinearPatch Public Methods〉 ≡ 328**
 
 ```rust
-Bounds3f BilinearPatch::Bounds() const { const BilinearPatchMesh *mesh = GetMesh(); 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+fn area(&self) -> Float { self.area }
 ```
+
+The bounds are the box enclosing the four corners; vertices are already in rendering space, so no transformation is needed.
+
+**〈BilinearPatch Method Definitions〉 +≡**
 
 ```rust
-return Union(Bounds3f(p00, p01), Bounds3f(p10, p11)); }
+fn bounds(&self) -> Bounds3f {
+    let mesh = self.get_mesh();
+    // 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+    Bounds3f::new(p00, p01).union(Bounds3f::new(p10, p11))
+}
 ```
 
-Although a planar patch has a single surface normal, the surface normal of a nonplanar patch varies across its surface.
+A planar patch has a single normal, but a nonplanar patch's normal varies across its surface.
 
-〈BilinearPatch Method Definitions〉 +≡
+**〈BilinearPatch Method Definitions〉 +≡**
 
 ```rust
-DirectionCone BilinearPatch::NormalBounds() const { const BilinearPatchMesh *mesh = GetMesh(); 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉 〈If patch is a triangle, return bounds for single surface normal〉 〈Compute bilinear patch normal n00 at (0, 0) 331〉 〈Compute bilinear patch normals n10, n01, and n11〉 〈Compute average normal and return normal bounds for patch 331〉 }
+fn normal_bounds(&self) -> DirectionCone {
+    let mesh = self.get_mesh();
+    // 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+    // 〈If patch is a triangle, return bounds for single surface normal〉
+    // 〈Compute bilinear patch normal n00 at (0, 0) 331〉
+    // 〈Compute bilinear patch normals n10, n01, and n11〉
+    // 〈Compute average normal and return normal bounds for patch 331〉
+}
 ```
 
-If the bilinear patch is actually a triangle, the 〈If patch is a triangle, return bounds for single surface normal〉 fragment evaluates its surface normal and returns the corresponding `DirectionCone`. We have not included that straightforward fragment here.
+The triangle case simply evaluates the single normal and returns its `DirectionCone`; we omit that straightforward fragment. Otherwise the normals at the four corners are evaluated. At corners the partial derivatives reduce to differences with adjacent vertices, so evaluation is easy. Orientation needs care: if per-vertex shading normals were specified they determine which side the geometric normal lies on; otherwise it may need flipping based on orientation and handedness.
+
+**〈Compute bilinear patch normal n00 at (0, 0)〉 ≡ 330**
 
 ```rust
-   BilinearPatch::area 329
-   BilinearPatch::GetMesh() 328
-   BilinearPatchMesh 327
-   Bounds3::Union() 99
-   Bounds3f 97
-   DirectionCone 114
-   DistanceSquared() 93
-   Float 23
-   Point3f 92
-   Triangle 301
+let mut n00 = normalize(cross(p10 - p00, p01 - p00));
+if let Some(normals) = mesh.n { n00 = face_forward(n00, normals[v[0]]); }
+else if mesh.reverse_orientation ^ mesh.transform_swaps_handedness { n00 = -n00; }
 ```
 
-Otherwise, the normals are computed at the four corners of the patch. The following fragment computes the normal at the (0, 0) parametric position. It is particularly easy to evaluate the partial derivatives at the corners; they work out to be the differences with the adjacent vertices in u and v. Some care is necessary with the orientation of the normals, however. As with triangle meshes, if per-vertex shading normals were specified, they
+A bounding cone is found by averaging the four normals and taking the cosine of the largest angle any of them makes with the average. This is not necessarily optimal but usually works well in practice (Chapter 3 "Further Reading").
 
-determine which side of the surface the geometric normal lies on. Otherwise, the normal may need to be flipped, depending on the user-specified orientation and the handedness of the rendering-to-object-space transformation. 〈Compute bilinear patch normal n00 at (0, 0)〉 ≡ 330
+**〈Compute average normal and return normal bounds for patch〉 ≡ 330**
 
 ```rust
-Vector3f n00 = Normalize(Cross(p10 - p00, p01 - p00)); if (mesh->n) n00 = FaceForward(n00, mesh->n[v[0]]); else if (mesh->reverseOrientation ^ mesh->transformSwapsHandedness) n00 = -n00;
+let n = normalize(n00 + n10 + n01 + n11);
+let cos_theta = [dot(n, n00), dot(n, n01), dot(n, n10), dot(n, n11)]
+    .into_iter().fold(f32::INFINITY, f32::min);
+DirectionCone::new_with_cos(n, cos_theta.clamp(-1.0, 1.0))
 ```
 
-Normals at the other three vertices are computed in an equivalent manner, so the fragment that handles the rest is not included here. A bounding cone for the normals is found by taking their average and then finding the cosine of the maximum angle that any of them makes with their average. Although this does not necessarily give an optimal bound, it usually works well in practice. (See the “Further Reading” section in Chapter 3 for more information on this topic.) 〈Compute average normal and return normal bounds for patch〉 ≡ 330
+<details>
+<summary>Reference / notes</summary>
 
-```rust
-Vector3f n = Normalize(n00 + n10 + n01 + n11); Float cosTheta = std::min({Dot(n, n00), Dot(n, n01), Dot(n, n10), Dot(n, n11)}); return DirectionCone(n, Clamp(cosTheta, -1, 1));
-```
+`BilinearPatch::area` 329 · `BilinearPatch::GetMesh()` 328 · `BilinearPatchMesh` 327 · `Bounds3::Union()` 99 · `Bounds3f` 97 · `DirectionCone` 114 · `DistanceSquared()` 93 · `Float` 23 · `Point3f` 92 · `Triangle` 301
 
-### 6.6.1 INTERSECTION TESTS
+</details>
 
-Unlike triangles (but like spheres and cylinders), a ray may intersect a bilinear patch twice, in which case the closest of the two intersections is returned. An example is shown in Figure 6.23. As with triangles, it is useful to have a stand-alone ray–bilinear patch intersection test function rather than only providing this functionality through an instance of a `BilinearPatch` object. Rather than being based on computing t values along the ray and then finding the (u, v) coordinates for any found intersections, the algorithm here first determines the parametric u coordinates of any intersections. Only if any are found within [0, 1]are the
+### 6.6.1 Intersection Tests
 
-corresponding v and t values computed to find the full intersection information.
+Unlike triangles (but like spheres and cylinders), a ray may intersect a bilinear patch twice; the closer hit is returned (Figure 6.23). As with triangles it is useful to have a stand-alone ray–patch intersection function. Rather than computing $t$ and then $(u,v)$, the algorithm first determines the parametric $u$ coordinates of any intersections; only if any lie in $[0,1]$ are $v$ and $t$ computed.
 
-```rust
-   BilinearPatchMesh::n 327
-   BilinearPatchMesh:: reverseOrientation 327
-   BilinearPatchMesh:: transformSwapsHandedness 327
-   Clamp() 1033
-   Cross() 91
-   DirectionCone 114
-   Dot() 89
-   FaceForward() 94
-   Float 23
-   Normalize() 88
-   Vector3f 86
-```
+*Figure 6.23: Ray–Bilinear Patch Intersections. Rays may intersect a bilinear patch once or twice.*
+
+<details>
+<summary>Figure 6.23 — pictorial image (keep)</summary>
 
 ![Figure 6.23](images/img-509-052.png)
 
+</details>
 
-*Figure 6.23: Ray–Bilinear Patch Intersections. Rays may intersect a bilinear patch either once or two times.*
-
-〈Bilinear Patch Inline Functions〉 ≡
-
-```rust
-pstd::optional<BilinearIntersection> IntersectBilinearPatch(const Ray &ray, Float tMax, Point3f p00, Point3f p10, Point3f p01, Point3f p11) { 〈Find quadratic coefficients for distance from ray to u iso-lines 333〉
-```
+**〈Bilinear Patch Inline Functions〉 ≡**
 
 ```rust
-       〈Solve quadratic for bilinear patch u intersection 333〉
-       〈Find epsilon eps to ensure that candidate t is greater than zero 386〉
-       〈Compute v and t for the first u intersection 334〉
-       〈Compute v and t for the second u intersection〉
-       〈Check intersection t against tMax and possibly return intersection
-       335〉
-```
-
+fn intersect_bilinear_patch(
+    ray: &Ray,
+    t_max: Float,
+    p00: Point3f, p10: Point3f, p01: Point3f, p11: Point3f,
+) -> Option<BilinearIntersection> {
+    // 〈Find quadratic coefficients for distance from ray to u iso-lines 333〉
+    // 〈Solve quadratic for bilinear patch u intersection 333〉
+    // 〈Find epsilon eps to ensure that candidate t is greater than zero 386〉
+    // 〈Compute v and t for the first u intersection 334〉
+    // 〈Compute v and t for the second u intersection〉
+    // 〈Check intersection t against tMax and possibly return intersection 335〉
 }
-
-Going back to the definition of the bilinear surface, Equation (6.11), we can see that if we fix one of u or v, then we are left with an equation that defines a line. For example, with u fixed, we have fu(v) = (1 − v)pu,0 + vpu,1,
-
-with
-
-(See Figure 6.24.) The first step of the intersection test considers the set of all such lines defined by the patch’s vertices. For any intersection, the minimum distance from a point along the ray to a point along one of these lines will be zero. Therefore, we start with the task of trying to find u values that give lines with zero distance to a point on the ray. Given two infinite and non-parallel lines, one defined by the two points pa and pb and the other defined by pc and pd, the minimum distance between them can be found by determining the pair of parallel planes that each contain one of the lines and then finding the distance between them. (See Figure 6.25.) To find the coefficients of those plane equations, we start by taking the cross product (pb − pa)×(pd − pc). This gives a vector that is perpendicular to both lines and provides the first three coefficients of the plane equation ax + by + cz + d = 0. In turn, the dab and dcd coefficients can be found for each line’s plane by substituting a point along the respective line into the plane equation and solving for d. Because the planes are parallel, the distance between them is then
-
-![Figure 6.24](images/img-511-053.png)
-
-
-*Figure 6.24: Fixing the u parameter of a bilinear patch gives a linear function between two opposite edges of the patch.*
-
-```text
-   BilinearIntersection 335
-   Float 23
-   Point3f 92
-   Ray 95
 ```
 
-![Figure 6.25](images/img-512-054.png)
+Going back to Equation (6.11), fixing $u$ leaves a line,
 
+$$
+\mathbf f_u(v)=(1-v)\mathbf p_{u,0}+v\mathbf p_{u,1},
+$$
 
-*Figure 6.25: The minimum distance between two lines can be computed by finding two parallel planes that contain each line and then computing the distance between them.*
+where $\mathbf p_{u,0}=(1-u)\mathbf p_{0,0}+u\mathbf p_{1,0}$ and $\mathbf p_{u,1}=(1-u)\mathbf p_{0,1}+u\mathbf p_{1,1}$ (Figure 6.24). At any intersection the minimum distance from a point on the ray to a point on one of these lines is zero. For two infinite non-parallel lines $(\mathbf p_a,\mathbf p_b)$ and $(\mathbf p_c,\mathbf p_d)$, the minimum distance is found from two parallel planes containing the lines:
 
-In the case of ray–bilinear patch intersection, one line corresponds to the ray and the other to a line from the family of lines given by fu.
+$$
+a x+b y+c z+d=0,\qquad (a,b,c)=(\mathbf p_b-\mathbf p_a)\times(\mathbf p_d-\mathbf p_c),
+$$
 
-Given a ray and the bilinear patch vertices, we have pa = o, the ray’s origin, and pb can be set as the point along the ray pb = o + d. Then, pc and pd can be set as pc = pu,0 and pd = pu,1 from Equation (6.14). After taking the cross product to find the plane coefficients, finding each d value, and simplifying, we can find that dray − du is a quadratic equation in u. (That it is quadratic is reassuring, since a ray can intersect a bilinear patch up to two times.) Because we only care about finding zeros of the distance function, we can neglect the denominator of Equation (6.15). After equating the difference dray − du to 0, collecting terms and simplifying, we end up with the following code to compute the quadratic coefficients.4 〈Find quadratic coefficients for distance from ray to u iso-lines〉 ≡ 332
+with $d_{ab}$ and $d_{cd}$ found by substituting a point on each line; the distance is $(d_{ab}-d_{cd})/\sqrt{a^2+b^2+c^2}$ (Figure 6.25).
+
+*Figure 6.24: Fixing the $u$ parameter of a bilinear patch gives a linear function between two opposite edges of the patch.*
+
+```mermaid
+flowchart LR
+    U["Fix u in [0,1]"] --> L["f_u(v) = (1-v) p_u,0 + v p_u,1"]
+    L --> E["Line between opposite patch edges<br/>(u = 0.75 shown in the original figure)"]
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`BilinearIntersection` 335 · `Float` 23 · `Point3f` 92 · `Ray` 95
+
+</details>
+
+*Figure 6.25: The minimum distance between two lines is computed from two parallel planes containing them, then measuring the distance between the planes.*
+
+```mermaid
+flowchart LR
+    L1["Line 1: p_a, p_b"] --> N["Plane normal n = (p_b-p_a) x (p_d-p_c)"]
+    L2["Line 2: p_c, p_d"] --> N
+    N --> P["Parallel planes: n.x + d_ab = 0<br/>n.x + d_cd = 0"]
+    P --> D["distance = (d_ab - d_cd) / |n|"]
+```
+
+For ray–patch intersection, one line is the ray with $\mathbf p_a=\mathbf o$, $\mathbf p_b=\mathbf o+\mathbf d$, and the other is $\mathbf f_u$ with $\mathbf p_c=\mathbf p_{u,0}$, $\mathbf p_d=\mathbf p_{u,1}$. After taking the cross product, finding each $d$, and simplifying, $d_{\mathrm{ray}}-d_u$ is a quadratic in $u$—as expected, since a ray can hit a patch up to twice. Since only zeros matter, the denominator can be dropped. Equating the difference to zero and collecting terms gives:[^4]
+
+**〈Find quadratic coefficients for distance from ray to u iso-lines〉 ≡ 332**
 
 ```rust
-Float a = Dot(Cross(p10 - p00, p01 - p11), ray.d); Float c = Dot(Cross(p00 - ray.o, ray.d), p01 - p00);
+let a = dot(cross(p10 - p00, p01 - p11), ray.d);
+let c = dot(cross(p00 - ray.o, ray.d), p01 - p00);
+let b = dot(cross(p10 - ray.o, ray.d), p11 - p10) - (a + c);
 ```
+
+The $u$ values where the ray meets the patch are the roots of $au^2+bu+c=0$. If there are no real roots, there is no intersection.
+
+**〈Solve quadratic for bilinear patch u intersection〉 ≡ 332**
 
 ```rust
-   Float b = Dot(Cross(p10 - ray.o, ray.d), p11 - p10) - (a + c);
+let (u1, u2);
+if !quadratic(a, b, c, &mut u1, &mut u2) { return None; }
 ```
 
-The u values where the ray intersects the patch are given by the solution to the corresponding quadratic equation. If there are no real solutions, then there is no intersection and the function returns. 〈Solve quadratic for bilinear patch u intersection〉 ≡ 332
+<details>
+<summary>Reference / notes</summary>
+
+`Cross()` 91 · `Dot()` 89 · `Float` 23 · `Quadratic()` 1045 · `Ray::d` 95
+
+</details>
+
+Each root is checked against $[0,1]$; if valid, $v$ and $t$ are computed. One way to compute them is to find the parameters along the ray and along $\mathbf f_u$ minimizing their distance. Although that distance should be zero, round-off in $u$ makes a minimization formulation preferable. With $\mathbf o$, $\mathbf d$ the ray origin and direction, the minimizing parameters are ratios of 3×3 determinants formed from column vectors; we will not derive them here (see "Further Reading"). We start with common subexpressions:
+
+**〈Compute v and t for the first u intersection〉 ≡ 332**
 
 ```rust
-Float u1, u2; if (!Quadratic(a, b, c, &u1, &u2)) return {};
+let (mut t, mut u, mut v) = (t_max, 0.0, 0.0);
+if 0.0 <= u1 && u1 <= 1.0 {
+    // 〈Precompute common terms for v and t computation 334〉
+    // 〈Compute matrix determinants for v and t numerators 334〉
+    // 〈Set u, v, and t if intersection is valid 335〉
+}
 ```
+
+**〈Precompute common terms for v and t computation〉 ≡ 334**
 
 ```rust
-   Cross() 91
-   Dot() 89
-   Float 23
-   Quadratic() 1045
-   Ray::d 95
+let uo = lerp(u1, p00, p10);
+let ud = lerp(u1, p01, p11) - uo;
+let delta_o = uo - ray.o;
+let perp = cross(ray.d, ud);
+let p2 = length_squared(perp);
 ```
 
-The two u values are handled in turn. The first step is to check whether each is between 0 and 1. If not, it does not represent a valid intersection in the patch’s parametric domain. Otherwise, the v and t values for the intersection point are computed. 〈Compute v and t for the first u intersection〉 ≡ 332
+The determinants in the numerators can be computed with `SquareMatrix`. Common subexpressions exist but we leave them to the compiler; an optimized implementation might write them out explicitly.
+
+**〈Compute matrix determinants for v and t numerators〉 ≡ 334**
 
 ```rust
-Float t = tMax, u, v; if (0 <= u1 && u1 <= 1) { 〈Precompute common terms for v and t computation 334〉 〈Compute matrix determinants for v and t numerators 334〉 〈Set u, v, and t if intersection is valid 335〉 }
+let v1 = determinant(SquareMatrix3::new(
+    delta_o.x, ray.d.x, perp.x,
+    delta_o.y, ray.d.y, perp.y,
+    delta_o.z, ray.d.z, perp.z));
+let t1 = determinant(SquareMatrix3::new(
+    delta_o.x, ud.x, perp.x,
+    delta_o.y, ud.y, perp.y,
+    delta_o.z, ud.z, perp.z));
 ```
 
-One way to compute the v and t values is to find the parametric values along the ray and the line fu where the distance between them is minimized. Although this distance should be zero since we have determined that there is an intersection between the ray and fu, there may be some round-off error in the computed u value. Thus, formulating this computation in terms of minimizing that distance is a reasonable way to make the most of the values at hand. With o the ray’s origin and d its direction, the parameter values where the distances are minimized are given by
+<details>
+<summary>Reference / notes</summary>
 
-and
+`Float` 23 · `Point3f` 92 · `SquareMatrix` 1049 · `SquareMatrix::Determinant()` 1051 · `Vector3f` 86
 
-where det is shorthand for the determinant of the 3 × 3 matrix formed from the three column vectors. We will not derive these equations here. The “Further Reading” section has more details. We start by computing a handful of common values that are used in computing the matrix determinants and final parametric values. 〈Precompute common terms for v and t computation〉 ≡ 334
+</details>
+
+Due to round-off, a computed $t$ may be positive even though the true value is negative. Testing against an epsilon (Section 6.8.7) avoids such false hits; since the division is deferred, we test `t1` against `p2 * eps`.
+
+**〈Set u, v, and t if intersection is valid〉 ≡ 334**
 
 ```rust
-Point3f uo = Lerp(u1, p00, p10); Vector3f ud = Lerp(u1, p01, p11) - uo; Vector3f deltao = uo - ray.o; Vector3f perp = Cross(ray.d, ud); Float p2 = LengthSquared(perp);
+if t1 > p2 * eps && 0.0 <= v1 && v1 <= p2 {
+    u = u1;
+    v = v1 / p2;
+    t = t1 / p2;
+}
 ```
 
-The matrix determinants in the numerators can easily be computed using the `SquareMatrix` class. Note that there are some common subexpressions among the two of them, though we leave it to the compiler to handle them. In a more optimized implementation, writing out the determinant computations explicitly in order to do so manually could be worthwhile. 〈Compute matrix determinants for v and t numerators〉 ≡ 334
+The second root is handled analogously, keeping the closer hit if both are valid. If the final $t<t_{\max}$, an intersection is returned:
+
+**〈Check intersection t against tMax and possibly return intersection〉 ≡ 332**
 
 ```rust
-Float v1 = Determinant(SquareMatrix<3>(deltao.x, ray.d.x, perp.x, deltao.y, ray.d.y, perp.y, deltao.z, ray.d.z, perp.z)); Float t1 = Determinant(SquareMatrix<3>(deltao.x, ud.x, perp.x, deltao.y, ud.y, perp.y, deltao.z, ud.z, perp.z));
+if t >= t_max { return None; }
+Some(BilinearIntersection { uv: Point2f::new(u, v), t })
 ```
+
+**〈BilinearIntersection Definition〉 ≡**
 
 ```rust
-   Float 23
-   Point3f 92
-   SquareMatrix 1049
-   SquareMatrix::Determinant() 1051
-   Vector3f 86
+struct BilinearIntersection {
+    uv: Point2f,
+    t: Float,
+}
 ```
 
-Due to round-off error, it is possible that the computed t distance is positive and seemingly represents a valid intersection even though the true value of t
+The $(u,v)$ coordinates and $t$ encapsulate the intersection so the remaining geometric properties can be computed later.
 
-is negative and corresponds to a point behind the ray’s origin. Testing t against an epsilon value (which is discussed further in Section 6.8.7) helps avoid reporting incorrect intersections in such cases. Because we defer the division to compute the final t value, it is necessary to test t1 against p2 * eps here.
+`InteractionFromIntersection()` computes all the geometry needed for a `SurfaceInteraction` from an intersection point $(u,v)$.
 
-〈Set u, v, and t if intersection is valid〉 ≡ 334
+**〈BilinearPatch Public Methods〉 +≡ 328**
 
 ```rust
-if (t1 > p2 * eps && 0 <= v1 && v1 <= p2) { u = u1; v = v1 / p2; t = t1 / p2; }
+fn interaction_from_intersection(
+    mesh: &BilinearPatchMesh,
+    blp_index: i32,
+    uv: Point2f,
+    time: Float,
+    wo: Vector3f,
+) -> SurfaceInteraction {
+    // 〈Compute bilinear patch point p, dpdu, and dpdv for (u, v) 335〉
+    // 〈Compute (s, t) texture coordinates at bilinear patch (u, v) 336〉
+    // 〈Find partial derivatives dndu and dndv for bilinear patch 337〉
+    // 〈Initialize bilinear patch intersection point error pError 377〉
+    // 〈Initialize SurfaceInteraction for bilinear patch intersection 337〉
+    // 〈Compute bilinear patch shading normal if necessary 337〉
+}
 ```
 
-The second u root is handled with equivalent code, though with added logic to keep the closer of the intersections if there are two of them. That fragment is not included here. If the final closest t value is less than the given tMax, then an intersection is returned. 〈Check intersection t against tMax and possibly return intersection〉 ≡ 332
+Equation (6.11) and Equation (6.13) give the point and its derivatives directly:
+
+**〈Compute bilinear patch point p, dpdu, and dpdv for (u, v)〉 ≡ 335**
 
 ```rust
-if (t >= tMax) return {}; return BilinearIntersection{{u, v}, t};
+// 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+let p = lerp(uv[0], lerp(uv[1], p00, p01), lerp(uv[1], p10, p11));
+let dpdu = lerp(uv[1], p10, p11) - lerp(uv[1], p00, p01);
+let dpdv = lerp(uv[0], p01, p11) - lerp(uv[0], p00, p10);
 ```
 
-The (u, v) coordinates and ray parametric t value are sufficient to encapsulate the intersection so that the rest of its geometric properties can be computed later.
+<details>
+<summary>Reference / notes</summary>
 
-〈BilinearIntersection Definition〉 ≡
+`BilinearIntersection` 335 · `BilinearPatchMesh` 327 · `Float` 23 · `Lerp()` 72 · `Point2f` 92 · `Point3f` 92 · `SurfaceInteraction` 138 · `Vector3f` 86
+
+</details>
+
+If per-vertex texture coordinates exist they are interpolated too. We denote texture coordinates by $(s,t)$ to distinguish them from the patch's $(u,v)$; variables $\partial u/\partial s$, $\partial u/\partial t$, $\partial v/\partial s$, $\partial v/\partial t$ are initialized for the case $(s,t)=(u,v)$.
+
+**〈Compute (s, t) texture coordinates at bilinear patch (u, v)〉 ≡ 335**
 
 ```rust
-struct BilinearIntersection { Point2f uv; Float t; };
+let mut st = uv;
+let (mut duds, mut dudt, mut dvds, mut dvdt) = (1.0, 0.0, 0.0, 1.0);
+if mesh.uv {
+    // 〈Compute texture coordinates for bilinear patch intersection point 336〉
+    // 〈Update bilinear patch dpdu and dpdv accounting for (s, t) 336〉
+}
 ```
 
-The `InteractionFromIntersection()` method computes all the geometric information necessary to return the `SurfaceInteraction` corresponding to a specified (u, v) point on a bilinear path, as is found by the intersection routine.
-
-〈BilinearPatch Public Methods〉 +≡ 328
+**〈Compute texture coordinates for bilinear patch intersection point〉 ≡ 336, 341, 344**
 
 ```rust
-static SurfaceInteraction InteractionFromIntersection( const BilinearPatchMesh *mesh, int blpIndex, Point2f uv, Float time, Vector3f wo) { 〈Compute bilinear patch point p, ∂p/∂u, and ∂p/∂v for (u, v) 335〉 〈Compute (s, t) texture coordinates at bilinear patch (u, v) 336〉 〈Find partial derivatives ∂n/∂u and ∂n/∂v for bilinear patch 337〉 〈Initialize bilinear patch intersection point error pError 377〉 〈Initialize SurfaceInteraction for bilinear patch intersection 337〉 〈Compute bilinear patch shading normal if necessary 337〉 return isect; }
+let uv00 = mesh.uv[v[0]]; let uv10 = mesh.uv[v[1]];
+let uv01 = mesh.uv[v[2]]; let uv11 = mesh.uv[v[3]];
+st = lerp(uv[0], lerp(uv[1], uv00, uv01), lerp(uv[1], uv10, uv11));
 ```
 
-Given the parametric (u, v) coordinates of an intersection point, it is easy to compute the corresponding point on the bilinear patch using Equation (6.11) and its partial derivatives with Equation (6.13).
+Because `SurfaceInteraction::dpdu` and `dpdv` are expressed in terms of the texturing parameterization, they must be updated when texture coordinates are provided:
+
+**〈Update bilinear patch dpdu and dpdv accounting for (s, t)〉 ≡ 336**
 
 ```rust
-   BilinearIntersection 335
-   BilinearPatchMesh 327
-   Float 23
-   Lerp() 72
-   Point2f 92
-   Point3f 92
-   SurfaceInteraction 138
-   Vector3f 86
+// 〈Compute partial derivatives of (u, v) with respect to (s, t) 336〉
+// 〈Compute partial derivatives of p with respect to (s, t) 337〉
+// 〈Set dpdu and dpdv to updated partial derivatives 337〉
 ```
 
-〈Compute bilinear patch point p, ∂p/∂u, and ∂p/∂v for (u, v)〉 ≡ 335
+Taking derivatives of the bilinear interpolation gives $\partial(s,t)/\partial u$ and $\partial(s,t)/\partial v$; the desired derivatives are their reciprocals:
 
-〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉 Point3f p = Lerp(uv[0], Lerp(uv[1], p00, p01), Lerp(uv[1], p10, p11)); Vector3f dpdu = Lerp(uv[1], p10, p11) - Lerp(uv[1], p00, p01); Vector3f dpdv = Lerp(uv[0], p01, p11) - Lerp(uv[0], p00, p10);
-
-If per-vertex texture coordinates have been specified, then they, too, are interpolated at the intersection point. Otherwise, the parametric (u, v) coordinates are used for texture mapping. For the remainder of this method, we will denote the texture coordinates as (s, t) to distinguish them from the patch’s (u, v) parameterization. (Because this method does not use the parametric t distance along the ray, this notation is unambiguous.) Variables are also defined here to store the partial derivatives between the two sets of coordinates: ∂u/∂s, ∂u/∂t, ∂v/∂s, and ∂v/∂t. These are initialized for now to the appropriate values for when (s, t) = (u, v).
-
-〈Compute (s, t) texture coordinates at bilinear patch (u, v)〉 ≡ 335
+**〈Compute partial derivatives of (u, v) with respect to (s, t)〉 ≡ 336**
 
 ```rust
-Point2f st = uv; Float duds = 1, dudt = 0, dvds = 0, dvdt = 1; if (mesh->uv) { 〈Compute texture coordinates for bilinear patch intersection point 336〉 〈Update bilinear patch ∂p/∂u and ∂p/∂v accounting for (s, t) 336〉 }
+let dstdu = lerp(uv[1], uv10, uv11) - lerp(uv[1], uv00, uv01);
+let dstdv = lerp(uv[0], uv01, uv11) - lerp(uv[0], uv00, uv10);
+duds = if dstdu[0].abs() < 1e-8 { 0.0 } else { 1.0 / dstdu[0] };
+dvds = if dstdv[0].abs() < 1e-8 { 0.0 } else { 1.0 / dstdv[0] };
+dudt = if dstdu[1].abs() < 1e-8 { 0.0 } else { 1.0 / dstdu[1] };
+dvdt = if dstdv[1].abs() < 1e-8 { 0.0 } else { 1.0 / dstdv[1] };
 ```
 
-If per-vertex texture coordinates have been specified, they are bilinearly interpolated in the usual manner. 〈Compute texture coordinates for bilinear patch intersection point〉 ≡ 336, 341, 344
+<details>
+<summary>Reference / notes</summary>
+
+`BilinearPatchMesh::uv` 327 · `Float` 23 · `Lerp()` 72 · `Point2f` 92 · `SurfaceInteraction` 138 · `Vector2f` 86
+
+</details>
+
+The chain rule then gives the updated position derivatives:
+
+$$
+\frac{\partial\mathbf p}{\partial s}=\frac{\partial\mathbf p}{\partial u}\frac{\partial u}{\partial s}
+                                     +\frac{\partial\mathbf p}{\partial v}\frac{\partial v}{\partial s},
+\qquad
+\frac{\partial\mathbf p}{\partial t}=\frac{\partial\mathbf p}{\partial u}\frac{\partial u}{\partial t}
+                                     +\frac{\partial\mathbf p}{\partial v}\frac{\partial v}{\partial t}.
+$$
+
+**〈Compute partial derivatives of p with respect to (s, t)〉 ≡ 336**
 
 ```rust
-Point2f uv00 = mesh->uv[v[0]], uv10 = mesh->uv[v[1]]; Point2f uv01 = mesh->uv[v[2]], uv11 = mesh->uv[v[3]]; st = Lerp(uv[0], Lerp(uv[1], uv00, uv01), Lerp(uv[1], uv10, uv11));
+let dpds = dpdu * duds + dpdv * dvds;
+let dpdt = dpdu * dudt + dpdv * dvdt;
 ```
 
-Because the partial derivatives ∂p/∂u and ∂p/∂v in the `SurfaceInteraction` are in terms of the (u, v) parameterization used for texturing, these values must be updated if texture coordinates have been specified. 〈Update bilinear patch ∂p/∂u and ∂p/∂v accounting for (s, t)〉 ≡ 336
+If the texture mapping is degenerate, $\partial\mathbf p/\partial s$ or $\partial\mathbf p/\partial t$ may vanish; then `dpdu` and `dpdv` are left unchanged so their cross product still gives a correct normal. A dot-product check ensures the normal from $\partial\mathbf p/\partial s\times\partial\mathbf p/\partial t$ lies in the same hemisphere as the original normal, flipping $\partial\mathbf p/\partial t$ if needed.
 
-〈Compute partial derivatives of (u, v) with respect to (s, t) 336〉 〈Compute partial derivatives of p with respect to (s, t) 337〉 〈Set dpdu and dpdv to updated partial derivatives 337〉
-
-The first step is to compute the updated partial derivatives ∂u/∂s and so forth. These can be found by first taking the corresponding partial derivatives of the bilinear interpolation used to compute (s, t) to find ∂(s, t)/ ∂u and ∂(s, t)/∂v. (Note the similar form to how the partial derivatives of p were computed earlier.) The desired partial derivatives can be found by taking reciprocals. 〈Compute partial derivatives of (u, v) with respect to (s, t)〉 ≡ 336
+**〈Set dpdu and dpdv to updated partial derivatives〉 ≡ 336**
 
 ```rust
-Vector2f dstdu = Lerp(uv[1], uv10, uv11) - Lerp(uv[1], uv00, uv01); Vector2f dstdv = Lerp(uv[0], uv01, uv11) - Lerp(uv[0], uv00, uv10); duds = std::abs(dstdu[0]) < 1e-8f ? 0 : 1 / dstdu[0]; dvds = std::abs(dstdv[0]) < 1e-8f ? 0 : 1 / dstdv[0]; dudt = std::abs(dstdu[1]) < 1e-8f ? 0 : 1 / dstdu[1]; dvdt = std::abs(dstdv[1]) < 1e-8f ? 0 : 1 / dstdv[1];
+if cross(dpds, dpdt) != Vector3f::ZERO {
+    if dot(cross(dpdu, dpdv), cross(dpds, dpdt)) < 0.0 { dpdt = -dpdt; }
+    dpdu = dpds;
+    dpdv = dpdt;
+}
 ```
 
-```text
-    BilinearPatchMesh::uv 327
-```
+The second derivatives of $\mathbf p$ are simple—all but $\partial^2\mathbf p/\partial u\partial v$ vanish—so the normal derivatives come from the standard approach, then are adjusted for the $(s,t)$ parameterization just as $\partial\mathbf p/\partial u$ and $\partial\mathbf p/\partial v$ were. The corresponding fragment follows the same form as `〈Compute partial derivatives of p with respect to (s, t)〉` and is not included.
+
+**〈Find partial derivatives dndu and dndv for bilinear patch〉 ≡ 335**
 
 ```rust
-    Float 23
-    Lerp() 72
-    Point2f 92
-    SurfaceInteraction 138
-    Vector2f 86
+let d2_pduu = Vector3f::ZERO;
+let d2_pdvv = Vector3f::ZERO;
+let d2_pduv = (p00 - p01) + (p11 - p10);
+// 〈Compute coefficients for fundamental forms 279〉
+// 〈Compute dndu and dndv from fundamental form coefficients 279〉
+// 〈Update dndu and dndv to account for (s, t) parameterization〉
 ```
 
-Given the partial derivatives, the chain rule can be applied to compute the updated partial derivatives of position. For example,
+All the information needed to initialize the `SurfaceInteraction` is now at hand:
 
-and similarly for ∂p/∂t. 〈Compute partial derivatives of p with respect to (s, t)〉 ≡ 336
+**〈Initialize SurfaceInteraction for bilinear patch intersection〉 ≡ 335**
 
 ```rust
-Vector3f dpds = dpdu * duds + dpdv * dvds; Vector3f dpdt = dpdu * dudt + dpdv * dvdt;
+let flip_normal = mesh.reverse_orientation ^ mesh.transform_swaps_handedness;
+let mut isect = SurfaceInteraction::new(
+    Point3fi::new(p, p_error), st, wo, dpdu, dpdv,
+    dndu, dndv, time, flip_normal);
 ```
 
-If the provided texture coordinates specify a degenerate mapping, ∂p/∂s or ∂p/∂t may be zero. In that case, dpdu and dpdv are left unchanged, as at least their cross product provides a correct normal vector. A dot product checks that the normal given by ∂p/∂s × ∂p/∂t lies in the same hemisphere as the normal given by the cross product of the original partial derivatives of p, flipping ∂p/∂t if necessary. Finally, dpdu and dpdv can be updated. 〈Set dpdu and dpdv to updated partial derivatives〉 ≡ 336
+Shading geometry is set after creation, so per-vertex shading normals are handled next:
+
+**〈Compute bilinear patch shading normal if necessary〉 ≡ 335**
 
 ```rust
-if (Cross(dpds, dpdt) != Vector3f(0, 0, 0)) { if (Dot(Cross(dpdu, dpdv), Cross(dpds, dpdt)) < 0) dpdt = -dpdt; dpdu = dpds; dpdv = dpdt; }
+if mesh.n { // 〈Compute shading normals for bilinear patch intersection point 338〉 }
 ```
 
-The second partial derivatives of p are easily found to compute the partial derivatives of the surface normal; all but ∂2p/∂u∂v are zero vectors. Thence, the partial derivatives of the normal can be computed using the regular approach. These are then adjusted to account for the (s, t) parameterization in the same way that ∂p/∂u and ∂p/∂v were. The corresponding fragment follows the same form as 〈Compute partial derivatives of p with respect to (s, t)〉 and is therefore not included here. 〈Find partial derivatives ∂n/∂u and ∂n/∂v for bilinear patch〉 ≡ 335
+Bilinear interpolation is performed, and if the result is non-degenerate the shading geometry is provided to the `SurfaceInteraction`.
+
+**〈Compute shading normals for bilinear patch intersection point〉 ≡ 337**
 
 ```rust
-   Vector3f d2Pduu(0, 0, 0), d2Pdvv(0, 0, 0);
-   Vector3f d2Pduv = (p00 - p01) + (p11 - p10);
-   〈Compute coefficients for fundamental forms 279〉
-   〈Compute ∂n/∂u and ∂n/∂v from fundamental form coefficients 279〉
-   〈Update ∂n/∂u and ∂n/∂v to account for (s, t) parameterization〉
+let n00 = mesh.n[v[0]]; let n10 = mesh.n[v[1]];
+let n01 = mesh.n[v[2]]; let n11 = mesh.n[v[3]];
+let mut ns = lerp(uv[0], lerp(uv[1], n00, n01), lerp(uv[1], n10, n11));
+if length_squared(ns) > 0.0 {
+    ns = normalize(ns);
+    // 〈Set shading geometry for bilinear patch intersection 338〉
+}
 ```
 
-All the necessary information for initializing the `SurfaceInteraction` is now at hand. 〈Initialize SurfaceInteraction for bilinear patch intersection〉 ≡ 335
+The derivatives of the shading normal are found like those of $\mathbf p$, including the $(s,t)$ adjustment. Since shading geometry is specified via shading $\partial\mathbf p/\partial u$ and $\partial\mathbf p/\partial v$, we find the rotation taking the geometric normal to the shading normal and apply it to `dpdu` and `dpdv`; their cross product then gives the shading normal.
+
+**〈Set shading geometry for bilinear patch intersection〉 ≡ 338**
 
 ```rust
-   bool flipNormal = mesh->reverseOrientation ^ mesh->transformSwapsHandedness;
-   SurfaceInteraction isect(Point3fi(p, pError), st, wo, dpdu, dpdv,
-                                 dndu, dndv, time, flipNormal);
+let mut dndu = lerp(uv[1], n10, n11) - lerp(uv[1], n00, n01);
+let mut dndv = lerp(uv[0], n01, n11) - lerp(uv[0], n00, n10);
+// 〈Update dndu and dndv to account for (s, t) parameterization〉
+let r = rotate_from_to(Vector3f::from(normalize(isect.n)), Vector3f::from(ns));
+isect.set_shading_geometry(ns, r.apply(dpdu), r.apply(dpdv), dndu, dndv, true);
 ```
 
-```text
-   BilinearPatchMesh::n 327
-   BilinearPatchMesh:: reverseOrientation 327
-   BilinearPatchMesh:: transformSwapsHandedness 327
-   Cross() 91
-   Dot() 89
-   Point3fi 1061
-   SurfaceInteraction 138
-   Vector3f 86
-```
+<details>
+<summary>Reference / notes</summary>
 
-Shading geometry is set in the `SurfaceInteraction` after it is created. Therefore, per-vertex shading normals are handled next. 〈Compute bilinear patch shading normal if necessary〉 ≡ 335
+`BilinearPatchMesh::n` 327 · `BilinearPatchMesh::reverseOrientation` 327 · `BilinearPatchMesh::transformSwapsHandedness` 327 · `Cross()` 91 · `Dot()` 89 · `Point3fi` 1061 · `SurfaceInteraction` 138 · `Vector3f` 86
+
+</details>
+
+Given the intersection and `InteractionFromIntersection()` methods, `BilinearPatch::Intersect()` and `IntersectP()` are easy to implement; since they follow the now-familiar form, we do not include them.
+
+### 6.6.2 Sampling
+
+The sampling routines choose among algorithms depending on the patch's characteristics. For area sampling, rectangular patches and patches with an image-map emission distribution get special treatment; for solid-angle sampling from a reference point, rectangular patches are projected onto the sphere and sampled as spherical rectangles. General-purpose routines handle the other cases.
+
+<details>
+<summary>Reference / notes</summary>
+
+`BilinearPatch` 328 · `BilinearPatch::GetMesh()` 328 · `BilinearPatchMesh` 327 · `BilinearPatchMesh::n` 327 · `DiffuseAreaLight` 759 · `Interaction::n` 137 · `LengthSquared()` 87 · `Lerp()` 72 · `Normal3f` 94 · `Normalize()` 88 · `Point2f` 92 · `RotateFromTo()` 127 · `ShapeSample` 268 · `SurfaceInteraction::SetShadingGeometry()` 140 · `Transform` 120 · `Vector3f` 86
+
+</details>
+
+The area sampling method first samples parametric $(u,v)$, from which the rest of the geometry follows.
+
+**〈BilinearPatch Method Definitions〉 +≡**
 
 ```rust
-if (mesh->n) { 〈Compute shading normals for bilinear patch intersection point 338〉 }
+fn sample(&self, u: Point2f) -> Option<ShapeSample> {
+    let mesh = self.get_mesh();
+    // 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+    // 〈Sample bilinear patch parametric (u, v) coordinates 339〉
+    // 〈Compute bilinear patch geometric quantities at sampled (u, v) 341〉
+    // 〈Return ShapeSample for sampled bilinear patch point 341〉
+}
 ```
 
-The usual bilinear interpolation is performed and if the resulting normal is non-degenerate, the shading geometry is provided to the `SurfaceInteraction`. 〈Compute shading normals for bilinear patch intersection point〉 ≡ 337
+While all shapes so far can act as area lights, none of their sampling routines account for pbrt's `DiffuseAreaLight` image map representing spatially varying emission over $(u,v)$. Because such emission profiles are most often used with rectangular lights, `BilinearPatch` can sample $(u,v)$ according to the emission function. Figure 6.26 demonstrates the value of doing so.
 
-```rust
-Normal3f n00 = mesh->n[v[0]], n10 = mesh->n[v[1]]; Normal3f n01 = mesh->n[v[2]], n11 = mesh->n[v[3]]; Normal3f ns = Lerp(uv[0], Lerp(uv[1], n00, n01), Lerp(uv[1], n10, n11)); if (LengthSquared(ns) > 0) { ns = Normalize(ns); 〈Set shading geometry for bilinear patch intersection 338〉
-```
+*Figure 6.26: Area Sampling Accounting for Image-Based Emission. Uniform parametric sampling gives high variance when emission varies across the patch; sampling according to image brightness gives a significantly better result for the same number of rays (MSE improved 2.28×). (Bunny model courtesy of the Stanford Computer Graphics Laboratory.)*
 
-```rust
-   }
-```
-
-The partial derivatives of the shading normal are computed in the same manner as the partial derivatives of p were found, including the adjustment for the parameterization given by per-vertex texture coordinates, if provided. Because shading geometry is specified via shading ∂p/∂u and ∂p/ ∂v vectors, here we find the rotation matrix that takes the geometric normal to the shading normal and apply it to dpdu and dpdv. The cross product of the resulting vectors then gives the shading normal. 〈Set shading geometry for bilinear patch intersection〉 ≡ 338
-
-```rust
-Normal3f dndu = Lerp(uv[1], n10, n11) - Lerp(uv[1], n00, n01); Normal3f dndv = Lerp(uv[0], n01, n11) - Lerp(uv[0], n00, n10); 〈Update ∂n/∂u and ∂n/∂v to account for (s, t) parameterization〉 Transform r = RotateFromTo(Vector3f(Normalize(isect.n)), Vector3f(ns)); isect.SetShadingGeometry(ns, r(dpdu), r(dpdv), dndu, dndv, true);
-```
-
-Given the intersection and `InteractionFromIntersection()` methods, both of the Bilinear Patch::`Intersect()` and `IntersectP()` methods are easy to implement. Since they both follow what should be by now a familiar form, we have not included them here.
-
-### 6.6.2 SAMPLING
-
-The sampling routines for bilinear patches select between sampling algorithms depending on the characteristics of the patch. For area sampling, both rectangular patches and patches that have an emission distribution defined by an image map are given special treatment. When sampling by solid angle from a reference point, rectangular patches are projected on to the sphere and sampled as spherical rectangles. For both cases, general-purpose sampling routines are used otherwise.
-
-```text
-    BilinearPatch 328
-    BilinearPatch::GetMesh() 328
-    BilinearPatchMesh 327
-    BilinearPatchMesh::n 327
-    DiffuseAreaLight 759
-    Interaction::n 137
-    LengthSquared() 87
-    Lerp() 72
-    Normal3f 94
-```
-
-```text
-   Normalize() 88
-   Point2f 92
-   RotateFromTo() 127
-   ShapeSample 268
-   SurfaceInteraction:: SetShadingGeometry() 140
-   Transform 120
-   Vector3f 86
-```
-
-The area sampling method first samples parametric (u, v) coordinates, from which the rest of the necessary geometric values are derived.
-
-〈BilinearPatch Method Definitions〉 +≡
-
-```rust
-pstd::optional<ShapeSample> BilinearPatch::Sample(Point2f u) const { const BilinearPatchMesh *mesh = GetMesh(); 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉 〈Sample bilinear patch parametric (u, v) coordinates 339〉 〈Compute bilinear patch geometric quantities at sampled (u, v) 341〉 〈Return ShapeSample for sampled bilinear patch point 341〉 }
-```
-
-While all the `Shape` implementations we have implemented so far can be used as area light sources, none of their sampling routines have accounted for the fact that pbrt’s DiffuseArea Light allows specifying an image that is used to represent spatially varying emission over the shape’s (u, v) surface. Because such emission profiles are most frequently used with rectangular light sources, the `BilinearPatch` has the capability of sampling in (u, v) according to the emission function. Figure 6.26 demonstrates the value of doing so.
+<details>
+<summary>Figure 6.26 — pictorial image (keep)</summary>
 
 ![Figure 6.26](images/img-523-055.png)
 
+</details>
 
-*Figure 6.26: Area Sampling Accounting for Image-Based Emission. For a scene with an emissive bilinear patch where the amount of emission varies across the patch based on an image, (a) uniformly sampling in the patch’s (u, v) parametric space leads to high variance since some samples have much higher contributions than others. (b) Sampling according to the image’s distribution of brightness gives a significantly better result for the same number of rays. Here, MSE is improved by a factor of 2.28 ×. (Bunny model courtesy of the Stanford Computer Graphics Laboratory.)*
+Otherwise, non-rectangular patches use an approximation to uniform area sampling; rectangles use the provided sample directly for $(u,v)$. In all cases the PDF is with respect to the $(u,v)$ domain.
 
-Otherwise, if the patch is not a rectangle, an approximation to uniform area sampling is used. If it is a rectangle, then uniform area sampling is trivial and the provided sample value is used directly for (u, v). In all of these
-
-cases, the pdf value is with respect to the (u, v) parametric domain over [0, 1)2. 〈Sample bilinear patch parametric (u, v) coordinates〉 ≡ 338
-
-```rust
-Float pdf = 1; Point2f uv; if (mesh->imageDistribution) uv = mesh->imageDistribution->Sample(u, &pdf); else if (!IsRectangle(mesh)) { 〈Sample patch (u, v) with approximate uniform area sampling 340〉 } else uv = u;
-```
+**〈Sample bilinear patch parametric (u, v) coordinates〉 ≡ 338**
 
 ```rust
-   BilinearPatch::IsRectangle() 329
-   BilinearPatchMesh:: imageDistribution 340
-   Float 23
-   PiecewiseConstant2D::Sample() 1020
-   Point2f 92
+let mut pdf = 1.0;
+let uv;
+if let Some(dist) = mesh.image_distribution {
+    uv = dist.sample(u, &mut pdf);
+} else if !self.is_rectangle(mesh) {
+    // 〈Sample patch (u, v) with approximate uniform area sampling 340〉
+} else {
+    uv = u;
+}
 ```
 
-![Figure 6.27](images/img-524-056.png)
+<details>
+<summary>Reference / notes</summary>
 
+`BilinearPatch::IsRectangle()` 329 · `BilinearPatchMesh::imageDistribution` 340 · `Float` 23 · `PiecewiseConstant2D::Sample()` 1020 · `Point2f` 92
 
-*Figure 6.27: Nonuniform Sample Distribution from Uniform Parametric Sampling. (a) When a bilinear patch is sampled uniformly in (u, v), the sample points are denser close to pairs of nearby vertices. (b) When using an approximate equal-area distribution, the points are more uniformly distributed over the patch.*
+</details>
 
-〈BilinearPatchMesh Public Members〉 +≡ 327
+*Figure 6.27: Nonuniform Sample Distribution from Uniform Parametric Sampling. (a) Uniform $(u,v)$ sampling clusters points near close vertex pairs. (b) An approximate equal-area distribution spreads them more uniformly.*
+
+```mermaid
+flowchart LR
+    A["(a) Uniform (u,v) samples"] --> D["Clustered near<br/>close vertex pairs"]
+    B["(b) Approx. equal-area samples"] --> E["Evenly spread<br/>over the patch"]
+```
+
+**〈BilinearPatchMesh Public Members〉 +≡ 327**
 
 ```rust
-PiecewiseConstant2D *imageDistribution;
+image_distribution: Option<PiecewiseConstant2D>,
 ```
 
-For patches without an emissive image to sample from, we would like to uniformly sample over their surface area, as we have done with all the shapes so far. Unfortunately, an exact equal-area sampling algorithm cannot
+For patches without an emissive image, we would like to sample uniformly by surface area, as for all previous shapes. Unfortunately an exact equal-area algorithm cannot be derived for bilinear patches because Equation (6.12) cannot be integrated in closed form. Uniform sampling in $(u,v)$ can give a poor distribution when two vertices are close and the others far apart (Figure 6.27). Although the nonuniform density can be accounted for in the PDF, estimators generally have higher error. Exact equal-area sampling would pick points with probability proportional to the differential area $\|\partial\mathbf p/\partial u\times\partial\mathbf p/\partial v\|$. Lacking that, we approximate it with a bilinear function whose corner values are the differential areas at the corners (Figure 6.28).
 
-be derived for bilinear patches. This is a consequence of the fact that it is not possible to integrate the expression that gives the area of a bilinear patch, Equation (6.12). It is easy to uniformly sample in parametric (u, v) space, but doing so can give a poor distribution of samples, especially for bilinear patches where two vertices are close together and the others are far apart. Figure 6.27 shows such a patch as well as the distribution of points that results from uniform parametric sampling. While the nonuniform distribution of points can be accounted for in the PDF such that Monte Carlo estimates using such samples still converge to the correct result, the resulting estimators will generally have higher error than if a more uniform distribution is used. An exact equal-area sampling algorithm would sample points p with probability proportional to its differential surface area ‖∂p/∂u×∂p/∂v‖. Lacking the ability to sample directly from this distribution, we will approximate it with a bilinear function where the value of the function at each corner is given by the patch’s differential surface area there. Sampling a (u, v) location from that distribution generally works well to approximate exact equal-area sampling; see Figure 6.28. 〈Sample patch (u, v) with approximate uniform area sampling〉 ≡ 339
-
-〈Initialize w array with differential area at bilinear patch corners 340〉 uv = SampleBilinear(u, w); pdf = BilinearPDF(uv, w);
-
-It is especially easy to compute the partial derivatives at the patch corners; they are just differences with the adjacent vertices. 〈Initialize w array with differential area at bilinear patch corners〉 ≡ 340, 342
+**〈Sample patch (u, v) with approximate uniform area sampling〉 ≡ 339**
 
 ```rust
-   pstd::array<Float, 4> w = {
-         Length(Cross(p10 - p00, p01 - p00)),
-         Length(Cross(p10 - p00, p11 - p10)),
-         Length(Cross(p01 - p00, p11 - p01)),
-         Length(Cross(p11 - p10, p11 - p01)) };
+// 〈Initialize w array with differential area at bilinear patch corners 340〉
+let uv = sample_bilinear(u, w);
+let pdf = bilinear_pdf(uv, w);
 ```
+
+The derivatives at the corners are just differences with adjacent vertices:
+
+**〈Initialize w array with differential area at bilinear patch corners〉 ≡ 340, 342**
 
 ```rust
-    BilinearPDF() 76
-    Cross() 91
-    Float 23
-    Length() 88
-    PiecewiseConstant2D 1019
-    SampleBilinear() 76
+let w = [
+    length(cross(p10 - p00, p01 - p00)),
+    length(cross(p10 - p00, p11 - p10)),
+    length(cross(p01 - p00, p11 - p01)),
+    length(cross(p11 - p10, p11 - p01)),
+];
 ```
 
-Given a (u, v) position on the patch, the corresponding position, partial derivatives, and surface normal can all be computed, following the same approach as was implemented in `InteractionFromIntersection()`. The fragment 〈Compute p, ∂p/∂u, and ∂p/∂v for sampled (u, v)〉 is therefore not included here, and (s, t) texture coordinates for the sampled point are computed using a fragment defined earlier.
+<details>
+<summary>Reference / notes</summary>
+
+`BilinearPDF()` 76 · `Cross()` 91 · `Float` 23 · `Length()` 88 · `PiecewiseConstant2D` 1019 · `SampleBilinear()` 76
+
+</details>
+
+Given a $(u,v)$ position, the position, derivatives, and normal follow the same approach as `InteractionFromIntersection()`, so `〈Compute p, dpdu, and dpdv for sampled (u, v)〉` is omitted; $(s,t)$ coordinates come from an earlier fragment.
+
+*Figure 6.28: Plot of differential area $\|\partial\mathbf p/\partial u\times\partial\mathbf p/\partial v\|$ in parametric space for the patch of Figure 6.27. Although the differential area is not bilinear, a bilinear fit has low error and is easy to sample from.*
+
+**〈Compute bilinear patch geometric quantities at sampled (u, v)〉 ≡ 338**
+
+```rust
+// 〈Compute p, dpdu, and dpdv for sampled (u, v)〉
+let mut st = uv;
+if mesh.uv { // 〈Compute texture coordinates for bilinear patch intersection point 336〉 }
+// 〈Compute surface normal for sampled bilinear patch (u, v) 341〉
+// 〈Compute pError for sampled bilinear patch (u, v) 377〉
+```
+
+<details>
+<summary>Figure 6.28 — pictorial image (keep)</summary>
 
 ![Figure 6.28](images/img-526-057.png)
 
+</details>
 
-*Figure 6.28: Plot of differential area ‖∂p/∂u×∂p/∂v‖ in parametric space for the bilinear patch shown in Figure 6.27. Although the differential area is not a bilinear function, a bilinear fit to it has low error and is easy to draw samples from.*
+Only the geometric normal is needed for a sampled point; it is the cross product of the position derivatives. `〈Flip normal at sampled (u, v) if necessary〉` negates it as needed based on mesh properties and shading normals, in the same form as earlier fragments.
 
-〈Compute bilinear patch geometric quantities at sampled (u, v)〉 ≡ 338
-
-〈Compute p, ∂p/∂u, and ∂p/∂v for sampled (u, v)〉 Point2f st = uv; if (mesh->uv) { 〈Compute texture coordinates for bilinear patch intersection point 336〉 } 〈Compute surface normal for sampled bilinear patch (u, v) 341〉 〈Compute pError for sampled bilinear patch (u, v) 377〉
-
-Only the geometric normal is needed for sampled points. It is easily found via the cross product of partial derivatives of the position. The 〈Flip normal at sampled (u, v) if necessary〉 fragment negates the normal if
-
-necessary, depending on the mesh properties and shading normals, if present. It follows the same form as earlier fragments that orient the geometric normal based on the shading normal, if present, and otherwise the reverseOrientation and transformSwapsHandedness properties of the mesh. 〈Compute surface normal for sampled bilinear patch (u, v)〉 ≡ 341
+**〈Compute surface normal for sampled bilinear patch (u, v)〉 ≡ 341**
 
 ```rust
-Normal3f n = Normal3f(Normalize(Cross(dpdu, dpdv))); 〈Flip normal at sampled (u, v) if necessary〉
+let n = Normal3f::from(normalize(cross(dpdu, dpdv)));
+// 〈Flip normal at sampled (u, v) if necessary〉
 ```
 
-```text
-   BilinearPatchMesh::uv 327
-   Cross() 91
-   Interaction 136
-   Length() 88
-   Normal3f 94
-   Normalize() 88
-   Point2f 92
-   Point3fi 1061
-   ShapeSample 268
-```
+The PDF stored in `pdf` gives the probability of sampling parametric position `uv`. To express it with respect to surface area we apply the change of variables, multiplying by $1/\|\partial\mathbf p/\partial u\times\partial\mathbf p/\partial v\|$:
 
-The PDF value stored in pdf gives the probability of sampling the position uv in parametric space. In order to return a PDF defined with respect to the patch’s surface area, it is necessary to account for the corresponding change of variables, which results in an additional factor of 1/‖∂p/∂u×∂p/∂v‖. 〈Return ShapeSample for sampled bilinear patch point〉 ≡ 338
+**〈Return ShapeSample for sampled bilinear patch point〉 ≡ 338**
 
 ```rust
-return ShapeSample{Interaction(Point3fi(p, pError), n, st), pdf / Length(Cross(dpdu, dpdv))};
+Some(ShapeSample {
+    intr: Interaction::new(Point3fi::new(p, p_error), n, st),
+    pdf: pdf / length(cross(dpdu, dpdv)),
+})
 ```
 
-The PDF for sampling a given point on a bilinear patch is found by first computing the probability density for sampling its (u, v) position in parametric space and then transforming that density to be with respect to the patch’s surface area.
+<details>
+<summary>Reference / notes</summary>
 
-〈BilinearPatch Method Definitions〉 +≡
+`BilinearPatchMesh::uv` 327 · `Cross()` 91 · `Interaction` 136 · `Length()` 88 · `Normal3f` 94 · `Normalize()` 88 · `Point2f` 92 · `Point3fi` 1061 · `ShapeSample` 268
+
+</details>
+
+The `PDF()` for a given point first computes the density for its $(u,v)$ position, then transforms it to a surface-area density.
+
+**〈BilinearPatch Method Definitions〉 +≡**
 
 ```rust
-Float BilinearPatch::PDF(const Interaction &intr) const { const BilinearPatchMesh *mesh = GetMesh(); 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉 〈Compute parametric (u, v) of point on bilinear patch 342〉
-```
-
-```rust
-        〈Compute PDF for sampling the (u, v) coordinates given by
-        intr.uv 342〉
-        〈Find ∂p/∂u and ∂p/∂v at bilinear patch (u, v)〉
-        〈Return final bilinear patch area sampling PDF 342〉
-   }
-```
-
-If (u, v) coordinates have been specified at the vertices of a bilinear patch, then the member variable `Interaction::uv` stores interpolated texture coordinates. In the following, we will need the parametric (u, v) coordinates over the patch’s [0, 1]2 domain, which can be found via a call to `InvertBilinear()`.
-
-〈Compute parametric (u, v) of point on bilinear patch〉 ≡ 342
-
-```rust
-Point2f uv = intr.uv; if (mesh->uv) { Point2f uv00 = mesh->uv[v[0]], uv10 = mesh->uv[v[1]]; Point2f uv01 = mesh->uv[v[2]], uv11 = mesh->uv[v[3]]; uv = InvertBilinear(uv, {uv00, uv10, uv01, uv11}); }
-```
-
-Regardless of which (u, v) sampling technique is used for a bilinear patch, finding the PDF for a (u, v) sample is straightforward. 〈Compute PDF for sampling the (u, v) coordinates given by intr.uv〉 ≡ 342
-
-```rust
-Float pdf; if (mesh->imageDistribution) pdf = mesh->imageDistribution->PDF(uv); else if (!IsRectangle(mesh)) { 〈Initialize w array with differential area at bilinear patch corners 340〉 pdf = BilinearPDF(uv, w); } else pdf = 1;
-```
-
-```text
-   BilinearPatch::GetMesh() 328
-   BilinearPatch::IsRectangle() 329
-   BilinearPatchMesh 327
-   BilinearPatchMesh:: imageDistribution 340
-   BilinearPatchMesh::uv 327
-   BilinearPDF() 76
-   Cross() 91
-   Cylinder 286
-   Disk 292
-```
-
-```rust
-   Float 23
-   Interaction 136
-   Interaction::uv 137
-   InvertBilinear() 1033
-   Length() 88
-   PiecewiseConstant2D::PDF() 1021
-   Point2f 92
-```
-
-The partial derivatives are computed from (u, v) as they have been before and so we omit the corresponding fragment. Given dpdu and dpdv, the same scaling factor as was used in `Sample()` is used to transform the PDF. 〈Return final bilinear patch area sampling PDF〉 ≡ 342
-
-```rust
-return pdf / Length(Cross(dpdu, dpdv));
-```
-
-The solid angle sampling method handles general bilinear patches with the same approach that was used for Cylinders and Disks: a sample is taken with respect to surface area on the surface using the first sampling method and is returned with a probability density expressed in terms of solid angle. Rectangular patches are handled using a specialized sampling technique that gives better results.
-
-〈BilinearPatch Method Definitions〉 +≡
-
-```rust
-pstd::optional<ShapeSample> BilinearPatch::Sample(const ShapeSampleContext &ctx, Point2f u) const { const BilinearPatchMesh *mesh = GetMesh(); 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉 〈Sample bilinear patch with respect to solid angle from reference point 343〉 }
-```
-
-If the patch is not a rectangle, is very small, or has a sampling distribution associated with it to match textured emission, then the regular area sampling method is used and the PDF with respect to area is converted to be with respect to solid angle. Otherwise, a specialized solid angle sampling technique is used. 〈Sample bilinear patch with respect to solid angle from reference point〉 ≡ 343
-
-```rust
-   Vector3f v00 = Normalize(p00 - ctx.p()), v10 = Normalize(p10 - ctx.p());
-   Vector3f v01 = Normalize(p01 - ctx.p()), v11 = Normalize(p11 - ctx.p());
-   if (!IsRectangle(mesh) || mesh->imageDistribution ||
-       SphericalQuadArea(v00, v10, v11, v01) <= MinSphericalSampleArea) {
-       〈Sample shape by area and compute incident direction wi 282〉
-       〈Convert area sampling PDF in ss to solid angle measure 282〉
-       return ss;
-   }
-```
-
-〈Sample direction to rectangular bilinear patch 343〉 〈BilinearPatch Private Members〉 +≡ 328
-
-```rust
-static constexpr Float MinSphericalSampleArea = 1e-4;
-```
-
-Rectangular patches are projected on the sphere to form a spherical rectangle that can then be sampled directly. Doing so gives similar benefits to sampling spherical triangles, as was implemented in Section 6.5.4.
-
-```rust
-   BilinearPatch 328
-   BilinearPatch::GetMesh() 328
-   BilinearPatch::IsRectangle() 329
-   BilinearPatch:: MinSphericalSampleArea 343
-   BilinearPatchMesh 327
-   BilinearPatchMesh:: imageDistribution 340
-   BilinearPDF() 76
-   Float 23
-   Interaction 136
-   Normal3f 94
-   Normalize() 88
-   Point2f 92
-   SampleBilinear() 76
-   ShapeSample 268
-   ShapeSampleContext 268
-   ShapeSampleContext::ns 268
-   ShapeSampleContext::p() 269
-   ShapeSampleContext::time 268
-   SphericalQuadArea() 106
-   Vector3f 86
-```
-
-〈Sample direction to rectangular bilinear patch〉 ≡ 343
-
-```rust
-Float pdf = 1; 〈Warp uniform sample u to account for incident cos θ factor 343〉 〈Sample spherical rectangle at reference point 344〉 〈Compute (u, v) and surface normal for sampled point on rectangle 344〉 〈Compute (s, t) texture coordinates for sampled (u, v) 344〉 return ShapeSample{Interaction(p, n, ctx.time, st), pdf};
-```
-
-Also as with triangles, we incorporate an approximation to the cos θ factor at the reference point by warping the uniform sample u using a bilinear approximation to the cos θ function in the [0, 1]2 sampling space. 〈Warp uniform sample u to account for incident cos θ factor〉 ≡ 343
-
-```rust
-if (ctx.ns != Normal3f(0, 0, 0)) { 〈Compute cos θ weights for rectangle seen from reference point 344〉 u = SampleBilinear(u, w); pdf *= BilinearPDF(u, w); }
-```
-
-The spherical rectangle sampling algorithm maintains the relationship between each corner of the [0, 1]2 sampling space and the corresponding corner of the patch in its parametric space. Therefore, each bilinear sampling weight is set using the cos θ factor to the corresponding vertex of the patch. 〈Compute cos θ weights for rectangle seen from reference point〉 ≡ 343, 345
-
-```rust
-pstd::array<Float, 4> w = pstd::array<Float, 4>{ std::max<Float>(0.01, AbsDot(v00, ctx.ns)), std::max<Float>(0.01, AbsDot(v10, ctx.ns)), std::max<Float>(0.01, AbsDot(v01, ctx.ns)), std::max<Float>(0.01, AbsDot(v11, ctx.ns))};
-```
-
-In addition to the sample u, `SampleSphericalRectangle()` takes a reference point, the (0, 0) corner of the rectangle, and two vectors that define its edges. It returns a point on the patch and the sampling PDF, which is one over the solid angle that it subtends. 〈Sample spherical rectangle at reference point〉 ≡ 343
-
-```rust
-Vector3f eu = p10 - p00, ev = p01 - p00; Float quadPDF; Point3f p = SampleSphericalRectangle(ctx.p(), p00, eu, ev, u, &quadPDF); pdf *= quadPDF;
-```
-
-The implementation of the `SampleSphericalRectangle()` function is another interesting exercise in spherical trigonometry, like `SampleSphericalTriangle()` was. However, in the interests of space, we will not include discussion of its implementation here; the “Further Reading” section has a pointer to the paper that introduced the approach and describes its derivation.
-
-〈Sampling Function Declarations〉 ≡
-
-```rust
-Point3f SampleSphericalRectangle(Point3f p, Point3f v00, Vector3f eu, Vector3f ev, Point2f u, Float *pdf = nullptr);
-```
-
-A rectangle has the same surface normal across its entire surface, which can be found by taking the cross product of the two edge vectors. The parametric (u, v) coordinates for the point p are then found by computing the normalized projection of p onto each of the edges. 〈Compute (u, v) and surface normal for sampled point on rectangle〉 ≡ 343
-
-```rust
-Point2f uv(Dot(p - p00, eu) / DistanceSquared(p10, p00), Dot(p - p00, ev) / DistanceSquared(p01, p00)); Normal3f n = Normal3f(Normalize(Cross(eu, ev))); 〈Flip normal at sampled (u, v) if necessary〉
-```
-
-```rust
-   AbsDot() 90
-   BilinearPatch 328
-   BilinearPatch::GetMesh() 328
-   BilinearPatchMesh 327
-   BilinearPatchMesh::uv 327
-   Cross() 91
-   DistanceSquared() 93
-   Dot() 89
-   Float 23
-   Normal3f 94
-   Normalize() 88
-   Point2f 92
-   Point3f 92
-   SampleSphericalRectangle() 344
-   SampleSphericalTriangle() 318
-   ShapeSampleContext 268
-   ShapeSampleContext::ns 268
-   ShapeSampleContext::p() 269
-   Vector3f 86
-```
-
-If the bilinear patch has per-vertex texture coordinates associated with it, the interpolated texture coordinates at the sampled point are easily computed. 〈Compute (s, t) texture coordinates for sampled (u, v)〉 ≡ 343
-
-```rust
-   Point2f st = uv;
-   if (mesh->uv) {
-       〈Compute texture coordinates for bilinear patch intersection point 336〉
-   }
-```
-
-The associated `PDF()` method follows the usual form, determining which sampling method would be used for the patch and then computing its solid angle PDF.
-
-〈BilinearPatch Method Definitions〉 +≡
-
-```rust
-Float BilinearPatch::PDF(const ShapeSampleContext &ctx, Vector3f wi) const { const BilinearPatchMesh *mesh = GetMesh(); 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉 〈Compute solid angle PDF for sampling bilinear patch from ctx 345〉
-```
-
+fn pdf(&self, intr: &Interaction) -> Float {
+    let mesh = self.get_mesh();
+    // 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+    // 〈Compute parametric (u, v) of point on bilinear patch 342〉
+    // 〈Compute PDF for sampling the (u, v) coordinates given by intr.uv 342〉
+    // 〈Find dpdu and dpdv at bilinear patch (u, v)〉
+    // 〈Return final bilinear patch area sampling PDF 342〉
 }
+```
 
-In all cases, the `SurfaceInteraction` corresponding to the intersection of the ray from ctx in the direction wi will be needed, so the method starts by performing a ray–patch intersection test. 〈Compute solid angle PDF for sampling bilinear patch from ctx〉 ≡ 344
+If $(u,v)$ coordinates were specified at the patch vertices, `Interaction::uv` holds interpolated texture coordinates; we need the parametric coordinates over $[0,1]^2$, found with `InvertBilinear()`.
 
-〈Intersect sample ray with shape geometry 285〉 Vector3f v00 = Normalize(p00 - ctx.p()), v10 = Normalize(p10 - ctx.p()); Vector3f v01 = Normalize(p01 - ctx.p()), v11 = Normalize(p11 - ctx.p()); if (!IsRectangle(mesh) || mesh->imageDistribution || SphericalQuadArea(v00, v10, v11, v01) <= MinSphericalSampleArea) { 〈Return solid angle PDF for area-sampled bilinear patch 345〉 } else { 〈Return PDF for sample in spherical rectangle 345〉 }
-
-If one of the area sampling approaches was used, then a call to the other `PDF()` method provides the PDF with respect to surface area, which is converted to be with respect to solid angle before it is returned. 〈Return solid angle PDF for area-sampled bilinear patch〉 ≡ 345
+**〈Compute parametric (u, v) of point on bilinear patch〉 ≡ 342**
 
 ```rust
-Float pdf = PDF(isect->intr) * (DistanceSquared(ctx.p(), isect->intr.p()) / AbsDot(isect->intr.n, -wi));
+let mut uv = intr.uv;
+if mesh.uv {
+    let uv00 = mesh.uv[v[0]]; let uv10 = mesh.uv[v[1]];
+    let uv01 = mesh.uv[v[2]]; let uv11 = mesh.uv[v[3]];
+    uv = invert_bilinear(uv, [uv00, uv10, uv01, uv11]);
+}
 ```
+
+Regardless of the sampling technique, finding the $(u,v)$ PDF is straightforward:
+
+**〈Compute PDF for sampling the (u, v) coordinates given by intr.uv〉 ≡ 342**
 
 ```rust
-   return IsInf(pdf) ? 0 : pdf;
+let pdf = if let Some(dist) = mesh.image_distribution {
+    dist.pdf(uv)
+} else if !self.is_rectangle(mesh) {
+    // 〈Initialize w array with differential area at bilinear patch corners 340〉
+    bilinear_pdf(uv, w)
+} else { 1.0 };
 ```
 
-Otherwise, the spherical rectangle sampling technique was used. The uniform solid angle PDF is 1 over the solid angle that the rectangle subtends. If the reference point is on a surface and the approximation to the cos θ factor would be applied in the `Sample()` method, then the PDF for sampling u must be included as well.
+Given `dpdu` and `dpdv`, the same scaling factor as in `Sample()` converts the PDF:
+
+**〈Return final bilinear patch area sampling PDF〉 ≡ 342**
 
 ```rust
-   AbsDot() 90
-   BilinearPatch::IsRectangle() 329
-   BilinearPatch:: MinSphericalSampleArea 343
-   BilinearPatch::PDF() 342
-   BilinearPatchMesh:: imageDistribution 340
-   BilinearPDF() 76
-   Curve 346
-   DistanceSquared() 93
-   Float 23
-   Interaction::n 137
-   Interaction::p() 137
-   InvertSphericalRectangleSample() 345
-   IsInf() 363
-   Normal3f 94
-   Normalize() 88
-   Point2f 92
-   Point3f 92
-   SampleSphericalRectangle() 344
-   ShapeIntersection::intr 266
-   ShapeSampleContext::ns 268
-   ShapeSampleContext::p() 269
-   SphericalQuadArea() 106
-   SurfaceInteraction 138
-   Vector3f 86
+pdf / length(cross(dpdu, dpdv))
 ```
 
-〈Return PDF for sample in spherical rectangle〉 ≡ 345
+<details>
+<summary>Reference / notes</summary>
+
+`BilinearPatch::GetMesh()` 328 · `BilinearPatch::IsRectangle()` 329 · `BilinearPatchMesh` 327 · `BilinearPatchMesh::imageDistribution` 340 · `BilinearPatchMesh::uv` 327 · `BilinearPDF()` 76 · `Cross()` 91 · `Cylinder` 286 · `Disk` 292 · `Float` 23 · `Interaction` 136 · `Interaction::uv` 137 · `InvertBilinear()` 1033 · `Length()` 88 · `PiecewiseConstant2D::PDF()` 1021 · `Point2f` 92
+
+</details>
+
+The solid-angle sampling method handles general patches like cylinders and disks: sample by area using the first method, return the density in solid-angle measure. Rectangles use a specialized technique with better results.
+
+**〈BilinearPatch Method Definitions〉 +≡**
 
 ```rust
-Float pdf = 1 / SphericalQuadArea(v00, v10, v11, v01); if (ctx.ns != Normal3f(0, 0, 0)) { 〈Compute cos θ weights for rectangle seen from reference point 344〉 Point2f u = InvertSphericalRectangleSample(ctx.p(), p00, p10 - p00, p01 - p00, isect->intr.p()); return BilinearPDF(u, w) * pdf; } else return pdf;
+fn sample(&self, ctx: &ShapeSampleContext, u: Point2f) -> Option<ShapeSample> {
+    let mesh = self.get_mesh();
+    // 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+    // 〈Sample bilinear patch with respect to solid angle from reference point 343〉
+}
 ```
 
-The `InvertSphericalRectangleSample()` function, not included here, returns the sample value u that maps to the given point pRect on the rectangle when the SampleSpherical Rectangle() is called with the given reference point pRef.
+If the patch is not a rectangle, is very small, or has an image distribution, the regular area-sampling method is used and its PDF converted to solid angle; otherwise specialized solid-angle sampling applies.
 
-〈Sampling Function Declarations〉 +≡
+**〈Sample bilinear patch with respect to solid angle from reference point〉 ≡ 343**
 
 ```rust
-Point2f InvertSphericalRectangleSample( Point3f pRef, Point3f v00, Vector3f eu, Vector3f ev, Point3f pRect);
+let v00 = normalize(p00 - ctx.p());
+let v10 = normalize(p10 - ctx.p());
+let v01 = normalize(p01 - ctx.p());
+let v11 = normalize(p11 - ctx.p());
+if !self.is_rectangle(mesh) || mesh.image_distribution.is_some()
+    || spherical_quad_area(v00, v10, v11, v01) <= MIN_SPHERICAL_SAMPLE_AREA
+{
+    // 〈Sample shape by area and compute incident direction wi 282〉
+    // 〈Convert area sampling PDF in ss to solid angle measure 282〉
+    return ss;
+}
+// 〈Sample direction to rectangular bilinear patch 343〉
 ```
 
-⋆ 6.7 CURVES While triangles or bilinear patches can be used to represent thin shapes for modeling fine geometry like hair, fur, or fields of grass, it is worthwhile to have a specialized `Shape` in order to more efficiently render these sorts of objects, since many individual instances of them are often present. The `Curve` shape, introduced in this section, represents thin geometry modeled with cubic Bézier curves, which are defined by four control points, p0, p1, p2, and p3. The Bézier spline passes through the first and last control points. Points along it are given by the polynomial
-
-![Figure 6.29](images/img-536-058.png)
-
-
-*Figure 6.29: A cubic Bézier curve is defined by four control points, pi. The curve p(u), defined in Equation (6.16), passes through the first and last control points at u = 0 and u = 1, respectively.*
-
-![Figure 6.30](images/pages/page-0536.png)
-*Figure 6.30: Basic Geometry of the Curve Shape. A 1D Bézier curve is offset by half of the specified width in both the directions orthogonal to the curve at each point along it. The resulting area represents the curve’s surface.*
-
-(See Figure 6.29.) Curves specified using another basis (e.g., Hermite splines or b-splines) must therefore be converted to the Bézier basis to be used with this `Shape`.
-
-The `Curve` shape is defined by a 1D Bézier curve along with a width that is linearly interpolated from starting and ending widths along its extent.
-
-Together, these define a flat 2D surface (Figure 6.30).5 It is possible to directly intersect rays with this representation without tessellating it, which in turn makes it possible to efficiently render smooth curves without using too much storage. Figure 6.31 shows a bunny model with fur modeled with over one million Curves.
-
-〈Curve Definition〉 ≡
+**〈BilinearPatch Private Members〉 +≡ 328**
 
 ```rust
-class Curve { public: 〈Curve Public Methods 348〉 private: 〈Curve Private Methods〉 〈Curve Private Members 348〉 };
+const MIN_SPHERICAL_SAMPLE_AREA: Float = 1e-4;
 ```
 
-There are three types of curves that the `Curve` shape can represent, shown in Figure 6.32.
+Rectangular patches are projected onto the sphere to form a spherical rectangle that can be sampled directly, with benefits similar to spherical triangles (Section 6.5.4).
 
-```text
-   Curve 346
+<details>
+<summary>Reference / notes</summary>
+
+`BilinearPatch` 328 · `BilinearPatch::GetMesh()` 328 · `BilinearPatch::IsRectangle()` 329 · `BilinearPatch::MinSphericalSampleArea` 343 · `BilinearPatchMesh` 327 · `BilinearPatchMesh::imageDistribution` 340 · `BilinearPDF()` 76 · `Float` 23 · `Interaction` 136 · `Normal3f` 94 · `Normalize()` 88 · `Point2f` 92 · `SampleBilinear()` 76 · `ShapeSample` 268 · `ShapeSampleContext` 268 · `ShapeSampleContext::ns` 268 · `ShapeSampleContext::p()` 269 · `ShapeSampleContext::time` 268 · `SphericalQuadArea()` 106 · `Vector3f` 86
+
+</details>
+
+**〈Sample direction to rectangular bilinear patch〉 ≡ 343**
+
+```rust
+let mut pdf = 1.0;
+// 〈Warp uniform sample u to account for incident cos theta factor 343〉
+// 〈Sample spherical rectangle at reference point 344〉
+// 〈Compute (u, v) and surface normal for sampled point on rectangle 344〉
+// 〈Compute (s, t) texture coordinates for sampled (u, v) 344〉
+Some(ShapeSample { intr: Interaction::with_time(p, n, ctx.time, st), pdf })
 ```
 
-Flat: Curves with this representation are always oriented to face
-the ray being intersected with them; they are useful for modeling
-fine swept cylindrical shapes like hair or fur.
-`Cylinder`: For curves that span a few pixels on the screen (like
-spaghetti seen from not too far away), the `Curve` shape can
-compute a shading normal that makes the curve appear to actually
-be a cylinder.
-Ribbon: This variant is useful for modeling shapes that do not
-actually have a cylindrical cross section (such as a blade of grass).
+As with triangles, the incident cosine factor is approximated by warping $\mathbf u$ with a bilinear approximation of $\cos\theta$ in $[0,1]^2$:
+
+**〈Warp uniform sample u to account for incident cos theta factor〉 ≡ 343**
+
+```rust
+if ctx.ns != Normal3f::ZERO {
+    // 〈Compute cos theta weights for rectangle seen from reference point 344〉
+    u = sample_bilinear(u, w);
+    pdf *= bilinear_pdf(u, w);
+}
+```
+
+The spherical rectangle sampler preserves the correspondence between corners of $[0,1]^2$ and corners of the patch, so each weight uses the cosine of the direction to the corresponding vertex:
+
+**〈Compute cos theta weights for rectangle seen from reference point〉 ≡ 343, 345**
+
+```rust
+let w = [
+    abs_dot(v00, ctx.ns).max(0.01),
+    abs_dot(v10, ctx.ns).max(0.01),
+    abs_dot(v01, ctx.ns).max(0.01),
+    abs_dot(v11, ctx.ns).max(0.01),
+];
+```
+
+`SampleSphericalRectangle()` takes a reference point, the $(0,0)$ corner, and the two edge vectors; it returns a point on the patch and the PDF $1/\Omega$, where $\Omega$ is the subtended solid angle.
+
+**〈Sample spherical rectangle at reference point〉 ≡ 343**
+
+```rust
+let eu = p10 - p00;
+let ev = p01 - p00;
+let mut quad_pdf = 0.0;
+let p = sample_spherical_rectangle(ctx.p(), p00, eu, ev, u, &mut quad_pdf);
+pdf *= quad_pdf;
+```
+
+Its implementation is another exercise in spherical trigonometry, like `SampleSphericalTriangle()`; in the interests of space we omit the discussion. The "Further Reading" section points to the paper introducing the approach and deriving it.
+
+**〈Sampling Function Declarations〉 ≡**
+
+```rust
+fn sample_spherical_rectangle(
+    p: Point3f, v00: Point3f, eu: Vector3f, ev: Vector3f,
+    u: Point2f, pdf: &mut Float,
+) -> Point3f;
+```
+
+A rectangle has a single normal, given by the cross product of its edges; the $(u,v)$ coordinates of the sampled point come from normalized projections onto the edges.
+
+**〈Compute (u, v) and surface normal for sampled point on rectangle〉 ≡ 343**
+
+```rust
+let uv = Point2f::new(
+    dot(p - p00, eu) / distance_squared(p10, p00),
+    dot(p - p00, ev) / distance_squared(p01, p00));
+let n = Normal3f::from(normalize(cross(eu, ev)));
+// 〈Flip normal at sampled (u, v) if necessary〉
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`AbsDot()` 90 · `BilinearPatch` 328 · `BilinearPatch::GetMesh()` 328 · `BilinearPatchMesh` 327 · `BilinearPatchMesh::uv` 327 · `Cross()` 91 · `DistanceSquared()` 93 · `Dot()` 89 · `Float` 23 · `Normal3f` 94 · `Normalize()` 88 · `Point2f` 92 · `Point3f` 92 · `SampleSphericalRectangle()` 344 · `SampleSphericalTriangle()` 318 · `ShapeSampleContext` 268 · `ShapeSampleContext::ns` 268 · `ShapeSampleContext::p()` 269 · `Vector3f` 86
+
+</details>
+
+If the patch has per-vertex texture coordinates, the interpolated $(s,t)$ at the sample are computed as before:
+
+**〈Compute (s, t) texture coordinates for sampled (u, v)〉 ≡ 343**
+
+```rust
+let mut st = uv;
+if mesh.uv {
+    // 〈Compute texture coordinates for bilinear patch intersection point 336〉
+}
+```
+
+The associated `PDF()` follows the usual form: determine which sampling method would be used, then compute its solid-angle PDF.
+
+**〈BilinearPatch Method Definitions〉 +≡**
+
+```rust
+fn pdf(&self, ctx: &ShapeSampleContext, wi: Vector3f) -> Float {
+    let mesh = self.get_mesh();
+    // 〈Get bilinear patch vertices in p00, p01, p10, and p11 329〉
+    // 〈Compute solid angle PDF for sampling bilinear patch from ctx 345〉
+}
+```
+
+In all cases the `SurfaceInteraction` for the ray from `ctx` in direction $\omega_i$ is needed, so the method starts by intersecting that ray with the patch.
+
+**〈Compute solid angle PDF for sampling bilinear patch from ctx〉 ≡ 344**
+
+```rust
+// 〈Intersect sample ray with shape geometry 285〉
+let v00 = normalize(p00 - ctx.p()); let v10 = normalize(p10 - ctx.p());
+let v01 = normalize(p01 - ctx.p()); let v11 = normalize(p11 - ctx.p());
+if !self.is_rectangle(mesh) || mesh.image_distribution.is_some()
+    || spherical_quad_area(v00, v10, v11, v01) <= MIN_SPHERICAL_SAMPLE_AREA
+{
+    // 〈Return solid angle PDF for area-sampled bilinear patch 345〉
+} else {
+    // 〈Return PDF for sample in spherical rectangle 345〉
+}
+```
+
+If an area-sampling approach was used, the other `PDF()` method provides the area density, which is converted to solid angle:
+
+**〈Return solid angle PDF for area-sampled bilinear patch〉 ≡ 345**
+
+```rust
+let mut pdf = self.pdf(&isect.intr)
+    * (distance_squared(ctx.p(), isect.intr.p())
+       / abs_dot(isect.intr.n, -wi));
+if is_inf(pdf) { pdf = 0.0; }
+```
+
+Otherwise spherical rectangle sampling was used. The uniform solid-angle PDF is one over the subtended solid angle; if the reference point is on a surface and cosine warping would be applied in `Sample()`, its PDF factor must be included too.
+
+<details>
+<summary>Reference / notes</summary>
+
+`AbsDot()` 90 · `BilinearPatch::IsRectangle()` 329 · `BilinearPatch::MinSphericalSampleArea` 343 · `BilinearPatch::PDF()` 342 · `BilinearPatchMesh::imageDistribution` 340 · `BilinearPDF()` 76 · `Curve` 346 · `DistanceSquared()` 93 · `Float` 23 · `Interaction::n` 137 · `Interaction::p()` 137 · `InvertSphericalRectangleSample()` 345 · `IsInf()` 363 · `Normal3f` 94 · `Normalize()` 88 · `Point2f` 92 · `Point3f` 92 · `SampleSphericalRectangle()` 344 · `ShapeIntersection::intr` 266 · `ShapeSampleContext::ns` 268 · `ShapeSampleContext::p()` 269 · `SphericalQuadArea()` 106 · `SurfaceInteraction` 138 · `Vector3f` 86
+
+</details>
+
+**〈Return PDF for sample in spherical rectangle〉 ≡ 345**
+
+```rust
+let pdf = 1.0 / spherical_quad_area(v00, v10, v11, v01);
+if ctx.ns != Normal3f::ZERO {
+    // 〈Compute cos theta weights for rectangle seen from reference point 344〉
+    let u = invert_spherical_rectangle_sample(
+        ctx.p(), p00, p10 - p00, p01 - p00, isect.intr.p());
+    return bilinear_pdf(u, w) * pdf;
+}
+pdf
+```
+
+`InvertSphericalRectangleSample()` (not included here) returns the sample $\mathbf u$ mapping to the given point `pRect` when `SampleSphericalRectangle()` is called with reference point `pRef`.
+
+**〈Sampling Function Declarations〉 +≡**
+
+```rust
+fn invert_spherical_rectangle_sample(
+    p_ref: Point3f,
+    v00: Point3f,
+    eu: Vector3f,
+    ev: Vector3f,
+    p_rect: Point3f,
+) -> Point2f;
+```
+
+## 6.7 Curves
+
+Triangles and bilinear patches can represent thin shapes for hair, fur, or grass, but a specialized `Shape` is worthwhile when many such instances are present. The `Curve` shape models thin geometry with cubic Bézier curves defined by four control points $\mathbf p_0,\mathbf p_1,\mathbf p_2,\mathbf p_3$. The spline passes through the first and last control points; points along it are given by
+
+$$
+\mathbf p(u)=(1-u)^3\mathbf p_0+3(1-u)^2u\,\mathbf p_1
+            +3(1-u)u^2\mathbf p_2+u^3\mathbf p_3.
+\tag{6.16}
+$$
+
+*Figure 6.29: A cubic Bézier curve is defined by four control points $\mathbf p_i$. The curve $\mathbf p(u)$ passes through the first and last control points at $u=0$ and $u=1$, respectively.*
+
+```mermaid
+flowchart LR
+    P0["p0 (start, u=0)"] --> C["Cubic Bezier p(u)"]
+    P1["p1 (control)"] --> C
+    P2["p2 (control)"] --> C
+    P3["p3 (end, u=1)"] --> C
+    C --> F["p(u) = (1-u)^3 p0 + 3(1-u)^2 u p1<br/>+ 3(1-u) u^2 p2 + u^3 p3"]
+```
+
+*Figure 6.30: Basic Geometry of the Curve Shape. A 1D Bézier curve is offset by half the specified width in both directions orthogonal to the curve at each point; the resulting area is the curve's surface.*
+
+```mermaid
+flowchart LR
+    B["1D Bezier centerline p(u)"] --> N["Orthogonal direction at each u"]
+    N --> O["Offset by +/- width/2<br/>to trace both edges"]
+    O --> S["Flat 2D surface = curve's area"]
+```
+
+Curves specified in another basis (Hermite splines, b-splines) must be converted to the Bézier basis for use with this shape.
+
+<details>
+<summary>Reference / notes</summary>
+
+`BoundCubicBezier()` 1054 · `Bounds3f` 97 · `Curve` 346 · `Curve::common` 348 · `Curve::uMax` 348 · `Curve::uMin` 348 · `CurveCommon` 348 · `CurveCommon::cpObj` 348 · `CurveCommon::renderFromObject` 348 · `CurveType` 347 · `Float` 23 · `Normal3f` 94 · `Point3f` 92 · `Transform` 120
+
+</details>
+
+The `Curve` shape is a 1D Bézier curve plus a width linearly interpolated between starting and ending widths. Together these define a flat 2D surface.[^5] Rays can be intersected with this representation directly, without tessellation, so smooth curves render efficiently without excessive storage. Figure 6.31 shows a bunny with fur modeled by over one million curves.
+
+**〈Curve Definition〉 ≡**
+
+```rust
+struct Curve {
+    // 〈Curve Public Methods〉
+    // 〈Curve Private Methods〉
+    // 〈Curve Private Members〉
+}
+```
+
+There are three curve types (Figure 6.32):
+
+- **Flat**: always oriented to face the ray being intersected; useful for fine swept cylindrical shapes like hair or fur.
+- **Cylinder**: for curves spanning a few pixels on screen, a shading normal makes the curve appear cylindrical.
+- **Ribbon**: for shapes without a cylindrical cross section, such as a blade of grass.
+
+<details>
+<summary>Reference / notes</summary>
+
+`Curve` 346
+
+</details>
+
+*Figure 6.31: Furry Bunny. Over one million `Curve` shapes model the fur (unrealistically long here, to show off the shape's capabilities). Underlying bunny mesh courtesy of the Stanford Computer Graphics Laboratory.*
+
+<details>
+<summary>Figure 6.31 — pictorial image (keep)</summary>
 
 ![Figure 6.31](images/img-538-059.png)
 
+</details>
 
-*Figure 6.31: Furry Bunny. Bunny model with over one million Curve shapes used to model fur. Here, we have used unrealistically long curves to better show off the Curve’s capabilities, giving an unrealistically shaggy bunny. (Underlying bunny mesh courtesy of the Stanford Computer Graphics Laboratory.)*
+*Figure 6.32: The Three Types of Curves. Top: flat, always perpendicular to an approaching ray. Middle: a variant whose shading normal makes it appear cylindrical. Bottom: a ribbon, with fixed orientation at its endpoints and smoothly interpolated intermediate orientations.*
+
+<details>
+<summary>Figure 6.32 — pictorial image (keep)</summary>
 
 ![Figure 6.32](images/img-539-060.png)
 
+</details>
 
-*Figure 6.32: The Three Types of Curves That the Curve Shape Can Represent. On the top is a flat curve that is always oriented to be perpendicular to a ray approaching it. The middle is a variant of this curve where the shading normal is set so that the curve appears to be cylindrical. On the bottom is a ribbon, which has a fixed orientation at its starting and ending points; intermediate orientations are smoothly interpolated between them.*
+The `CurveType` enumerator records which type a `Curve` models. Flat and cylinder curves are convenient approximations of deformed cylinders; intersections found against them do not correspond to a physically realizable 3D shape, which can lead to minor inconsistencies when compared with scenes using true cylinders.
 
-The `CurveType` enumerator records which of them a given `Curve` instance models. The flat and cylinder curve variants are intended to be used as convenient approximations of deformed cylinders. It should be noted that intersections found with respect to them do not correspond to a physically realizable 3D shape, which can potentially lead to minor inconsistencies when taking a scene with true cylinders as a reference.
-
-```text
-   Curve 346
-```
-
-〈CurveType Definition〉 ≡
+**〈CurveType Definition〉 ≡**
 
 ```rust
-enum class CurveType { Flat, Cylinder, Ribbon };
+enum CurveType { Flat, Cylinder, Ribbon }
 ```
 
-Given a curve specified in a pbrt scene description file, it can be worthwhile to split it into a few segments, each covering part of the u parametric range of the curve. (One reason for doing so is that axis-aligned bounding boxes do not tightly bound wiggly curves, but subdividing Bézier curves makes them less wiggly—the variation diminishing property of polynomials.) Therefore, the `Curve` constructor takes a parametric range of u values, [umin, umax], as well as a pointer to a `CurveCommon` structure,
+Given a curve specified in a pbrt scene file, it can be worthwhile to split it into segments covering parts of the $u$ range: axis-aligned boxes bound wiggly curves poorly, but subdivision makes Bézier curves less wiggly (the variation-diminishing property of polynomials). The `Curve` constructor therefore takes a parametric range $[u_{\min},u_{\max}]$ and a pointer to a `CurveCommon` structure holding control points and other data shared across segments, reducing per-segment memory.
 
-which stores the control points and other information about the curve that is shared across curve segments. In this way, the memory footprint for individual curve segments is reduced, which makes it easier to keep many of them in memory. 〈Curve Public Methods〉 ≡ 346
-
-```rust
-Curve(const CurveCommon *common, Float uMin, Float uMax) : common(common), uMin(uMin), uMax(uMax) {} 〈Curve Private Members〉 ≡ 346
-```
-
-const `CurveCommon` *common; `Float` uMin, uMax;
-
-The `CurveCommon` constructor initializes member variables with values passed into it for the control points, the curve width, etc. The control points provided to it should be in the curve’s object space. For Ribbon curves, `CurveCommon` stores a surface normal to orient the curve at each endpoint. The constructor precomputes the angle between the two normal vectors and one over the sine of this angle; these values will be useful when computing the orientation of the curve at arbitrary points along its extent.
-
-〈CurveCommon Definition〉 ≡
+**〈Curve Public Methods〉 ≡ 346**
 
 ```rust
-struct CurveCommon { 〈CurveCommon Public Methods〉 〈CurveCommon Public Members 348〉 }; 〈CurveCommon Public Members〉 ≡ 348
+impl Curve {
+    fn new(common: &CurveCommon, u_min: Float, u_max: Float) -> Self {
+        Self { common, u_min, u_max }
+    }
+}
 ```
 
-`CurveType` type; `Point3f` cpObj[4]; `Float` width[2]; `Normal3f` n[2]; `Float` normalAngle, invSinNormalAngle; const `Transform` *renderFromObject, *objectFromRender; bool reverseOrientation, transformSwapsHandedness;
-
-```text
-   BoundCubicBezier() 1054
-   Bounds3f 97
-   Curve 346
-   Curve::common 348
-   Curve::uMax 348
-   Curve::uMin 348
-```
-
-```text
-    CurveCommon 348
-    CurveCommon::cpObj 348
-    CurveCommon::renderFromObject 348
-    CurveType 347
-    Float 23
-    Normal3f 94
-    Point3f 92
-    Transform 120
-```
-
-### 6.7.1 BOUNDING CURVES
-
-The object-space bound of a curve can be found by first bounding the spline along the center of the curve and then expanding that bound by half the maximum width the curve takes on over its extent. The `Bounds()` method then transforms that bound to rendering space before returning it.
-
-〈Curve Method Definitions〉 ≡
+**〈Curve Private Members〉 ≡ 346**
 
 ```rust
-Bounds3f Curve::Bounds() const { pstd::span<const Point3f> cpSpan(common->cpObj); Bounds3f objBounds = BoundCubicBezier(cpSpan, uMin, uMax); 〈Expand objBounds by maximum curve width over u range 349〉 return (*common->renderFromObject)(objBounds); }
+struct Curve {
+    common: &'static CurveCommon,
+    u_min: Float,
+    u_max: Float,
+}
 ```
 
-〈Expand objBounds by maximum curve width over u range〉 ≡ 348
+The `CurveCommon` constructor initializes members from the control points, width, and so on, with control points in the curve's object space. For ribbons it stores a surface normal at each endpoint; the constructor precomputes the angle between the two normals and the reciprocal of its sine, which are useful for interpolating orientation at arbitrary points.
 
-```rust
-Float width[2] = {Lerp(uMin, common->width[0], common->width[1]), Lerp(uMax, common->width[0], common->width[1])}; objBounds = Expand(objBounds, std::max(width[0], width[1]) * 0.5f);
-```
-
-The `Curve` shape cannot be used as an area light, as it does not provide implementations of the required sampling methods. It does provide a `NormalBounds()` method that returns a conservative bound.
-
-〈Curve Public Methods〉 +≡ 346
+**〈CurveCommon Definition〉 ≡**
 
 ```rust
-DirectionCone NormalBounds() const { return DirectionCone::EntireSphere(); }
+struct CurveCommon {
+    // 〈CurveCommon Public Methods〉
+    // 〈CurveCommon Public Members〉
+}
 ```
 
-### 6.7.2 INTERSECTION TESTS
-
-Both of the intersection methods required by the `Shape` interface are implemented via another `Curve` method, `IntersectRay()`. Rather than returning an optional `ShapeIntersection`, it takes a pointer to one.
-
-〈Curve Method Definitions〉 +≡
-
-```rust
-pstd::optional<ShapeIntersection> Curve::Intersect(const Ray &ray, Float tMax) const { pstd::optional<ShapeIntersection> si; IntersectRay(ray, tMax, &si); return si; }
-```
-
-`IntersectP()` passes nullptr to `IntersectRay()`, which indicates that it can return immediately if an intersection is found.
-
-〈Curve Method Definitions〉 +≡
+**〈CurveCommon Public Members〉 ≡ 348**
 
 ```rust
-bool Curve::IntersectP(const Ray &ray, Float tMax) const { return IntersectRay(ray, tMax, nullptr); }
+struct CurveCommon {
+    curve_type: CurveType,
+    cp_obj: [Point3f; 4],
+    width: [Float; 2],
+    n: [Normal3f; 2],
+    normal_angle: Float,
+    inv_sin_normal_angle: Float,
+    render_from_object: Transform,
+    object_from_render: Transform,
+    reverse_orientation: bool,
+    transform_swaps_handedness: bool,
+}
 ```
 
-The `Curve` intersection algorithm is based on discarding curve segments as soon as it can be determined that the ray definitely does not intersect them and otherwise recursively splitting the curve in half to create two smaller segments that are then tested. Eventually, the curve is linearly approximated for an efficient intersection test. That process starts after some initial preparation and early culling tests in `IntersectRay()`.
+### 6.7.1 Bounding Curves
+
+The object-space bound is found by bounding the spline along the curve's center, then expanding by half the maximum width over its extent. `Bounds()` transforms that bound to rendering space.
+
+**〈Curve Method Definitions〉 ≡**
 
 ```rust
-   Bounds3::Expand() 101
-   CubicBezierControlPoints() 1053
-   Curve 346
-   Curve::common 348
-   Curve::IntersectRay() 349
-   CurveCommon 348
-   CurveCommon::objectFromRender 348
-   CurveCommon::width 348
-   DirectionCone 114
-   DirectionCone::EntireSphere() 115
-   Float 23
-   Ray 95
+fn bounds(&self) -> Bounds3f {
+    let cp_span = &self.common.cp_obj[..];
+    let mut obj_bounds = bound_cubic_bezier(cp_span, self.u_min, self.u_max);
+    // 〈Expand objBounds by maximum curve width over u range 349〉
+    self.common.render_from_object.apply(obj_bounds)
+}
 ```
 
-```text
-   ShapeIntersection 266
-```
-
-〈Curve Method Definitions〉 +≡
+**〈Expand objBounds by maximum curve width over u range〉 ≡ 348**
 
 ```rust
-bool Curve::IntersectRay(const Ray &r, Float tMax, pstd::optional<ShapeIntersection> *si) const { 〈Transform Ray to curve’s object space 349〉 〈Get object-space control points for curve segment, cpObj 350〉 〈Project curve control points to plane perpendicular to ray 350〉 〈Test ray against bound of projected control points 351〉 〈Compute refinement depth for curve, maxDepth〉 〈Recursively test for ray–curve intersection 351〉 }
+let width = [
+    lerp(self.u_min, self.common.width[0], self.common.width[1]),
+    lerp(self.u_max, self.common.width[0], self.common.width[1]),
+];
+obj_bounds = expand(obj_bounds, width[0].max(width[1]) * 0.5);
 ```
 
-〈Transform Ray to curve’s object space〉 ≡ 349
+A curve cannot be used as an area light because it lacks the sampling methods. It does provide a conservative `NormalBounds()`:
+
+**〈Curve Public Methods〉 +≡ 346**
 
 ```rust
-Ray ray = (*common->objectFromRender)(r);
+fn normal_bounds(&self) -> DirectionCone { DirectionCone::entire_sphere() }
 ```
 
-The `CurveCommon` class stores the control points for the full curve, but a `Curve` instance generally needs the four control points that represent the Bézier curve for its u extent. The `CubicBezierControlPoints()` utility function performs this computation.
+<details>
+<summary>Reference / notes</summary>
 
-![Figure 6.33](images/img-543-061.png)
+`Bounds3::Expand()` 101 · `CubicBezierControlPoints()` 1053 · `Curve` 346 · `Curve::common` 348 · `Curve::IntersectRay()` 349 · `CurveCommon` 348 · `CurveCommon::objectFromRender` 348 · `CurveCommon::width` 348 · `DirectionCone` 114 · `DirectionCone::EntireSphere()` 115 · `Float` 23 · `Ray` 95 · `ShapeIntersection` 266
 
+</details>
 
-*Figure 6.33: 2D Bounding Boxes of a Bézier Curve. (a) Bounding box computed using the curve’s control points as given. (b) The effect of rotating the curve so that the vector from its first to last control point is aligned with the x axis before computing bounds. The resulting bounding box is a much tighter fit.*
+### 6.7.2 Intersection Tests
 
-〈Get object-space control points for curve segment, cpObj〉 ≡ 349
+Both required intersection methods are implemented via `IntersectRay()`, which takes a pointer to an optional `ShapeIntersection` rather than returning one.
+
+**〈Curve Method Definitions〉 +≡**
 
 ```rust
-pstd::array<Point3f, 4> cpObj = CubicBezierControlPoints(pstd::span<const Point3f>(common->cpObj), uMin, uMax);
+fn intersect(&self, ray: &Ray, t_max: Float) -> Option<ShapeIntersection> {
+    let mut si = None;
+    self.intersect_ray(ray, t_max, &mut si);
+    si
+}
 ```
 
-Like the ray–triangle intersection algorithm from Section 6.5.3, the ray– curve intersection test is based on transforming the curve to a coordinate
+`IntersectP()` passes `None`, indicating it can return immediately on a hit:
 
-system with the ray’s origin at the origin of the coordinate system and the ray’s direction aligned to be along the +z axis. Performing this transformation at the start greatly reduces the number of operations that must be performed for intersection tests. For the `Curve` shape, we will need an explicit representation of the transformation, so the `LookAt()` function is used to generate it here. The origin is the ray’s origin and the “look at” point is a point offset from the origin along the ray’s direction. The “up” direction is set to be perpendicular to both the ray’s direction and the vector from the first to the last control point. Doing so helps orient the curve to be roughly parallel to the x axis in the ray coordinate system, which in turn leads to tighter bounds in y (see Figure 6.33). This improvement in the fit of the bounds often makes it possible to terminate the recursive intersection tests earlier than would be possible otherwise. If the ray and the vector between the first and last control points are parallel, dx will be degenerate. In that case we find an arbitrary “up” vector direction so that intersection tests can proceed in this unusual case.
-
-```text
-   CoordinateSystem() 92
-   Cross() 91
-   CubicBezierControlPoints() 1053
-   Curve::Bounds() 348
-   Curve::common 348
-   Curve::uMax 348
-   Curve::uMin 348
-   CurveCommon::cpObj 348
-   LengthSquared() 87
-   LookAt() 129
-   Point3f 92
-   Ray::d 95
-   Ray::o 95
-   Transform 120
-   Vector3f 86
-```
-
-〈Project curve control points to plane perpendicular to ray〉 ≡ 349
+**〈Curve Method Definitions〉 +≡**
 
 ```rust
-Vector3f dx = Cross(ray.d, cpObj[3] - cpObj[0]); if (LengthSquared(dx) == 0) { Vector3f dy; CoordinateSystem(ray.d, &dx, &dy);
+fn intersect_p(&self, ray: &Ray, t_max: Float) -> bool {
+    let mut si = None;
+    self.intersect_ray(ray, t_max, &mut si);
+    si.is_some()
+}
 ```
+
+The algorithm discards curve segments as soon as it can determine the ray definitely misses, otherwise recursively splitting the segment in half until a linear approximation suffices. It begins with preparation and early culling in `IntersectRay()`.
+
+**〈Curve Method Definitions〉 +≡**
 
 ```rust
-   }
-   Transform rayFromObject = LookAt(ray.o, ray.o + ray.d, dx);
-   pstd::array<Point3f, 4> cp = {
-       rayFromObject(cpObj[0]), rayFromObject(cpObj[1]),
-       rayFromObject(cpObj[2]), rayFromObject(cpObj[3]) };
+fn intersect_ray(
+    &self,
+    r: &Ray,
+    t_max: Float,
+    si: &mut Option<ShapeIntersection>,
+) -> bool {
+    // 〈Transform Ray to curve's object space 349〉
+    // 〈Get object-space control points for curve segment, cpObj 350〉
+    // 〈Project curve control points to plane perpendicular to ray 350〉
+    // 〈Test ray against bound of projected control points 351〉
+    // 〈Compute refinement depth for curve, maxDepth〉
+    // 〈Recursively test for ray–curve intersection 351〉
+}
 ```
 
-Along the lines of the implementation in `Curve::Bounds()`, a conservative bounding box for a curve segment can be found by taking the bounds of the curve’s control points and expanding by half of the maximum width of the curve over the u range being considered.
-
-![Figure 6.34](images/img-545-062.png)
-
-
-*Figure 6.34: Ray–Curve Bounds Test. In the ray coordinate system, the ray’s origin is at (0, 0, 0) and its direction is aligned with the +z axis. Therefore, if the 2D point (x, y) = (0, 0) is outside the xy bounding box of the curve segment, then it is impossible that the ray intersects the curve.*
-
-Because the ray’s origin is at (0, 0, 0) and its direction is aligned with the +z axis in the intersection space, its bounding box only includes the origin in x and y (Figure 6.34); its z extent is given by the z range that its parametric extent covers. Before proceeding with the recursive intersection testing algorithm, the ray’s bounding box is tested for intersection with the curve’s bounding box. The method can return immediately if they do not intersect. 〈Test ray against bound of projected control points〉 ≡ 349
+**〈Transform Ray to curve's object space〉 ≡ 349**
 
 ```rust
-Float maxWidth = std::max(Lerp(uMin, common->width[0], common->width[1]), Lerp(uMax, common->width[0], common->width[1])); Bounds3f curveBounds = Union(Bounds3f(cp[0], cp[1]), Bounds3f(cp[2], cp[3])); curveBounds = Expand(curveBounds, 0.5f * maxWidth); Bounds3f rayBounds(Point3f(0, 0, 0), Point3f(0, 0, Length(ray.d) * tMax)); if (!Overlaps(rayBounds, curveBounds)) return false;
+let ray = self.common.object_from_render.apply(r);
 ```
 
-The maximum number of times to subdivide the curve is computed so that the maximum distance from the eventual linearized curve at the finest
+`CurveCommon` stores the control points of the full curve, but a segment needs the four points representing its $u$ extent; `CubicBezierControlPoints()` performs that computation.
 
-refinement level is bounded to be less than a small fixed distance. We will not go into the details of this computation, which is implemented in the fragment 〈Compute refinement depth for curve, maxDepth〉. With the culling tests passed and that value in hand, the recursive intersection tests begin. 〈Recursively test for ray–curve intersection〉 ≡ 349
+**〈Get object-space control points for curve segment, cpObj〉 ≡ 349**
 
 ```rust
-pstd::span<const Point3f> cpSpan(cp); return RecursiveIntersect(ray, tMax, cpSpan, Inverse(rayFromObject), uMin, uMax, maxDepth, si);
+let cp_obj = cubic_bezier_control_points(&self.common.cp_obj[..], self.u_min, self.u_max);
 ```
+
+Like ray–triangle intersection, the test transforms the curve into a space with the ray origin at the origin and direction along $+z$. Here we need the transformation explicitly, so `LookAt()` generates it: the eye is the ray origin, the look-at point is one step along the ray, and the "up" direction is perpendicular to both the ray and the vector from first to last control point. That orients the curve roughly along the $x$ axis, producing tighter bounds in $y$ (Figure 6.33) and often ending recursion earlier. If the ray and the endpoint vector are parallel, an arbitrary up vector is used instead.
+
+*Figure 6.33: 2D Bounding Boxes of a Bézier Curve. (a) Using control points as given. (b) Rotating so the first-to-last control-point vector aligns with $x$ yields a much tighter box.*
+
+```mermaid
+flowchart LR
+    A["(a) Control-point bounds<br/>loose fit"] --> R["Rotate: align p3-p0 with x axis"]
+    R --> B["(b) Tighter 2D bounding box"]
+    B --> E["Earlier termination of recursive tests"]
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`CoordinateSystem()` 92 · `Cross()` 91 · `CubicBezierControlPoints()` 1053 · `Curve::Bounds()` 348 · `Curve::common` 348 · `Curve::uMax` 348 · `Curve::uMin` 348 · `CurveCommon::cpObj` 348 · `LengthSquared()` 87 · `LookAt()` 129 · `Point3f` 92 · `Ray::d` 95 · `Ray::o` 95 · `Transform` 120 · `Vector3f` 86
+
+</details>
+
+**〈Project curve control points to plane perpendicular to ray〉 ≡ 349**
 
 ```rust
-   Bounds3::Expand() 101
-   Bounds3::Union() 99
-   Bounds3f 97
-   Curve::common 348
-   Curve::RecursiveIntersect() 351
-   Curve::uMax 348
-   Curve::uMin 348
-   CurveCommon::width 348
-   Float 23
-   Length() 88
-   Lerp() 72
-   Point3f 92
-   Ray 95
-   Ray::d 95
-   ShapeIntersection 266
-   Transform 120
+let mut dx = cross(ray.d, cp_obj[3] - cp_obj[0]);
+if length_squared(dx) == 0.0 {
+    let mut dy = Vector3f::ZERO;
+    coordinate_system(ray.d, &mut dx, &mut dy);
+}
+let ray_from_object = look_at(ray.o, ray.o + ray.d, dx);
+let cp = [
+    ray_from_object.apply(cp_obj[0]), ray_from_object.apply(cp_obj[1]),
+    ray_from_object.apply(cp_obj[2]), ray_from_object.apply(cp_obj[3]),
+];
 ```
 
-The `RecursiveIntersect()` method then tests whether the given ray intersects the given curve segment over the given parametric range [u0, u1]. It assumes that the ray has already been tested against the curve’s bounding box and found to intersect it.
+As in `Curve::Bounds()`, a conservative bound for a segment comes from its control points' bounds expanded by half the maximum width over the $u$ range.
 
-〈Curve Method Definitions〉 +≡
+*Figure 6.34: Ray–Curve Bounds Test. In ray space the origin is $(0,0,0)$ and the direction is $+z$, so if $(x,y)=(0,0)$ is outside the segment's $xy$ bounding box, the ray cannot intersect the curve.*
+
+```mermaid
+flowchart LR
+    O["Ray bounds: x=y=0,<br/>z in [0, |d| t_max]"] --> T{"Overlaps<br/>curve bounds?"}
+    T -- no --> M["Return miss"]
+    T -- yes --> REC["Begin recursive intersection tests"]
+```
+
+**〈Test ray against bound of projected control points〉 ≡ 349**
 
 ```rust
-bool Curve::RecursiveIntersect( const Ray &ray, Float tMax, pstd::span<const Point3f> cp, const Transform &objectFromRay, Float u0, Float u1, int depth, pstd::optional<ShapeIntersection> *si) const {
+let max_width = lerp(self.u_min, self.common.width[0], self.common.width[1])
+    .max(lerp(self.u_max, self.common.width[0], self.common.width[1]));
+let mut curve_bounds = Bounds3f::new(cp[0], cp[1]).union(Bounds3f::new(cp[2], cp[3]));
+curve_bounds = expand(curve_bounds, 0.5 * max_width);
+let ray_bounds = Bounds3f::new(
+    Point3f::ZERO,
+    Point3f::new(0.0, 0.0, length(ray.d) * t_max));
+if !overlaps(ray_bounds, curve_bounds) { return false; }
 ```
+
+The maximum subdivision depth is chosen so the distance from the linearized curve at the finest level stays below a small fixed value; we omit that computation. With the culling tests passed, recursion begins.
+
+**〈Recursively test for ray–curve intersection〉 ≡ 349**
 
 ```rust
-       Float rayLength = Length(ray.d);
-       if (depth > 0) {
-         〈Split curve segment into subsegments and test for intersection
-         352〉
+recursive_intersect(ray, t_max, &cp[..], ray_from_object.inverse(),
+                    self.u_min, self.u_max, max_depth, si)
 ```
 
-} else { 〈Intersect ray with curve segment 352〉 } }
+<details>
+<summary>Reference / notes</summary>
 
-If the maximum depth has not been reached, a call to `SubdivideCubicBezier()` gives the control points for the two Bézier curves that result in splitting the Bézier curve given by cp in half. The last control point of the first curve is the same as the first control point of the second, so 7 values are returned for the total of 8 control points. The u array is then initialized so that it holds the parametric range of the two curves before each one is processed in turn. 〈Split curve segment into subsegments and test for intersection〉 ≡ 351
+`Bounds3::Expand()` 101 · `Bounds3::Union()` 99 · `Bounds3f` 97 · `Curve::common` 348 · `Curve::RecursiveIntersect()` 351 · `Curve::uMax` 348 · `Curve::uMin` 348 · `CurveCommon::width` 348 · `Float` 23 · `Length()` 88 · `Lerp()` 72 · `Point3f` 92 · `Ray` 95 · `Ray::d` 95 · `ShapeIntersection` 266 · `Transform` 120
+
+</details>
+
+`RecursiveIntersect()` tests the ray against a curve segment over a parametric range $[u_0,u_1]$, assuming the segment's bounding box has already been tested and intersected.
+
+**〈Curve Method Definitions〉 +≡**
 
 ```rust
-pstd::array<Point3f, 7> cpSplit = SubdivideCubicBezier(cp); Float u[3] = {u0, (u0 + u1) / 2, u1}; for (int seg = 0; seg < 2; ++seg) { 〈Check ray against curve segment’s bounding box〉 〈Recursively test ray-segment intersection 352〉 } return si ? si->has_value() : false;
+fn recursive_intersect(
+    &self,
+    ray: &Ray,
+    t_max: Float,
+    cp: &[Point3f],
+    object_from_ray: &Transform,
+    u0: Float,
+    u1: Float,
+    depth: i32,
+    si: &mut Option<ShapeIntersection>,
+) -> bool {
+    let ray_length = length(ray.d);
+    if depth > 0 {
+        // 〈Split curve segment into subsegments and test for intersection 352〉
+    } else {
+        // 〈Intersect ray with curve segment 352〉
+    }
+}
 ```
 
-The bounding box test in the 〈Check ray against curve segment’s bounding box〉 fragment is essentially the same as the one in 〈Test ray against bound of projected control points〉 except that it takes u values from the u array when computing the curve’s maximum width over the u range and it uses control points from cpSplit. Therefore, it is not included here. If the ray does intersect the bounding box, the corresponding segment is given to a recursive call of `RecursiveIntersect()`. If an intersection is found and the ray is a shadow ray, si will be nullptr and an intersection can immediately be reported. For non-shadow rays, even if an intersection has been found, it may not be the closest intersection, so the other segment still must be considered.
+If the maximum depth has not been reached, `SubdivideCubicBezier()` splits the Bézier curve in half. The last control point of the first curve equals the first of the second, so 7 values represent 8 control points. The `u` array then holds the two subranges.
 
-〈Recursively test ray-segment intersection〉 ≡ 352
+**〈Split curve segment into subsegments and test for intersection〉 ≡ 351**
 
 ```rust
-bool hit = RecursiveIntersect(ray, tMax, cps, objectFromRay, u[seg], u[seg + 1], depth - 1, si); if (hit && !si) return true;
+let cp_split = subdivide_cubic_bezier(cp);
+let u = [u0, (u0 + u1) / 2.0, u1];
+for seg in 0..2 {
+    // 〈Check ray against curve segment's bounding box〉
+    // 〈Recursively test ray-segment intersection 352〉
+}
+if si.is_some() { true } else { false }
 ```
 
-The intersection test is made more efficient by using a linear approximation of the curve; the variation diminishing property allows us to make this approximation without introducing too much error. 〈Intersect ray with curve segment〉 ≡ 351
+The box test is essentially the earlier one, using `u` values for the width and `cpSplit` for control points, so it is omitted. If the ray hits the box, the segment is tested recursively. For shadow rays `si` is `None` and an intersection can be reported immediately; for other rays even a hit may not be the closest, so the second segment must be considered too.
+
+**〈Recursively test ray-segment intersection〉 ≡ 352**
 
 ```rust
-   〈Test ray against segment endpoint boundaries 352〉
-   〈Find line w that gives minimum distance to sample point 355〉
-   〈Compute u coordinate of curve intersection point and hitWidth 355〉
-   〈Test intersection point against curve width 355〉
-   if (si) {
-        〈Initialize ShapeIntersection for curve intersection 356〉
-   }
-   return true;
+let hit = self.recursive_intersect(
+    ray, t_max, cps, object_from_ray,
+    u[seg], u[seg + 1], depth - 1, si);
+if hit && si.is_none() { return true; }
 ```
 
-It is important that the intersection test only accepts intersections that are on the `Curve`’s surface for the u segment currently under consideration. Therefore, the first step of the intersection test is to compute edge functions for lines perpendicular to the curve starting point and ending point and to classify the potential intersection point against them (Figure 6.35).
+The variation-diminishing property lets us approximate the curve with a line segment for the final test:
+
+**〈Intersect ray with curve segment〉 ≡ 351**
 
 ```rust
-   Curve::RecursiveIntersect() 351
-   Float 23
-   Point3f 92
-   SubdivideCubicBezier() 1053
+// 〈Test ray against segment endpoint boundaries 352〉
+// 〈Find line w that gives minimum distance to sample point 355〉
+// 〈Compute u coordinate of curve intersection point and hitWidth 355〉
+// 〈Test intersection point against curve width 355〉
+if si.is_some() {
+    // 〈Initialize ShapeIntersection for curve intersection 356〉
+}
+true
 ```
 
-〈Test ray against segment endpoint boundaries〉 ≡ 352
+Only intersections on the current segment's surface are accepted, so the first step computes edge functions for lines perpendicular to the segment endpoints and classifies the candidate point against them (Figure 6.35).
 
-〈Test sample point against tangent perpendicular at curve start 353〉 〈Test sample point against tangent perpendicular at curve end〉
-
-![Figure 6.35](images/pages/page-0549.png)
-*Figure 6.35: Curve Segment Boundaries. The intersection test for a segment of a larger curve computes edge functions for the lines that are perpendicular to the segment endpoints (dashed lines). If a potential intersection point (solid dot) is on the other side of the edge than the segment, it is rejected; another curve segment (if present on that side) should account for this intersection instead.*
-
-Projecting the curve control points into the ray coordinate system makes this test more efficient for two reasons. First, because the ray’s direction is oriented with the +z axis, the problem is reduced to a 2D test in x and y. Second, because the ray origin is at the origin of the coordinate system, the point we need to classify is (0, 0), which simplifies evaluating the edge function, just like the ray–triangle intersection test. Edge functions were introduced for ray–triangle intersection tests in Equation (6.5); see also Figure 6.14. To define the edge function here, we need any two points on the line perpendicular to the curve going through the starting point. The first control point, p0, is a fine choice for the first. For the second, we will compute the vector perpendicular to the curve’s tangent and add that offset to the control point. Differentiation of Equation (6.16) shows that the tangent to the curve at the first control point p0 is 3(p1 − p0). The scaling factor does not matter here, so we will use t = p1 − p0 here. Computing the vector perpendicular to the tangent is easy in 2D: it is just necessary to swap the x and y coordinates and negate one of them. (To see why this works, consider the dot product (x, y) · (y, −x) = xy + −yx = 0. Because the cosine of the angle between the two vectors is zero, they must be perpendicular.) Thus, the second point on the edge is p0 + (p1y − p0y, −(p1x − p0x)) = p0 + (p1y − p0y, p0x − p1x). Substituting these two points into the definition of the edge function, Equation (6.5), and simplifying gives e(p) = (p1y − p0y)(py − p0y) − (px − p0x)(p0x − p1x).
-
-Finally, substituting p = (0, 0) gives the final expression to test: e((0, 0)) = (p1y − p0y)(−p0y) + p0x(p0x − p1x).
-
-〈Test sample point against tangent perpendicular at curve start〉 ≡ 352
+**〈Test ray against segment endpoint boundaries〉 ≡ 352**
 
 ```rust
-Float edge = (cp[1].y - cp[0].y) * -cp[0].y + cp[0].x * (cp[0].x - cp[1].x); if (edge < 0) return false;
+// 〈Test sample point against tangent perpendicular at curve start 353〉
+// 〈Test sample point against tangent perpendicular at curve end〉
 ```
 
-The 〈Test sample point against tangent perpendicular at curve end〉 fragment, not included here, does the corresponding test at the end of the curve.
+*Figure 6.35: Curve Segment Boundaries. The test computes edge functions for lines perpendicular to the segment endpoints (dashed). A candidate point on the far side of an edge is rejected; a neighboring segment accounts for that intersection instead.*
 
-```text
-   Float 23
+```mermaid
+flowchart LR
+    S["Segment endpoints p0, p3"] --> E["Perpendicular lines at endpoints<br/>(tangent = p1-p0 at start)"]
+    E --> C{"Candidate (0,0)<br/>on segment side?"}
+    C -- no --> R["Reject: another segment<br/>should handle this hit"]
+    C -- yes --> H["Continue with distance test"]
 ```
 
-The next part of the test is to determine the u value along the curve segment where the point (0, 0) is closest to the curve. This will be the intersection point, if it is no farther than the curve’s width away from the center at that point. Determining this distance for a cubic Bézier curve requires a significant amount of computation, so instead the implementation here approximates the curve with a linear segment to compute this u value.
+Projecting control points into ray space makes the test efficient: the ray is along $+z$, reducing the problem to 2D in $x,y$, and the point to classify is $(0,0)$, simplifying the edge function as in ray–triangle intersection (Equation 6.5, Figure 6.14). We need two points on the line perpendicular to the curve through the starting point: $\mathbf p_0$ itself, and a point offset along the perpendicular to the tangent. Differentiating Equation (6.16) shows the tangent at $\mathbf p_0$ is $3(\mathbf p_1-\mathbf p_0)$; the scale does not matter, so we use $\mathbf t=\mathbf p_1-\mathbf p_0$. In 2D a perpendicular is obtained by swapping $x$ and $y$ and negating one component, since $(x,y)\cdot(y,-x)=xy-yx=0$. The second point is
 
-![Figure 6.36](images/pages/page-0550.png)
-*Figure 6.36: Approximation of a Cubic Bézier Curve with a Linear Segment. For this part of the ray– curve intersection test, we approximate the Bézier with a linear segment (dashed line) passing through its starting and ending points. (In practice, after being subdivided, the curve will be already nearly linear, so the error is less than this figure suggests.)*
+$$
+\mathbf p_0+(p_{1y}-p_{0y},\;p_{0x}-p_{1x}).
+$$
 
-![Figure 6.37](images/img-551-063.png)
+Substituting into the edge function gives
 
+$$
+e(\mathbf p)=(p_{1y}-p_{0y})(p_y-p_{0y})-(p_x-p_{0x})(p_{0x}-p_{1x}),
+$$
 
-*Figure 6.37: (a) Given an infinite line and a point p, the vector from the point to the closest point on the line, p′, is then perpendicular to the line. (b) Because this vector is perpendicular, we can compute the distance from the first point of the line to the point of closest approach, p′, as d = ‖p − p0‖ cos θ.*
+and with $\mathbf p=(0,0)$ the final test is
 
-We linearly approximate the Bézier curve with a line segment from its starting point p0 to its endpoint p3 that is parameterized by w. In this case, the position is p0 at w = 0 and p3 at w = 1 (Figure 6.36). Our task is to compute the value of w along the line corresponding to the point on the line p′ that is closest to the point p. The key insight to apply is that at p′, the vector from the corresponding point on the line to p will be perpendicular to the line (Figure 6.37(a)). Equation (3.1) gives us a relationship between the dot product of two vectors, their lengths, and the cosine of the angle between them. In particular, it shows us how to compute the cosine of the angle between the
+$$
+e((0,0))=(p_{1y}-p_{0y})(-p_{0y})+p_{0x}(p_{0x}-p_{1x}).
+$$
 
-vector from p0 to p and the vector from p0 to p3: Because the vector from p′ to p is perpendicular to the line (Figure 6.37(b)), we can compute the distance along the line from p0 to p′ as
-
-Finally, the parametric offset w along the line is the ratio of d to the line’s length,
-
-The computation of the value of w is in turn slightly simplified from the fact that p = (0, 0) in the intersection coordinate system. 〈Find line w that gives minimum distance to sample point〉 ≡ 352
+**〈Test sample point against tangent perpendicular at curve start〉 ≡ 352**
 
 ```rust
-Vector2f segmentDir = Point2f(cp[3].x, cp[3].y) - Point2f(cp[0].x, cp[0].y); Float denom = LengthSquared(segmentDir); if (denom == 0) return false; Float w = Dot(-Vector2f(cp[0].x, cp[0].y), segmentDir) / denom;
+let edge = (cp[1].y - cp[0].y) * -cp[0].y
+         + cp[0].x * (cp[0].x - cp[1].x);
+if edge < 0.0 { return false; }
 ```
 
-The parametric u coordinate of the (presumed) closest point on the Bézier curve to the candidate intersection point is computed by linearly interpolating along the u range of the segment. Given this u value, the width of the curve at that point can be computed. 〈Compute u coordinate of curve intersection point and hitWidth〉 ≡ 352
+The end-of-curve fragment is analogous and not included.
+
+<details>
+<summary>Reference / notes</summary>
+
+`Curve::RecursiveIntersect()` 351 · `Float` 23 · `Point3f` 92 · `SubdivideCubicBezier()` 1053
+
+</details>
+
+Next we find the $u$ along the segment where $(0,0)$ is closest to the curve—the intersection point if it lies within half the curve's width. An exact answer for a cubic Bézier requires significant computation, so the implementation approximates the curve with a line segment.
+
+*Figure 6.36: Approximation of a Cubic Bézier Curve with a Linear Segment. After subdivision the curve is already nearly linear, so the error is smaller than the figure suggests.*
+
+```mermaid
+flowchart LR
+    C["Cubic Bezier segment"] --> L["Linear segment p0 -> p3<br/>parameterized by w in [0,1]"]
+    L --> Q["Find w minimizing distance<br/>to p = (0,0)"]
+```
+
+*Figure 6.37: Given a line and a point $\mathbf p$, the vector from $\mathbf p$ to the closest point $\mathbf p'$ on the line is perpendicular to the line, so $d=\lVert\mathbf p-\mathbf p_0\rVert\cos\theta$ gives the distance from $\mathbf p_0$ to $\mathbf p'$.*
+
+```mermaid
+flowchart LR
+    P["Point p = (0,0)"] --> PP["Closest point p' on line<br/>(p-p') perpendicular to line"]
+    PP --> D["d = |p - p0| cos(theta)"]
+    D --> W["w = d / |p3 - p0|"]
+```
+
+We linearly approximate the Bézier with a segment from $\mathbf p_0$ to $\mathbf p_3$ parameterized by $w\in[0,1]$ (Figure 6.36). At the closest point $\mathbf p'$, the vector from the line to $\mathbf p$ is perpendicular to the line (Figure 6.37(a)). Equation (3.1) relates the dot product, lengths, and cosine of the angle between $\mathbf p-\mathbf p_0$ and $\mathbf p_3-\mathbf p_0$:
+
+$$
+\cos\theta=\frac{(\mathbf p-\mathbf p_0)\cdot(\mathbf p_3-\mathbf p_0)}
+                 {\lVert\mathbf p-\mathbf p_0\rVert\,\lVert\mathbf p_3-\mathbf p_0\rVert}.
+$$
+
+Because $\mathbf p-\mathbf p'$ is perpendicular (Figure 6.37(b)), the distance along the line from $\mathbf p_0$ to $\mathbf p'$ is
+
+$$
+d = \lVert\mathbf p-\mathbf p_0\rVert\cos\theta
+  = \frac{(\mathbf p-\mathbf p_0)\cdot(\mathbf p_3-\mathbf p_0)}
+         {\lVert\mathbf p_3-\mathbf p_0\rVert},
+$$
+
+and $w=d/\lVert\mathbf p_3-\mathbf p_0\rVert$. With $\mathbf p=(0,0)$ this simplifies further:
+
+**〈Find line w that gives minimum distance to sample point〉 ≡ 352**
 
 ```rust
-Float u = Clamp(Lerp(w, u0, u1), u0, u1); Float hitWidth = Lerp(u, common->width[0], common->width[1]); Normal3f nHit; if (common->type == CurveType::Ribbon) { 〈Scale hitWidth based on ribbon orientation 355〉 }
+let segment_dir = Point2f::new(cp[3].x, cp[3].y) - Point2f::new(cp[0].x, cp[0].y);
+let denom = length_squared(segment_dir);
+if denom == 0.0 { return false; }
+let w = dot(-Vector2f::new(cp[0].x, cp[0].y), segment_dir) / denom;
 ```
 
-For Ribbon curves, the curve is not always oriented to face the ray. Rather, its orientation is interpolated between two surface normals given at each endpoint. Here, spherical linear interpolation is used to interpolate the normal at u. The curve’s width is then scaled by the cosine of the angle between the normalized ray direction and the ribbon’s orientation so that it corresponds to the visible width of the curve from the given direction. 〈Scale hitWidth based on ribbon orientation〉 ≡ 355
+The parametric $u$ coordinate of the presumed closest point is found by interpolating over the segment's $u$ range, and the width there follows:
+
+**〈Compute u coordinate of curve intersection point and hitWidth〉 ≡ 352**
 
 ```rust
-if (common->normalAngle == 0) nHit = common->n[0]; else { Float sin0 = std::sin((1 - u) * common->normalAngle) * common->invSinNormalAngle; Float sin1 = std::sin(u * common->normalAngle) * common->invSinNormalAngle; nHit = sin0 * common->n[0] + sin1 * common->n[1]; } hitWidth *= AbsDot(nHit, ray.d) / rayLength;
+let u = lerp(w, u0, u1).clamp(u0, u1);
+let mut hit_width = lerp(u, self.common.width[0], self.common.width[1]);
+let mut n_hit = Normal3f::ZERO;
+if self.common.curve_type == CurveType::Ribbon {
+    // 〈Scale hitWidth based on ribbon orientation 355〉
+}
 ```
+
+A ribbon is not always oriented toward the ray: its orientation is interpolated between two endpoint normals via spherical linear interpolation. The width is scaled by the cosine of the angle between the normalized ray direction and the ribbon orientation, giving the visible width from that direction.
+
+**〈Scale hitWidth based on ribbon orientation〉 ≡ 355**
 
 ```rust
-   AbsDot() 90
-   Clamp() 1033
-   Curve::common 348
-   CurveCommon:: invSinNormalAngle 348
-   CurveCommon::n 348
-   CurveCommon::normalAngle 348
-   CurveCommon::type 348
-   CurveCommon::width 348
-   CurveType::Ribbon 347
-   Dot() 89
-   EvaluateCubicBezier() 1052
-   Float 23
-   Lerp() 72
-   Normal3f 94
-   Point2f 92
-   Point3f 92
-   Ray::d 95
-   Sqr() 1034
-   Vector2f 86
-   Vector3f 86
+if self.common.normal_angle == 0.0 {
+    n_hit = self.common.n[0];
+} else {
+    let sin0 = ((1.0 - u) * self.common.normal_angle).sin()
+             * self.common.inv_sin_normal_angle;
+    let sin1 = (u * self.common.normal_angle).sin()
+             * self.common.inv_sin_normal_angle;
+    n_hit = sin0 * self.common.n[0] + sin1 * self.common.n[1];
+}
+hit_width *= abs_dot(n_hit, ray.d) / ray_length;
 ```
 
-To finally classify the potential intersection as a hit or miss, the Bézier curve must still be evaluated at u. (Because the control points cp represent the curve segment currently under consideration, it is important to use w rather than u in the function call, however, since w is in the range [0, 1].) The derivative of the curve at this point will be useful shortly, so it is recorded now. We would like to test whether the distance from p to this point on the curve pc is less than half the curve’s width. Because p = (0, 0), we can equivalently test whether the distance from pc to the origin is less than half the width or whether the squared distance is less than one quarter the width squared. If this test passes, the last thing to check is if the intersection point is in the ray’s parametric t range. 〈Test intersection point against curve width〉 ≡ 352
+<details>
+<summary>Reference / notes</summary>
+
+`AbsDot()` 90 · `Clamp()` 1033 · `Curve::common` 348 · `CurveCommon::invSinNormalAngle` 348 · `CurveCommon::n` 348 · `CurveCommon::normalAngle` 348 · `CurveCommon::type` 348 · `CurveCommon::width` 348 · `CurveType::Ribbon` 347 · `Dot()` 89 · `EvaluateCubicBezier()` 1052 · `Float` 23 · `Lerp()` 72 · `Normal3f` 94 · `Point2f` 92 · `Point3f` 92 · `Ray::d` 95 · `Sqr()` 1034 · `Vector2f` 86 · `Vector3f` 86
+
+</details>
+
+To classify the candidate as a hit we must still evaluate the Bézier at $u$ (using $w$, which lies in $[0,1]$, because `cp` describes the current segment). The derivative is recorded for later use. Because $\mathbf p=(0,0)$, we test whether the distance from $\mathbf p_c$ to the origin is less than half the width, equivalently $p_c.x^2+p_c.y^2\le \tfrac14\,\mathrm{hitWidth}^2$, then check the ray's $t$ range:
+
+**〈Test intersection point against curve width〉 ≡ 352**
 
 ```rust
-Vector3f dpcdw; Point3f pc = EvaluateCubicBezier(pstd::span<const Point3f>(cp), Clamp(w, 0, 1), &dpcdw); Float ptCurveDist2 = Sqr(pc.x) + Sqr(pc.y); if (ptCurveDist2 > Sqr(hitWidth) * 0.25f) return false; if (pc.z < 0 || pc.z > rayLength * tMax)
+let mut dpcdw = Vector3f::ZERO;
+let pc = evaluate_cubic_bezier(cp, w.clamp(0.0, 1.0), Some(&mut dpcdw));
+let pt_curve_dist2 = pc.x.sqr() + pc.y.sqr();
+if pt_curve_dist2 > hit_width.sqr() * 0.25 { return false; }
+if pc.z < 0.0 || pc.z > ray_length * t_max { return false; }
 ```
+
+For non-shadow rays the `ShapeIntersection` is finally initialized, requiring $t$ and the `SurfaceInteraction`.
+
+**〈Initialize ShapeIntersection for curve intersection〉 ≡ 352**
 
 ```rust
-        return false;
+// 〈Compute tHit for curve intersection 356〉
+// 〈Initialize SurfaceInteraction intr for curve intersection 356〉
+*si = Some(ShapeIntersection { intr, t_hit });
 ```
 
-For non-shadow rays, the `ShapeIntersection` for the intersection can finally be initialized. Doing so requires computing the ray t value for the intersection as well as its `SurfaceInteraction`. 〈Initialize ShapeIntersection for curve intersection〉 ≡ 352
+**〈Compute tHit for curve intersection〉 ≡ 356**
 
 ```rust
-   〈Compute tHit for curve intersection 356〉
-   〈Initialize SurfaceInteraction intr for curve intersection 356〉
-   *si = ShapeIntersection{intr, tHit};
+let t_hit = pc.z / ray_length;
+if let Some(prev) = si {
+    if t_hit > prev.t_hit { return false; }
+}
 ```
 
-After the tHit value has been computed, it is compared against the tHit of a previously found ray–curve intersection, if there is one. This check ensures that the closest intersection is returned. 〈Compute tHit for curve intersection〉 ≡ 356
+<details>
+<summary>Reference / notes</summary>
+
+`Curve::common` 348 · `CurveCommon::renderFromObject` 348 · `CurveCommon::reverseOrientation` 348 · `CurveCommon::transformSwapsHandedness` 348 · `Float` 23 · `Normal3f` 94 · `Point3fi` 1061 · `ShapeIntersection` 266 · `ShapeIntersection::tHit` 266 · `SurfaceInteraction` 138
+
+</details>
+
+A variety of quantities are needed to initialize the `SurfaceInteraction`:
+
+**〈Initialize SurfaceInteraction intr for curve intersection〉 ≡ 356**
 
 ```rust
-Float tHit = pc.z / rayLength; if (si->has_value() && tHit > si->value().tHit) return false;
+// 〈Compute v coordinate of curve intersection point 356〉
+// 〈Compute dpdu and dpdv for curve intersection 357〉
+// 〈Compute error bounds for curve intersection 378〉
+let flip_normal = self.common.reverse_orientation
+               ^ self.common.transform_swaps_handedness;
+let pi = Point3fi::new(ray(t_hit), p_error);
+let mut intr = SurfaceInteraction::new(
+    pi, Point2f::new(u, v), -ray.d, dpdu, dpdv,
+    Normal3f::ZERO, Normal3f::ZERO, ray.time, flip_normal);
+intr = self.common.render_from_object.apply(intr);
 ```
 
-A variety of additional quantities need to be computed in order to be able to initialize the intersection’s `SurfaceInteraction`. 〈Initialize SurfaceInteraction intr for curve intersection〉 ≡ 356
+We have not yet computed the $v$ coordinate, which ranges over $[0,1]$ with $0.5$ at the curve's center. An edge function through $\mathbf p_c$ along its derivative classifies the candidate point $(0,0)$ as being on one side of the center or the other:
+
+**〈Compute v coordinate of curve intersection point〉 ≡ 356**
 
 ```rust
-   〈Compute v coordinate of curve intersection point 356〉
-   〈Compute ∂p/∂u and ∂p/∂v for curve intersection 357〉
-   〈Compute error bounds for curve intersection 378〉
-   bool flipNormal = common->reverseOrientation ^
-                       common->transformSwapsHandedness;
-   Point3fi pi(ray(tHit), pError);
-   SurfaceInteraction intr(pi, {u, v}, -ray.d, dpdu, dpdv, Normal3f(),
-                            Normal3f(), ray.time, flipNormal);
-   intr = (*common->renderFromObject)(intr);
+let pt_curve_dist = pt_curve_dist2.sqrt();
+let edge_func = dpcdw.x * -pc.y + pc.x * dpcdw.y;
+let v = if edge_func > 0.0 { 0.5 + pt_curve_dist / hit_width }
+        else                { 0.5 - pt_curve_dist / hit_width };
 ```
 
-We have gotten this far without computing the v coordinate of the intersection point, which is now needed. The curve’s v coordinate ranges from 0 to 1, taking on the value 0.5 at the center of the curve; here, we classify the intersection point, (0, 0), with respect to an edge function going through the point on the curve pc and a point along its derivative to determine which side of the center the intersection point is on and in turn how to compute v.
+$\partial\mathbf p/\partial u$ comes directly from the Bézier derivative. The second derivative $\partial\mathbf p/\partial v$ depends on the curve type: for ribbons we have $\partial\mathbf p/\partial u$ and the surface normal, so $\partial\mathbf p/\partial v$ must satisfy $\partial\mathbf p/\partial u\times\partial\mathbf p/\partial v=\mathbf n$ with length equal to the curve's width.
+
+**〈Compute dpdu and dpdv for curve intersection〉 ≡ 356**
 
 ```rust
-   Curve::common 348
-   CurveCommon::renderFromObject 348
-   CurveCommon:: reverseOrientation 348
-   CurveCommon:: transformSwapsHandedness 348
-   Float 23
-   Normal3f 94
-   Point3fi 1061
-   ShapeIntersection 266
-   ShapeIntersection::tHit 266
-   SurfaceInteraction 138
+let (mut dpdu, mut dpdv);
+evaluate_cubic_bezier(&self.common.cp_obj[..], u, Some(&mut dpdu));
+if self.common.curve_type == CurveType::Ribbon {
+    dpdv = normalize(cross(n_hit, dpdu)) * hit_width;
+} else {
+    // 〈Compute curve dpdv for flat and cylinder curves 357〉
+}
 ```
 
-〈Compute v coordinate of curve intersection point〉 ≡ 356
+For flat and cylinder curves we transform $\partial\mathbf p/\partial u$ into the intersection space. A flat curve's $\partial\mathbf p/\partial v$ lies in the $xy$ plane, is perpendicular to $\partial\mathbf p/\partial u$, and has length `hitWidth`; we use the same 2D perpendicular trick as for segment boundaries.
+
+**〈Compute curve dpdv for flat and cylinder curves〉 ≡ 357**
 
 ```rust
-Float ptCurveDist = std::sqrt(ptCurveDist2); Float edgeFunc = dpcdw.x * -pc.y + pc.x * dpcdw.y; Float v = (edgeFunc > 0) ? 0.5f + ptCurveDist / hitWidth : 0.5f - ptCurveDist / hitWidth;
+let dpdu_plane = object_from_ray.apply_inverse(dpdu);
+let mut dpdv_plane = normalize(Vector3f::new(-dpdu_plane.y, dpdu_plane.x, 0.0))
+                  * hit_width;
+if self.common.curve_type == CurveType::Cylinder {
+    // 〈Rotate dpdvPlane to give cylindrical appearance 357〉
+}
+dpdv = object_from_ray.apply(dpdv_plane);
 ```
 
-The partial derivative ∂p/∂u comes directly from the derivative of the underlying Bézier curve. The second partial derivative, ∂p/∂v, is computed in different ways based on the type of the curve. For ribbons, we have ∂p/∂u and the surface normal, and so ∂p/∂v must be the vector such that ∂p/∂u×∂p/ ∂v = n and has length equal to the curve’s width. 〈Compute ∂p/∂u and ∂p/∂v for curve intersection〉 ≡ 356
+For cylinder curves, rotating $\partial\mathbf p/\partial v$ around the $\partial\mathbf p/\partial u$ axis makes the appearance resemble a cylindrical cross-section:
+
+**〈Rotate dpdvPlane to give cylindrical appearance〉 ≡ 357**
 
 ```rust
-Vector3f dpdu, dpdv; EvaluateCubicBezier(pstd::MakeConstSpan(common->cpObj), u, &dpdu); if (common->type == CurveType::Ribbon) dpdv = Normalize(Cross(nHit, dpdu)) * hitWidth; else { 〈Compute curve ∂p/∂v for flat and cylinder curves 357〉 }
+let theta = lerp(v, -90.0, 90.0);
+let rot = rotate(theta, dpdu_plane);
+dpdv_plane = rot.apply(dpdv_plane);
 ```
 
-For flat and cylinder curves, we transform ∂p/∂u to the intersection coordinate system. For flat curves, we know that ∂p/∂v lies in the xy plane, is perpendicular to ∂p/∂u, and has length equal to hitWidth. We can find the 2D perpendicular vector using the same approach as was used earlier for the perpendicular curve segment boundary edges. 〈Compute curve ∂p/∂v for flat and cylinder curves〉 ≡ 357
+## 6.8 Managing Rounding Error
+
+So far we have discussed ray–shape intersection in terms of idealized arithmetic on real numbers. That has taken us far, but computers can represent only finite quantities and therefore not all real numbers. In place of reals they use floating-point numbers with fixed storage, and error may be introduced each time an operation's result is not representable in the available memory.
+
+The accumulation of this error has several implications for intersection accuracy. Valid intersections may be missed entirely—for example if a computed $t$ is negative although the precise value is positive. Computed ray–shape intersection points may lie above or below the actual surface. New rays traced from such points for shadowing or reflection can then incorrectly reintersect the surface, or shadows and reflections may appear detached (Figure 6.38). The standard remedy is to offset spawned rays by a fixed "ray epsilon", ignoring intersections closer than some $t_{\min}$ along $\mathbf p+t\mathbf d$.
+
+*Figure 6.38: Geometric Settings for Rounding-Error Issues. Left: the computed intersection point (black circle) lies slightly below the surface and a too-small epsilon leaves the shadow-ray origin (white circle) below it, causing an incorrect self-intersection and a false occlusion. Right: a too-large epsilon skips a valid occluding surface.*
+
+```mermaid
+flowchart LR
+    subgraph small["Too-small epsilon"]
+        A["Computed point below surface"] --> B["Shadow origin still below"]
+        B --> C["False self-intersection<br/>light incorrectly occluded"]
+    end
+    subgraph large["Too-large epsilon"]
+        D["Origin past occluder"] --> E["Valid intersection missed"]
+    end
+```
+
+*Figure 6.39: If the computed point is below the surface and the spawned ray is oblique, incorrect reintersections may occur some distance from the origin; a minimum $t$ must be relatively large to reject them, which in turn loses nearby detail.*
+
+```mermaid
+flowchart LR
+    O["Computed point below surface"] --> R["Oblique spawned ray"]
+    R --> X["False reintersection<br/>far from origin"]
+    X --> T["Large t_min needed<br/>=> nearby detail lost"]
+```
+
+Figure 6.39 shows why this approach needs fairly large $t_{\min}$: an oblique spawned ray may reintersect at some distance, while a large $t_{\min}$ moves origins far from the intersection and misses valid nearby hits, losing fine shadow and reflection detail. This section introduces the ideas underlying floating-point arithmetic and ways to analyze and bound error in floating-point computations, then applies them to the ray–shape algorithms of this chapter to compute intersection points with *bounded* error. That lets us conservatively position ray origins so incorrect self-intersections never occur while keeping origins extremely close to the true intersection—with no additional "ray epsilon".[^1]
+
+### 6.8.1 Floating-Point Arithmetic
+
+Computation must use a finite representation. In *fixed point*, a 16-bit integer divided by 256, for example, represents $[0,65535/256]=[0,255+255/256]$ with uniform spacing $1/256$. Fixed point is efficient with integer arithmetic (popular on early PCs without floating-point hardware) but has a limited maximum value and cannot represent very small numbers near zero accurately.
+
+Floating point represents numbers with a *sign*, a *significand*,[^6] and an *exponent*—essentially scientific notation with a fixed number of digits for each. Assuming base-2 digits throughout, this covers a wide range of magnitudes in fixed storage. Although programmers often believe floating point is unpredictable, it has a carefully designed foundation that permits conservative bounds on computation error; for ray tracing that error is often surprisingly small.
+
+Modern CPUs and GPUs nearly universally implement the IEEE 754 standard (IEEE 1985, 2008), which specifies both the in-memory format and rules for precision and rounding. Those rules make rigorous reasoning about error possible. Hereafter "float" means a 32-bit IEEE 754 value.
+
+**Floating-Point Representation.** A 32-bit float has a sign bit, 8 exponent bits, and 23 significand bits. The stored exponent ranges over $0\ldots255$; we denote the biased value by $e_b$, and the actual exponent is
+
+$$
+e = e_b - 127.
+$$
+
+A normalized stored significand has no leading zeros; in binary its leading digit must be 1, so that bit is implicit. The implicit leading 1 plus 23 fractional bits give 24 bits of precision. Given sign $s=\pm1$, significand $m$, and biased exponent $e_b$, the value is
+
+$$
+s \times m \times 2^{e_b-127}.
+$$
+
+For example, $6.5=1.101_2\times 2^2$ (the subscript denotes base 2; the first bit right of the radix point contributes $2^{-1}=1/2$, and so on), so
+
+$$
+(1\times2^0+1\times2^{-1}+0\times2^{-2}+1\times2^{-3})\times2^2
+=1.625\times2^2=6.5.
+$$
+
+Here $e=2$, so $e_b=129=10000001_2$ and $m=10100000000000000000000_2$. Floats are laid out with the sign bit at the most significant bit, then exponent, then significand: for $6.5$ the in-memory pattern is $0\;10000001\;10100000000000000000000=40\mathrm{d}00000_{16}$. Similarly $1.0$ has $m=0\ldots0_2$, $e=0$, $e_b=127=01111111_2$, giving $0\;01111111\;00000000000000000000000=3\mathrm{f}800000_{16}$—a hexadecimal value worth remembering when debugging graphics programs.
+
+Between adjacent powers of two the spacing of representable floats is uniform (it corresponds to incrementing the significand by one). In $[2^e,2^{e+1})$ the spacing is
+
+$$
+2^{e-23}.
+$$
+
+Thus between 1 and 2 ($e=0$) the spacing is $2^{-23}\approx1.19209\times10^{-7}$, the magnitude of a *unit in the last place* (ulp). Ulps are relatively larger at larger magnitudes. Zero cannot be represented with the scheme so far, so the minimum exponent $e_b=0$ ($e=-127$) is reserved: the implicit leading 1 is dropped, and an all-zero significand gives $s\times0.0\ldots0_2\times2^{-127}=0$. Dropping the leading 1 also permits *denormalized* numbers:[^7] without it the smallest float would be $1.0\ldots0_2\times2^{-127}\approx5.8774718\times10^{-39}$; with it the minimum is
+
+$$
+0.00\ldots1_2\times2^{-126}=2^{-23}\times2^{-126}\approx1.4012985\times10^{-45}.
+$$
+
+(The exponent $-126$ is used because denormals are encoded with $e_b=0$ but interpreted as if $e_b=1$, avoiding a gap to the smallest regular float.) Representing such small values can avoid rounding them to zero. There are both positive and negative zeros; the standard guarantees `-0.0 == 0.0`, and a zero with unset sign bit is simply 0 in memory.
+
+The maximum exponent $e_b=255$ is also reserved, so the largest regular float has $e_b=254$ ($e=127$), about $3.402823\times10^{38}$. With $e_b=255$ and zero significand, the value is $\pm\infty$, produced by operations like $1/0$. Arithmetic with infinity and a finite value gives infinity; a finite value divided by infinity gives 0. Positive infinity compares greater than any finite value. The `Infinity` constant holds the IEEE infinity value so code need not use the verbose standard-library call.
+
+**〈Floating-point Constants〉 ≡**
 
 ```rust
-Vector3f dpduPlane = objectFromRay.ApplyInverse(dpdu); Vector3f dpdvPlane = Normalize(Vector3f(-dpduPlane.y, dpduPlane.x, 0)) * hitWidth; if (common->type == CurveType::Cylinder) {
+const INFINITY: Float = Float::INFINITY;
 ```
+
+With $e_b=255$ and nonzero significand we get "not a number" (NaN) values, from operations like $\sqrt{-1}$ or $0/0$. NaNs propagate: any operation with a NaN operand returns NaN, so a NaN emerging from a long computation signals that something went wrong. pbrt has many debug assertions checking for NaNs. Any comparison with NaN is false, so `!(x == x)` tests for a NaN.[^8] pbrt mostly uses 32-bit floats but can be configured for 64-bit doubles (11 exponent bits, 52 significand bits) as discussed in Section 1.3.3. It also supports 16-bit *halfs* for image pixels (5 exponent bits, 10 significand bits); a convenience `Half` class handles conversions.
+
+**Arithmetic Operations.** IEEE 754 guarantees that addition, subtraction, multiplication, division, and square root give the result *closest*, in infinite precision, to the underlying computation. With circled operators for floating-point operations and `sqrt` for floating-point square root, these guarantees are:
+
+$$
+\begin{aligned}
+a\oplus b &= \operatorname{round}(a+b), &
+a\ominus b &= \operatorname{round}(a-b),\\
+a\otimes b &= \operatorname{round}(a\times b), &
+a\oslash b &= \operatorname{round}(a/b),\\
+\sqrt{a} &= \operatorname{round}(\sqrt{a}), &
+\operatorname{FMA}(a,b,c) &= \operatorname{round}(a\times b + c).
+\end{aligned}
+\tag{6.19}
+$$
+
+*Figure 6.40: IEEE arithmetic behaves as if computed in infinite precision and then rounded to the nearest float. The infinite-precision result is a filled dot, representable floats are ticks; the rounding error $\delta$ is at most half the spacing between floats.*
+
+Here `round(x)` rounds a real to the nearest float, and FMA is the fused multiply-add, which rounds only once and is therefore more accurate than $(a\otimes b)\oplus c$. The rounding error is at most half the float spacing at $a+b$: more would allow rounding to a closer float. For 32-bit floats that spacing is at most $(a+b)2^{-23}$, so half is at most $(a+b)2^{-24}$, giving $|\varepsilon|\le 2^{-24}$—the *machine epsilon*.[^10]
+
+$$
+\varepsilon_m = 2^{-24}\approx5.960464\times10^{-8}.
+$$
+
+**〈Floating-point Constants〉 +≡**
 
 ```rust
-        〈Rotate dpdvPlane to give cylindrical appearance 357〉
-   }
-   dpdv = objectFromRay(dpdvPlane);
+const MACHINE_EPSILON: Float = Float::EPSILON * 0.5;
 ```
 
-The ∂p/∂v vector for cylinder curves is rotated around the dpduPlane axis so that its appearance resembles a cylindrical cross-section. 〈Rotate dpdvPlane to give cylindrical appearance〉 ≡ 357
+Thus
+
+$$
+a\oplus b=\operatorname{round}(a+b)\in(a+b)(1\pm\varepsilon_m)
+        =[(a+b)(1-\varepsilon_m),\,(a+b)(1+\varepsilon_m)].
+\tag{6.20}
+$$
+
+Analogous relations hold for the other operators and square root.[^9][^11] Useful properties follow directly from Equation (6.20):
+
+$$
+1\otimes x=x,\qquad x\oslash x=1,\qquad x\oplus0=x,\qquad x\ominus x=0.
+$$
+
+Also $2\otimes x$ and $x\oslash2$ are exact, as is any multiplication or division by a power of two (barring overflow/underflow): $x\oslash2^i=x\otimes2^{-i}$ for integer $i$. These follow from the nearest-value rule: when the result is representable exactly, the exact result must be produced.
+
+**Utility Routines.** We define our own `IsNaN()` and `IsInf()` functions. In C++ these need `enable_if` to restrict them to floating-point types; in Rust the natural equivalent is a trait or inherent methods on `Float`:
 
 ```rust
-Float theta = Lerp(v, -90, 90); Transform rot = Rotate(-theta, dpduPlane); dpdvPlane = rot(dpdvPlane);
+fn is_nan<T: FloatTrait>(v: T) -> bool { v.is_nan() }
+fn is_inf<T: FloatTrait>(v: T) -> bool { v.is_infinite() }
+fn is_finite<T: FloatTrait>(v: T) -> bool { v.is_finite() }
+fn fma(a: f32, b: f32, c: f32) -> f32 { a.mul_add(b, c) }
 ```
 
-⋆ 6.8 MANAGING ROUNDING ERROR
+Integer-based variants trivially return false/true, since NaN and infinity are not representable there. The motivation for providing both is the templated `Tuple2` and `Tuple3` classes (Section 3.2), used with both `Float` and `int`, which can then freely assert their elements are not NaN without worrying about the element type.
 
-Thus far, we have been discussing ray–shape intersection algorithms with respect to idealized arithmetic operations based on the real numbers. This approach has gotten us far, although the fact that computers can only represent finite quantities and therefore cannot actually represent all the real numbers is important. In place of real numbers, computers use floating-point numbers, which have fixed storage requirements. However, error may be introduced each time a floating-point operation is performed, since the result may not be representable in the designated amount of memory.
+For low-level work we interpret a float's bits. In C++ pointer casts and type-punning unions are undefined behavior; C++20 provides `std::bit_cast`, and pbrt supplies a pstd implementation because it only requires C++17. Rust uses `f32::to_bits`/`from_bits`:
+
+**〈Floating-point Inline Functions〉 ≡**
 
 ```rust
-   Cross() 91
-   Curve::common 348
-   CurveCommon::cpObj 348
-   CurveCommon::type 348
-   CurveType::Cylinder 347
-   CurveType::Ribbon 347
-   Cylinder 286
-   EvaluateCubicBezier() 1052
-   Float 23
-   Lerp() 72
-   Normalize() 88
-   Rotate() 126
-   Transform 120
-   Transform::ApplyInverse() 130
-   Vector3f 86
+fn float_to_bits(f: f32) -> u32 { f.to_bits() }
+fn bits_to_float(ui: u32) -> f32 { f32::from_bits(ui) }
 ```
 
-The accumulation of this error has several implications for the accuracy of intersection tests. First, it is possible that it will cause valid intersections to be missed completely—for example, if a computed intersection’s t value is
+(Versions converting between `f64` and `u64` are analogous.) The integer type with enough bits for pbrt's `Float` is `FloatBits`:
 
-negative even though the precise value is positive. Furthermore, computed ray–shape intersection points may be above or below the actual surface of the shape. This leads to a problem: when new rays are traced starting from computed intersection points for shadow rays and reflection rays, if the ray origin is below the actual surface, we may find an incorrect reintersection with the surface. Conversely, if the origin is too far above the surface, shadows and reflections may appear detached. (See Figure 6.38.) Typical practice to address this issue in ray tracing is to offset spawned rays by a fixed “ray epsilon” value, ignoring any intersections along the ray p + td closer than some tmin value.
-
-![Figure 6.38](images/img-557-064.png)
-
-
-*Figure 6.38: Geometric Settings for Rounding-Error Issues That Can Cause Visible Errors in Images. The incident ray on the left intersects the surface. On the left, the computed intersection point (black circle) is slightly below the surface and a too-low “epsilon” offsetting the origin of the shadow ray leads to an incorrect self-intersection, as the shadow ray origin (white circle) is still below the surface; thus the light is incorrectly determined to be occluded. On the right, a too-high “epsilon” causes a valid intersection to be missed as the ray’s origin is past the occluding surface.*
-
-![Figure 6.39](images/img-558-065.png)
-
-
-*Figure 6.39: If the computed intersection point (filled circle) is below the surface and the spawned ray is oblique, incorrect reintersections may occur some distance from the ray origin (open circle). If a minimum t value along the ray is used to discard nearby intersections, a relatively large tmin is needed to handle oblique rays well.*
-
-*Figure 6.39 shows why this approach requires fairly high tmin values to work effectively: if the spawned ray is oblique to the surface, incorrect ray intersections may occur quite some distance from the ray origin. Unfortunately, large tmin values cause ray origins to be relatively far from the original intersection points, which in turn can cause valid nearby intersections to be missed, leading to loss of fine detail in shadows and reflections. In this section, we will introduce the ideas underlying floating-point arithmetic and describe techniques for analyzing the error in floating-point computations. We will then apply these methods to the ray–shape algorithms introduced earlier in this chapter and show how to compute ray intersection points with bounded error. This will allow us to conservatively position ray origins so that incorrect self-intersections are never found, while keeping ray origins extremely close to the actual intersection point so that incorrect misses are minimized. In turn, no additional “ray epsilon” values are needed.*
-
-### 6.8.1 FLOATING-POINT ARITHMETIC
-
-Computation must be performed on a finite representation of numbers that fits in a finite amount of memory; the infinite set of real numbers cannot be represented on a computer. One such finite representation is fixed point, where given a 16-bit integer, for example, one might map it to positive real numbers by dividing by 256. This would allow us to represent the range [0,
-
-65535/256] = [0, 255 + 255/256] with equal spacing of 1/256 between values. Fixed-point numbers can be implemented efficiently using integer arithmetic operations (a property that made them popular on early PCs that did not support floating-point computation), but they suffer from a number of shortcomings; among them, the maximum number they can represent is limited, and they are not able to accurately represent very small numbers near zero. An alternative representation for real numbers on computers is floating-point numbers. These are based on representing numbers with a sign, a significand,6 and an exponent: essentially, the same representation as scientific notation but with a fixed number of digits devoted to significand and exponent. (In the following, we will assume base-2 digits exclusively.) This representation makes it possible to represent and perform computations on numbers with a wide range of magnitudes while using a fixed amount of storage. Programmers using floating-point arithmetic are generally aware that floating-point values may be inaccurate; this understanding sometimes leads to a belief that floating-point arithmetic is unpredictable. In this section we will see that floating-point arithmetic has a carefully designed foundation that in turn makes it possible to compute conservative bounds on the error introduced in a particular computation. For ray-tracing calculations, this error is often surprisingly small. Modern CPUs and GPUs nearly ubiquitously implement a model of floating-point arithmetic based on a standard promulgated by the Institute of Electrical and Electronics Engineers (1985, 2008). (Henceforth when we refer to floats, we will specifically be referring to 32-bit floating-point numbers as specified by IEEE 754.) The IEEE 754 technical standard specifies the format of floating-point numbers in memory as well as specific rules for precision and rounding of floating-point computations; it is these rules that make it possible to reason rigorously about the error present in a computed floating-point value.
-
-Floating-Point Representation
-
-The IEEE standard specifies that 32-bit floats are represented with a sign bit, 8 bits for the exponent, and 23 bits for the significand. The exponent stored in a float ranges from 0 to 255. We will denote it by eb, with the subscript indicating that it is biased; the actual exponent used in computation, e, is computed as The significand actually has 24 bits of precision when a normalized floating-point value is stored. When a number expressed with significand and exponent is normalized, there are no leading 0s in the significand. In binary, this means that the leading digit of the significand must be one; in turn, there is no need to store this value explicitly. Thus, the implicit leading 1 digit with the 23 digits encoding the fractional part of the significand gives a total of 24 bits of precision. Given a sign s = ±1, significand m, and biased exponent eb, the corresponding floating-point value is
-
-For example, with a normalized significand, the floating-point number 6.5 is written as 1.1012 × 22, where the 2 subscript denotes a base-2 value. (If non-whole binary numbers are not immediately intuitive, note that the first number to the right of the radix point contributes 2−1 = 1/2, and so forth.) Thus, we have (1 × 20 + 1 × 2−1 + 0 × 2−2 + 1 × 2−3) × 22 = 1.625 × 22 = 6.5. e = 2, so eb = 129 = 100000012 and m = 101000000000000000000002.
-
-Floats are laid out in memory with the sign bit at the most significant bit of the 32-bit value (with negative signs encoded with a 1 bit), then the exponent, and the significand. Thus, for the value 6.5 the binary in-memory representation of the value is 0 10000001 10100000000000000000000 = 40d0000016. Similarly, the floating-point value 1.0 has m = 0 … 02 and e = 0, so eb = 127 = 011111112 and its binary representation is: 0 01111111 00000000000000000000000 = 3f80000016. This hexadecimal number is a value worth remembering, as it often comes up in memory dumps when debugging graphics programs.
-
-An implication of this representation is that the spacing between representable floats between two adjacent powers of two is uniform throughout the range. (It corresponds to increments of the significand bits by one.) In a range [2e, 2e+1), the spacing is
-
-Thus, for floating-point numbers between 1 and 2, e = 0, and the spacing between floating-point values is 2−23 ≈ 1.19209 … × 10−7. This spacing is also referred to as the magnitude of a unit in last place (“ulp”); note that the magnitude of an ulp is determined by the floating-point value that it is with respect to—ulps are relatively larger at numbers with larger magnitudes than they are at numbers with smaller magnitudes. As we have described the representation so far, it is impossible to exactly represent zero as a floating-point number. This is obviously an unacceptable state of affairs, so the minimum exponent eb = 0, or e = −127, is set aside for special treatment. With this exponent, the floating-point value is interpreted as not having the implicit leading 1 bit in the significand, which means that a significand of all 0 bits results in s × 0.0 … 02 × 2−127 = 0. Eliminating the leading 1 significand bit also makes it possible to represent denormalized numbers:7 if the leading 1 was always present, then the smallest 32-bit float would be 1.0 … 02 × 2−127 ≈ 5.8774718 × 10−39. Without the leading 1 bit, the minimum value is
-
-```text
-           0.00 … 12 × 2−126 = 2−23 × 2−126 ≈ 1.4012985 × 10−45.
-```
-
-(The −126 exponent is used because denormalized numbers are encoded with eb = 0 but are interpreted as if eb = 1 so that there is no excess gap between them and the adjacent smallest regular floating-point number.) Providing some capability to represent these small values can make it possible to avoid needing to round very small values to zero. Note that there is both a “positive” and “negative” zero value with this representation. This detail is mostly transparent to the programmer. For example, the standard guarantees that the comparison -0.0 == 0.0 evaluates to true, even though the in-memory representations of these two values are different. Conveniently, a floating-point zero value with an unset sign bit is represented by the value 0 in memory.
-
-The maximum exponent, eb = 255, is also reserved for special treatment. Therefore, the largest regular floating-point value that can be represented has eb = 254 (or e = 127) and is approximately 3.402823 … × 1038. With eb = 255, if the significand bits are all 0, the value corresponds to positive or negative infinity, according to the sign bit. Infinite values result when performing computations like 1/0 in floating point, for example. Arithmetic operations with infinity and a noninfinite value usually result in infinity, though dividing a finite value by infinity gives 0. For comparisons, positive infinity is larger than any noninfinite value and similarly for negative infinity. The `Infinity` constant is initialized to be the “infinity” floating-point value. We make it available in a separate constant so that code that uses its value does not need to use the wordy C++ standard library call.
-
-〈Floating-point Constants〉 ≡
+**〈Float Type Definitions〉 ≡**
 
 ```rust
-static constexpr Float Infinity = std::numeric_limits<Float>::infinity();
+#[cfg(not(pbrt_float_as_double))] type FloatBits = u32;
+#[cfg(pbrt_float_as_double)]      type FloatBits = u64;
 ```
 
-With eb = 255, nonzero significand bits correspond to special “not a number” (NaN) values (defined on page 83), which result from invalid operations like taking the square root of a negative number or trying to compute 0/0. NaNs propagate through computations: any arithmetic operation where one of the operands is a NaN itself always returns NaN. Thus, if a NaN emerges from a long chain of computations, we know that something went awry somewhere along the way. In debug builds, pbrt has many assertion statements that check for NaN values, as we almost never expect them to come up in the regular course of events. Any comparison with a NaN value returns false; thus, checking for !(x == x) serves to check if a value is not a number.8 By default, the majority of floating-point computation in pbrt uses 32-bit floats. However, as discussed in Section 1.3.3, it is possible to configure it to use 64-bit double-precision values instead. In addition to the sign bit, doubles allocate 11 bits to the exponent and 52 to the significand. pbrt also supports 16-bit floats (which are known as halfs) as an in-memory representation for floating-point values stored at pixels in images. Halfs use
+Given the bit layout of Section 6.8.1, useful quantities follow directly:
 
-5 bits for the exponent and 10 for the significand. (A convenience Half class, not discussed further in the text, provides capabilities for working with halfs and converting to and from 32-bit floats.)
-
-Arithmetic Operations IEEE 754 provides important guarantees about the properties of floating-point arithmetic: specifically, it guarantees that addition, subtraction, multiplication, division, and square root give the same results given the same inputs and that these results are the floating-point number that is closest to the result of the underlying computation if it had been performed in infinite-precision arithmetic.9 It is remarkable that this is possible on finite-precision digital computers at all; one of the achievements in IEEE 754 was the demonstration that this level of accuracy is possible and can be implemented fairly efficiently in hardware.
-
-```text
-   Float 23
-```
-
-![Figure 6.40](images/img-563-066.png)
-
-
-*Figure 6.40: The IEEE standard specifies that floating-point calculations must be implemented as if the calculation was performed with infinite-precision real numbers and then rounded to the nearest representable float. Here, an infinite-precision result in the real numbers is denoted by a filled dot, with the representable floats around it denoted by ticks on a number line. We can see that the error introduced by rounding to the nearest float, δ, can be no more than half the spacing between floats.*
-
-Using circled operators to denote floating-point arithmetic operations and sqrt for floating-point square root, these accuracy guarantees can be
-
-written as:
-
-where round(x) indicates the result of rounding a real number to the closest floating-point value and where FMA denotes the fused multiply add operation, which only rounds once. It thus gives better accuracy than computing (a ⊗ b) ⊕ c. This bound on the rounding error can also be represented with an interval of real numbers: for example, for addition, we can say that the rounded result
-
-is within an interval for some ∊. The amount of error introduced from this rounding can be no more than half the floating-point spacing at a + b—if it was more than half the floating-point spacing, then it would be possible to round to a different floating-point number with less error (Figure 6.40). For 32-bit floats, we can bound the floating-point spacing at a + b from above using Equation (6.18) (i.e., an ulp at that value) by (a + b)2−23, so half the spacing is bounded from above by (a + b)2−24 and so |∊| ≤ 2−24. This bound is the machine epsilon.10 For 32-bit floats, ∊m = 2−24 ≈ 5.960464 … × 10−8.
-
-〈Floating-point Constants〉 +≡
+**〈Floating-point Inline Functions〉 ≡**
 
 ```rust
-static constexpr Float MachineEpsilon = std::numeric_limits<Float>::epsilon() * 0.5;
+fn exponent(v: f32) -> i32 { (float_to_bits(v) >> 23) as i32 - 127 }
+fn significand(v: f32) -> u32 { float_to_bits(v) & ((1 << 23) - 1) }
+fn sign_bit(v: f32) -> u32 { float_to_bits(v) & 0x80000000 }
 ```
 
-Thus, we have a ⊕ b = round(a + b) ∈ (a + b)(1 ± ∊m) = [(a + b)(1 − ∊m), (a + b)(1 + ∊m)].
+These support bumping a float up or down to the next representable value, useful for conservative rounding operations below. Thanks to the in-memory layout the operations are very efficient.
 
-Analogous relations hold for the other arithmetic operators and the square root operator.11 A number of useful properties follow directly from Equation (6.19). For a floating-point number x,
-
-```text
-         1 ⊗ x = x.
-         x ⊘ x = 1.
-         x ⊕ 0 = x.
-         x ⊖ x = 0.
-```
-
-2 ⊗ x and x ⊘ 2 are exact; no rounding is performed to compute the final result. More generally, any multiplication by or division by a power of two gives an exact result (assuming there is no overflow or underflow). x ⊘ 2i = x ⊗ 2−i for all integer i, assuming 2i does not overflow. All of these properties follow from the principle that the result must be the nearest floating-point value to the actual result; when the result can be represented exactly, the exact result must be computed.
-
-Utility Routines A few basic utility routines will be useful in the following. First, we define our own IsNaN() function to check for NaN values. It comes with the baggage of a use of C++’s enable_if construct to declare its return type in a way that requires that this function only be called with floating-point types.
-
-〈Floating-point Inline Functions〉 ≡
+**〈Floating-point Inline Functions〉 ≡**
 
 ```rust
-template <typename T> inline typename std::enable_if_t<std::is_floating_point_v<T>, bool> IsNaN(T v) { return std::isnan(v); }
+fn next_float_up(v: f32) -> f32 {
+    // 〈Handle infinity and negative zero for NextFloatUp() 365〉
+    // 〈Advance v to next higher float 366〉
+}
 ```
 
-We also define IsNaN() for integer-based types; it trivially returns false, since NaN is not representable in those types. One might wonder why we have bothered with enable_if and this second definition that tells us something that we already know. One motivation is the templated `Tuple2` and `Tuple3` classes from Section 3.2, which are used with both `Float` and int for their element types. Given these two functions, they can freely have assertions that their elements do not store NaN values without worrying about which particular type their elements are.
+Two special cases: positive infinity returns unchanged, and negative zero is skipped forward to positive zero because their bit patterns are not adjacent.
 
-〈Floating-point Inline Functions〉 +≡
+**〈Handle infinity and negative zero for NextFloatUp()〉 ≡ 365**
 
 ```rust
-template <typename T> inline typename std::enable_if_t<std::is_integral_v<T>, bool>
+if is_inf(v) && v > 0.0 { return v; }
+let v = if v == -0.0 { 0.0 } else { v };
 ```
 
-IsNaN(T v) { return false; }
+<details>
+<summary>Reference / notes</summary>
 
-For similar motivations, we define a pair of `IsInf()` functions that test for infinity.
+`Float` 23 · `FloatBits` 365 · `FloatToBits()` 364 · `IsInf()` 363
 
-〈Floating-point Inline Functions〉 +≡
+</details>
+
+Conceptually we increment the significand by one, carrying into the exponent when the significand is all ones. Adding one to the in-memory integer representation does exactly this: the exponent sits above the significand, so a carry from the low significand bit reaches the exponent. Incrementing the largest finite float yields the bit pattern for $+\infty$. For negative values, subtracting one advances to the next higher value.
+
+**〈Advance v to next higher float〉 ≡ 365**
 
 ```rust
-template <typename T> inline typename std::enable_if_t<std::is_floating_point_v<T>, bool> IsInf(T v) { return std::isinf(v); }
+let mut ui = float_to_bits(v);
+if v >= 0.0 { ui += 1; } else { ui -= 1; }
+bits_to_float(ui)
 ```
 
-```text
-   Float 23
-   Tuple2 83
-   Tuple3 83
-```
+`NextFloatDown()` is analogous and not included; pbrt also provides double versions.[^12]
 
-Once again, because infinity is not representable with integer types, the integer variant of this function returns false.
+**Error Propagation.** IEEE guarantees let us analyze and bound error. Two measurements are useful: absolute error $\delta_a=|\tilde a-a|$ and relative error $\delta_r=\delta_a/|a|$ (for $a\ne0$), so
 
-〈Floating-point Inline Functions〉 +≡
+$$
+\tilde a\in a\pm\delta_a=a(1\pm\delta_r).
+$$
+
+As a first application, sum four floats as $r=(((a+b)+c)+d)$. Applying Equation (6.20) repeatedly, and bounding higher powers of $\varepsilon_m$ by an extra $\varepsilon_m$ term via $(1\pm\varepsilon_m)^n\le1\pm(n+1)\varepsilon_m$, the absolute error is bounded by
+
+$$
+|a+b|\gamma_3+|c|\gamma_2+|d|\gamma_1,
+$$
+
+where the $\gamma$ function captures the accumulated relative error. (This is fully conservative: $(1\pm n\varepsilon_m)$ almost suffices, since higher powers shrink quickly.[^13]) The magnitude of $a+b$ contributes strongly to the error, especially compared with $d$—which suggests why sorting many floats from small to large magnitude generally lowers final error.
+
+Compilers must preserve the form of floating-point expressions so carefully crafted low-error computations are not broken; transformations valid for integers are not always safe for floats. Computing $(a\oplus b)\oplus(c\oplus d)$ instead gives error bounds $3\varepsilon_m|a+b|+3\varepsilon_m|c+d|$—lower when $|a+b|$ is large, possibly higher when $|c+d|$ is. This is *forward error analysis*: given inputs, a mechanical process gives conservative output bounds, though actual errors are often smaller because signs cancel. *Backward error analysis* treats the result as exact and bounds perturbations of the inputs; it is more useful for stability analysis but less applicable to conservative geometric bounds.
+
+The bound $(1\pm\varepsilon_m)^n\le1\pm(n+1)\varepsilon_m$ is unsatisfying because it adds a whole $\varepsilon_m$ term. Higham (2002, Section 3.1) gives a tighter bound: $(1\pm\varepsilon_m)^n\le1+\theta_n$ with $\theta_n=n\varepsilon_m/(1-n\varepsilon_m)$ as long as $n\varepsilon_m<1$. We denote it $\gamma_n$:
+
+**〈Floating-point Inline Functions〉 +≡**
 
 ```rust
-template <typename T> inline typename std::enable_if_t<std::is_integral_v<T>, bool> IsInf(T v) { return false; }
+const fn gamma(n: i32) -> Float {
+    (n as Float * MACHINE_EPSILON) / (1.0 - n as Float * MACHINE_EPSILON)
+}
 ```
 
-A pair of IsFinite() functions check whether a number is neither infinite or NaN.
+Declared `const`, invocations with compile-time constants fold to the value. Using $\gamma$, our four-term sum's error is $|a+b|\gamma_3+|c|\gamma_2+|d|\gamma_1$. An advantage is that quotients of $(1\pm\varepsilon_m)^n$ terms can also be bounded with $\gamma$; note that because these are intervals, canceling them is incorrect—the $\gamma_{m+n}$ bounds must be used.
 
-〈Floating-point Inline Functions〉 +≡
+Given inputs $a(1\pm\gamma_i)$ and $b(1\pm\gamma_j)$ carrying earlier error, their product lies in
+
+$$
+a(1\pm\gamma_i)\otimes b(1\pm\gamma_j)\in ab(1\pm\gamma_{i+j+1}),
+$$
+
+using $(1\pm\gamma_i)(1\pm\gamma_j)\in(1\pm\gamma_{i+j})$. The relative error is at most roughly $(i+j+1)/2$ ulps at the product—about as good as one could hope (division is similarly good). Addition and subtraction can be much worse: $a(1\pm\gamma_i)\oplus b(1\pm\gamma_j)\in a(1\pm\gamma_{i+1})+b(1\pm\gamma_{j+1})$, with absolute error at most $|a|\gamma_{i+1}+|b|\gamma_{j+1}$.
+
+If $a$ and $b$ have the same sign this is $|a+b|\gamma_{i+j+1}$ with relative error about $(i+j+1)/2$ ulps. If their signs differ—or subtraction is performed—relative error can be huge. Take $a\approx-b$: the numerator's magnitude is proportional to $|a|$ but divided by a tiny number, so the relative error is large. This is *catastrophic cancellation*: the absolute error is in terms of $|a|$ although it relates to a much smaller value.
+
+**Running Error Analysis.** Instead of deriving bounds algebraically, we can have the computer track them during computation. Each floating-point operation yields intervals from Equation (6.20) bounding its true value. The `Interval` class (Section B.2.15) provides this: it tracks rounding error even when initial values are not intervals. Higher runtime overhead than derived expressions, but convenient when derivations become unwieldy.
+
+<details>
+<summary>Reference / notes</summary>
+
+`BitsToFloat()` 365 · `FloatToBits()` 364 · `Float` 23 · `Tuple2` 83 · `Tuple3` 83
+
+</details>
+
+### 6.8.2 Conservative Ray–Bounds Intersections
+
+Round-off can make the ray–box test miss a ray that actually intersects the box. Occasional false positives are acceptable, but missed intersections are not—this matters for the correctness of `BVHAggregate` (Section 7.3). The test of Section 6.1.2 computes $t_{\min}$ where the ray enters and $t_{\max}$ where it exits; with floating point, if computed $t_{\min}>t_{\max}$ purely due to round-off, the test incorrectly reports a miss.
+
+Recall that the $t$ for a ray intersecting a plane perpendicular to $x$ at $x$ is $t=(x-o_x)/d_x$. As a floating-point computation, applying Equation (6.20) gives
+
+$$
+t=\frac{x\ominus o_x}{d_x}\in\frac{(x-o_x)(1\pm\varepsilon_m)}{d_x}(1\pm\varepsilon_m)
+ \subset t(1\pm\gamma_3),
+$$
+
+so the difference between computed and precise $t$ is bounded by $\gamma_3|t|$.
+
+*Figure 6.41: If the error bounds of computed $t_{\min}$ and $t_{\max}$ overlap, the comparison $t_{\min}<t_{\max}$ cannot indicate whether the ray hit the box; it is better to conservatively return true. Extending $t_{\max}$ by twice its error bound makes the comparison conservative.*
+
+```mermaid
+flowchart LR
+    T0["Computed t_min with error bar"] --> OV{"Error bars overlap<br/>t_max?"}
+    OV -- no --> OK["Comparison gives correct answer"]
+    OV -- yes --> W["True ordering unknown:<br/>increase t_max by 2 gamma(3) t_max"]
+    W --> C["Conservatively report a hit"]
+```
+
+The concerning case is when the intervals around computed $t$ values overlap; if they do not, the computed comparison is correct (Figure 6.41). If they do overlap, the true ordering is unknown. Increasing $t_{\max}$ by twice the error bound, $2\gamma_3 t_{\max}$, before the comparison ensures a conservative true result. This gives the fragment referenced in Section 6.1.2:
+
+**〈Update tFar to ensure robust ray–bounds intersection〉 ≡ 264**
 
 ```rust
-template <typename T> inline typename std::enable_if_t<std::is_floating_point_v<T>, bool> IsFinite(T v) { return std::isfinite(v); } template <typename T> inline
+t_far *= 1.0 + 2.0 * gamma(3);
 ```
 
-typename `std::enable_if_t`<`std::is_integral_v`<T>, bool> IsFinite(T v) { return true; }
+The fragments `〈Update tMax and tyMax to ensure robust bounds intersection〉` and `〈Update tzMax to ensure robust bounds intersection〉` are similar and omitted.
 
-Although fused multiply add is available through the standard library, we also provide our own FMA() function.
+<details>
+<summary>Reference / notes</summary>
 
-〈Floating-point Inline Functions〉 +≡
+`BVHAggregate` 407 · `Interval` 1057
+
+</details>
+
+### 6.8.3 Accurate Quadratic Discriminants
+
+Intersecting a ray with a sphere or cylinder requires the roots of a quadratic, hence the discriminant $b^2-4ac$. Computed as written, when the sphere is far from the ray origin $b^2\approx4ac$ and catastrophic cancellation occurs. The terms' magnitudes relate to the squared distance between the sphere and the origin, so even rays that never hit the sphere can produce a discriminant of exactly zero, causing an invalid intersection report (Figure 6.42). Algebraic rewriting gives better accuracy.
+
+First rewrite the discriminant as
+
+$$
+b^2-4ac = 4\left[\left(\frac{b}{2}\right)^2-ac\right],
+\tag{6.24}
+$$
+
+then substitute $a=|\mathbf d|^2$, $b=2\,\mathbf d\cdot\mathbf o$, $c=|\mathbf o|^2-r^2$, giving
+
+$$
+\left(\frac{b}{2}\right)^2-ac
+= (\mathbf d\cdot\mathbf o)^2-|\mathbf d|^2(|\mathbf o|^2-r^2)
+= |\mathbf d|^2\left(r^2-\|\mathbf o\|^2+\frac{(\mathbf d\cdot\mathbf o)^2}{|\mathbf d|^2}\right).
+$$
+
+Here $\mathbf o$ is the vector from the origin to the ray's origin and $\mathbf d$ its normalized direction. Decompose $\mathbf o=\mathbf d_\perp+\mathbf d_\parallel$, with $\mathbf d_\parallel$ parallel and $\mathbf d_\perp$ perpendicular to $\mathbf d$:
+
+$$
+\mathbf d_\parallel=\frac{\mathbf d\cdot\mathbf o}{|\mathbf d|^2}\mathbf d,
+\qquad
+\mathbf d_\perp=\mathbf o-\mathbf d_\parallel.
+$$
+
+These form a right triangle, so $\|\mathbf o\|^2=\|\mathbf d_\perp\|^2+\|\mathbf d_\parallel\|^2$. Applying Equation (6.25),
+
+$$
+\|\mathbf o\|^2-\frac{(\mathbf d\cdot\mathbf o)^2}{|\mathbf d|^2}=\|\mathbf d_\perp\|^2,
+$$
+
+and rearranging gives
+
+$$
+\left(\frac{b}{2a}\right)^2-\frac{c}{a} = r^2 - \|\mathbf o-\tfrac{b}{2a}\mathbf d\|^2.
+$$
+
+The left side is the bracketed term of Equation (6.24). Computing it this way eliminates $c$ from the discriminant—a great benefit, since $c$'s magnitude is proportional to the squared distance to the origin, with accordingly limited accuracy. The implementation also uses $x^2-y^2=(x+y)(x-y)$ to reduce intermediate magnitudes and further lower error:
+
+**〈Compute sphere quadratic discriminant discrim〉 ≡ 274**
 
 ```rust
-float FMA(float a, float b, float c) { return std::fma(a, b, c); }
+let v = oi - (b / (2.0 * a)) * di;
+let length = length(v);
+let discrim = 4.0 * a * (Interval::from(self.radius) + length)
+                       * (Interval::from(self.radius) - length);
+if discrim.lower_bound() < 0.0 { return None; }
 ```
 
-A separate version for integer types allows calling FMA() from code regardless of the numeric type being used.
+*Figure 6.42: Effect of Reducing Discriminant Error for Ray–Sphere Intersection. A unit sphere viewed orthographically from 400 units away: (a) the usual discriminant misses edge intersections and wobbles the texture lines; (b) the precise formulation renders correctly (accurate up to roughly 7,500 units with an orthographic camera).*
 
-〈Math Inline Functions〉 +≡
-
-```rust
-template <typename T> inline typename std::enable_if_t<std::is_integral_v<T>, T> FMA(T a, T b, T c) { return a * b + c; }
-```
-
-For certain low-level operations, it can be useful to be able to interpret a floating-point value in terms of its constituent bits and to convert the bits representing a floating-point value to an actual float or double. A natural approach to this would be to take a pointer to a value to be converted and cast it to a pointer to the other type: float f = …; `uint32_t` bits = *((`uint32_t` *)&f);
-
-However, modern versions of C++ specify that it is illegal to cast a pointer of one type, float, to a different type, `uint32_t`. (This restriction allows the compiler to optimize more aggressively in its analysis of whether two pointers may point to the same memory location, which can inhibit storing values in registers.) Another popular alternative, using a union with elements of both types, assigning to one type and reading from the other, is also illegal: the C++ standard says that reading an element of a union different from the last one assigned to is undefined behavior. Fortunately, as of C++20, the standard library provides a `std::bit_cast` function that performs such conversions. Because this version of pbrt only
-
-requires C++17, we provide an implementation in the pstd library that is used by the following conversion functions.
-
-〈Floating-point Inline Functions〉 +≡
-
-```rust
-inline uint32_t FloatToBits(float f) { return pstd::bit_cast<uint32_t>(f); }
-```
-
-〈Floating-point Inline Functions〉 +≡
-
-```rust
-inline float BitsToFloat(uint32_t ui) { return pstd::bit_cast<float>(ui); }
-```
-
-(Versions of these functions that convert between double and `uint64_t` are also available but are similar and are therefore not included here.) The corresponding integer type with a sufficient number of bits to store pbrt’s `Float` type is available through `FloatBits`.
-
-〈Float Type Definitions〉 +≡
-
-```rust
-#ifdef PBRT_FLOAT_AS_DOUBLE using FloatBits = uint64_t; #else using FloatBits = uint32_t; #endif // PBRT_FLOAT_AS_DOUBLE
-```
-
-Given the ability to extract the bits of a floating-point value and given the description of their layout in Section 6.8.1, it is easy to extract various useful quantities from a float.
-
-〈Floating-point Inline Functions〉 +≡
-
-```rust
-inline int Exponent(float v) { return (FloatToBits(v) >> 23) - 127; }
-```
-
-〈Floating-point Inline Functions〉 +≡
-
-```rust
-inline int Significand(float v) { return FloatToBits(v) & ((1 << 23) - 1); }
-```
-
-〈Floating-point Inline Functions〉 +≡
-
-```rust
-inline uint32_t SignBit(float v) { return FloatToBits(v) & 0x80000000; }
-```
-
-These conversions can be used to implement functions that bump a floating-point value up or down to the next greater or next smaller representable floating-point value.12 They are useful for some conservative rounding operations that we will need in code to follow. Thanks to the specifics of the in-memory representation of floats, these operations are quite efficient.
-
-〈Floating-point Inline Functions〉 +≡
-
-```rust
-inline float NextFloatUp(float v) { 〈Handle infinity and negative zero for NextFloatUp() 365〉 〈Advance v to next higher float 366〉 }
-```
-
-There are two important special cases: first, if v is positive infinity, then this function just returns v unchanged. Second, negative zero is skipped forward to positive zero before continuing on to the code that advances the significand. This step must be handled explicitly, since the bit patterns for −0.0 and 0.0 are not adjacent. 〈Handle infinity and negative zero for NextFloatUp()〉 ≡ 365
-
-```rust
-if (IsInf(v) && v > 0.f) return v; if (v == -0.f) v = 0.f;
-```
-
-```rust
-   Float 23
-   FloatBits 365
-   FloatToBits() 364
-   IsInf() 363
-```
-
-Conceptually, given a floating-point value, we would like to increase the significand by one, where if the result overflows, the significand is reset to zero and the exponent is increased by one. Fortuitously, adding one to the in-memory integer representation of a float achieves this: because the exponent lies at the high bits above the significand, adding one to the low bit of the significand will cause a one to be carried all the way up into the
-
-exponent if the significand is all ones and otherwise will advance to the next higher significand for the current exponent. (This is yet another example of the careful thought that was applied to the development of the IEEE floating-point specification.) Note also that when the highest representable finite floating-point value’s bit representation is incremented, the bit pattern for positive floating-point infinity is the result. For negative values, subtracting one from the bit representation similarly advances to the next higher value. 〈Advance v to next higher float〉 ≡ 365
-
-```rust
-uint32_t ui = FloatToBits(v); if (v >= 0) ++ui; else --ui; return BitsToFloat(ui);
-```
-
-The `NextFloatDown()` function, not included here, follows the same logic but effectively in reverse. pbrt also provides versions of these functions for doubles.
-
-Error Propagation Using the guarantees of IEEE floating-point arithmetic, it is possible to develop methods to analyze and bound the error in a given floating-point computation. For more details on this topic, see the excellent book by Higham (2002), as well as Wilkinson’s earlier classic (1994). Two measurements of error are useful in this effort: absolute and relative. If we perform some floating-point computation and get a rounded result ã, we say that the magnitude of the difference between ã and the result of doing that computation in the real numbers is the absolute error, δa: δa = |ã − a|. Relative error, δr, is the ratio of the absolute error to the precise result:
-
-as long as a ≠ 0. Using the definition of relative error, we can thus write the computed value ã as a perturbation of the exact result a: ã ∊ a ± δa = a(1 ± δr).
-
-As a first application of these ideas, consider computing the sum of four numbers, a, b, c, and d, represented as floats. If we compute this sum as r = (((a + b) + c) + d), Equation (6.20) gives us
-
-Because ∊m is small, higher-order powers of ∊m can be bounded by an additional ∊m term, and so we can bound the (1 ± ∊m)n terms with (1 ± ∊m)n ≤ (1 ± (n + 1) ∊m).
-
-```text
-   BitsToFloat() 365
-   FloatToBits() 364
-```
-
-(As a practical matter, (1 ± n∊m) almost bounds these terms, since higher powers of ∊m get very small very quickly, but the above is a fully conservative bound.) This bound lets us simplify the result of the addition to:
-
-The term in square brackets gives the absolute error: its magnitude is bounded by
-
-Thus, if we add four floating-point numbers together with the above parenthesization, we can be certain that the difference between the final rounded result and the result we would get if we added them with infinite-precision real numbers is bounded by Equation (6.22); this error bound is easily computed given specific values of a, b, c, and d. This is a fairly interesting result; we see that the magnitude of a + b makes a relatively large contribution to the error bound, especially compared to d. (This result gives a sense for why, if adding a large number of floating-point numbers together, sorting them from small to large magnitudes generally gives a result with a lower final error than an arbitrary ordering.) Our analysis here has implicitly assumed that the compiler would generate instructions according to the expression used to define the sum. Compilers
-
-are required to follow the form of the given floating-point expressions in order to not break carefully crafted computations that may have been designed to minimize round-off error. Here again is a case where certain transformations that would be valid on expressions with integers cannot be safely applied when floats are involved. What happens if we change the expression to the algebraically equivalent float r = (a + b) + (c + d)? This corresponds to the floating-point computation ((a ⊕ b) ⊕ (c ⊕ d)). If we use the same process of applying Equation (6.20), expanding out terms, converting higher-order (1 ± ∊m)n terms to (1 ± (n + 1)∊m), we get absolute error bounds of 3∊m|a + b| + 3∊m|c + d|, which are lower than the first formulation if |a + b| is relatively large, but possibly higher if |c + d| is relatively large. This approach to computing error is known as forward error analysis; given inputs to a computation, we can apply a fairly mechanical process that provides conservative bounds on the error in the result. The derived bounds in the result may overstate the actual error—in practice, the signs of the error terms are often mixed, so that there is cancellation when they are added.13 An alternative approach is backward error analysis, which treats the computed result as exact and finds bounds on perturbations on the inputs that give the same result. This approach can be more useful when analyzing the stability of a numerical algorithm but is less applicable to deriving conservative error bounds on the geometric computations we are interested in here.
-
-The conservative bounding of (1 ± ∊m)n by (1 ± (n + 1)∊m) is somewhat unsatisfying since it adds a whole ∊m term purely to conservatively bound the sum of various higher powers of ∊m. Higham (2002, Section 3.1) gives an approach to more tightly bound products of (1 ± ∊m) error terms. If we have (1 ± ∊m)n, it can be shown that this value is bounded by 1 + θn, where
-
-as long as n ∊m < 1 (which will certainly be the case for the calculations we consider). Note that the denominator of this expression will be just less than
-
-one for reasonable n values, so it just barely increases n∊m to achieve a conservative bound. We will denote this bound by γn:
-
-The function that computes its value is declared as constexpr so that any invocations with compile-time constants will be replaced with the corresponding floating-point return value.
-
-〈Floating-point Inline Functions〉 +≡
-
-```rust
-inline constexpr Float gamma(int n) { return (n * MachineEpsilon) / (1 - n * MachineEpsilon); }
-```
-
-Using the γ notation, our bound on the error of the first sum of four values is |a + b|γ3 + |c|γ2 + |d|γ1.
-
-An advantage of this approach is that quotients of (1 ± ∊m)n terms can also
-
-be bounded with the γ function. Given the interval is bounded by (1 ± γm+n). Thus, γ can be used to collect ∊m terms from both sides of an equality over to one side by dividing them through; this will be useful in some of the following derivations. (Note that because (1 ± ∊m) terms represent intervals, canceling them would be
-
-incorrect: the γm+n bounds must be used instead.)
-
-Given inputs to some computation that themselves carry some amount of error, it is instructive to see how this error is carried through various elementary arithmetic operations. Given two values, a(1 ± γi) and b(1 ± γj), that each carry accumulated error from earlier operations, consider their product. Using the definition of ⊗, the result is in the interval: a(1 ± γi) ⊗
-
-b(1 ± γj) ∊ ab(1 ± γi+j+1), where we have used the relationship (1 ± γi)(1 ± γj) ∈ (1 ± γi+j), which follows directly from Equation (6.23).
-
-The relative error in this result is bounded by
-
-and so the final error is no more than roughly (i + j + 1)/2 ulps at the value of the product—about as good as we might hope for, given the error going into the multiplication. (The situation for division is similarly good.) `Float` 23 `MachineEpsilon` 362 Unfortunately, with addition and subtraction, it is possible for the relative error to increase substantially. Using the same definitions of the values being operated on, consider a(1 ± γi) ⊕ b(1 ± γj), which is in the interval a(1 ± γi+1) + b(1 ± γj+1), and so the absolute error is bounded by |a|γi+1 + |b|γj+1.
-
-If the signs of a and b are the same, then the absolute error is bounded by |a + b|γi+j+1 and the relative error is approximately (i + j + 1)/2 ulps around the computed value. However, if the signs of a and b differ (or, equivalently, they are the same but subtraction is performed), then the relative error can be quite high. Consider the case where a ≈ −b: the relative error is
-
-The numerator’s magnitude is proportional to the original value |a| yet is divided by a very small number, and thus the relative error is quite high. This substantial increase in relative error is called catastrophic cancellation. Equivalently, we can have a sense of the issue from the fact that the absolute error is in terms of the magnitude of |a|, though it is in relation to a value much smaller than a.
-
-Running Error Analysis
-
-In addition to working out error bounds algebraically, we can also have the computer do this work for us as some computation is being performed. This approach is known as running error analysis. The idea behind it is simple: each time a floating-point operation is performed, we compute intervals based on Equation (6.20) that bound its true value. The `Interval` class, which is defined in Section B.2.15, provides this functionality. The `Interval` class also tracks rounding errors in floating-point arithmetic and is useful even if none of the initial values are intervals. While computing error bounds in this way has higher runtime overhead than using derived expressions that give an error bound directly, it can be convenient when derivations become unwieldy.
-
-### 6.8.2 CONSERVATIVE RAY–BOUNDS INTERSECTIONS
-
-Floating-point round-off error can cause the ray–bounding box intersection test to miss cases where a ray actually does intersect the box. While it is acceptable to have occasional false positives from ray–box intersection tests, we would like to never miss an intersection—getting this right is important for the correctness of the `BVHAggregate` acceleration data structure in Section 7.3 so that valid ray–shape intersections are not missed. The ray–bounding box test introduced in Section 6.1.2 is based on computing a series of ray–slab intersections to find the parametric tmin along the ray where the ray enters the bounding box and the tmax where it exits. If tmin < tmax, the ray passes through the box; otherwise, it misses it. With floating-point arithmetic, there may be error in the computed t values —if the computed tmin value is greater than tmax purely due to round-off error, the intersection test will incorrectly return a false result. Recall that the computation to find the t value for a ray intersection with a plane perpendicular to the x axis at a point x is t = (x − ox)/dx. Expressed as a floating-point computation and applying Equation (6.19), we have
-
-and so
-
-```text
-   BVHAggregate 407
-   Interval 1057
-```
-
-The difference between the computed result t and the precise result is bounded by γ3|t|.
-
-![Figure 6.41](images/pages/page-0576.png)
-*Figure 6.41: If the error bounds of the computed tmin and tmax values overlap, the comparison tmin < tmax may not indicate if a ray hit a bounding box. It is better to conservatively return true in this case than to miss an intersection. Extending tmax by twice its error bound ensures that the comparison is conservative.*
-
-If we consider the intervals around the computed t values that bound the true value of t, then the case we are concerned with is when the intervals overlap; if they do not, then the comparison of computed values will give the correct result (Figure 6.41). If the intervals do overlap, it is impossible to know the true ordering of the t values. In this case, increasing tmax by twice the error bound, 2γ3tmax, before performing the comparison ensures that we conservatively return true in this case. We can now define the fragment for the ray–bounding box test in Section 6.1.2 that makes this adjustment. 〈Update tFar to ensure robust ray–bounds intersection〉 ≡ 264
-
-tFar *= 1 + 2 * gamma(3);
-
-The fragments for the `Bounds3::IntersectP()` method, 〈Update tMax and tyMax to ensure robust bounds intersection〉 and 〈Update tzMax6 to ensure robust bounds intersection〉, are similar and therefore not included here.
-
-### 6.8.3 ACCURATE QUADRATIC DISCRIMINANTS
-
-Recall from Sections 6.2.2 and 6.3.2 that intersecting a ray with a sphere or cylinder involves finding the zeros of a quadratic equation, which requires calculating its discriminant, b2 − 4ac. If the discriminant is computed as written, then when the sphere is far from the ray origin, b2 ≈ 4ac and catastrophic cancellation occurs. This issue is made worse since the magnitudes of the two terms of the discriminant are related to the squared distance between the sphere and the ray origin. Even for rays that are far from ever hitting the sphere, a discriminant may be computed that is exactly equal to zero, leading to the intersection code reporting an invalid intersection. See Figure 6.42, which shows that this error can be meaningful in practice. Algebraically rewriting the discriminant computation makes it possible to compute it with more accuracy. First, if we rewrite the quadratic discriminant as
-
-and then substitute in the values of a, b, and c from Equation (6.3) to the terms inside the parentheses, we have
-
-```text
-    gamma() 368
-```
-
-where we have denoted the vector from (0, 0, 0) to the ray’s origin as o and is the ray’s normalized direction.
+<details>
+<summary>Figure 6.42 — pictorial image (keep)</summary>
 
 ![Figure 6.42](images/img-578-068.png)
 
+</details>
 
-*Figure 6.42: The Effect of Reducing the Error in the Computation of the Discriminant for Ray– Sphere Intersection. Unit sphere, viewed using an orthographic projection with a camera 400 units away. (a) If the quadratic discriminant is computed in the usual fashion, numeric error causes intersections at the edges to be missed. In the found intersections, the inaccuracy is evident in the wobble of the textured lines. (b) With the more precise formulation described in this section, the sphere is rendered correctly. (With the improved discriminant, such a sphere can be translated as far as 7,500 or so units from an orthographic camera and still be rendered accurately.)*
+One might ask why not simply use `DifferenceOfProducts()` for the discriminant. Because $a$, $b$, and $c$ already carry rounding error, a result computed from inaccurate inputs is inaccurate too—particularly $c$, a difference of two positive values susceptible to cancellation. A similar derivation gives a more accurate cylinder discriminant:
 
-Now consider the decomposition of o into the sum of two vectors, d⊥ and d‖, where d‖ is parallel to and d⊥ is perpendicular to it. Those vectors are
-
-given by These three vectors form a right triangle, and therefore ‖o‖2 = ‖d⊥‖2 +
-
-‖d‖‖2. Applying Equation (6.25),
-
-Rearranging terms gives
-
-Expressing the right hand side in terms of the sphere quadratic coefficients from Equation (6.3) gives
-
-Note that the left hand side is equal to the term in square brackets in Equation (6.24). Computing that term in this way eliminates c from the discriminant, which is of great benefit since its magnitude is proportional to the squared distance to the origin, with accordingly limited accuracy. In the implementation below, we take advantage of the fact that the discriminant is now the difference of squared values and make use of the identity x2 − y2 = (x + y)(x − y) to reduce the magnitudes of the intermediate values, which further reduces error. 〈Compute sphere quadratic discriminant discrim〉 ≡ 274
+**〈Compute cylinder quadratic discriminant discrim〉 ≡ 288**
 
 ```rust
-Vector3fi v(oi - b / (2 * a) * di); Interval length = Length(v); Interval discrim = 4 * a * (Interval(radius) + length) * (Interval(radius) - length); if (discrim.LowerBound() < 0) return {};
+let f = b / (2.0 * a);
+let vx = oi.x - f * di.x;
+let vy = oi.y - f * di.y;
+let length = (vx.sqr() + vy.sqr()).sqrt();
+let discrim = 4.0 * a * (Interval::from(self.radius) + length)
+                       * (Interval::from(self.radius) - length);
+if discrim.lower_bound() < 0.0 { return None; }
 ```
 
-One might ask, why go through this trouble when we could use the `DifferenceOfProducts()` function to compute the discriminant, presumably with low error? The reason that is not an equivalent alternative is that the values a, b, and c already suffer from rounding error. In turn, a result computed by `DifferenceOfProducts()` will be inaccurate if its inputs already are inaccurate themselves. is particularly problematic, since it is the difference of two positive values, so is susceptible to catastrophic cancellation. A similar derivation gives a more accurate discriminant for the cylinder.
+<details>
+<summary>Reference / notes</summary>
 
-〈Compute cylinder quadratic discriminant discrim〉 ≡ 288
+`DifferenceOfProducts()` 1044 · `Interval` 1057 · `Interval::LowerBound()` 1059 · `Interval::Sqr()` 1060 · `Interval::Sqrt()` 1060 · `Length()` 88 · `Vector3fi` 1060
 
-```rust
-Interval f = b / (2 * a); Interval vx = oi.x - f * di.x, vy = oi.y - f * di.y; Interval length = Sqrt(Sqr(vx) + Sqr(vy)); Interval discrim = 4 * a * (Interval(radius) + length) * (Interval(radius) - length); if (discrim.LowerBound() < 0) return {};
+</details>
+
+### 6.8.4 Robust Triangle Intersections
+
+The ray–triangle algorithm of Section 6.5.3 was carefully designed to avoid rays passing through an edge or vertex shared by two triangles without registering a hit. Such an algorithm is *watertight*. Transforming vertices into the ray coordinate system introduces round-off, but the same transformation applies to all triangles, so it does not affect watertightness (and the error is small enough not to significantly affect intersection points). The three edge functions of Equation (6.5) are evaluated at $(0,0)$ via Equation (6.6). The key to robustness is that with floating point their evaluations have the correct sign. In general,
+
+$$
+e = (a\otimes b)\ominus(c\otimes d)
+$$
+
+has the same sign as the exact $ab-cd$.
+
+First, if $ab=cd$, Equation (6.26) evaluates to exactly zero even in floating point, so we only need to show that if $ab>cd$ then $(a\otimes b)\ominus(c\otimes d)$ is never negative. If $ab>cd$, then $a\otimes b\ge c\otimes d$ (both operations round to the nearest representable float), so their difference is $\ge0$. If the edge function is zero, we cannot tell whether it is exactly zero or a small positive/negative value rounded to zero. The fragment `〈Fall back to double-precision test at triangle edges〉` reevaluates in double precision; doubling the precision suffices to distinguish the cases given 32-bit inputs. The overhead is minimal: in a benchmark of 88 million ray-intersection tests the double-precision fallback was used in less than 0.0000023% of cases.
+
+### 6.8.5 Bounding Intersection Point Error
+
+We can apply the machinery of this section to derive conservative bounds on the absolute error in computed ray–shape intersection points, constructing boxes guaranteed to contain a point on the actual surface (Figure 6.43). These boxes underpin the spawned-ray-origin algorithm of Section 6.8.6.
+
+It is illuminating to first examine conventional computation. Ray tracers commonly solve $\mathbf o+t\mathbf d$ for $t_{\mathrm{hit}}$ and then compute $\mathbf p=\mathbf o+t_{\mathrm{hit}}\mathbf d$. If $t_{\mathrm{hit}}$ carries error $\delta t$, then for the $x$ coordinate,
+
+$$
+\begin{aligned}
+x &= o_x\oplus(t_{\mathrm{hit}}\pm\delta t)\otimes d_x\\
+  &\in o_x\oplus(t_{\mathrm{hit}}\pm\delta t)d_x(1\pm\gamma_1)\\
+  &\subset o_x(1\pm\gamma_1)+(t_{\mathrm{hit}}\pm\delta t)d_x(1\pm\gamma_2)\\
+  &= o_x+t_{\mathrm{hit}}d_x+\big[\pm o_x\gamma_1\pm\delta t\,d_x
+      \pm t_{\mathrm{hit}}d_x\gamma_2\pm\delta t\,d_x\gamma_2\big].
+\end{aligned}
+\tag{6.27}
+$$
+
+The error term in brackets is bounded by
+
+$$
+\gamma_1|o_x|+\delta_t|d_x|+\gamma_2|t_{\mathrm{hit}}d_x|
++\gamma_2\delta_t|d_x|.
+$$
+
+Two things follow from Equation (6.27). First, the magnitudes of the contributing terms ($o_x$, $d_x$, $t_{\mathrm{hit}}d_x$) may differ greatly from the magnitude of the intersection point itself, risking catastrophic cancellation. Second, intersection algorithms perform tens of floating-point operations to find $t$, so $\delta t$ is at least of magnitude $\gamma_n t$ with $n$ in the tens (and possibly much more with cancellation).
+
+*Figure 6.43: A shape intersection algorithm computes a point (filled circle) with absolute errors bounded by $\delta x$ and $\delta y$. Because the bounds are conservative, the actual surface point (open circle) must lie somewhere within the box.*
+
+```mermaid
+flowchart LR
+    P["Computed intersection point"] --> B["Error box: +/- delta_x, +/- delta_y"]
+    B --> S["True surface point lies<br/>inside the box"]
 ```
 
-### 6.8.4 ROBUST TRIANGLE INTERSECTIONS
+Each of these terms can introduce significant error; we introduce better approaches next.
 
-The details of the ray–triangle intersection algorithm described in Section 6.5.3 were carefully designed to avoid cases where rays could incorrectly pass through an edge or vertex shared by two adjacent triangles without generating an intersection. Fittingly, an intersection algorithm with this guarantee is referred to as being watertight. Recall that the algorithm is based on transforming triangle vertices into a coordinate system with the ray’s origin at its origin and the ray’s direction aligned along the +z axis. Although round-off error may be introduced by transforming the vertex positions to this coordinate system, this error does not affect the watertightness of the intersection test, since the same transformation is applied to all triangles. (Further, this error is quite small, so it does not significantly impact the accuracy of the computed intersection points.) Given vertices in this coordinate system, the three edge functions defined in Equation (6.5) are evaluated at the point (0, 0); the corresponding expressions, Equation (6.6), are quite straightforward. The key to the robustness of the algorithm is that with floating-point arithmetic, the edge function evaluations are guaranteed to have the correct sign. In general, we have
+**Reprojection: Quadrics.** We would like intersection points with only a few ulps of error rather than the orders-of-magnitude errors possible from the ray equation. Woo et al. (1996) suggested using a first intersection point as the start of a second ray–plane intersection. From Equation (6.27), the second ray's $t$ is near zero, so its absolute error is small and the parametric equation gives a point close to the surface (Figure 6.44); the ray origin and intersection point have similar magnitudes, so $\gamma_1|o_x|$ adds little error. The point still carries some tangential offset from the first intersection, but being close to the surface is generally much better than being above or below it.
 
-```text
-    DifferenceOfProducts() 1044
-    Interval 1057
-    Interval::LowerBound() 1059
-    Interval::Sqr() 1060
-    Interval::Sqrt() 1060
-    Length() 88
-    Vector3fi 1060
+Rather than a full reintersection (costly, and still with error in $t$), we can *reproject* computed points onto the surface, often with remarkably small error bounds. (These reprojection bounds do not capture tangential errors present in the original intersection—the focus is detecting errors that might put the reprojected point below the surface.)
+
+*Figure 6.44: Reintersection to Improve Accuracy. An initial point computed with the ray equation (filled circle) can be the origin of a second ray–shape intersection; the resulting point (open circle) is much closer to the surface, though possibly shifted from the true intersection.*
+
+```mermaid
+flowchart LR
+    R["Ray and surface"] --> P0["Initial point via ray equation<br/>(filled circle)"]
+    P0 --> P1["Second intersection<br/>(open circle, near surface)"]
+    P1 --> N["Alternative: reproject directly<br/>onto the surface"]
 ```
 
-First, note that if ab = cd, then Equation (6.26) evaluates to exactly zero, even in floating point. We therefore just need to show that if ab > cd, then (a ⊗ b) ⊖ (c ⊗ d) is never negative. If ab > cd, then (a ⊗ b) must be greater than or equal to (c ⊗ d). In turn, their difference must be greater than or equal to zero. (These properties both follow from the fact that floating-point arithmetic operations are all rounded to the nearest representable floating-point value.) If the value of the edge function is zero, then it is impossible to tell whether it is exactly zero or whether a small positive or negative value has rounded to zero. In this case, the fragment 〈Fall back to double-precision test at triangle edges〉 reevaluates the edge function with double precision; it can be shown that doubling the precision suffices to accurately distinguish these cases, given 32-bit floats as input. The overhead caused by this additional precaution is minimal: in a benchmark with 88 million ray intersection tests, the double-precision fallback had to be used in less than 0.0000023% of the cases.
+Consider a ray–sphere intersection with computed point $\mathbf p$ and a sphere of radius $r$ at the origin. Reprojection scales the point by the ratio of the radius to its distance from the origin:
 
-### 6.8.5 BOUNDING INTERSECTION POINT ERROR
+$$
+\mathbf p'=\frac{r}{\|\mathbf p\|}\,\mathbf p.
+$$
 
-We can apply the machinery introduced in this section for analyzing rounding error to derive conservative bounds on the absolute error in computed ray–shape intersection points, which allows us to construct bounding boxes that are guaranteed to include an intersection point on the actual surface (Figure 6.43). These bounding boxes provide the basis of the algorithm for generating spawned ray origins that will be introduced in Section 6.8.6. It is illuminating to start by looking at the sources of error in conventional approaches to computing intersection points. It is common practice in ray tracing to compute 3D intersection points by first solving the parametric ray equation o + td for a value thit where a ray intersects a surface and then computing the hit point p with p = o + thitd. If thit carries some error δt, then we can bound the error in the computed intersection point. Considering the x coordinate, for example, we have x = ox ⊕ (thit ± δt) ⊗ dx
+Because $x'^2+y'^2+z'^2=r^2$, the terms in the square root share one $\gamma$ term, giving absolute error bounded by $\gamma_5|x'|$ in each coordinate—at most 2.5 ulps from a point on the sphere.
 
-```text
-                        ∈ ox ⊕ (thit ± δt)dx(1 ± γ1)
-                        ⊂ ox(1 ± γ1) + (thit ± δt)dx(1 ± γ2)
-                        = ox + thitdx + [±oxγ1 ± δtdx ± thitdxγ2 ± δtdxγ2].
-```
-
-The error term (in square brackets) is bounded by
-
-There are two things to see from Equation (6.27): first, the magnitudes of the terms that contribute to the error in the computed intersection point (ox, dx, and thitdx) may be quite different from the magnitude of the intersection point. Thus, there is a danger of catastrophic cancellation in the intersection point’s computed value. Second, ray intersection algorithms generally perform tens of floating-point operations to compute t values, which in turn means that we can expect δt to be at least of magnitude γnt, with n in the tens (and possibly much more, due to catastrophic cancellation).
-
-![Figure 6.43](images/img-582-069.png)
-
-
-*Figure 6.43: Shape intersection algorithms in pbrt compute an intersection point, shown here in the 2D setting with a filled circle. The absolute error in this point is bounded by δx and δy, giving a small box around the point. Because these bounds are conservative, we know that the actual intersection point on the surface (open circle) must lie somewhere within the box.*
-
-Each of these terms may introduce a significant amount of error in the computed point x. We introduce better approaches in the following.
-
-Reprojection: Quadrics We would like to reliably compute surface intersection points with just a few ulps of error rather than the orders of magnitude greater error that intersection points computed with the parametric ray equation may have.
-
-Previously, Woo et al. (1996) suggested using the first intersection point computed as a starting point for a second ray–plane intersection, for ray– polygon intersections. From the bounds in Equation (6.27), we can see why the second intersection point will often be much closer to the surface than the first: the thit value along the second ray will be quite close to zero, so that the magnitude of the absolute error in thit will be quite small, and thus using this value in the parametric ray equation will give a point quite close to the surface (Figure 6.44). Further, the ray origin will have similar magnitude to the intersection point, so the γ1|ox| term will not introduce much additional error. Although the second intersection point computed with this approach is much closer to the plane of the surface, it still suffers from error by being offset due to error in the first computed intersection. The farther away the ray origin is from the intersection point (and thus, the larger the absolute error is in thit), the larger this error will be. In spite of this error, the approach has merit: we are generally better off with a computed intersection point that is quite close to the actual surface, even if offset from the most accurate possible intersection point, than we are with a point that is some distance above or below the surface (and likely also far from the most accurate intersection point). Rather than doing a full reintersection computation, which may not only be computationally costly but also will still have error in the computed t value, an effective alternative is to refine computed intersection points by reprojecting them to the surface. The error bounds for these reprojected points are often remarkably small. (It should be noted that these reprojection error bounds do not capture tangential errors that were present in the original intersection p—the main focus here is to detect errors that might cause the reprojected point p′ to fall below the surface.) Consider a ray–sphere intersection: given a computed intersection point (e.g., from the ray equation) p with a sphere at the origin with radius r, we can reproject the point onto the surface of the sphere by scaling it with the ratio of the sphere’s radius to the computed point’s distance to the origin, computing a new point p′ = (x′, y′, z′) with
-
-![Figure 6.44](images/img-584-070.png)
-
-
-*Figure 6.44: Reintersection to Improve the Accuracy of the Computed Intersection Point. Given a ray and a surface, an initial intersection point has been computed with the ray equation (filled circle). This point may be fairly inaccurate due to rounding error but can be used as the origin for a second ray–shape intersection. The intersection point computed from this second intersection (open circle) is much closer to the surface, though it may be shifted from the true intersection point due to error in the first computed intersection.*
-
-and so forth. The floating-point computation is
-
-Because x2, y2, and z2 are all positive, the terms in the square root can share the same γ term, and we have
-
-Thus, the absolute error of the reprojected x coordinate is bounded by γ5|x′| (and similarly for y′ and z′) and is thus no more than 2.5 ulps in each dimension from a point on the surface of the sphere. Here is the fragment that reprojects the intersection point for the `Sphere` shape.
-
-〈Refine sphere intersection point〉 ≡ 275
-
-```rust
-pHit *= radius / Distance(pHit, Point3f(0, 0, 0));
-```
-
-The error bounds follow from Equation (6.28). 〈Compute error bounds for sphere intersection〉 ≡ 276
-
-```rust
-Vector3f pError = gamma(5) * Abs((Vector3f)pHit);
-```
-
-Reprojection algorithms and error bounds for other quadrics can be defined similarly: for example, for a cylinder along the z axis, only the x and y coordinates need to be reprojected, and the error bounds in x and y turn out to be only γ3 times their magnitudes.
-
-〈Refine cylinder intersection point〉 ≡ 289
-
-```rust
-Float hitRad = std::sqrt(Sqr(pHit.x) + Sqr(pHit.y)); pHit.x *= radius / hitRad; pHit.y *= radius / hitRad;
-```
-
-〈Compute error bounds for cylinder intersection〉 ≡ 290
-
-```rust
-Vector3f pError = gamma(3) * Abs(Vector3f(pHit.x, pHit.y, 0));
-```
+**〈Refine sphere intersection point〉 ≡ 275**
 
 ```rust
-   Cylinder::radius 287
-   Disk::height 293
-   Distance() 93
-   Float 23
-   gamma() 368
-   Point3f 92
-   Sphere 271
-   Sphere::radius 272
-   Sqr() 1034
-   Tuple3::Abs() 85
-   Vector3f 86
+p_hit *= self.radius / distance(p_hit, Point3f::ZERO);
 ```
 
-The disk shape is particularly easy; we just need to set the z coordinate of the point to lie on the plane of the disk. 〈Refine disk intersection point〉 ≡ 295
-
-pHit.z = height;
-
-In turn, we have a point with zero error; it lies exactly on the surface on the disk. 〈Compute error bounds for disk intersection〉 ≡ 295
+**〈Compute error bounds for sphere intersection〉 ≡ 276**
 
 ```rust
-   Vector3f pError(0, 0, 0);
+let p_error = gamma(5) * Vector3f::from(p_hit).abs();
 ```
 
-The quadrics’ `Sample()` methods also use reprojection. For example, the `Sphere`’s area sampling method is based on `SampleUniformSphere()`, which uses `std::sin()` and `std::cos()`. Therefore, the error bounds on the computed pObj value depend on the accuracy of those functions. By reprojecting the sampled point to the sphere’s surface, the error bounds derived earlier in Equation (6.28) can be used without needing to worry about those functions’ accuracy. 〈Reproject pObj to sphere surface and compute pObjError〉 ≡ 280
+Cylinder reprojection is similar: only $x$ and $y$ are projected, with error bounds $\gamma_3$ times their magnitudes.
+
+**〈Refine cylinder intersection point〉 ≡ 289**
 
 ```rust
-pObj *= radius / Distance(pObj, Point3f(0, 0, 0)); Vector3f pObjError = gamma(5) * Abs((Vector3f)pObj);
+let hit_rad = (p_hit.x.sqr() + p_hit.y.sqr()).sqrt();
+p_hit.x *= self.radius / hit_rad;
+p_hit.y *= self.radius / hit_rad;
 ```
 
-The same issue and solution apply to sampling cylinders. 〈Reproject pObj to cylinder surface and compute pObjError〉 ≡ 291
+**〈Compute error bounds for cylinder intersection〉 ≡ 290**
 
 ```rust
-Float hitRad = std::sqrt(Sqr(pObj.x) + Sqr(pObj.y)); pObj.x *= radius / hitRad; pObj.y *= radius / hitRad; Vector3f pObjError = gamma(3) * Abs(Vector3f(pObj.x, pObj.y, 0));
+let p_error = gamma(3) * Vector3f::new(p_hit.x, p_hit.y, 0.0).abs();
 ```
 
-Parametric Evaluation: Triangles Another effective approach to computing accurate intersection points near the surface of a shape uses the shape’s parametric representation. For example, the triangle intersection algorithm in Section 6.5.3 computes three edge function values e0, e1, and e2 and reports an intersection if all three have the same sign. Their values can be used to find the barycentric coordinates Attributes vi at the triangle vertices (including the vertex positions) can be interpolated across the face of the triangle by v′ = b0v0 + b1v1 + b2v2.
+<details>
+<summary>Reference / notes</summary>
 
-We can show that interpolating the positions of the vertices in this manner gives a point very close to the surface of the triangle. First consider
+`Cylinder::radius` 287 · `Disk::height` 293 · `Distance()` 93 · `Float` 23 · `gamma()` 368 · `Point3f` 92 · `Sphere` 271 · `Sphere::radius` 272 · `Sqr()` 1034 · `Tuple3::Abs()` 85 · `Vector3f` 86
 
-precomputing the reciprocal of the sum of ei:
+</details>
+
+For a disk we simply set $z$ to the disk's plane, giving a point with zero error exactly on the surface:
+
+**〈Refine disk intersection point〉 ≡ 295**
 
 ```rust
-   Cylinder::radius 287
-   Distance() 93
-   Float 23
-   gamma() 368
-   Point3f 92
-   SampleUniformSphere() 1016
-   Sphere 271
-   Sqr() 1034
-   Tuple3::Abs() 85
-   Vector3f 86
+p_hit.z = self.height;
 ```
 
-Because all ei have the same sign if there is an intersection, we can collect
-
-the ei terms and conservatively bound d: If we now consider interpolation of the x coordinate of the position in the triangle corresponding to the edge function values, we have x′ = ((e0 ⊗ x0) ⊕ (e1 ⊗ x1) ⊕ (e2 ⊗ x2)) ⊗ d
-
-```text
-                          ∈ (e0x0(1 ± ∊m)3 + e1x1(1 ± ∊m)3 + e2x2(1 ±
-                          ∊m)2)d(1 ± ∊m)
-                          ⊂ (e0x0(1 ± γ4) + e1x1(1 ± γ4) + e2x2(1 ± γ3))d.
-```
-
-Using the bounds on d,
-
-Thus, we can finally see that the absolute error in the computed x′ value is in the interval ±b0x0γ7 ± b1x1γ7 ± b2x2γ7, which is bounded by
-
-(Note that the b2x2 term could have a γ6 factor instead of γ7, but the difference between the two is very small, so we choose a slightly simpler final expression.) Equivalent bounds hold for y′ and z′. Equation (6.29) lets us bound the error in the interpolated point computed in `Triangle`:: `Intersect()`.
-
-〈Compute error bounds pError for triangle intersection〉 ≡ 312
+**〈Compute error bounds for disk intersection〉 ≡ 295**
 
 ```rust
-Point3f pAbsSum = Abs(ti.b0 * p0) + Abs(ti.b1 * p1) + Abs(ti.b2 * p2); Vector3f pError = gamma(7) * Vector3f(pAbsSum);
+let p_error = Vector3f::ZERO;
 ```
 
-The bounds for a sampled point on a triangle can be found in a similar manner. 〈Compute error bounds pError for sampled point on triangle〉 ≡ 313, 317
+The quadrics' `Sample()` methods also use reprojection. `Sphere::Sample()` uses `SampleUniformSphere()` with `sin()`/`cos()`, so error bounds on `pObj` would depend on them; reprojecting lets us reuse the $\gamma_5$ bounds from Equation (6.28):
+
+**〈Reproject pObj to sphere surface and compute pObjError〉 ≡ 280**
 
 ```rust
-Point3f pAbsSum = Abs(b[0] * p0) + Abs(b[1] * p1) + Abs((1 - b[0] - b[1]) * p2); Vector3f pError = Vector3f(gamma(6) * pAbsSum);
+p_obj *= self.radius / distance(p_obj, Point3f::ZERO);
+let p_obj_error = gamma(5) * Vector3f::from(p_obj).abs();
 ```
 
-Parametric Evaluation: Bilinear Patches Bilinear patch intersection points are found by evaluating the bilinear function from Equation (6.11). The computation performed is [(1 ⊖ u) ⊗ ((1 ⊖ v) ⊗ p0,0 ⊕ v ⊗ p0,1)] ⊕ [u ⊗ ((1 ⊖ v) ⊗ p1,0 ⊕ v ⊗ p1,1)]. Considering just the x coordinate, we can find that its error is bounded by γ6|(1 − u)(1 − v)x0,0| + γ5|(1 − u)vx0,1| + γ5|u(1 − v)x1,0| + γ4|uvx1,1|.
+The same applies to cylinder sampling:
 
-Because u and v are between 0 and 1, here we will use the looser but more computationally efficient bounds of the form γ6(|x0,0| + |x0,1| + |x1,0| + |x1,1|).
-
-```text
-   BilinearPatch::Sample() 338
-   gamma() 368
-   Point3f 92
-   Triangle::Intersect() 309
-   TriangleIntersection::b0 309
-   TriangleIntersection::b1 309
-   Tuple3::Abs() 85
-```
-
-```text
-   Vector3f 86
-```
-
-〈Initialize bilinear patch intersection point error pError〉 ≡ 335
+**〈Reproject pObj to cylinder surface and compute pObjError〉 ≡ 291**
 
 ```rust
-   Point3f pAbsSum = Abs(p00) + Abs(p01) + Abs(p10) + Abs(p11);
-   Vector3f pError = gamma(6) * Vector3f(pAbsSum);
+let hit_rad = (p_obj.x.sqr() + p_obj.y.sqr()).sqrt();
+p_obj.x *= self.radius / hit_rad;
+p_obj.y *= self.radius / hit_rad;
+let p_obj_error = gamma(3) * Vector3f::new(p_obj.x, p_obj.y, 0.0).abs();
 ```
 
-The same bounds apply for points sampled in the `BilinearPatch::Sample()` method. 〈Compute pError for sampled bilinear patch (u, v)〉 ≡ 341
+**Parametric Evaluation: Triangles.** Another effective approach uses the shape's parametric representation. The triangle algorithm computes edge functions $e_0,e_1,e_2$; the barycentric coordinates are $b_i=e_i/(e_0+e_1+e_2)$, and vertex attributes $\mathbf v_i$ (including positions) interpolate as $\mathbf v'=b_0\mathbf v_0+b_1\mathbf v_1+b_2\mathbf v_2$.
+
+We precompute the reciprocal of the sum of $e_i$:
 
 ```rust
-Point3f pAbsSum = Abs(p00) + Abs(p01) + Abs(p10) + Abs(p11); Vector3f pError = gamma(6) * Vector3f(pAbsSum);
+let d = 1.0 / (e0 + e1 + e2);
 ```
 
-Parametric Evaluation: Curves Because the `Curve` shape orients itself to face incident rays, rays leaving it must be offset by the curve’s width in order to not incorrectly reintersect it when it is reoriented to face them. For wide curves, this bound is significant and may lead to visible errors in images. In that case, the `Curve` shape should probably be replaced with one or more bilinear patches. 〈Compute error bounds for curve intersection〉 ≡ 356
+Because all $e_i$ have the same sign when there is a hit, their error can be collected into a conservative bound on $d$. For the $x$ coordinate,
+
+$$
+x'=\big((e_0\otimes x_0)\oplus(e_1\otimes x_1)\oplus(e_2\otimes x_2)\big)\otimes d.
+$$
+
+Tracking the $\varepsilon_m$ factors and using the bound on $d$ gives the absolute error in $x'$ as $\pm b_0x_0\gamma_7\pm b_1x_1\gamma_7\pm b_2x_2\gamma_7$, bounded by
+
+$$
+\gamma_7\big(|b_0x_0|+|b_1x_1|+|b_2x_2|\big).
+\tag{6.29}
+$$
+
+(The $b_2x_2$ term could use $\gamma_6$, but the difference is tiny and the simpler expression is preferable.) Equivalent bounds hold for $y'$ and $z'$. Equation (6.29) bounds the error in the point computed by `Triangle::Intersect()`.
+
+**〈Compute error bounds pError for triangle intersection〉 ≡ 312**
 
 ```rust
-Vector3f pError(hitWidth, hitWidth, hitWidth);
+let p_abs_sum = (ti.b0 * p0).abs() + (ti.b1 * p1).abs() + (ti.b2 * p2).abs();
+let p_error = gamma(7) * Vector3f::from(p_abs_sum);
 ```
 
-Effect of Transformations The last detail to attend to in order to bound the error in computed intersection points is the effect of transformations, which introduce additional rounding error when they are applied. The quadric Shapes in pbrt transform rendering-space rays into object space before performing ray–shape intersections, and then transform computed intersection points back to rendering space. Both of these transformation steps introduce rounding error that needs to be accounted for in order to maintain robust rendering-space bounds around intersection points. If possible, it is best to try to avoid coordinate-system transformations of rays and intersection points. For example, it is better to transform triangle vertices to rendering space and intersect rendering-space rays with them than to transform rays to object space and then transform intersection points
+A sampled triangle point is handled similarly:
 
-to rendering space.14 Transformations are still useful—for example, for the quadrics and for object instancing—so we will show how to bound the error that they introduce. We will discuss these topics in the context of the `Transform` operator() method that takes a `Point3fi`, which is the `Point3` variant that uses an `Interval` for each of the coordinates.
-
-〈Transform Public Methods〉 +≡ 120
+**〈Compute error bounds pError for sampled point on triangle〉 ≡ 313, 317**
 
 ```rust
-Point3fi operator()(const Point3fi &p) const { Float x = Float(p.x), y = Float(p.y), z = Float(p.z); 〈Compute transformed coordinates from point (x, y, z)〉 〈Compute absolute error for transformed point, pError 379〉 if (wp == 1) return Point3fi(Point3f(xp, yp, zp), pError);
+let p_abs_sum = (b[0] * p0).abs() + (b[1] * p1).abs()
+              + ((1.0 - b[0] - b[1]) * p2).abs();
+let p_error = Vector3f::from(gamma(6) * p_abs_sum);
 ```
+
+**Parametric Evaluation: Bilinear Patches.** Patch intersection points come from evaluating Equation (6.11). Considering only $x$, the error is bounded by
+
+$$
+\gamma_6|(1-u)(1-v)x_{0,0}|+\gamma_5|(1-u)v x_{0,1}|
++\gamma_5|u(1-v)x_{1,0}|+\gamma_4|uv x_{1,1}|.
+$$
+
+Since $u,v\in[0,1]$ we use the looser but cheaper bound
+
+$$
+\gamma_6\big(|x_{0,0}|+|x_{0,1}|+|x_{1,0}|+|x_{1,1}|\big).
+$$
+
+**〈Initialize bilinear patch intersection point error pError〉 ≡ 335**
 
 ```rust
-        else
-           return Point3fi(Point3f(xp, yp, zp), pError) / wp;
-   }
+let p_abs_sum = p00.abs() + p01.abs() + p10.abs() + p11.abs();
+let p_error = gamma(6) * Vector3f::from(p_abs_sum);
 ```
 
-This method starts by computing the transformed position of the point (x, y, z) where each coordinate is at the midpoint of its respective interval in p. The fragment that implements that computation, 〈Compute transformed coordinates from point (x, y, z)〉, is not included here; it implements the same matrix/point multiplication as in Section 3.10.
+The same bounds apply for sampled points:
 
-```text
-   Curve 346
-   Float 23
-   Interval 1057
-   Point3 92
-   Point3f 92
-   Point3fi 1061
-   Transform 120
-   Vector3f 86
-```
-
-Next, error bounds are computed, accounting both for rounding error when applying the transformation as well as the effect of non-empty intervals, if p is not exact. 〈Compute absolute error for transformed point, pError〉 ≡ 378
+**〈Compute pError for sampled bilinear patch (u, v)〉 ≡ 341**
 
 ```rust
-Vector3f pError; if (p.IsExact()) { 〈Compute error for transformed exact p 379〉 } else { 〈Compute error for transformed approximate p〉 }
+let p_abs_sum = p00.abs() + p01.abs() + p10.abs() + p11.abs();
+let p_error = gamma(6) * Vector3f::from(p_abs_sum);
 ```
 
-If (x, y, z) has no accumulated error, then given a 4 × 4 non-projective transformation matrix with elements denoted by mi,j, the transformed coordinate x′ is x′ = ((m0,0 ⊗ x) ⊕ (m0,1 ⊗ y)) ⊕ ((m0,2 ⊗ z) ⊕ m0,3)
+<details>
+<summary>Reference / notes</summary>
 
-```text
-                     ∈ m0,0x(1 ± ∊m)3 + m0,1y(1 ± ∊m)3 + m0,2z(1 ±
-                     ∊m)3 + m0,3(1 ± ∊m)2
-                     ⊂ (m0,0x + m0,1y + m0,2z + m0,3) + γ3(±m0,0x ± m0,1y
-                     ± m0,2z ± m0,3)
-```
+`BilinearPatch::Sample()` 338 · `gamma()` 368 · `Point3f` 92 · `Triangle::Intersect()` 309 · `TriangleIntersection::b0` 309 · `TriangleIntersection::b1` 309 · `Tuple3::Abs()` 85 · `Vector3f` 86
 
-```text
-                      ⊂ (m0,0x + m0,1y + m0,2z + m0,3) ± γ3(|m0,0x| +
-                      |m0,1y| + |m0,2z| + |m0,3|).
-```
+</details>
 
-Thus, the absolute error in the result is bounded by
+**Parametric Evaluation: Curves.** Because the `Curve` shape orients itself to face incident rays, rays leaving it must be offset by the curve's width to avoid incorrectly reintersecting it after reorientation. For wide curves this bound is significant and may cause visible errors; in that case the curve should probably be replaced with one or more bilinear patches.
 
-Similar bounds follow for the transformed y′ and z′ coordinates, and the implementation follows directly. 〈Compute error for transformed exact p〉 ≡ 379
+**〈Compute error bounds for curve intersection〉 ≡ 356**
 
 ```rust
-pError.x = gamma(3) * (std::abs(m[0][0] * x) + std::abs(m[0][1] * y) + std::abs(m[0][2] * z) + std::abs(m[0][3])); pError.y = gamma(3) * (std::abs(m[1][0] * x) + std::abs(m[1][1] * y) + std::abs(m[1][2] * z) + std::abs(m[1][3])); pError.z = gamma(3) * (std::abs(m[2][0] * x) + std::abs(m[2][1] * y) + std::abs(m[2][2] * z) + std::abs(m[2][3]));
+let p_error = Vector3f::new(hit_width, hit_width, hit_width);
 ```
 
-Now consider the case of the point p having error that is bounded by δx, δy, and δz in each dimension. The transformed x coordinate is given by: x′ = (m0,0 ⊗ (x ± δx) ⊕ m0,1 ⊗ (y ± δy)) ⊕ (m0,2 ⊗ (z ± δz) ⊕ m0,3). Applying the definitions of floating-point addition and multiplication and their error bounds, we have x′ = m (x ± δ )(1 ± ∊ )3 + m (y ± δ )(1 ± ∊ )3 0,0 x m 0,1 y m + m0,2(z ± δz)(1 ± ∊m)3 + m0,3(1 ± ∊m)2.
+**Effect of Transformations.** Finally we must account for error introduced by transformations. Quadrics transform rendering-space rays to object space and hit points back; both steps add rounding error that must be bounded to maintain robust rendering-space boxes. Where possible it is best to avoid such transformations: transforming triangle vertices to rendering space and intersecting rendering-space rays is better than transforming rays to object space and points back.[^14] Transformations remain useful for quadrics and instancing, so we show how to bound their error, in the context of `Transform`'s `operator()` for `Point3fi` (a `Point3` using an `Interval` per coordinate).
 
-Transforming to use γ, we can find the absolute error term to be bounded by
-
-We have not included the fragment 〈Compute error for transformed approximate p〉 that implements this computation, as it is nearly 20 lines of code for the direct translation of Equation (6.31).
-
-```text
-   gamma() 368
-   Interval 1057
-   Point3fi::IsExact() 1061
-   Vector3f 86
-```
-
-It would have been much easier to implement this method using the `Interval` class to automatically compute error bounds. We found that that approach gives bounds that are generally 3–6 × wider and cause the method to be six times slower than the implementation presented here. Given that transformations are frequently applied during rendering, deriving and then using tighter bounds is worthwhile.
-
-![Figure 6.45](images/img-593-073.png)
-
-
-*Figure 6.45: Given a computed intersection point (filled circle) with surface normal (arrow) and error bounds (rectangle), we compute two planes offset along the normal that are offset just far enough so that they do not intersect the error bounds. The points on these planes along the normal from the computed intersection point give us the origins for spawned rays (open circles); one of the two is selected based on the ray direction so that the spawned ray will not pass through the error bounding box. By construction, such rays cannot incorrectly reintersect the actual surface (thick line).*
-
-Note that the code that computes error bounds is buggy if the matrix is projective and the homogeneous w coordinate of the projected point is not one; this nit is not currently a problem for pbrt’s usage of this method.
-
-The `Transform` class also provides methods to transform vectors and rays, returning the resulting error. The vector error bound derivations (and thence, implementations) are very similar to those for points, and so also are not included here.
-
-### 6.8.6 ROBUST SPAWNED RAY ORIGINS
-
-Computed intersection points and their error bounds give us a small 3D box that bounds a region of space. We know that the precise intersection point must be somewhere inside this box and that thus the surface must pass through the box (at least enough to present the point where the intersection
-
-is). (Recall Figure 6.43.) Having these boxes makes it possible to position the origins of rays leaving the surface so that they are always on the right side of the surface and do not incorrectly reintersect it. When tracing spawned rays leaving the intersection point p, we offset their origins enough to ensure that they are past the boundary of the error box and thus will not incorrectly reintersect the surface. In order to ensure that the spawned ray origin is definitely on the right side of the surface, we move far enough along the normal so that the plane perpendicular to the normal is outside the error bounding box. To see how to do this, consider a computed intersection point at the origin, where the equation for the plane going through the intersection point is f (x, y, z) = nxx + nyy + nzz. The plane is implicitly defined by f (x, y, z) = 0, and the normal is (nx, ny, nz).
-
-For a point not on the plane, the value of the plane equation f (x, y, z) gives the offset along the normal that gives a plane that goes through the point. We would like to find the maximum value of f (x, y, z) for the eight corners of the error bounding box; if we offset the plane plus and minus this offset, we have two planes that do not intersect the error box that should be (locally) on opposite sides of the surface, at least at the computed intersection point offset along the normal (Figure 6.45).
-
-![Figure 6.46](images/img-594-074.png)
-
-
-*Figure 6.46: The rounded value of the offset point p+offset computed in OffsetRayOrigin() may end up in the interior of the error box rather than on its boundary, which in turn introduces the risk of incorrect self-intersections if the rounded point is on the wrong side of the surface. Advancing each coordinate of the computed point one floating-point value away from p ensures that it is outside of the error box.*
-
-If the eight corners of the error bounding box are given by (±δx, ±δy, ±δz), then the maximum value of f (x, y, z) is easily computed: d = |nx|δx + |ny|δy + |nz|δz. Computing spawned ray origins by offsetting along the surface normal in this way has a few advantages: assuming that the surface is locally planar (a reasonable assumption, especially at the very small scale of the intersection point error bounds), moving along the normal allows us to get from one side of the surface to the other while moving the shortest distance. In general, minimizing the distance that ray origins are offset is desirable for maintaining shadow and reflection detail. `OffsetRayOrigin()` is a short function that implements this computation.
-
-〈Ray Inline Functions〉 ≡
+**〈Transform Public Methods〉 +≡ 120**
 
 ```rust
-Point3f OffsetRayOrigin(Point3fi pi, Normal3f n, Vector3f w) { 〈Find vector offset to corner of error bounds and compute initial po 381〉 〈Round offset point po away from p 382〉 return po; }
+fn apply_point_fi(&self, p: Point3fi) -> Point3fi {
+    let x = p.x.to_float();
+    let y = p.y.to_float();
+    let z = p.z.to_float();
+    // 〈Compute transformed coordinates from point (x, y, z)〉
+    // 〈Compute absolute error for transformed point, pError 379〉
+    if self.wp == 1.0 {
+        Point3fi::new(Point3f::new(xp, yp, zp), p_error)
+    } else {
+        Point3fi::new(Point3f::new(xp, yp, zp), p_error) / wp
+    }
+}
 ```
 
-〈Find vector offset to corner of error bounds and compute initial po〉 ≡ 381
+The method first transforms the midpoint $(x,y,z)$ of each interval using the usual matrix/point multiplication (Section 3.10); that fragment is omitted.
+
+<details>
+<summary>Reference / notes</summary>
+
+`Curve` 346 · `Float` 23 · `Interval` 1057 · `Point3` 92 · `Point3f` 92 · `Point3fi` 1061 · `Transform` 120 · `Vector3f` 86
+
+</details>
+
+Next come error bounds accounting both for rounding in the transformation and for non-empty intervals in $\mathbf p$:
+
+**〈Compute absolute error for transformed point, pError〉 ≡ 378**
 
 ```rust
-Float d = Dot(Abs(n), pi.Error()); Vector3f offset = d * Vector3f(n); if (Dot(w, n) < 0) offset = -offset; Point3f po = Point3f(pi) + offset;
+let p_error;
+if p.is_exact() {
+    // 〈Compute error for transformed exact p 379〉
+} else {
+    // 〈Compute error for transformed approximate p〉
+}
 ```
 
-We also must handle round-off error when computing the offset point: when offset is added to p, the result will in general need to be rounded to the nearest floating-point value. In turn, it may be rounded down toward p such that the resulting point is in the interior of the error box rather than on its boundary (Figure 6.46). Therefore, the offset point is rounded away from p here to ensure that it is not inside the box.15
+If $(x,y,z)$ has no accumulated error, a 4×4 non-projective matrix with elements $m_{i,j}$ gives
+
+$$
+\begin{aligned}
+x'&=\big((m_{0,0}\otimes x)\oplus(m_{0,1}\otimes y)\big)
+      \oplus\big((m_{0,2}\otimes z)\oplus m_{0,3}\big)\\
+  &\subset (m_{0,0}x+m_{0,1}y+m_{0,2}z+m_{0,3})
+      \pm\gamma_3\big(|m_{0,0}x|+|m_{0,1}y|+|m_{0,2}z|+|m_{0,3}|\big).
+\end{aligned}
+\tag{6.30}
+$$
+
+Thus the absolute error in the result is bounded by
+
+$$
+\gamma_3\big(|m_{0,0}x|+|m_{0,1}y|+|m_{0,2}z|+|m_{0,3}|\big),
+$$
+
+with analogous bounds for $y'$ and $z'$:
+
+**〈Compute error for transformed exact p〉 ≡ 379**
 
 ```rust
-   Dot() 89
-   Float 23
-   Normal3f 94
-   OffsetRayOrigin() 381
-   Point3f 92
-   Point3fi 1061
-   Point3fi::Error() 1061
+p_error.x = gamma(3) * (abs(m[0][0]*x) + abs(m[0][1]*y)
+                      + abs(m[0][2]*z) + abs(m[0][3]));
+p_error.y = gamma(3) * (abs(m[1][0]*x) + abs(m[1][1]*y)
+                      + abs(m[1][2]*z) + abs(m[1][3]));
+p_error.z = gamma(3) * (abs(m[2][0]*x) + abs(m[2][1]*y)
+                      + abs(m[2][2]*z) + abs(m[2][3]));
 ```
 
-```text
-   Tuple3::Abs() 85
-   Vector3f 86
+Now suppose $\mathbf p$ has errors bounded by $\delta x,\delta y,\delta z$. The transformed $x$ coordinate is
+
+$$
+x'=\big(m_{0,0}\otimes(x\pm\delta x)\oplus m_{0,1}\otimes(y\pm\delta y)\big)
+    \oplus\big(m_{0,2}\otimes(z\pm\delta z)\oplus m_{0,3}\big),
+$$
+
+and applying the definitions of floating-point addition and multiplication gives
+
+$$
+x'=m_{0,0}(x\pm\delta x)(1\pm\varepsilon_m)^3
+   +m_{0,1}(y\pm\delta y)(1\pm\varepsilon_m)^3
+   +m_{0,2}(z\pm\delta z)(1\pm\varepsilon_m)^3
+   +m_{0,3}(1\pm\varepsilon_m)^2.
+$$
+
+Switching to $\gamma$, the absolute error is bounded by
+
+$$
+\gamma_3\sum_{i=0}^{2}\big(|m_{0,i}|\,|p_i|+|m_{0,i}|\,\delta_{p_i}\big)
++|m_{0,3}|\,\gamma_2.
+\tag{6.31}
+$$
+
+We omit `〈Compute error for transformed approximate p〉`, which is nearly 20 lines of direct translation of Equation (6.31).
+
+<details>
+<summary>Reference / notes</summary>
+
+`gamma()` 368 · `Interval` 1057 · `Point3fi::IsExact()` 1061 · `Vector3f` 86
+
+</details>
+
+It would have been much easier to use `Interval` to compute these bounds automatically, but that approach gives bounds generally 3–6× wider and runs six times slower. Since transformations are frequent during rendering, deriving tighter bounds is worthwhile.
+
+*Figure 6.45: Given a computed intersection point (filled circle) with normal (arrow) and error bounds (rectangle), compute two planes offset along the normal just far enough not to intersect the error bounds. The points where the normal through the computed point meets those planes give the spawned-ray origins (open circles); the ray direction selects the one that avoids the error box. Such rays cannot incorrectly reintersect the surface (thick line).*
+
+```mermaid
+flowchart LR
+    P["Computed point + error box"] --> N["Normal direction"]
+    N --> D["d = |n_x| delta_x + |n_y| delta_y + |n_z| delta_z"]
+    D --> PL["Two planes at +/- d<br/>outside the error box"]
+    PL --> O["Spawn origins along normal<br/>chosen by ray direction"]
 ```
 
-Alternatively, the floating-point rounding mode could have been set to round toward plus or minus infinity (based on the sign of the value). Changing the rounding mode is fairly expensive on many processors, so we just shift the floating-point value by one ulp here. This will sometimes cause a value already outside of the error box to go slightly farther outside it, but because the floating-point spacing is so small, this is not a problem in practice. 〈Round offset point po away from p〉 ≡ 381
+Note that the error-bound code is buggy if the matrix is projective and the projected point's homogeneous $w\ne1$; this is not currently a problem for pbrt's usage. The `Transform` class also provides vector and ray transforms returning resulting errors; their derivations and implementations are very similar to those for points and are omitted.
 
-for (int i = 0; i < 3; ++i) { if (offset[i] > 0) po[i] = NextFloatUp(po[i]); else if (offset[i] < 0) po[i] = NextFloatDown(po[i]); }
+### 6.8.6 Robust Spawned Ray Origins
 
-For convenience, `Interaction` provides two variants of this functionality via methods that perform the ray offset computation using its stored position and surface normal. The first takes a ray direction, like the stand-alone `OffsetRayOrigin()` function. 〈Interaction Public Methods〉 +≡ 136
+Computed intersection points and their error bounds give a small 3D box that must contain the true point, so the surface passes through the box. We can position spawned-ray origins so they are always on the correct side and never incorrectly reintersect the surface (recall Figure 6.43). We move far enough along the normal that the plane perpendicular to it lies outside the error box.
+
+Consider a computed point at the origin with plane equation $f(x,y,z)=n_xx+n_yy+n_zz$, implicitly $f=0$ with normal $(n_x,n_y,n_z)$. For a point off the plane, $f$ gives the normal offset of a plane through that point. We seek the maximum of $f$ over the box's eight corners; offsetting the plane by plus and minus that value gives two planes that do not intersect the box and lie locally on opposite sides of the surface (Figure 6.45).
+
+For corners $(\pm\delta_x,\pm\delta_y,\pm\delta_z)$,
+
+$$
+d=|n_x|\delta_x+|n_y|\delta_y+|n_z|\delta_z.
+$$
+
+Offsetting along the normal has advantages: assuming local planarity (reasonable at the tiny error scale), it crosses the surface with the shortest possible move, and minimizing ray-origin displacement preserves shadow and reflection detail. `OffsetRayOrigin()` implements this.
+
+**〈Ray Inline Functions〉 ≡**
 
 ```rust
-   Point3f OffsetRayOrigin(Vector3f w) const {
-        return pbrt::OffsetRayOrigin(pi, n, w);
-   }
+fn offset_ray_origin(pi: Point3fi, n: Normal3f, w: Vector3f) -> Point3f {
+    // 〈Find vector offset to corner of error bounds and compute initial po 381〉
+    // 〈Round offset point po away from p 382〉
+    po
+}
 ```
 
-The second takes a position for the ray’s destination that is used to compute a direction w to pass to the first method.
-
-〈Interaction Public Methods〉 +≡ 136
+**〈Find vector offset to corner of error bounds and compute initial po〉 ≡ 381**
 
 ```rust
-   Point3f OffsetRayOrigin(Point3f pt) const {
-        return OffsetRayOrigin(pt - p());
-   }
+let d = dot(n.abs(), pi.error());
+let mut offset = d * Vector3f::from(n);
+if dot(w, n) < 0.0 { offset = -offset; }
+let mut po = Point3f::from(pi) + offset;
 ```
 
-There are also some helper functions for the `Ray` class that generate rays leaving intersection points that account for these offsets.
+When `offset` is added to $\mathbf p$, the result must generally be rounded to the nearest float and may be rounded *toward* $\mathbf p$, landing inside the error box (Figure 6.46). We therefore round the offset point away from $\mathbf p$ explicitly.
 
-〈Ray Inline Functions〉 +≡
+*Figure 6.46: The rounded value of `p + offset` may fall inside the error box rather than on its boundary, risking self-intersection if it is on the wrong side. Advancing each coordinate one floating-point value away from $\mathbf p$ guarantees it is outside the box.*
+
+```mermaid
+flowchart LR
+    P["p + offset"] --> R{"Rounded inside<br/>error box?"}
+    R -- yes --> U["Advance each coordinate<br/>one ulp away from p"]
+    R -- no --> OK["Origin outside box"]
+    U --> OK
+```
+
+<details>
+<summary>Reference / notes</summary>
+
+`Dot()` 89 · `Float` 23 · `Normal3f` 94 · `OffsetRayOrigin()` 381 · `Point3f` 92 · `Point3fi` 1061 · `Point3fi::Error()` 1061 · `Tuple3::Abs()` 85 · `Vector3f` 86
+
+</details>
+
+Alternatively the rounding mode could be set toward $\pm\infty$, but changing modes is expensive on many processors; shifting one ulp suffices.[^15] This sometimes moves a value already outside the box slightly farther, but the spacing is so small that this is harmless in practice.
+
+**〈Round offset point po away from p〉 ≡ 381**
 
 ```rust
-Ray SpawnRay(Point3fi pi, Normal3f n, Float time, Vector3f d) {
+for i in 0..3 {
+    if offset[i] > 0.0 { po[i] = next_float_up(po[i]); }
+    else if offset[i] < 0.0 { po[i] = next_float_down(po[i]); }
+}
 ```
+
+For convenience, `Interaction` provides two variants using its stored position and normal. The first takes a ray direction like the stand-alone function:
+
+**〈Interaction Public Methods〉 +≡ 136**
 
 ```rust
-return Ray(OffsetRayOrigin(pi, n, d), d, time); }
+fn offset_ray_origin(&self, w: Vector3f) -> Point3f {
+    pbrt::offset_ray_origin(self.pi, self.n, w)
+}
 ```
 
-〈Ray Inline Functions〉 +≡
+The second takes a destination point, computing the direction $\mathbf w$ for the first:
+
+**〈Interaction Public Methods〉 +≡ 136**
 
 ```rust
-Ray SpawnRayTo(Point3fi pFrom, Normal3f n, Float time, Point3f pTo) { Vector3f d = pTo - Point3f(pFrom); return SpawnRay(pFrom, n, time, d); }
+fn offset_ray_origin_to(&self, pt: Point3f) -> Point3f {
+    self.offset_ray_origin(pt - self.p())
+}
 ```
 
-To generate a ray between two points requires offsets at both endpoints before the vector between them is computed.
+Helper functions in `Ray` generate rays leaving intersection points with these offsets:
+
+**〈Ray Inline Functions〉 ≡**
 
 ```rust
-   Float 23
-   Interaction 136
-   Interaction::n 137
-   Interaction:: OffsetRayOrigin() 382
-   Interaction::p() 137
-   Interaction::pi 137
-   NextFloatDown() 366
-   NextFloatUp() 365
-   Normal3f 94
-   OffsetRayOrigin() 381
-   Point3f 92
-   Point3fi 1061
-   Ray 95
-   SpawnRay() 382
-   Vector3f 86
+fn spawn_ray(pi: Point3fi, n: Normal3f, time: Float, d: Vector3f) -> Ray {
+    Ray::new(offset_ray_origin(pi, n, d), d, time)
+}
+
+fn spawn_ray_to(p_from: Point3fi, n: Normal3f, time: Float, p_to: Point3f) -> Ray {
+    let d = p_to - Point3f::from(p_from);
+    spawn_ray(p_from, n, time, d)
+}
 ```
 
-〈Ray Inline Functions〉 +≡
+A ray between two points needs offsets at both endpoints before computing the vector between them:
+
+**〈Ray Inline Functions〉 +≡**
 
 ```rust
-Ray SpawnRayTo(Point3fi pFrom, Normal3f nFrom, Float time, Point3fi pTo, Normal3f nTo) { Point3f pf = OffsetRayOrigin(pFrom, nFrom, Point3f(pTo) - Point3f(pFrom)); Point3f pt = OffsetRayOrigin(pTo, nTo, pf -Point3f(pTo)); return Ray(pf, pt - pf, time); }
+fn spawn_ray_to_both(
+    p_from: Point3fi, n_from: Normal3f, time: Float,
+    p_to: Point3fi, n_to: Normal3f,
+) -> Ray {
+    let pf = offset_ray_origin(p_from, n_from, Point3f::from(p_to) - Point3f::from(p_from));
+    let pt = offset_ray_origin(p_to, n_to, pf - Point3f::from(p_to));
+    Ray::new(pf, pt - pf, time)
+}
 ```
 
-We can also implement `Interaction` methods that generate rays leaving intersection points. 〈Interaction Public Methods〉 +≡ 136
+We can also implement `Interaction` methods generating rays from intersection points:
+
+**〈Interaction Public Methods〉 +≡ 136**
 
 ```rust
-RayDifferential SpawnRay(Vector3f d) const { return RayDifferential(OffsetRayOrigin(d), d, time, GetMedium(d)); } 〈Interaction Public Methods〉 +≡ 136
+fn spawn_ray(&self, d: Vector3f) -> RayDifferential {
+    RayDifferential::new(self.offset_ray_origin(d), d, self.time, self.get_medium(d))
+}
+
+fn spawn_ray_to(&self, p2: Point3f) -> Ray {
+    let mut r = pbrt::spawn_ray_to(self.pi, self.n, self.time, p2);
+    r.medium = self.get_medium(r.d);
+    r
+}
 ```
+
+A variant of `Interaction::SpawnRayTo()` taking an `Interaction` is similar and omitted. `ShapeSampleContext` provides corresponding `OffsetRayOrigin()` and `SpawnRay()` methods; their implementations are essentially the same and omitted.
+
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `Interaction` 136 · `Interaction::n` 137 · `Interaction::OffsetRayOrigin()` 382 · `Interaction::p()` 137 · `Interaction::pi` 137 · `NextFloatDown()` 366 · `NextFloatUp()` 365 · `Normal3f` 94 · `OffsetRayOrigin()` 381 · `Point3f` 92 · `Point3fi` 1061 · `Ray` 95 · `SpawnRay()` 382 · `Vector3f` 86
+
+</details>
+
+The approach addresses floating-point error at spawned-ray origins. A related issue for shadow rays to area lights: we want intersections with shapes close to the light that really occlude it, while avoiding false hits on the light surface. Our implementation does not address this, so shadow-ray `tMax` is set just under one, stopping before light surfaces:
+
+**〈Mathematical Constants〉 ≡**
 
 ```rust
-   Ray SpawnRayTo(Point3f p2) const {
-        Ray r = pbrt::SpawnRayTo(pi, n, time, p2);
-        r.medium = GetMedium(r.d);
-        return r;
-   }
+const SHADOW_EPSILON: Float = 0.0001;
 ```
 
-A variant of `Interaction::SpawnRayTo()` that takes an `Interaction` is similar and not included here. The `ShapeSampleContext` class also provides `OffsetRayOrigin()` and `SpawnRay()` helper methods that correspond to the ones we have added to `Interaction` here. Their implementations are essentially the same, so they are not included here. The approach we have developed so far addresses the effect of floating-point error at the origins of rays leaving surfaces; there is a related issue for shadow rays to area light sources: we would like to find any intersections with shapes that are close to the light source and actually occlude it, while avoiding reporting incorrect intersections with the surface of the light source. Unfortunately, our implementation does not address this issue, so we set the tMax value of shadow rays to be just under one so that they stop before the surface of light sources.
+One last issue: error introduced by transformations. A ray origin carefully placed on the correct side of a surface may move to the wrong side when the ray is transformed. Therefore, whenever a ray is transformed by `Transform`'s ray `operator()` (Section 3.10.4), its origin is advanced to the edge of the transformation's error bounds, conservatively keeping it on the correct side.
 
-〈Mathematical Constants〉 ≡
+**〈Offset ray origin to edge of error bounds and compute tMax〉 ≡ 132**
 
 ```rust
-constexpr Float ShadowEpsilon = 0.0001f;
+if length_squared(d) > 0.0 {
+    let dt = dot(d.abs(), o.error()) / length_squared(d);
+    o += d * dt;
+    if let Some(t) = t_max { *t -= dt; }
+}
 ```
 
-One last issue must be dealt with in order to maintain robust spawned ray origins: error introduced when performing transformations. Given a ray in one coordinate system where its origin was carefully computed to be on the appropriate side of some surface, transforming that ray to another coordinate system may introduce error in the transformed origin such that
+<details>
+<summary>Reference / notes</summary>
 
-the origin is no longer on the correct side of the surface it was spawned from. Therefore, whenever a ray is transformed by the `Ray` variant of `Transform`::operator() (which was implemented in Section 3.10.4), its origin is advanced to the edge of the bounds on the error that was introduced by the transformation. This ensures that the origin conservatively remains on the correct side of the surface it was spawned from, if any.
+`Dot()` 89 · `Float` 23 · `Interaction` 136 · `Interaction::GetMedium()` 716 · `Interaction::OffsetRayOrigin()` 382 · `LengthSquared()` 87 · `Point3f` 92 · `Point3fi::Error()` 1061 · `Ray` 95 · `Ray::d` 95 · `RayDifferential` 96 · `ShapeSampleContext` 268 · `SpawnRayTo()` 382 · `Tuple3::Abs()` 85 · `Vector3f` 86
+
+</details>
+
+### 6.8.7 Avoiding Intersections Behind Ray Origins
+
+Bounding intersection-point error lets us place ray origins so a ray with infinite precision would not reintersect its surface. A second error source remains: error in computed parametric $t$ values. Round-off can produce $t>0$ for an intersection whose true $t$ is negative (and should be ignored).
+
+Some algorithms always return a $t$ with the correct sign, which is the best case. Consider the ray–slab computation $t=(x\ominus o_x)\oslash d_x$. IEEE guarantees that if $a>b$ then $a\ominus b\ge0$ (and if $a<b$ then $a\ominus b\le0$): the real $a-b>0$ must round to zero or a positive float. Division also preserves sign, so the computed $t$'s sign is correct (or $t=0$, which is fine since our test is $t>0$). For shape routines using `Interval`, the final $t$ carries an error bound, so no further work is needed—see `〈Check quadric shape t0 and t1 for nearest intersection〉` in Section 6.2.2.
+
+**Triangles.** `Interval` has overhead we prefer to avoid for common shapes. For triangles the final $t$ comes from three edge functions $e_i$ and a barycentric-weighted sum of transformed vertex $z$ coordinates,
+
+$$
+t=\frac{e_0z_0+e_1z_1+e_2z_2}{e_0+e_1+e_2}.
+$$
+
+Bounding the error successively in these terms lets us conservatively check positivity.
+
+**〈Ensure that computed triangle t is conservatively greater than zero〉 ≡ 303**
 
 ```rust
-    Dot() 89
-    Float 23
-    Interaction 136
-    Interaction::GetMedium() 716
-    Interaction:: OffsetRayOrigin() 382
-    LengthSquared() 87
-    Point3f 92
-    Point3fi::Error() 1061
-    Ray 95
-    Ray::d 95
-    RayDifferential 96
-    ShapeSampleContext 268
-    SpawnRayTo() 382
-    Tuple3::Abs() 85
-    Vector3f 86
+// 〈Compute deltaZ term for triangle t error bounds 384〉
+// 〈Compute deltaX and deltaY terms for triangle t error bounds 385〉
+// 〈Compute deltaE term for triangle t error bounds 385〉
+// 〈Compute deltaT term for triangle t error bounds and check t 385〉
 ```
 
-〈Offset ray origin to edge of error bounds and compute tMax〉 ≡ 132
+For a ray with origin $\mathbf o$, direction $\mathbf d$, and vertex $\mathbf p$, the projected $z$ coordinate is
+
+$$
+z=(1\oslash d_z)\otimes(p_z\ominus o_z).
+$$
+
+The maximum error in each $z_i$ is bounded by $\gamma_3|z_i|$, so a conservative bound takes the maximum over the three vertices:
+
+**〈Compute deltaZ term for triangle t error bounds〉 ≡ 384**
 
 ```rust
-if (Float lengthSquared = LengthSquared(d); lengthSquared > 0) { Float dt = Dot(Abs(d), o.Error()) / lengthSquared; o += d * dt; if (tMax) *tMax -= dt; }
+let max_z_t = max_component_value(
+    Vector3f::new(p0t.z, p1t.z, p2t.z).abs());
+let delta_z = gamma(3) * max_z_t;
 ```
 
-### 6.8.7 AVOIDING INTERSECTIONS BEHIND RAY ORIGINS
+<details>
+<summary>Reference / notes</summary>
 
-Bounding the error in computed intersection points allows us to compute ray origins that are guaranteed to be on the right side of the surface so that a ray with infinite precision would not incorrectly intersect the surface it is leaving. However, a second source of rounding error must also be addressed: the error in parametric t values computed for ray–shape
+`Float` 23 · `Tuple3::Abs()` 85 · `Tuple3::MaxComponentValue()` 85 · `Vector3f` 86
 
-intersections. Rounding error can lead to an intersection algorithm computing a value t > 0 for the intersection point even though the t value for the actual intersection is negative (and thus should be ignored). It is possible to show that some intersection test algorithms always return a t value with the correct sign; this is the best case, as no further computation is needed to bound the actual error in the computed t value. For example, consider the ray–axis-aligned slab computation: t = (x ⊖ ox) ⊘ dx. The IEEE floating-point standard guarantees that if a > b, then a ⊖ b ≥ 0 (and if a < b, then a ⊖ b ≤ 0). To see why this is so, note that if a > b, then the real number a − b must be greater than zero. When rounded to a floating-point number, the result must be either zero or a positive float; there is no a way a negative floating-point number could be the closest floating-point number. Second, floating-point division returns the correct sign; these together guarantee that the sign of the computed t value is correct. (Or that t = 0, but this case is fine, since our test for an intersection is carefully chosen to be t > 0.) For shape intersection routines that are based on the `Interval` class, the computed t value in the end has an error bound associated with it, and no further computation is necessary to perform this test. See the definition of the fragment 〈Check quadric shape t0 and t1 for nearest intersection〉 in Section 6.2.2.
+</details>
 
-Triangles `Interval` introduces computational overhead that we would prefer to avoid for more commonly used shapes where efficient intersection code is more important. For these shapes, we can derive efficient-to-evaluate conservative bounds on the error in computed t values. The ray–triangle intersection algorithm in Section 6.5.3 computes a final t value by computing three edge function values ei and using them to compute a barycentric-weighted sum of transformed vertex z coordinates, zi:
+The edge functions are differences of products of transformed $x$ and $y$ positions:
 
-By successively bounding the error in these terms and then in the final t value, we can conservatively check that it is positive. 〈Ensure that computed triangle t is conservatively greater than zero〉 ≡ 303
+$$
+e_0=(x_1\otimes y_2)\ominus(y_1\otimes x_2),\quad
+e_1=(x_2\otimes y_0)\ominus(y_2\otimes x_0),\quad
+e_2=(x_0\otimes y_1)\ominus(y_0\otimes x_1).
+$$
 
-〈Compute δz term for triangle t error bounds 384〉
+**〈Compute deltaX and deltaY terms for triangle t error bounds〉 ≡ 384**
 
 ```rust
-   〈Compute δx and δy terms for triangle t error bounds 385〉
-   〈Compute δe term for triangle t error bounds 385〉
-   〈Compute δt term for triangle t error bounds and check t 385〉
+let max_x_t = max_component_value(Vector3f::new(p0t.x, p1t.x, p2t.x).abs());
+let max_y_t = max_component_value(Vector3f::new(p0t.y, p1t.y, p2t.y).abs());
+let delta_x = gamma(5) * (max_x_t + max_z_t);
+let delta_y = gamma(5) * (max_y_t + max_z_t);
 ```
 
-Given a ray r with origin o, direction d, and a triangle vertex p, the projected z coordinate is
+Taking the maximum error over all vertices, the $x_i\otimes y_j$ products have an absolute error bound of $\gamma_2|x_i y_j|+\delta_x|y_j|+\delta_y|x_i|$; dropping negligible higher-order products of $\gamma$ and $\delta$ terms, the error bound for the difference of two such terms is
 
-```text
-                                    z = (1 ⊘ dz) ⊗ (pz ⊗ oz).
-```
-
-Applying the usual approach, we can find that the maximum error in zi for each of three vertices of the triangle pi is bounded by γ3|zi|, and we can thus find a conservative upper bound for the error in any of the z positions by taking the maximum of these errors: 〈Compute δz term for triangle t error bounds〉 ≡ 384
+**〈Compute deltaE term for triangle t error bounds〉 ≡ 384**
 
 ```rust
-   Float maxZt = MaxComponentValue(Abs(Vector3f(p0t.z, p1t.z, p2t.z)));
-   Float deltaZ = gamma(3) * maxZt;
+let delta_e = 2.0 * (gamma(2) * max_x_t * max_y_t
+                   + delta_y * max_x_t
+                   + delta_x * max_y_t);
 ```
+
+Bounding by the maximum over all $e_i$, the error in the numerator of $t$ (before dividing by $\sum e_i$) is bounded below by the following; the computed $t$ must exceed it to be accepted as definitely positive:
+
+**〈Compute deltaT term for triangle t error bounds and check t〉 ≡ 384**
 
 ```rust
-   Float 23
-   Tuple3::Abs() 85
-   Tuple3::MaxComponentValue() 85
-   Vector3f 86
+let max_e = max_component_value(Vector3f::new(e0, e1, e2).abs());
+let delta_t = 3.0 * (gamma(3) * max_e * max_z_t
+                   + delta_e * max_z_t
+                   + delta_z * max_e) * inv_det.abs();
+if t <= delta_t { return None; }
 ```
 
-The edge function values are computed as the difference of two products of transformed x and y vertex positions: e0 = (x1 ⊗ y2) ⊖ (y1 ⊗ x2) e1 = (x2 ⊗ y0) ⊖ (y2 ⊗ x0) e2 = (x0 ⊗ y1) ⊖ (y0 ⊗ x1).
+Although these bounds are deliberately looser, in practice they are tiny: for a scene within roughly $\pm10$ in each dimension, $t$ error bounds near ray origins are around $10^{-7}$.
 
-Bounds for the error in the transformed positions xi and yi are
+**Bilinear Patches.** For patches, $t$ comes from a 3×3 determinant, and deriving bounds is unwieldy because many operations are involved. Instead we compute an epsilon based on the magnitudes of all inputs to the computation of $t$:
 
-〈Compute δx and δy terms for triangle t error bounds〉 ≡ 384
+**〈Find epsilon eps to ensure that candidate t is greater than zero〉 ≡ 332**
 
 ```rust
-   Float maxXt = MaxComponentValue(Abs(Vector3f(p0t.x, p1t.x, p2t.x)));
-   Float maxYt = MaxComponentValue(Abs(Vector3f(p0t.y, p1t.y, p2t.y)));
-   Float deltaX = gamma(5) * (maxXt + maxZt);
+let eps = gamma(10) * (
+    max_component_value(ray.o.abs())
+  + max_component_value(ray.d.abs())
+  + max_component_value(p00.abs())
+  + max_component_value(p10.abs())
+  + max_component_value(p01.abs())
+  + max_component_value(p11.abs()));
 ```
 
-```rust
-   Float deltaY = gamma(5) * (maxYt + maxZt);
+<details>
+<summary>Reference / notes</summary>
+
+`Float` 23 · `gamma()` 368 · `Tuple3::Abs()` 85 · `Tuple3::MaxComponentValue()` 85
+
+</details>
+
+### 6.8.8 Discussion
+
+Minimizing and bounding numerical error in other geometric computations—partial derivatives of surface positions, interpolated texture coordinates, and so on—is much less important than for ray intersection positions. Similarly, color and light computations in physically based rendering generally do not suffer from round-off: they are sums of products of positive numbers with reasonably close magnitudes, so catastrophic cancellation is uncommon, and their few terms mean accumulated error is dwarfed by the inherent variance of the Monte Carlo algorithms.
+
+Interestingly, replacing pbrt's previous ad hoc method for avoiding self-intersections with the method of this section increased overall ray-tracing time by roughly 20% (compared with about 30% for rendering in double precision). Profiling showed very little of that time came from computing error bounds—most are just scaled sums of absolute values of already-computed terms. Most of the slowdown came from an *increase in ray–object intersection tests*. Wächter (2008, p. 30) first identified the reason: when ray origins are very close to surfaces, more nodes of intersection acceleration hierarchies must be visited for spawned rays than with overly loose offsets, so more intersection tests occur near the origin. The cost is a direct consequence of greater accuracy—the price of resolving valid nearby intersections more precisely.
+
+## Further Reading
+
+*An Introduction to Ray Tracing* has an extensive survey of algorithms for ray–shape intersection (Glassner 1989a). Goldstein and Nagel (1971) discussed ray–quadric intersections, and Heckbert (1984) discussed the mathematics of quadrics for graphics applications in detail, with many citations to the mathematics literature. Hanrahan (1983) described a system automating the derivation of a ray-intersection routine for surfaces defined by implicit polynomials; it emits C source code performing the intersection test and normal computation for a surface described by a given equation. Mitchell (1990) showed that interval arithmetic could be applied to robustly compute intersections with implicit surfaces that cannot be described by polynomials and are therefore harder to compute accurately (more recent work in this area is by Knoll et al. 2009). Other notable early papers include Kajiya's (1983) work on surfaces of revolution and procedurally generated fractal terrains. Fournier et al. (1982) on procedural stochastic models and Hart et al. (1989) on finding intersections with fractals illustrate the broad range of representations usable with ray tracing.
+
+The ray–triangle intersection test in Section 6.5 was developed by Woop et al. (2013); see Möller and Trumbore (1997) for another widely used algorithm. Lagae and Dutré (2005) developed a ray–quadrilateral routine. Kensler and Shirley (2006) implemented a program searching the space of mathematically equivalent ray–triangle tests, automatically generating and benchmarking software variations, and found a more efficient routine than had been used previously. Kajiya (1982) developed the first algorithm for intersections with parametric patches; subsequent work on direct ray intersection with patches includes Stürzlinger (1998), Martin et al. (2000), Roth et al. (2001), and Benthin et al. (2006), who also provide additional references. Ogaki and Tokuyoshi (2011) directly intersect smooth surfaces generated from triangle meshes with per-vertex normals. Ramsey et al. (2004) described an algorithm for bilinear patches but required double precision for robust results; Reshetov (2019) derived a more efficient single-precision algorithm, which is used by pbrt's `BilinearPatch` implementation. See Akenine-Möller et al. (2018) for explanations of the algorithms used in its implementation that relate to the distance between lines.
+
+Phong and Crow (1975) introduced interpolating per-vertex shading normals to make polygonal meshes appear smooth. Shading normals may put reflected rays on the wrong side of the true surface; Reshetov et al. (2010) described a normal interpolation technique avoiding this problem. Triangle mesh layout in memory can measurably affect performance: triangles close in 3D space should be close in memory to improve cache hit rates (Yoon et al. 2005; Yoon and Lindstrom 2006). Reducing mesh storage can also improve performance and allow more complex scenes (e.g., Lauterbach et al. 2008).
+
+Subdivision surfaces are a widely used smooth-surface representation, invented by Doo and Sabin (1978) and Catmull and Clark (1978); Warren (2002) is a good introduction. Müller et al. (2003) refine a subdivision surface on demand for the rays being tested, and Benthin et al. (2007, 2015) described a related approach. Tejima et al. (2015) converted subdivision surfaces to Bézier patches and intersected rays with those, saving memory. Previous editions of this book included a section on subdivision-surface implementation that may also be of interest. The curve intersection algorithm of Section 6.7 is based on Nakamaru and Ohno (2002). Earlier methods for ray intersections with generalized cylinders also apply to curves but are much less efficient (Bronsvoort and Klok 1985; de Voogt et al. 2000). Binder and Keller (2018) improved recursive culling for curve intersections using cylinders rather than axis-aligned boxes; their approach suits GPUs better than the current `Curve` implementation because it uses a compact bit field to record pending work instead of recursion.
+
+More efficient curve intersection algorithms have been developed by Reshetov (2017) and Reshetov and Luebke (2018). Related is the tube primitive of Han et al. (2019), a polyline with a radius at each vertex and an efficient intersection routine. A challenge with thin geometry such as hair and fur is the many pixel samples needed to resolve it; Qin et al. (2014) used cone tracing for fur, tracing narrow cones and considering all curves intersecting a cone, obtaining high quality with few cones per pixel. An excellent introduction to differential geometry is Gray (1993); Section 14.3 of his book presents the Weingarten equations.
+
+**Intersection Accuracy.** Higham's (2002) book on floating-point computation is excellent and develops the $\gamma_n$ notation used in Section 6.8; other good references are Wilkinson (1994) and Goldberg (1991). While we derived error bounds manually, the Gappa system (Daumas and Melquiond 2010) automatically derives forward error bounds. Herbgrind (Sanchez-Stern et al. 2018) automatically finds floating-point computations suffering excessive error during a program's execution. The incorrect self-intersection problem has long been known to ray-tracing practitioners (Haines 1989; Amanatides and Mitchell 1990). Besides epsilon offsets, suggested approaches include ignoring intersections with the previously intersected object, "root polishing" (Haines 1989; Woo et al. 1996), and higher-precision floats.
+
+Kalra and Barr (1989) and Dammertz and Keller (2006) developed robust intersections by recursively subdividing object bounding boxes, discarding boxes that do not contain the surface or are missed by the ray; both are much less efficient than traditional intersection algorithms or the techniques of Section 6.8. Ize (2013) showed how to perform numerically robust ray–box intersections; his approach is implemented in Section 6.8.2 (with a more careful derivation he showed the scale factor can be $2\gamma_2$ rather than our $2\gamma_3$). Wächter (2008) discussed self-intersection issues in his thesis, suggesting root polishing and offsets along the normal by a fixed small fraction of the intersection point's magnitude. The method here uses his normal-offset idea but with conservative bounds based on numerical error—generally tighter than Wächter's offsets while provably conservative. The accurate discriminant of Section 6.8.3 is due to Hearn and Baker (2004), via Haines et al. (2019). Geometric accuracy has received far more attention in computational geometry than in rendering: Salesin et al. (1989) derived robust geometric primitives accounting for round-off, and Shewchuk (1997) applied adaptive-precision arithmetic to geometric predicates using just enough precision for a correct result. The precision requirements of ray tracing have implications beyond implementation: Reif et al. (1994) constructed Turing machines entirely from ray tracing and geometric optics, implying ray tracing is undecidable in the complexity-theoretic sense. In practice optical computing systems can be built, though they cannot solve undecidable problems; Blakey (2012) showed this is explained by the exponential growth of such machines' precision requirements.
+
+**Sampling Shapes.** Turk (1990) described two approaches to uniformly sampling triangle area. The approach in `SampleUniformTriangle()`—more efficient and better at preserving stratification than Turk's algorithms—is due to Talbot (2011) and Heitz (2019). Shirley et al. (1996) derived methods for sampling several other shapes, and Arvo and Novins (2007) showed how to sample convex quadrilaterals. These approaches warp samples from the unit square to the shape's surface; Basu and Owen (2015, 2017) instead recursively decompose triangles and disks to generate low-discrepancy points directly on their surfaces. Marques et al. (2013) generated low-discrepancy samples on the unit sphere; see also Christensen (2018), who showed error reduction from imposing structure on multiple sample points on disk lights. Uniformly sampling a shape's visible area from a reference point improves direct lighting. Gardner et al. (1987) and Zimmerman (1995) derived methods for cylinders; Wang et al. (2006) found an algorithm for cones. (For planar shapes such as triangles the visible area is trivially the whole area.)
+
+Uniform solid-angle sampling has also received attention. Wang (1992) introduced solid-angle sampling of spheres. Arvo (1995b) showed how to sample a triangle's projection on the sphere of directions from a reference point; his approach is implemented in `SampleSphericalTriangle()` (a more efficient approach was recently developed by Peters 2021b, Section 5). Ureña et al. (2013) and Pekelis and Hery (2014) developed analogous techniques for quadrilateral lights; Ureña et al.'s method is used in `SampleSphericalRectangle()`. Donnay (1945) provides helpful background in spherical trigonometry. The cone-angle-to-sphere-point conversion of Section 6.2.4 was derived by Akalin (2015). The inversion of the spherical triangle sampler in `InvertSphericalTriangleSample()` is due to Arvo (2001b). Gamito (2016) uniformly samples disk and cylindrical lights by bounding their subtended solid angle with a quadrilateral sampled using Ureña et al.'s method (2013), rejecting samples off the light. Tsai et al. (2006) approximated shapes with triangle collections sampled by solid angle; Guillén et al. (2017) subsequently developed direct solid-angle disk sampling without rejection. Spheres are the only shapes for which we know of direct projected-solid-angle sampling algorithms: Ureña and Georgiev (2018) presented one, Peters and Dachsbacher (2019) developed a more efficient approach, and Peters (2019) described computing the associated PDF for multiple importance sampling. A variety of additional projected-solid-angle techniques exist: Arvo (2001a) gave a general framework requiring numeric inversion of the associated CDF, Ureña (2000) approximated projected solid-angle triangle sampling by progressive decomposition, and Hart et al. (2020) described a related approach. Peters (2021b) recently showed how to perform projected solid-angle sampling of polygons efficiently and accurately.
+
+## Exercises
+
+Difficulty: ➊ straightforward, ➋ moderate, ➌ challenging.
+
+**➋ 6.1** One nice property of mesh-based shapes such as triangle meshes and subdivision surfaces is that their vertices can be transformed into rendering space, so rays need not be transformed into object space before intersection. Interestingly, the same can be done for ray–quadric intersections.
+
+The implicit forms of the quadrics in this chapter all have the form
+
+$$
+ax^2+bxy+cxz+dy^2+eyz+fz^2+g=0,
+$$
+
+where some constants $a\ldots g$ are zero. More generally, define quadric surfaces by
+
+$$
+ax^2+by^2+cz^2+2dxy+2eyz+2fxz+2gx+2hy+2iz+j=0,
+$$
+
+where most parameters $a\ldots j$ do not correspond directly to the earlier $a\ldots g$. In this form a quadric is represented by a 4×4 symmetric matrix $Q$:
+
+$$
+Q=\begin{pmatrix}
+a & d & f & g\\
+d & b & e & h\\
+f & e & c & i\\
+g & h & i & j
+\end{pmatrix},
+\qquad \mathbf p^T Q\,\mathbf p=0.
+$$
+
+First show that the matrix $Q'$ representing a quadric transformed by $M$ is
+
+$$
+Q'=(M^T)^{-1} Q\, M^{-1}.
+$$
+
+To do so, show that for any point $\mathbf p$ with $\mathbf p^TQ\mathbf p=0$, applying $M$ gives $\mathbf p'=M\mathbf p$ and we want $(\mathbf p')^TQ'\mathbf p'=0$. Next, substitute the ray equation into the general quadric equation to compute coefficients of the quadratic equation in terms of entries of $Q$, to pass to `Quadratic()`.
+
+Now implement this approach in pbrt and use it in place of the original quadric intersection routines. Note that you will still need to transform rendering-space hit points to object space to test against $\theta_{\max}$ if it is not $2\pi$, and so on. How does performance compare with the original scheme?
+
+**➋ 6.2** Transforming a quadric's object-space bounding box to rendering space need not give an optimal bounding box. However, the matrix form of Exercise 6.1 can also be used to compute optimal bounds. Read Barnes (2014) on this topic and implement the approach. How much are bounding boxes improved? Measure the effect on rendering performance for a scene with many transformed quadrics.
+
+**➊ 6.3** Improve the object-space bounding-box routines for the quadrics to properly account for $\phi_{\max}<3\pi/2$, computing tighter bounds where possible. How much does this improve performance when rendering partial quadrics?
+
+**➋ 6.4** There is room to optimize the quadric primitives. For complete spheres, some tests relating to partial spheres are unnecessary; some quadrics call trigonometric functions that could become simpler expressions using geometric insight. Investigate speedups and measure the improvement in overall run time for scenes with quadrics.
+
+**➊ 6.5** Fix the buggy `Sphere::Sample()` and `Disk::Sample()` methods, which do not properly account for partial spheres and disks when sampling points on the surface. Create a scene demonstrating the error and clearly showing your solution's improvement.
+
+**➋ 6.6** Derive a sampling method for cylinder area lights choosing only points over the visible area as seen from the receiving point, analogous to the improved sphere sampling in this chapter (Gardner et al. 1987; Zimmerman 1995). Write a new `Cylinder::Sample()` implementing it. Verify pbrt still generates correct images, and measure variance reduction for a fixed number of samples and the resulting efficiency improvement. How do you explain any discrepancy between variance reduction and efficiency improvement?
+
+<details>
+<summary>Reference / notes</summary>
+
+`Cylinder::Sample()` 291 · `Disk::Sample()` 295 · `Quadratic()` 1045 · `Sphere::Sample()` 280
+
+</details>
+
+**➋ 6.7** Implement one of the approaches for sampling spheres according to projected solid angle in their visible region (Ureña and Georgiev 2018; Peters and Dachsbacher 2019). Measure the change in execution time and discuss the results. Then measure the MSE of pbrt's current approach and your approach for a few scenes with spherical lights, using an image rendered with thousands of samples per pixel as reference. How do the results differ when the light is always unoccluded versus sometimes partially occluded? How does the BSDF of scene surfaces affect the results?
+
+**➊ 6.8** Currently pbrt recomputes $\partial\mathbf p/\partial u$ and $\partial\mathbf p/\partial v$ for triangles whenever needed, though they are constant per triangle. Precompute these vectors and analyze the speed/storage trade-off, especially for large meshes. How do scene depth complexity and triangle size in the image affect the trade-off?
+
+**➋ 6.9** Implement a general polygon primitive supporting arbitrary vertex counts and convex or concave polygons as a new `Shape` in pbrt. You may assume a valid, planar polygon has been provided, though a warning for nonplanarity is desirable.
+
+An efficient ray–polygon test finds the polygon's plane equation from its normal and a point, intersects the ray with that plane, and projects the hit point and polygon vertices to 2D. Then apply a 2D point-in-polygon test: effectively do 2D ray tracing, intersecting a ray with each edge segment and counting crossings—an odd count means the point is inside and there is an intersection. Figure 6.47 illustrates this idea.
+
+*Figure 6.47: A ray–polygon test finds where the ray meets the polygon's plane, projects the hit point and vertices onto an axis-aligned plane, and performs a 2D point-in-polygon test there.*
+
+```mermaid
+flowchart LR
+    R["3D ray"] --> P["Intersect polygon plane"]
+    P --> Q["Project hit and vertices<br/>to 2D"]
+    Q --> C["Count edge crossings<br/>odd = inside = hit"]
 ```
 
-Taking the maximum error over all three of the vertices, the xi ⊗ yj products in the edge functions are bounded by
+Haines (1994) surveys efficient point-in-polygon tests, and Section 13.3.3 of Schneider and Eberly (2003) discusses corner cases such as a 2D ray aligning with an edge or passing through a vertex.
 
-which have an absolute error bound of
+**➋ 6.10** Constructive solid geometry (CSG) builds complex shapes from unions, intersections, and differences of simpler ones. For example, a sphere can create pits in a cylinder by subtracting partially overlapping spheres (Hoffmann 1989). Add CSG support to pbrt and render images demonstrating interesting shapes. See Roth (1982), the first description of ray tracing CSG models, and Amanatides and Mitchell (1990) for accuracy issues in CSG ray tracing.
 
-Dropping the (negligible) higher-order terms of products of γ and δ terms, the error bound on the difference of two x and y terms for the edge function is 〈Compute δe term for triangle t error bounds〉 ≡ 384
+**➋ 6.11** Procedurally described parametric surfaces: write a `Shape` taking a general expression $f(u,v)\to(x,y,z)$ describing a parametric surface. Evaluate it at a grid of $(u,v)$ positions, create a bilinear patch mesh approximating it, and render images of interesting shapes with your new `Shape`.
 
-```rust
-   Float deltaE = 2 * (gamma(2) * maxXt * maxYt + deltaY * maxXt +
-                       deltaX * maxYt);
-```
+**➋ 6.12** Adaptive curve refinement: adjust the number of recursive refinement levels for `Curve` intersection based on on-screen area. One approach uses `RayDifferential`, which represents the image-space area of a ray—but currently only `Ray`, not `RayDifferential`, is passed to `Shape::Intersect()`, so other parts of the system must be modified. Alternatively, modify the camera to provide the projected length of rendering-space vectors on the image plane and make it available during curve intersection. Render images showing the benefit when the camera is close to curves, and measure performance while varying camera-to-curve distance. Does performance improve when the camera is far? How does it change when close?
 
-Again bounding error by taking the maximum of error over all the ei terms, the error bound for the computed value of the numerator of t in Equation (6.32) is A computed t value (before normalization by the sum of ei) must be greater than this value for it to be accepted as a valid intersection that definitely has a positive t value. 〈Compute δt term for triangle t error bounds and check t〉 ≡ 384
+**➋ 6.13** Implement one of the more efficient ray–curve algorithms of Reshetov (2017) or Reshetov and Luebke (2018). Measure pbrt's current `Curve` implementation and your new one, and discuss the results. Do rendered images match? Can you find differences in returned intersections that change images, especially when the camera is close to a curve? Explain your findings.
 
-```rust
-   Float maxE = MaxComponentValue(Abs(Vector3f(e0, e1, e2)));
-   Float deltaT = 3 * (gamma(3) * maxE * maxZt + deltaE * maxZt +
-                       deltaZ * maxE) * std::abs(invDet);
-   if (t <= deltaT)
-       return {};
-```
+**➌ 6.14** Ray-tracing point-sampled geometry: extending methods for rendering complex models as point samples (Levoy and Whitted 1985; Pfister et al. 2000; Rusinkiewicz and Levoy 2000), Schaufler and Jensen (2000) described intersecting rays with oriented point samples. Their algorithm probabilistically declares a hit when a ray passes near a sufficient local density of samples and computes a normal by weighted averaging. Read their paper and add a point-sampled geometry shape to pbrt. Do any basic interfaces need extending or generalizing to support such a shape?
 
-```rust
-   Float 23
-   gamma() 368
-   Tuple3::Abs() 85
-   Tuple3::MaxComponentValue() 85
-   Vector3f 86
-```
+<details>
+<summary>Reference / notes</summary>
 
-Although it may seem that we have made a number of choices to compute looser bounds than we might have, in practice the bounds on error in t are extremely small. For a regular scene that fills a bounding box roughly ±10 in each dimension, our t error bounds near ray origins are generally around 10−7.
+`Curve` 346 · `Ray` 95 · `RayDifferential` 96 · `Shape` 261 · `Shape::Intersect()` 265 · `TransformedPrimitive` 403
 
-Bilinear Patches Recall from Section 6.6.1 that the t value for a bilinear patch intersection is found by taking the determinant of a 3 × 3 matrix. Each matrix element includes round-off error from the series of floating-point computations used to compute its value. While it is possible to derive bounds on the error in the computed t using a similar approach as was used for triangle intersections, the algebra becomes unwieldy because the computation involves many more operations. Therefore, here we compute an epsilon value that is based on the magnitudes of all of the inputs of the computation of t. 〈Find epsilon eps to ensure that candidate t is greater than zero〉 ≡ 332
+</details>
 
-```rust
-Float eps = gamma(10) * (MaxComponentValue(Abs(ray.o)) + MaxComponentValue(Abs(ray.d)) + MaxComponentValue(Abs(p00)) + MaxComponentValue(Abs(p10)) + MaxComponentValue(Abs(p01)) + MaxComponentValue(Abs(p11)));
-```
+**➌ 6.15** Deformation motion blur: `TransformedPrimitive` in Section 7.1.2 supports animated shapes through time-varying transformations, but cannot represent a mesh whose vertices have separate start- and end-of-frame positions (e.g., a running character with different body parts moving differently). Implement a more general `Triangle` or `BilinearPatch` shape accepting vertex positions at frame start and end and interpolating by the ray time passed to the intersection methods. Update the bounding routines accordingly. Meshes with large motion may perform poorly because triangles or patches sweep large bounding boxes and cause many useless intersection tests. Can you devise approaches to reduce this problem's impact?
 
-### 6.8.8 DISCUSSION
+**➌ 6.16** Implicit functions: just as implicit quadric definitions are a useful starting point for ray-intersection algorithms, more complex implicit functions define interesting shapes—organic forms and water drops in particular. Blinn (1982a) introduced direct rendering of implicit surfaces; Wyvill and Wyvill (1989) gave a basis function with several advantages over Blinn's. Implement ray intersections with implicit surfaces and add them to pbrt. You may wish to read Kalra and Barr (1989), Hart (1996), and Sabbadin and Droske (2021). Mitchell's interval-arithmetic algorithm for robust implicit-surface intersections (Mitchell 1990) is another effective method, refined by Knoll et al. (2009) and possibly easier to implement. See Moore (1966) for interval arithmetic reference.
 
-Minimizing and bounding numerical error in other geometric computations (e.g., partial derivatives of surface positions, interpolated texture coordinates, etc.) are much less important than they are for the positions of ray intersections. In a similar vein, the computations involving color and light in physically based rendering generally do not present trouble with respect to round-off error; they involve sums of products of positive numbers (usually with reasonably close magnitudes); hence catastrophic cancellation is not a commonly encountered issue. Furthermore, these sums are of few enough terms that accumulated error is small: the variance that is inherent in the Monte Carlo algorithms used for them dwarfs any floating-point error in computing them.
+**➌ 6.17** L-systems: Alvy Ray Smith (1984) introduced Lindenmayer systems to graphics for procedurally modeling plants as branching structures. Prusinkiewicz and collaborators generalized the approach to a wide variety of plants and appearance effects (Prusinkiewicz 1986; Prusinkiewicz, James, and Mech 1994; Deussen et al. 1998; Prusinkiewicz et al. 2001). L-systems describe branching structure via a grammar, which can be evaluated into expressions describing a topological representation, then translated into geometry. Add an L-system primitive to pbrt that takes a grammar and evaluates it to create the shape it describes.
 
-Interestingly enough, we saw an increase of roughly 20% in overall ray-tracing execution time after replacing the previous version of pbrt’s old ad hoc method to avoid incorrect self-intersections with the method described in this section. (In comparison, rendering with double-precision floating point causes an increase in rendering time of roughly 30%.) Profiling showed that very little of the additional time was due to the additional computation to find error bounds; this is not surprising, as the incremental computation our approach requires is limited—most of the error bounds are just scaled sums of absolute values of terms that have already been computed. The majority of this slowdown is due to an increase in ray–object intersection tests. The reason for this increase in intersection tests was first identified by Wächter (2008, p. 30); when ray origins are very close to shape surfaces, more nodes of intersection acceleration hierarchies must be visited when tracing spawned rays than if overly loose offsets are used. Thus, more intersection tests are performed near the ray origin. While this reduction in performance is unfortunate, it is a direct result of the greater accuracy of the method; it is the price to be paid for more accurate resolution of valid nearby intersections.
+**➊ 6.18** Given an arbitrary point $(x,y,z)$, what bound on the error from applying a scale transformation of $(2,1,4)$ is given by Equation (6.30)? How much error is actually introduced?
 
-```rust
-   Float 23
-   gamma() 368
-   Tuple3::Abs() 85
-   Tuple3::MaxComponentValue() 85
-```
+<details>
+<summary>Reference / notes</summary>
 
-## FURTHER READING
+`Interval` 1057
 
-An Introduction to Ray Tracing has an extensive survey of algorithms for ray–shape intersection (Glassner 1989a). Goldstein and Nagel (1971) discussed ray–quadric intersections, and Heckbert (1984) discussed the mathematics of quadrics for graphics applications in detail, with many citations to literature in mathematics and other fields. Hanrahan (1983) described a system that automates the process of deriving a ray intersection routine for surfaces defined by implicit polynomials; his system emits C source code to perform the intersection test and normal computation for a surface described by a given equation. Mitchell (1990) showed that interval arithmetic could be applied to develop algorithms for robustly computing
+</details>
 
-intersections with implicit surfaces that cannot be described by polynomials and are thus more difficult to accurately compute intersections for (more recent work in this area was done by Knoll et al. (2009)). Other notable early papers related to ray–shape intersection include Kajiya’s (1983) work on computing intersections with surfaces of revolution and procedurally generated fractal terrains. Fournier et al.’s (1982) paper on rendering procedural stochastic models and Hart et al.’s (1989) paper on finding intersections with fractals illustrate the broad range of shape representations that can be used with ray-tracing algorithms. The ray–triangle intersection test in Section 6.5 was developed by Woop et al. (2013). See Möller and Trumbore (1997) for another widely used ray– triangle intersection algorithm. A ray–quadrilateral intersection routine was developed by Lagae and Dutré (2005). An interesting approach for developing a fast ray–triangle intersection routine was introduced by Kensler and Shirley (2006): they implemented a program that performed a search across the space of mathematically equivalent ray–triangle tests, automatically generating software implementations of variations and then benchmarking them. In the end, they found a more efficient ray–triangle routine than had been in use previously. Kajiya (1982) developed the first algorithm for computing intersections with parametric patches. Subsequent work on more efficient techniques for direct ray intersection with patches includes papers by Stürzlinger (1998), Martin et al. (2000), Roth et al. (2001), and Benthin et al. (2006), who also included additional references to previous work. Related to this, Ogaki and Tokuyoshi (2011) introduced a technique for directly intersecting smooth surfaces generated from triangle meshes with per-vertex normals. Ramsey et al. (2004) described an algorithm for computing intersections with bilinear patches, though double-precision computation was required for robust results. Reshetov (2019) derived a more efficient algorithm that operates in single precision; that algorithm is used in pbrt’s `BilinearPatch` implementation. See Akenine-Möller et al. (2018) for explanations of the algorithms used in its implementation that are related to the distance between lines.
+**➋ 6.19** The quadric shapes all use `Interval` in their intersection tests to bound computed $t$ error so intersections behind the ray origin are not reported. First measure the performance difference when using regular `Float` for one or more quadrics in a scene containing them. Next, manually derive conservative error bounds for $t$ computed by those shapes, as was done for triangles in Section 6.8.7, and implement your method. You may find `Interval` useful for empirically testing your derivation's correctness. Measure the performance difference with your implementation.
 
-Phong and Crow (1975) introduced the idea of interpolating per-vertex shading normals to give the appearance of smooth surfaces from polygonal meshes. The use of shading normals may cause rays reflected from a surface to be on the wrong side of the true surface; Reshetov et al. (2010) described a normal interpolation technique that avoids this problem. The layout of triangle meshes in memory can have a measurable impact on performance. In general, if triangles that are close together in 3D space are close together in memory, cache hit rates will be higher, and overall system performance will benefit. See Yoon et al. (2005) and Yoon and Lindstrom (2006) for algorithms for creating cache-friendly mesh layouts in memory. Relatedly, reducing the storage required for meshes can improve performance, in addition to making it possible to render more complex scenes; see for example Lauterbach et al. (2008).
+**➋ 6.20** One detail thwarts the watertightness of the current `Triangle` implementation: translating and shearing triangle vertices introduces round-off error that must be accounted for in the extent of triangle bounding boxes; see Section 3.3 of Woop et al. (2013) for discussion and a solution. Modify pbrt to incorporate a solution. Can you find scenes where small image errors are eliminated by your fix?
 
-```text
-   BilinearPatch 328
-```
+<details>
+<summary>Reference / notes</summary>
 
-Subdivision surfaces are a widely used representation of smooth surfaces; they were invented by Doo and Sabin (1978) and Catmull and Clark (1978). Warren’s book provides a good introduction to them (Warren 2002). Müller et al. (2003) described an approach that refines a subdivision surface on demand for the rays to be tested for intersection with it, and Benthin et al. (2007, 2015) described a related approach. A more memory-efficient approach was described by Tejima et al. (2015), who converted subdivision surfaces to Bézier patches and intersected rays with those. Previous editions of this book included a section in this chapter on the implementation of subdivision surfaces, which may also be of interest. The curve intersection algorithm in Section 6.7 is based on the approach developed by Nakamaru and Ohno (2002). Earlier methods for computing ray intersections with generalized cylinders are also applicable to rendering curves, though they are much less efficient (Bronsvoort and Klok 1985; de Voogt et al. 2000). Binder and Keller (2018) improved the recursive culling of curve intersections using cylinders to bound the curve in place of axis-aligned bounding boxes. Their approach is better suited for GPUs than the current implementation in the `Curve` shape, as it uses a compact bit field to record work to be done, in place of recursive evaluation.
+`Triangle` 301
 
-More efficient intersection algorithms for curves have recently been developed by Reshetov (2017) and Reshetov and Luebke (2018). Related is a tube primitive described by a poly-line with a specified radius at each vertex that Han et al. (2019) provided an efficient intersection routine for. One challenge with rendering thin geometry like hair and fur is that thin geometry may require many pixel samples to be accurately resolved, which in turn increases rendering time. One approach to this problem was described by Qin et al. (2014), who used cone tracing for rendering fur, where narrow cones are traced instead of rays. In turn, all the curves that intersect a cone can be considered in computing the cone’s contribution, allowing high-quality rendering with a small number of cones per pixel. An excellent introduction to differential geometry was written by Gray (1993); Section 14.3 of his book presents the Weingarten equations.
+</details>
 
-Intersection Accuracy Higham’s (2002) book on floating-point computation is excellent; it also develops the γn notation that we have used in Section 6.8. Other good references to this topic are Wilkinson (1994) and Goldberg (1991). While we have derived floating-point error bounds manually, see the Gappa system by Daumas and Melquiond (2010) for a tool that automatically derives forward error bounds of floating-point computations. The Herbgrind (Sanchez-Stern et al. 2018) system implements an interesting approach, automatically finding floating-point computations that suffer from excessive error during the course of a program’s execution. The incorrect self-intersection problem has been a known problem for ray-tracing practitioners for quite some time (Haines 1989; Amanatides and Mitchell 1990). In addition to offsetting rays by an “epsilon” at their origin, approaches that have been suggested include ignoring intersections with the object that was previously intersected; “root polishing” (Haines 1989; Woo et al. 1996), where the computed intersection point is refined to become more numerically accurate; and using higher-precision floating-point representations (e.g., double instead of float).
+## Footnotes
 
-Kalra and Barr (1989) and Dammertz and Keller (2006) developed algorithms for numerically robust intersections based on recursively
+[^1]: This assumes an architecture supporting IEEE floating-point arithmetic, universal on modern systems. The relevant properties are that for all $v>0$, $v/0=\infty$ and for all $w<0$, $w/0=-\infty$, where $\infty$ is a special value such that any positive number times $\infty$ gives $\infty$ and any negative number times $\infty$ gives $-\infty$, and so on. See Section 6.8.1.
 
-subdividing object bounding boxes, discarding boxes that do not encompass the object’s surface, and discarding boxes missed by the ray. Both of these approaches are much less efficient than traditional ray–object intersection algorithms as well as the techniques introduced in Section 6.8.
+[^2]: Some ray tracers require normalized ray directions, meaning $a=1$. This can lead to subtle errors if the caller forgets to normalize. Normalizing in the ray constructor avoids them but wastes effort when the direction is already normalized. To avoid this complexity pbrt never insists on normalized directions in intersection routines, which also reduces the work of transforming rays to object space because no normalization is needed there.
 
-```text
-   Curve 346
-```
+[^3]: This computation implicitly assumes counterclockwise vertex ordering.
 
-Ize showed how to perform numerically robust ray–bounding box intersections (Ize 2013); his approach is implemented in Section 6.8.2. (With a more careful derivation, he showed that a scale factor of 2γ2 can be used to increase tMax, rather than the 2γ3 we derived.) Wächter (2008) discussed self-intersection issues in his thesis; he suggested recomputing the intersection point starting from the initial intersection (root polishing) and offsetting spawned rays along the normal by a fixed small fraction of the intersection point’s magnitude. The approach implemented in this chapter uses his approach of offsetting ray origins along the normal but uses conservative bounds on the offsets based on the numerical error present in computed intersection points. (As it turns out, our bounds are generally tighter than Wächter’s offsets while also being provably conservative.) The method used for computing accurate discriminants for ray–quadratic intersections in Section 6.8.3 is due to Hearn and Baker (2004), via Haines et al. (2019). Geometric accuracy has seen much more attention in computational geometry than in rendering. Examples include Salesin et al. (1989), who introduced techniques to derive robust primitive operations for computational geometry that accounted for floating-point round-off error, and Shewchuk (1997), who applied adaptive-precision floating-point arithmetic to geometric predicates, using just enough precision to compute a correct result for given input values. The precision requirements of ray tracing have implications beyond practical implementation, which has been our focus. Reif et al. (1994) showed how to construct Turing machines based entirely on ray tracing and the geometric optics, which implies that ray tracing is undecidable in the sense of complexity theory. Yet in practice, optical computing systems can be constructed, though they are not able to solve undecidable problems.
+[^4]: Note that these are coefficients of $au^2+bu+c=0$, not the $a,b,c$ plane coefficients.
 
-Blakey (2012) showed that this can be explained by careful consideration of such optical Turing machines’ precision requirements, which can grow exponentially.
+[^5]: Note the abuse of terminology: a curve is a 1D mathematical entity, but a `Curve` shape represents a 2D surface. In the following we generally call the `Shape` a curve; the 1D entity is called a "Bézier curve" when the distinction matters.
 
-Sampling Shapes Turk (1990) described two approaches for uniformly sampling the surface area of triangles. The approach implemented in `SampleUniformTriangle()`, which is more efficient and better preserves sample stratification than the algorithms given by Turk, is due to Talbot (2011) and Heitz (2019). Shirley et al. (1996) derived methods for sampling a number of other shapes, and Arvo and Novins (2007) showed how to sample convex quadrilaterals. The aforementioned approaches are all based on warping samples from the unit square to the surface of the shape; an interesting alternative was given by Basu and Owen (2015, 2017), who showed how to recursively decompose triangles and disks to directly generate low-discrepancy points on their surfaces. Marques et al. (2013) showed how to generate low-discrepancy samples directly on the unit sphere; see also Christensen’s report (2018), which shows an error reduction from imposing structure on the distribution of multiple sample points on disk light sources. Uniformly sampling the visible area of a shape from a reference point is an improvement to uniform area sampling for direct lighting calculations. Gardner et al. (1987) and Zimmerman (1995) derived methods to do so for cylinders, and Wang et al. (2006) found an algorithm to sample the visible area of cones. (For planar shapes like triangles, the visible area is trivially the entire area.) `SampleSphericalRectangle()` 344 `SampleSphericalTriangle()` 318 `SampleUniformTriangle()` 315 Uniform solid angle sampling of shapes has also seen attention by a number of researchers. Wang (1992) introduced an approach for solid angle sampling of spheres. Arvo showed how to sample the projection of a triangle on the sphere of directions with respect to a reference point (Arvo 1995b); his approach is implemented in `SampleSphericalTriangle()`. (A more efficient approach to solid angle sampling of triangles was recently
+[^6]: The word *mantissa* is often used in place of *significand*, though floating-point purists note that mantissa has a different meaning in logarithms and therefore prefer significand. We follow the latter usage.
 
-developed by Peters (2021b, Section 5).) Ureña et al. (2013) and Pekelis and Hery (2014) developed analogous techniques for sampling quadrilateral light sources; Ureña et al.’s method is used in `SampleSphericalRectangle()`. (To better understand these techniques for sampling projected polygons, Donnay’s book on spherical trigonometry provides helpful background (Donnay 1945).) The approach implemented in Section 6.2.4 to convert an angle (θ, ϕ) in a cone to a point on a sphere was derived by Akalin (2015). The algorithm for inverting the spherical triangle sampling algorithm that is implemented in `InvertSphericalTriangleSample()` is due to Arvo (2001b). Gamito (2016) presented an approach for uniform solid angle sampling of disk and cylindrical lights based on bounding the solid angle they subtend in order to fit a quadrilateral, which is then sampled using Ureña et al.’s method (2013). Samples that do not correspond to points on the light source are rejected. A related approach was developed by Tsai et al. (2006), who approximate shapes with collections of triangles that are then sampled by solid angle. Guillén et al. (2017) subsequently developed an algorithm for directly sampling disks by solid angle that avoids rejection sampling. Spheres are the only shapes for which we are aware of algorithms for direct sampling of their projected solid angle. An algorithm to do so was presented by Ureña and Georgiev (2018). Peters and Dachsbacher developed a more efficient approach (2019) and Peters (2019) described how to use this method to compute the PDF associated with a direction so that it can be used with multiple importance sampling. A variety of additional techniques for projected solid angle sampling have been developed. Arvo (2001a) described a general framework for deriving sampling algorithms and showed its application to projected solid angle sampling of triangles, though numeric inversion of the associated CDF is required. Ureña (2000) approximated projected solid angle sampling of triangles by progressively decomposing them into smaller triangles until solid angle sampling is effectively equivalent. The approach based on warping uniform samples to approximate projected solid angle sampling that we implemented for triangles and quadrilateral bilinear patches was
+[^7]: Denormalized numbers are also known as subnormal numbers.
 
-described by Hart et al. (2020). Peters (2021b) has recently shown how to efficiently and accurately perform projected solid angle sampling of polygons. EXERCISES
+[^8]: This is one of a few places where compilers must not perform seemingly obvious and safe algebraic simplifications on floating-point expressions—this comparison must not be simplified to false. Enabling compiler "fast math" or "unsafe math optimizations" flags may allow such optimizations and introduce buggy behavior in pbrt.
 
-➋ 6.1 One nice property of mesh-based shapes like triangle meshes and subdivision surfaces is that the shape’s vertices can be transformed into rendering space, so that it is not necessary to transform rays into object space before performing ray intersection tests. Interestingly enough, it is possible to do the same thing for ray–quadric intersections.
+[^9]: IEEE float allows the user to select among rounding modes, but we assume the default—round to nearest even—here.
 
-The implicit forms of the quadrics in this chapter were all of the form
+[^10]: The C and C++ standards define machine epsilon as the magnitude of one ulp above 1. For a 32-bit float this is $2^{-23}$, twice the machine epsilon as generally used in numerical analysis.
 
-```text
-                                 ax2 + bxy + cxz + dy2 + eyz + f z2 + g = 0,
-```
+[^11]: This bound assumes no overflow or underflow in the computation; these can be handled (Higham 2002, p. 56) but are not generally important here.
 
-where some of the constants a … g were zero. More generally, we can define quadric
-surfaces by the equation
+[^12]: These functions are equivalent to `std::nextafter(v, Infinity)` and `std::nextafter(v, -Infinity)` but are more efficient because they do not handle NaN values or signaling floating-point exceptions.
 
-```text
-                     ax2 + by2 + cz2 + 2dxy + 2eyz + 2f xz + 2gx + 2hy + 2iz + j = 0,
-```
+[^13]: Some numerical analysts use the rule of thumb that the number of ulps of error in practice is often close to the square root of the bound's number of ulps, thanks to cancellation of error in intermediate results.
 
-```text
-        InvertSphericalTriangleSample() 325
-        where most of the parameters a … j do not directly correspond to the earlier a … g. In this
-        form, the quadric can be represented by a 4 × 4 symmetric matrixQ:
-```
+[^14]: Although rounding error is introduced when transforming triangle vertices to rendering space, that error does not add error needing handling when computing intersection points. Put differently, the transformed vertices are a perturbed representation of the scene, but the most accurate representation available given the transformation.
 
-Given this representation, first show that the matrix Q′ representing a quadric transformed
-by the matrix M is
+[^15]: The observant reader may wonder about rounding error when computing the error bounds passed into this function. Indeed those bounds should also be computed with rounding toward positive infinity. We ignore the issue under the expectation that the extra one-ulp offset here will cover it.
 
-```text
-                                            Q′ = (MT)−1QM−1.
-```
+---
 
-To do so, show that for any point p where pT Qp = 0, if we apply a transformation M to p
-and compute p′ = Mp, we would like to find Q′ so that (p′)T Q′p′ = 0.
+[↑ Back to top](#contents)
 
-Next, substitute the ray equation into the earlier, more general quadric equation to
-compute coefficients for the quadratic equation in terms of entries of the matrix Q to pass
-to the `Quadratic()` function.
-
-Now implement this approach in pbrt and use it instead of the original quadric intersection routines. Note that you will still need to transform the resulting rendering space hit points into object space to test against θmax, if it is not 2π, and so on. How does performance compare to the original scheme? ➋ 6.2 Transforming the object-space bounding box of a quadric to rendering space does not necessarily give an optimal bounding box. However, the matrix form of a quadric described in Exercise 6.1 can also be applied to computing optimal bounds. Read the
-
-article by Barnes (2014) on this topic and implement the approach he described in pbrt. How much are bounding boxes improved with this approach? Measure the effect of your changes on rendering performance for a scene with many transformed quadrics. ➊ 6.3 Improve the object-space bounding box routines for the quadrics to properly account for ϕmax < 3π/2, and compute tighter bounding boxes when possible. How much does this improve performance when rendering scenes with partial quadric shapes? ➋ 6.4 There is room to optimize the implementations of the various quadric primitives in pbrt in a number of ways. For example, for complete spheres some of the tests in the intersection routine related to partial spheres are unnecessary. Furthermore, some of the quadrics have calls to trigonometric functions that could be turned into simpler expressions using insight about the geometry of the particular primitives. Investigate ways to speed up these methods. How much does doing so improve the overall run time of pbrt when rendering scenes with quadrics? ➊ 6.5 Fix the buggy `Sphere::Sample()` and `Disk::Sample()` methods, which currently do not properly account for partial spheres and disks when they sample points on the surface. Create a scene that demonstrates the error from the current implementations and for which your solution is clearly an improvement. ➋ 6.6 It is possible to derive a sampling method for cylinder area light sources that only chooses points over the visible area as seen from the receiving point, similar to the improved sphere sampling method in this chapter (Gardner et al. 1987; Zimmerman 1995). Write a new implementation of `Cylinder::Sample()` that implements such an algorithm. Verify that pbrt still generates correct images with your method, and measure how much the improved version reduces variance for a fixed number of samples taken. How much does it improve efficiency? How do you explain any discrepancy between the amount of reduction in variance and the amount of improvement in efficiency?
-
-```text
-            Cylinder::Sample() 291
-            Disk::Sample() 295
-            Quadratic() 1045
-            Sphere::Sample() 280
-```
-
-➋ 6.7 Implement one of the approaches for sampling the spheres according to the projected solid angle in their visible region (Ureña and Georgiev 2018; Peters and Dachsbacher 2019). Measure the change in pbrt’s execution time when the alternative algorithm is used and discuss your results.
-
-Then, measure the MSE of pbrt’s current approach as well as your approach for a few scenes with spherical light sources, using an image rendered with thousands of samples per pixel as a reference. How do the results differ if the light is always unoccluded versus if it is sometimes partially occluded? How does the BSDF of scene surfaces affect the results? ➊ 6.8 Currently pbrt recomputes the partial derivatives ∂p/∂u and ∂p/∂v for triangles every time they are needed, even though they are constant for each triangle. Precompute these vectors and analyze the speed/storage trade-off, especially for large triangle meshes. How do the depth complexity of the scene and the size of triangles in the image affect this trade-off? ➋ 6.9 Implement a general polygon primitive that supports an arbitrary number of vertices and convex or concave polygons as a new `Shape` in pbrt. You can assume that a valid
-
-polygon has been provided and that all the vertices of the polygon lie on the same plane,
-although you might want to issue a warning when this is not the case.
-
-An efficient technique for computing ray–polygon intersections is to find the plane
-equation for the polygon from its normal and a point on the plane. Then compute the
-intersection of the ray with that plane and project the intersection point and the polygon
-vertices to 2D. You can then apply a 2D point-in-polygon test to determine if the point is
-inside the polygon. An easy way to do this is to effectively do a 2D ray-tracing
-computation: intersect the ray with each of the edge segments, and count how many it
-goes through. If it goes through an odd number of them, the point is inside the polygon
-and there is an intersection. See Figure 6.47 for an illustration of this idea.
-
-You may find it helpful to read the article by Haines (1994) that surveys a number of approaches for efficient point-in-polygon tests. Some of the techniques described there may be helpful for optimizing this test. Furthermore, Section 13.3.3 of Schneider and Eberly (2003) discusses strategies for getting all the corner cases right: for example, when the 2D ray is aligned precisely with an edge or passes through a vertex of the polygon. ➋ 6.10 Constructive solid geometry (CSG) is a solid modeling technique where complex shapes are built up by considering the union, intersection, and differences of more primitive shapes. For example, a sphere could be used to create pits in a cylinder if a shape was modeled as the difference of a cylinder and set of spheres that partially overlapped it. See Hoffmann (1989) for further information about CSG.
-
-![Figure 6.47](images/img-613-075.png)
-
-
-*Figure 6.47: A ray–polygon intersection test can be performed by finding the point where the ray intersects the polygon’s plane, projecting the hit point and polygon vertices onto an axis-aligned plane, and doing a 2D point-in-polygon test there.*
-
-```text
-   Shape 261
-```
-
-Add support for CSG to pbrt and render images that demonstrate interesting shapes that can be rendered using CSG. You may want to read Roth (1982), which first described how ray tracing could be used to render
-
-models described by CSG, as well as Amanatides and Mitchell (1990), which discusses accuracy-related issues for CSG ray tracing. ➋ 6.11 Procedurally described parametric surfaces: Write a `Shape` that takes a general mathematical expression of the form f (u, v) → (x, y, z) that describes a parametric surface as a function of (u, v). Evaluate the given function at a grid of (u, v) positions, and create a bilinear patch mesh that approximates the given surface. Render images of interesting shapes using your new `Shape`. ➋ 6.12 Adaptive curve refinement: Adjust the number of levels of recursive refinement used for intersection with `Curve` shapes based on the on-screen area that they cover. One approach is to take advantage of the `RayDifferential` class, which represents the image space area that a given ray represents. (However, currently, only Rays—not RayDifferentials—are passed to the `Shape::Intersect()` method implementation, so you would need to modify other parts of the system to make ray differentials available.) Alternatively, you could modify the Camera to provide information about the projected length of vectors between points in rendering space on the image plane and make the camera available during `Curve` intersection.
-
-Render images that show the benefit of adaptive refinement when the camera is close to curves. Measure performance, varying the camera-to-curves distance. Does performance improve when the camera is far away? How does it change when the camera is close? ➋ 6.13 Implement one of the more efficient ray–curve intersection algorithms described by Reshetov (2017) or by Reshetov and Luebke (2018). Measure the performance of pbrt’s current `Curve` implementation as well as your new one and discuss the results. Do rendered images match with both approaches? Can you find differences in the intersections returned that lead to changes in images, especially when the camera is close to a curve? Explain your findings. ➌ 6.14 `Ray`-tracing point-sampled geometry: Extending methods for rendering complex models represented as a collection of point samples (Levoy and Whitted 1985; Pfister et al. 2000; Rusinkiewicz and Levoy 2000), Schaufler and Jensen (2000) have described a method for intersecting rays with collections of oriented point samples in space. Their algorithm probabilistically determined that an intersection has occurred when a ray approaches a sufficient local density of point samples and computes a surface normal with a weighted average of the nearby samples. Read their paper and extend pbrt to support a point-sampled geometry shape. Do any of pbrt’s basic interfaces need to be extended or generalized to support a shape like this?
-
-```text
-             Curve 346
-             Ray 95
-             RayDifferential 96
-             Shape 261
-             Shape::Intersect() 265
-             TransformedPrimitive 403
-```
-
-➌ 6.15 Deformation motion blur: The `TransformedPrimitive` in Section 7.1.2 of Chapter 7 supports animated shapes via transformations of primitives that vary over time. However, this type of animation is not general enough to represent a triangle mesh where each
-
-vertex has a position given at the start time and another one at the end time. (For example,
-this type of animation description can be used to describe a running character model
-where different parts of the body are moving in different ways.) Implement a more
-general `Triangle` or `BilinearPatch` shape that supports specifying vertex positions at
-the start and end of frame and interpolates between them based on the ray time passed to
-the intersection methods. Be sure to update the bounding routines appropriately.
-
-Meshes with very large amounts of motion may exhibit poor performance due to individual triangles or patches sweeping out large bounding boxes and thus many intersection tests being performed that do not hit the shape. Can you come up with approaches that could be used to reduce the impact of this problem? ➌ 6.16 Implicit functions: Just as implicit definitions of the quadric shapes are a useful starting point for deriving ray-intersection algorithms, more complex implicit functions can also be used to define interesting shapes. In particular, difficult-to-model organic shapes, water drops, and so on can be well represented by implicit surfaces. Blinn (1982a) introduced the idea of directly rendering implicit surfaces, and Wyvill and Wyvill (1989) gave a basis function for implicit surfaces with a number of advantages compared to Blinn’s.
-
-Implement a method for finding ray intersections with implicit surfaces and add it to pbrt. You may wish to read papers by Kalra and Barr (1989), Hart (1996), and Sabbadin and Droske (2021) for methods for ray tracing them. Mitchell’s algorithm for robust ray intersections with implicit surfaces using interval arithmetic gives another effective method for finding these intersections (Mitchell 1990), and more recently Knoll et al. (2009) described refinements to this idea. You may find an approach along these lines easier to implement than the others. See Moore’s book on interval arithmetic as needed for reference (Moore 1966). ➌ 6.17 L-systems: A very successful technique for procedurally modeling plants was introduced to graphics by Alvy Ray Smith (1984), who applied Lindenmayer systems (L-systems) to model branching plant structures. Prusinkiewicz and collaborators have generalized this approach to encompass a much wider variety of types of plants and effects that determine their appearance (Prusinkiewicz 1986; Prusinkiewicz, James, and Mech 1994; Deussen et al. 1998; Prusinkiewicz et al. 2001). L-systems describe the branching structure of these types of shapes via a grammar. The grammar can be evaluated to form expressions that describe a topological representation of a plant, which can then be translated into a geometric representation. Add an L-system primitive to pbrt that takes a grammar as input and evaluates it to create the shape it describes. ➊ 6.18 Given an arbitrary point (x, y, z), what bound on the error from applying a scale transformation of (2, 1, 4) is given by Equation (6.30)? How much error is actually introduced?
-
-```text
-             Interval 1057
-```
-
-➋ 6.19 The quadric shapes all use the `Interval` class for their intersection tests in order to be able to bound the error in the computed t value so that intersections behind the ray origin are not incorrectly reported as intersections. First, measure the performance difference when using regular Floats for one or more quadrics when rendering a scene that includes those shapes. Next, manually derive conservative error bounds for t values computed by those shapes as was done for triangles in Section 6.8.7. Implement your method. You may
-
-find it useful to use the `Interval` class to empirically test your derivation’s correctness. Measure the performance difference with your implementation. ➋ 6.20 One detail thwarts the watertightness of the current `Triangle` shape implementation: the translation and shearing of triangle vertices introduces round-off error, which must be accounted for in the extent of triangles’ bounding boxes; see Section 3.3 of Woop et al. (2013) for discussion (and a solution). Modify pbrt to incorporate a solution to this shortcoming. Can you find scenes where small image errors are eliminated thanks to your fix?
-
-```text
-                   Triangle 301
-```
-
-_________________ 1 This assumes that the architecture being used supports IEEE floating-point arithmetic, which is universal on modern systems. The relevant properties of IEEE floating-point arithmetic are that for all v > 0, v/0 = ∞ and for all w < 0, w/0 = −∞, where ∞ is a special value such that any positive number multiplied by ∞ gives ∞ and any negative number multiplied by ∞ gives −∞, and so on. See Section 6.8.1 for more information about floating-point arithmetic. 2 Some ray tracers require that the direction vector of a ray be normalized, meaning a = 1. This can lead to subtle errors, however, if the caller forgets to normalize the ray direction. Of course, these errors can be avoided by normalizing the direction in the ray constructor, but this wastes effort when the provided direction is already normalized. To avoid this needless complexity, pbrt never insists on vector normalization in intersection routines. This is particularly helpful since it reduces the amount of computation needed to transform rays to object space, because no normalization is necessary there. 3 This computation implicitly assumes a counterclockwise vertex ordering. ⋆ This section covers advanced topics and may be skipped on a first reading. 4 Note that these are coefficients to the equation au2 + bu + c = 0 and not a, b, and c plane coefficients. 5 Note the abuse of terminology: while a curve is a 1D mathematical entity, a `Curve` shape represents a 2D surface. In the following, we will generally refer to the `Shape` as a curve. The 1D entity will be distinguished by the name “Bézier curve” when the distinction would not otherwise be clear. 6 The word mantissa is often used in place of significand, though floating-point purists note that mantissa has a different meaning in the context of logarithms and thus prefer significand. We follow this usage here. 7 Denormalized numbers are also known as subnormal numbers. 8 This is one of a few places where compilers must not perform seemingly obvious and safe algebraic simplifications with expressions that include floating-point values—this particular comparison must not be simplified to false. Enabling compiler “fast math” or “perform unsafe math optimizations” flags may allow these optimizations to be performed. In turn, buggy behavior may be introduced in pbrt. 9 IEEE float allows the user to select one of a number of rounding modes, but we will assume the default—round to nearest even —here. 10 The C and C++ standards define the machine epsilon as the magnitude of one ulp above the number 1. For a 32-bit float, this value is 2−23, which is twice as large as the machine epsilon as the term is generally used in numerical analysis.
-
-```text
-     Float 23
-```
-
-11 This bound assumes that there is no overflow or underflow in the computation; these possibilities can be easily handled (Higham 2002, p. 56) but are not generally important for our application here. 12 These functions are equivalent to `std::nextafter`(v, `Infinity`) and `std::nextafter`(v, -`Infinity`), but are more efficient since they do not try to handle NaN values or deal with signaling floating-point exceptions. 13 Some numerical analysts use a rule of thumb that the number of ulps of error in practice is often close to the square root of the bound’s number of ulps, thanks to the cancellation of error in intermediate results. 14 Although rounding error is introduced when transforming triangle vertices to rendering space (for example), this error does not add error that needs to be handled in computing intersection points. In other words, the transformed vertices may represent a perturbed representation of the scene, but they are the most accurate representation available given the transformation. 15 The observant reader may now wonder about the effect of rounding error when computing the error bounds that are passed into this function. Indeed, these bounds should also be computed with rounding toward positive infinity. We ignore that issue under the expectation that the additional offset of one ulp here will be enough to cover that error.

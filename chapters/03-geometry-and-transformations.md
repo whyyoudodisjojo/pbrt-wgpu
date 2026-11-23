@@ -1,1989 +1,2376 @@
 # Chapter 3: Geometry and Transformations
 
+<!-- interactive-nav -->
+## Contents
+
+- [Geometry and Transforms (wgpu)](#geometry-and-transforms-wgpu)
+- [3.1 Coordinate Systems](#31-coordinate-systems)
+- [3.2 n-Tuple Base Classes](#32-n-tuple-base-classes)
+- [3.3 Vectors](#33-vectors)
+- [3.4 Points](#34-points)
+- [3.5 Normals](#35-normals)
+- [3.6 Rays](#36-rays)
+- [3.7 Bounding Boxes](#37-bounding-boxes)
+- [3.8 Spherical Geometry](#38-spherical-geometry)
+- [3.9 Transformations](#39-transformations)
+- [3.10 Applying Transformations](#310-applying-transformations)
+- [3.11 Interactions](#311-interactions)
+- [Further Reading](#further-reading)
+- [Exercises](#exercises)
+- [Footnotes](#footnotes)
+
+---
+
 ## Geometry and Transforms (wgpu)
+
+Almost all nontrivial graphics programs are built on a foundation of geometric classes that represent mathematical constructs such as points, vectors, and rays. Because these classes are ubiquitous throughout the system, good abstractions and efficient implementations are critical. This chapter presents the interface to and implementation of pbrt's geometric foundation. These are **not** the classes that represent the actual scene geometry (triangles, spheres, and so on); those are the topic of Chapter 6.
 
 ```mermaid
 flowchart TD
-    A[Point/Vector/Normal] --> B[Transform Matrix]
+    A[Point / Vector / Normal] --> B[Transform Matrix]
     B --> C[Apply to Ray]
     C --> D[Intersect Scene]
     D --> E[SurfaceInteraction]
+    E --> F[Shade and write to storage buffer]
 ```
 
+> **wgpu orientation.** In this edition the C++ templates are expressed as idiomatic Rust types in the spirit of `glam`/`nalgebra`: `Vec2`, `Vec3`, `Point3`, `Normal3`, `Mat3`, `Mat4`, and `Quat`. On the GPU the same objects become WGSL `vec3<f32>`, `vec4<f32>`, `mat4x4<f32>`, and `mat3x3<f32>`. Remember that a WGSL `vec3<f32>` occupies 16 bytes in a uniform/storage buffer, so geometric data is usually padded to `vec4` when laid out for a shader.
 
+## 3.1 Coordinate Systems
 
-Almost all nontrivial graphics programs are built on a foundation of geometric classes that represent mathematical constructs like points, vectors, and rays. Because these classes are ubiquitous throughout the system, good abstractions and efficient implementations are critical. This chapter presents the interface to and implementation of pbrt’s geometric foundation. Note that these are not the classes that represent the actual scene geometry (triangles, spheres, etc.); those classes are the topic of Chapter 6.
+As is typical in computer graphics, pbrt represents three-dimensional points, vectors, and normal vectors with three coordinate values: $x$, $y$, and $z$. These values are meaningless without a **coordinate system** that defines the origin of the space and gives three linearly independent vectors that define the $x$, $y$, and $z$ axes. Together, the origin and the three vectors are called the **frame** that defines the coordinate system. Given an arbitrary point or direction in 3D, its $(x, y, z)$ coordinate values depend on its relationship to the frame. Figure 3.1 illustrates this idea in 2D: the same point $p$ has coordinates $(3, 3)$ with respect to the frame drawn with solid axes and coordinates $(2, -4)$ with respect to the frame drawn with dashed axes, yet its absolute position is unchanged.
 
-## 3.1 COORDINATE SYSTEMS
+```mermaid
+flowchart LR
+    subgraph Solid["Frame with solid axes"]
+        O1((origin)) -->|"x = 3"| P1((p))
+        O1 -->|"y = 3"| P1
+    end
+    subgraph Dashed["Frame with dashed axes"]
+        O2((origin)) -->|"x = 2"| P2((p))
+        O2 -->|"y = −4"| P2
+    end
+    P1 -. "same absolute point" .- P2
+```
 
-As is typical in computer graphics, pbrt represents three-dimensional points, vectors, and normal vectors with three coordinate values: x, y, and z. These values are meaningless without a coordinate system that defines the origin of the space and gives three linearly independent vectors that define the x, y, and z axes of the space. Together, the origin and three vectors are called the frame that defines the coordinate system. Given an arbitrary point or direction in 3D, its (x, y, z) coordinate values depend on its relationship to the frame. Figure 3.1 shows an example that illustrates this idea in 2D.
-
-In the general n-dimensional case, a frame’s origin po and its n linearly independent basis vectors define an n-dimensional affine space. All vectors v in the space can be expressed as a linear combination of the basis vectors. Given a vector v and the basis vectors vi, there is a unique set of scalar values si such that v = s1v1 + … + snvn. The scalars si are the representation of v with respect to the basis {v1, v2, … , vn} and are the coordinate values that we store with the vector. Similarly, for all points p, there are unique scalars si such that the point can be expressed in terms of the origin po and the basis vectors p = po + s1v1 + … + snvn. Thus, although points and vectors are both represented by x, y, and z coordinates in 3D, they are distinct mathematical entities and are not freely interchangeable.
+<details>
+<summary>Original Figure 3.1 (drawn figure)</summary>
 
 ![Figure 3.1](images/img-140-004.png)
 
+</details>
 
-*Figure 3.1: In 2D, the (x, y) coordinates of a point p are defined by the relationship of the point to a particular 2D coordinate system. Here, two coordinate systems are shown; the point might have coordinates (3, 3) with respect to the coordinate system with its coordinate axes drawn in solid lines but have coordinates (2, −4) with respect to the coordinate system with dashed axes. In either case, the 2D point p is at the same absolute position in space.*
+In the general $n$-dimensional case, a frame's origin $p_o$ and its $n$ linearly independent basis vectors define an $n$-dimensional **affine space**. Every vector $\mathbf v$ in the space can be expressed as a linear combination of the basis vectors: given a vector $\mathbf v$ and the basis vectors $\mathbf v_i$, there is a unique set of scalars $s_i$ such that
 
-![Figure 3.2](images/pages/page-0140.png)
-*Figure 3.2: (a) In a left-handed coordinate system, the z axis points into the page when the x and y axes are oriented with x pointing to the right and y pointing up. (b) In a right-handed system, the z axis points out of the page.*
+$$
+\mathbf v = s_1 \mathbf v_1 + \cdots + s_n \mathbf v_n.
+$$
 
-This definition of points and vectors in terms of coordinate systems reveals a paradox: to define a frame we need a point and a set of vectors, but we can only meaningfully talk about points and vectors with respect to a particular frame. Therefore, in three dimensions we need a standard frame with origin (0, 0, 0) and basis vectors (1, 0, 0), (0, 1, 0), and (0, 0, 1). All other frames will be defined with respect to this canonical coordinate system, which we call world space.
+The scalars $s_i$ are the *representation* of $\mathbf v$ with respect to the basis $\{\mathbf v_1, \mathbf v_2, \ldots, \mathbf v_n\}$ and are the coordinate values stored with the vector. Similarly, for every point $p$ there are unique scalars $s_i$ such that
 
-### 3.1.1 COORDINATE SYSTEM HANDEDNESS
+$$
+p = p_o + s_1 \mathbf v_1 + \cdots + s_n \mathbf v_n.
+$$
 
-There are two different ways that the three coordinate axes can be arranged, as shown in Figure 3.2. Given perpendicular x and y coordinate axes, the z axis can point in one of two directions. These two choices are called left-handed and right-handed. The choice between the two is arbitrary but has a number of implications for how some of the geometric operations throughout the system are implemented. pbrt uses a left-handed coordinate system.
+Thus, although points and vectors are both represented by $(x, y, z)$ coordinates in 3D, they are distinct mathematical entities and are **not** freely interchangeable.
 
-## 3.2 n-TUPLE BASE CLASSES
+This definition reveals a paradox: to define a frame we need a point and a set of vectors, but we can only meaningfully talk about points and vectors with respect to a particular frame. We therefore establish a **standard frame** with origin $(0, 0, 0)$ and basis vectors $(1, 0, 0)$, $(0, 1, 0)$, and $(0, 0, 1)$. All other frames are defined with respect to this canonical coordinate system, which we call **world space**.
 
-pbrt’s classes that represent two- and three-dimensional points, vectors, and surface normals are all based on general n-tuple classes, whose definitions we will start with. The definitions of these classes as well as the types that inherit from them are defined in the files `util/vecmath.h` and `util/vecmath.cpp` under the main pbrt source directory.
+### 3.1.1 Coordinate System Handedness
 
-Although this and the following few sections define classes that have simple logic in most of their method implementations, they make more use of advanced C++ programming techniques than we generally use in pbrt. Doing so reduces the amount of redundant code needed to implement the point, vector, and normal classes and makes them extensible in ways that will be useful later. If you are not a C++ expert, it is fine to gloss over these details and to focus on understanding the functionality that these classes provide. Alternatively, you could use this as an opportunity to learn more corners of the language.
+There are two ways to arrange the three coordinate axes (Figure 3.2). Given perpendicular $x$ and $y$ axes, the $z$ axis can point in one of two directions, called **left-handed** and **right-handed**. The choice is arbitrary, but it has a number of implications for how some geometric operations are implemented. pbrt uses a left-handed coordinate system.
 
-Both `Tuple2` and `Tuple3` are template classes. They are templated not just on a type used for storing each coordinate’s value but also on the type of the class that inherits from it to define a specific two- or three-dimensional type. If one has not seen it before, this is a strange construction: normally, inheritance is sufficient, and the base class has no need to know the type of the subclass.1 In this case, having the base class know the child class’s type makes it possible to write generic methods that operate on and return values of the child type, as we will see shortly.
-
-〈Tuple2 Definition〉 ≡ template <template <typename> class Child, typename T> class Tuple2 { public: 〈Tuple2 Public Methods〉 〈Tuple2 Public Members 83〉 };
-
-The two-dimensional tuple stores its values as x and y and makes them available as public member variables. The pair of curly braces after each one ensures that the member variables are default initialized; for numeric types, this initializes them to 0.
-
-〈Tuple2 Public Members〉 ≡ 83
-
-```rust
-   T x{}, y{};
+```mermaid
+flowchart LR
+    subgraph LH["(a) Left-handed — pbrt"]
+        direction TB
+        XL["+x points right →"]
+        YL["+y points up ↑"]
+        ZL["+z points into the page ⊗"]
+    end
+    subgraph RH["(b) Right-handed"]
+        direction TB
+        XR["+x points right →"]
+        YR["+y points up ↑"]
+        ZR["+z points out of the page ⊙"]
+    end
 ```
 
-We will focus on the `Tuple3` implementation for the remainder of this section. `Tuple2` is almost entirely the same but with one fewer coordinate.
+> When a transform changes handedness, surface normals must be flipped; see Section 3.10.7. Many wgpu applications use a right-handed world and a $[0,1]$ depth range, so be deliberate about which convention your camera matrices assume.
 
-〈Tuple3 Definition〉 ≡ template <template <typename> class Child, typename T> class Tuple3 { public: 〈Tuple3 Public Methods 84〉 〈Tuple3 Public Members 84〉 };
+## 3.2 n-Tuple Base Classes
 
-```text
-    Tuple3 83
-```
+pbrt's classes for two- and three-dimensional points, vectors, and surface normals are all based on general **n-tuple** classes, defined in `util/vecmath.h` and `util/vecmath.cpp`. Although these classes have simple method logic, their definitions use more advanced C++ techniques than pbrt generally does: doing so reduces redundant code and makes the classes extensible in ways that will be useful later. In Rust we get the same economy with generics and traits: a single `Tuple3<T>` plus newtypes or aliases for the semantic distinctions. If these details are not of immediate interest, it is fine to skim them and focus on the *functionality* the classes provide — or to treat this as an opportunity to learn more corners of the language.
 
-By default, the (x, y, z) values are set to zero, although the user of the class can optionally supply values for each of the components. If the user does supply values, the constructor checks that none of them has the floating-point “not a number” (NaN) value using the `DCHECK()` macro. When compiled in optimized mode, this macro disappears from the compiled code, saving the expense of verifying this case. NaNs almost certainly indicate a bug in the system; if a NaN is generated by some computation, we would like to catch it as soon as possible in order to make isolating its source easier. (See Section 6.8.1 for more discussion of NaN values.)
-
-〈Tuple3 Public Methods〉 ≡ 83
+Both `Tuple2` and `Tuple3` are parameterized by the scalar storage type **and** by the type of the class that inherits from them. This is the *curiously recurring template pattern* (CRTP)<sup>[1](#fn1)</sup>: the base knows the child's type, which lets it write generic methods that return values of the child type. A Rust translation uses a generic struct `Tuple3<T>` and trait implementations on the semantic wrapper types, which gives the same type safety without CRTP.
 
 ```rust
-   Tuple3(T x, T y, T z) : x(x), y(y), z(z) { debug_assert(!HasNaN());
-   }
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Tuple3<T> {
+    pub x: T,
+    pub y: T,
+    pub z: T,
+}
 ```
 
-Readers who have been exposed to object-oriented design may question our decision to make the tuple component values publicly accessible. Typically, member variables are only accessible inside their class, and external code that wishes to access or modify the contents of a class must do so through a well-defined API that may include selector and mutator functions. Although we are sympathetic to the principle of encapsulation, it is not appropriate here. The purpose of selector and mutator functions is to hide the class’s internal implementation details. In the case of three-dimensional tuples, hiding this basic part of their design gains nothing and adds bulk to code that uses them.
-
-〈Tuple3 Public Members〉 ≡ 83
+The components are public: selector and mutator functions would hide nothing of value here and would only add bulk at every use site. Numeric components default to zero. A constructor checks for NaN with a debug assertion; in optimized builds the check disappears. NaNs almost certainly indicate a bug, and catching one early makes its source easier to isolate (see Section 6.8.1 for more on NaN values).
 
 ```rust
-   T x{}, y{}, z{};
-```
+use num_traits::Float;
 
-The `HasNaN()` test checks each component individually.
-
-〈Tuple3 Public Methods〉 +≡ 83
-
-```rust
-    bool HasNaN() const { return IsNaN(x) || IsNaN(y) || IsNaN(z);
+impl<T: Float> Tuple3<T> {
+    pub fn new(x: T, y: T, z: T) -> Self {
+        debug_assert!(!x.is_nan() && !y.is_nan() && !z.is_nan());
+        Self { x, y, z }
     }
-```
 
-An alternate implementation of these two tuple classes would be to have a single template class that is also parameterized with an integer number of dimensions and to represent the coordinates with an array of that many T values. While this approach would reduce the total amount of code by eliminating the need for separate two- and three-dimensional tuple types, individual components of the vector could not be accessed as v.x and so forth. We believe that, in this case, a bit more code in the vector implementations is worthwhile in return for more transparent access to components. However, some routines do find it useful to be able to easily loop over the components of vectors; the tuple classes also provide a C++ operator to index into the components so that, given an instance v, v[0] == v.x and so forth.
-
-〈Tuple3 Public Methods〉 +≡ 83
-
-```rust
-   T operator[](int i) const {
-        if (i == 0) return x;
-         if (i == 1) return y;
-         return z;
+    pub fn has_nan(&self) -> bool {
+        self.x.is_nan() || self.y.is_nan() || self.z.is_nan()
     }
-```
-
-If the tuple type is non-const, then indexing returns a reference, allowing components of the tuple to be set.
-
-〈Tuple3 Public Methods〉 +≡ 83
-
-```rust
-   T &operator[](int i) {
-        if (i == 0) return x;
-        if (i == 1) return y;
-        return z;
-   }
-```
-
-```text
-    DCHECK() 1066
-    IsNaN() 363
-    Tuple3 83
-```
-
-We can now turn to the implementation of arithmetic operations that operate on the values stored in a tuple. Their code is fairly dense. For example, here is the method that adds together two three-tuples of some type (for example, Child might be `Vector3`, the forthcoming three-dimensional vector type).
-
-〈Tuple3 Public Methods〉 +≡ 83
-
-```rust
-   // generic
-   auto operator+(Child<U> c) const -> Child<decltype(T{} +
-   U{})> {
-        return {x + c.x, y + c.y, z + c.z};
-   }
-```
-
-There are a few things to note in the implementation of operator+. By virtue of being a template method based on another type U, it supports adding two elements of the same Child template type, though they may use different types for storing their components (T and U in the code here). However, because the base type of the method’s parameter is Child, it is only possible to add two values of the same child type using this method. If this method instead took a `Tuple3` for the parameter, then it would silently allow addition with any type that inherited from `Tuple3`, which might not be intended.
-
-There are two interesting things in the declaration of the return type, to the right of the -> operator after the method’s parameter list. First, the base return type is Child; thus, if one adds two `Vector3` values, the returned value will be of `Vector3` type. This, too, eliminates a class of potential errors: if a `Tuple3` was returned, then it would for example be possible to add two `Vector3s` and assign the result to a `Point3`, which is nonsensical. Finally, the component type of the returned type is determined based on the type of an expression adding values of types T and U. Thus, this method follows C++’s
-
-standard type promotion rules: if a `Vector3` that stored integer values is added to one that stores `Floats`, the result is a `Vector3` storing `Floats`.
-
-In the interests of space, we will not include the other `Tuple3` arithmetic operators here, nor will we include the various other utility functions that perform component-wise operations on them. The full list of capabilities provided by `Tuple2` and `Tuple3` is:
-
-The basic arithmetic operators of per-component addition, subtraction, and negation,
-including the “in place” (e.g., operator+=) forms of them.
-Component-wise multiplication and division by a scalar value, including “in place”
-variants.
-`Abs(a)`, which returns a value where the absolute value of each component of the tuple
-type has been taken.
-`Ceil(a)` and `Floor(a)`, which return a value where the components have been rounded
-up or down to the nearest integer value, respectively.
-`Lerp(t, a, b)`, which returns the result of the linear interpolation (1-t)*a + t*b.
-`FMA(a, b, c)`, which takes three tuples and returns the result of a component-wise
-fused multiply-add a*b + c.
-`Min(a, b)` and `Max(a, b)`, which respectively return the component-wise minimum
-and maximum of the two given tuples.
-`MinComponentValue(a)` and `MaxComponentValue(a)`, which respectively return the
-minimum and maximum value of the tuple’s components.
-`MinComponentIndex(a)` and `MaxComponentIndex(a)`, which respectively return the
-zero-based index of the tuple element with minimum or maximum value.
-`Permute(a, perm)`, which returns the permutation of the tuple according to an array of
-indices.
-`HProd(a)`, which returns the horizontal product—the component values multiplied
-together.
-
-```text
-    Tuple2 83
-    Tuple3 83
-```
-
-## 3.3 VECTORS
-
-pbrt provides both 2D and 3D vector classes that are based on the corresponding two- and three-dimensional tuple classes. Both vector types are themselves parameterized by the type of the underlying vector element, thus making it easy to instantiate vectors of both integer and floating-point types.
-
-〈Vector2 Definition〉 ≡ template <typename T> class Vector2 : public Tuple2<Vector2, T> { public: 〈Vector2 Public Methods〉 };
-
-Two-dimensional vectors of `Floats` and integers are widely used, so we will define aliases for those two types.
-
-〈Vector2* Definitions〉 ≡ using Vector2f = Vector2<Float>; using Vector2i = Vector2<int>;
-
-As with `Tuple2`, we will not include any further details of `Vector2` since it is very similar to `Vector3`, which we will discuss in more detail.
-
-A `Vector3`’s tuple of component values gives its representation in terms of the x, y, and z (in 3D) axes of the space it is defined in. The individual components of a 3D vector v will be written vx, vy, and vz.
-
-〈Vector3 Definition〉 ≡ template <typename T> class Vector3 : public Tuple3<Vector3, T> { public: 〈Vector3 Public Methods 86〉 };
-
-We also define type aliases for two commonly used three-dimensional vector types.
-
-〈Vector3* Definitions〉 ≡ using Vector3f = Vector3<Float>; using Vector3i = Vector3<int>;
-
-Vector3 provides a few constructors, including a default constructor (not shown here) and one that allows specifying each component value directly.
-
-〈Vector3 Public Methods〉 ≡ 86
-
-```rust
-   Vector3(T x, T y, T z) : Tuple3<pbrt::Vector3, T>(x, y, z) {}
-```
-
-There is also a constructor that takes a `Vector3` with a different element type. It is qualified with explicit so that it is not unintentionally used in automatic type conversions; a cast must be used to signify the intent of the type conversion.
-
-```text
-    Float 23
-    Tuple2 83
-    Tuple3 83
-    Vector2 86
-    Vector3 86
-```
-
-〈Vector3 Public Methods〉 +≡ template <typename U>
-
-```rust
-   explicit Vector3(Vector3<U> v)
-       : Tuple3<pbrt::Vector3, T>(T(v.x), T(v.y), T(v.z)) {}
-```
-
-![Figure 3.3](images/pages/page-0146.png)
-*Figure 3.3: (a) Vector addition: v + w. (b) Notice that the sum v + w forms the diagonal of the parallelogram formed by v and w, which shows the commutativity of vector addition: v + w = w + v.*
-
-![Figure 3.4](images/pages/page-0146.png)
-*Figure 3.4: (a) Vector subtraction. (b) If we consider the parallelogram formed by two vectors, the diagonals are given by w − v (dashed line) and −v − w (not shown).*
-
-Finally, constructors are provided to convert from the forthcoming `Point3` and `Normal3` types. Their straightforward implementations are not included here. These, too, are explicit to help ensure that they are only used in situations where the conversion is meaningful.
-
-〈Vector3 Public Methods〉 +≡ 86
-
-```rust
-   // generic
-   explicit Vector3(Point3<U> p);
-   // generic
-   explicit Vector3(Normal3<U> n);
-```
-
-Addition and subtraction of vectors is performed component-wise, via methods from `Tuple3`. The usual geometric interpretation of vector addition and subtraction is shown in Figures 3.3 and 3.4. A vector’s length can be changed via component-wise multiplication or division by a scalar. These capabilities, too, are provided by `Tuple3` and so do not require any additional implementation in the `Vector3` class.
-
-### 3.3.1 NORMALIZATION AND VECTOR LENGTH
-
-It is often necessary to normalize a vector—that is, to compute a new vector pointing in the same direction but with unit length. A normalized vector is often called a unit vector. The notation used in this book for normalized vectors is that art is the normalized version of v. Before getting to normalization, we will start with computing vectors’ lengths.
-
-The squared length of a vector is given by the sum of the squares of its component values.
-
-〈Vector3 Inline Functions〉 ≡
-
-```rust
-   // generic
-   T LengthSquared(Vector3<T> v) { return Sqr(v.x) + Sqr(v.y) + Sqr(v.z); }
-```
-
-```text
-    Normal3 94
-    Point3 92
-    Sqr() 1034
-    Tuple3 83
-    Vector3 86
-```
-
-Moving on to computing the length of a vector leads us to a quandary: what type should the `Length()` function return? For example, if the `Vector3` stores an integer type, that type is probably not an appropriate return type since the vector’s length will not necessarily be integer-valued. In that case, `Float` would be a better choice, though we should not standardize on `Float` for everything, because given a `Vector3` of double-precision values, we should return the length as a double as well. Continuing our journey through advanced C++, we turn to a technique known as type traits to solve this dilemma.
-
-First, we define a general TupleLength template class that holds a type definition, type. The default is set here to be `Float`.
-
-〈TupleLength Definition〉 ≡ template <typename T> struct TupleLength { using type = Float; };
-
-For `Vector3s` of doubles, we also provide a template specialization that defines double as the type for length given double for the element type.
-
-〈TupleLength Definition〉 +≡ template <> struct TupleLength<double> { using type = double; };
-
-Now we can implement `Length()`, using TupleLength to determine which type to return. Note that the return type cannot be specified before the function declaration is complete since the type T is not known until the function parameters have been parsed. Therefore, the function is declared as auto with the return type specified after its parameter list.
-
-〈Vector3 Inline Functions〉 +≡ template <typename T> auto Length(Vector3<T> v) -> typename TupleLength<T>::type { using std::sqrt; return sqrt(LengthSquared(v)); }
-
-There is one more C++ subtlety in these few lines of code: the reader may wonder, why have a using std::sqrt declaration in the implementation of `Length()` and then call sqrt(), rather than just calling std::sqrt() directly? That construction is used because we would like to be able to use component types T that do not have overloaded versions of std::sqrt() available to them. For example, we will later make use of `Vector3s` that store intervals of values for each component using a forthcoming `Interval` class. With the way the code is written here, if std::sqrt() supports the type T, the std variant of the function is called. If not, then so long as we have defined a function named sqrt() that takes our custom type, that version will be used.
-
-With all of this in hand, the implementation of `Normalize()` is thankfully now trivial. The use of auto for the return type ensures that if for example `Normalize()` is called with a vector with integer components, then the returned vector type has `Float` components according to type conversion from the division operator.
-
-〈Vector3 Inline Functions〉 +≡ template <typename T> auto Normalize(Vector3<T> v) { return v / Length(v); }
-
-```text
-    Float 23
-    Interval 1057
-    Length() 88
-    LengthSquared() 87
-    TupleLength 88
-    Vector3 86
-```
-
-### 3.3.2 DOT AND CROSS PRODUCT
-
-Two useful operations on vectors are the dot product (also known as the scalar or inner product) and the cross product. For two 3D vectors v and w, their dot product (v · w) is defined as vxwx + vywy + vzwz, and the implementation follows directly.
-
-〈Vector3 Inline Functions〉 +≡ template <typename T> T Dot(Vector3<T> v, Vector3<T> w) { return v.x * w.x + v.y * w.y + v.z * w.z; }
-
-A few basic properties directly follow from the definition of the dot product. For example, if u, v, and w are vectors and s is a scalar value, then: (u · v) = (v · u) (su · v) = s(u · v) (u · (v + w)) = (u · v) + (u · w).
-
-The dot product has a simple relationship to the angle between the two vectors:
-
-where θ is the angle between v and w, and ‖v‖ denotes the length of the vector v. It follows from this that (v · w) is zero if and only if v and w are perpendicular, provided that neither v nor w is degenerate —equal to (0, 0, 0). A set of two or more mutually perpendicular vectors is said to be orthogonal. An orthogonal set of unit vectors is called orthonormal.
-
-It follows from Equation (3.1) that if v and w are unit vectors, their dot product is the cosine of the angle between them. As the cosine of the angle between two vectors often needs to be computed for rendering, we will frequently make use of this property.
-
-If we would like to find the angle between two normalized vectors, we could use the standard library’s inverse cosine function, passing it the value of the dot product between the two vectors. However, that approach can suffer from a loss of accuracy when the two vectors are nearly parallel or facing in nearly opposite directions. The following reformulation does more of its computation with values close to the origin where there is more floating-point precision, giving a more accurate result.
-
-〈Vector3 Inline Functions〉 +≡ template <typename T> Float AngleBetween(Vector3<T> v1, Vector3<T> v2) {
-```rust
-    if (Dot(v1, v2) < 0)
-        return Pi - 2 * SafeASin(Length(v1 + v2) / 2);
-    else
-        return 2 * SafeASin(Length(v2 - v1) / 2);
 }
 ```
 
-```text
-    AbsDot() 90
-    Dot() 89
-    Float 23
-    Length() 88
-    Pi 1033
-    SafeASin() 1035
-    Vector3 86
-```
-
-We will frequently need to compute the absolute value of the dot product as well. The `AbsDot()` function does this for us so that a separate call to std::abs() is not necessary in that case.
-
-![Figure 3.5](images/pages/page-0150.png)
-*Figure 3.5: The orthogonal projection of a vector v onto a normalized vector ŵ gives a vector vo that is parallel to ŵ. The difference vector, v − vo, shown here as a dashed line, is perpendicular to ŵ.*
-
-〈Vector3 Inline Functions〉 +≡ template <typename T> T AbsDot(Vector3<T> v1, Vector3<T> v2) { return std::abs(Dot(v1, v2)); }
-
-A useful operation on vectors that is based on the dot product is the Gram–Schmidt process, which transforms a set of non-orthogonal vectors that form a basis into orthogonal vectors that span the same basis. It is based on successive application of the orthogonal projection of a vector v onto a normalized vector ŵ, which is given by (v · ŵ)ŵ (see Figure 3.5). The orthogonal projection can be used to compute a new vector art that is orthogonal to w. An advantage of computing v┴ in this way is that v┴ and w span the same subspace as v and w did.
-
-The `GramSchmidt()` function implements Equation (3.2); it expects the vector w to already be normalized.
-
-〈Vector3 Inline Functions〉 +≡ template <typename T> Vector3<T> GramSchmidt(Vector3<T> v, Vector3<T> w) { return v - Dot(v, w) * w; }
-
-The cross product is another useful operation for 3D vectors. Given two vectors in 3D, the cross product v×w is a vector that is perpendicular to both of them. Given orthogonal vectors v and w, then v×w is defined to be a vector such that (v, w, v×w) form an orthogonal coordinate system.
-
-The cross product is defined as:
-
-(v×w)x = vywz − vzwy
-(v×w)y = vzwx − vxwz
-(v×w)z = vxwy − vywx.
-
-A way to remember this is to compute the determinant of the matrix:
-
-```text
-    Dot() 89
-    Vector3 86
-```
-
-where i, j, and k represent the axes (1, 0, 0), (0, 1, 0), and (0, 0, 1), respectively. Note that this equation is merely a memory aid and not a rigorous mathematical construction, since the matrix entries are a mix of scalars and vectors.
-
-![Figure 3.6](images/pages/page-0151.png)
-*Figure 3.6: The area of a parallelogram with edges given by vectors v1 and v2 is equal to ‖v1‖ h. From Equation (3.3), the length of the cross product of v1 and v2 is equal to the product of the two vector lengths times the sine of the angle between them—the parallelogram area.*
-
-The cross product implementation here uses the `DifferenceOfProducts()` function that is introduced in Section B.2.9. Given values a, b, c, and d, it computes a*b-c*d in a way that maintains more floating-point accuracy than a direct implementation of that expression would. This concern is not a theoretical one: previous versions of pbrt have resorted to using double precision for the implementation of `Cross()` so that numerical error would not lead to artifacts in rendered images. Using `DifferenceOfProducts()` is a better solution since it can operate entirely in single precision while still computing a result with low error.
-
-〈Vector3 Inline Functions〉 +≡ template <typename T> Vector3<T> Cross(Vector3<T> v, Vector3<T> w) { return {DifferenceOfProducts(v.y, w.z, v.z, w.y), DifferenceOfProducts(v.z, w.x, v.x, w.z), DifferenceOfProducts(v.x, w.y, v.y, w.x)}; }
-
-From the definition of the cross product, we can derive
-
-where θ is the angle between v and w. An important implication of this is that the cross product of two perpendicular unit vectors is itself a unit vector. Note also that the result of the cross product is a degenerate vector if v and w are parallel.
-
-This definition also shows a convenient way to compute the area of a parallelogram (Figure 3.6). If the two edges of the parallelogram are given by vectors v1 and v2, and it has height h, the area is given by ‖v1‖ h. Since h = sin θ‖v2‖, we can use Equation (3.3) to see that the area is ‖v1×v2‖.
-
-### 3.3.3 COORDINATE SYSTEM FROM A VECTOR
-
-We will sometimes find it useful to construct a local coordinate system given only a single normalized 3D vector. To do so, we must find two additional normalized vectors such that all three vectors are mutually perpendicular.
-
-```text
-    DifferenceOfProducts() 1044
-    Vector3 86
-```
-
-Given a vector v, it can be shown that the two vectors
-
-fulfill these conditions. However, computing those properties directly has high error when vz ≈ −1 due to a loss of accuracy when 1/(1 + vz) is calculated. A reformulation of that computation, used in the following implementation, addresses that issue.
-
-〈Vector3 Inline Functions〉 +≡ template <typename T> void CoordinateSystem(Vector3<T> v1, Vector3<T> *v2, Vector3<T> *v3) { Float sign = pstd::copysign(Float(1), v1.z); Float a = -1 / (sign + v1.z); Float b = v1.x * v1.y * a; *v2 = Vector3<T>(1 + sign * Sqr(v1.x) * a, sign * b, -sign * v1.x); *v3 = Vector3<T>(b, sign + Sqr(v1.y) * a, -v1.y); }
-
-## 3.4 POINTS
-
-A point is a zero-dimensional location in 2D or 3D space. The `Point2` and `Point3` classes in pbrt represent points in the obvious way: using x, y, z (in 3D) coordinates with respect to a coordinate system. Although the same representation is used for vectors, the fact that a point represents a
-
-position whereas a vector represents a direction leads to a number of important differences in how they are treated. Points are denoted in text by p.
-
-In this section, we will continue the approach of only including implementations of the 3D point methods for the `Point3` class here.
-
-〈Point3 Definition〉 ≡ template <typename T> class Point3 : public Tuple3<Point3, T> { public: 〈Point3 Public Methods 92〉 };
-
-As with vectors, it is helpful to have shorter type names for commonly used point types.
-
-〈Point3* Definitions〉 ≡ using Point3f = Point3<Float>; using Point3i = Point3<int>;
-
-It is also useful to be able to convert a point with one element type (e.g., a `Point3f`) to a point of another one (e.g., `Point3i`) as well as to be able to convert a point to a vector with a different underlying element type. The following constructor and conversion operator provide these conversions. Both also require an explicit cast, to make it clear in source code when they are being used.
-
-〈Point3 Public Methods〉 ≡ template <typename U> 92 explicit Point3(Point3<U> p) : Tuple3<pbrt::Point3, T>(T(p.x), T(p.y), T(p.z)) {} template <typename U> explicit Point3(Vector3<U> v) : Tuple3<pbrt::Point3, T>(T(v.x), T(v.y), T(v.z)) {}
-
-There are certain `Point3` methods that either return or take a `Vector3`. For instance, one can add a vector to a point, offsetting it in the given direction to obtain a new point. Analogous methods, not included in the text, also allow subtracting a vector from a point.
-
-```text
-    Float 23
-    Point3 92
-    Sqr() 1034
-    Tuple3 83
-    Vector3 86
-```
-
-![Figure 3.7](images/pages/page-0154.png)
-*Figure 3.7: Obtaining the Vector between Two Points. The vector v = p′ − p is given by the component-wise subtraction of the points p′ and p.*
-
-〈Point3 Public Methods〉 +≡ 92
+`Tuple2` is almost identical but with one fewer coordinate. An alternative design would use a single class parameterized by an integer dimension and store the coordinates in an array. That would reduce code but would lose the ability to write `v.x`, `v.y`, and `v.z`; the book chooses transparent component access. For routines that want to loop over components, indexing is provided with `v[0] == v.x`, and so forth. In Rust this is the `Index`/`IndexMut` trait; the immutable version returns a reference, and the mutable version allows a component to be set.
 
 ```rust
-   // generic
-   auto operator+(Vector3<U> v) const -> Point3<decltype(T{} +
-   U{})> {
-         return {x + v.x, y + v.y, z + v.z};
-   }
-   // generic
-   Point3<T> &operator+=(Vector3<U> v) {
-         x += v.x; y += v.y; z += v.z;
-         return *this;
-   }
-```
-
-Alternately, one can subtract one point from another, obtaining the vector between them, as shown in Figure 3.7.
-
-〈Point3 Public Methods〉 +≡ 92
-
-```rust
-   // generic
-   auto operator-(Point3<U> p) const -> Vector3<decltype(T{} -
-   U{})> {
-         return {x - p.x, y - p.y, z - p.z};
-   }
-```
-
-The distance between two points can be computed by subtracting them to compute the vector between them and then finding the length of that vector. Note that we can just use auto for the return type and let it be set according to the return type of `Length()`; there is no need to use the TupleLength type trait to find that type.
-
-〈Point3 Inline Functions〉 ≡ template <typename T> auto Distance(Point3<T> p1, Point3<T> p2) { return Length(p1 - p2); }
-
-The squared distance between two points can be similarly computed using `LengthSquared()`.
-
-〈Point3 Inline Functions〉 +≡ template <typename T>
-
-```rust
-   auto DistanceSquared(Point3<T> p1, Point3<T> p2) {
-       return LengthSquared(p1 - p2);
-   }
-```
-
-## 3.5 NORMALS
-
-```text
-    Length() 88
-    LengthSquared() 87
-    Point3 92
-    TupleLength 88
-    Vector3 86
-```
-
-A surface normal (or just normal) is a vector that is perpendicular to a surface at a particular position. It can be defined as the cross product of any two nonparallel vectors that are tangent to the surface at a point. Although normals are superficially similar to vectors, it is important to distinguish between the two of them: because normals are defined in terms of their relationship to a particular surface, they behave differently than vectors in some situations, particularly when applying transformations. (That difference is discussed in Section 3.10.)
-
-〈Normal3 Definition〉 ≡ template <typename T> class Normal3 : public Tuple3<Normal3, T> { public: 〈Normal3 Public Methods 94〉 };
-
-〈Normal3 Definition〉 +≡ using Normal3f = Normal3<Float>;
-
-The implementations of `Normal3s` and `Vector3s` are very similar. Like vectors, normals are represented by three components x, y, and z; they can be added and subtracted to compute new normals; and they can be scaled and normalized. However, a normal cannot be added to a point, and one cannot take the cross product of two normals. Note that, in an unfortunate turn of terminology, normals are not necessarily normalized.
-
-In addition to the usual constructors (not included here), `Normal3` allows conversion from `Vector3` values given an explicit typecast, similarly to the other `Tuple2`- and `Tuple3`-based classes.
-
-〈Normal3 Public Methods〉 ≡ 94
-
-```rust
-   // generic
-   explicit Normal3(Vector3<U> v)
-       : Tuple3<pbrt::Normal3, T>(T(v.x), T(v.y), T(v.z)) {}
-```
-
-The `Dot()` and `AbsDot()` functions are also overloaded to compute dot products between the various possible combinations of normals and vectors. This code will not be included in the text here. We also will not include implementations of all the various other `Normal3` methods here, since they are similar to those for vectors.
-
-One new operation to implement comes from the fact that it is often necessary to flip a surface normal so it lies in the same hemisphere as a given vector—for example, the surface normal that lies in the same hemisphere as a ray leaving a surface is frequently needed. The `FaceForward()` utility function encapsulates this small computation. (pbrt also provides variants of this function for the other three combinations of `Vector3s` and `Normal3s` as parameters.) Be careful when using the other instances, though: when using the version that takes two `Vector3s`, for example, ensure that the first parameter is the one that should be returned (possibly flipped) and the second is the one to test against. Reversing the two parameters will give unexpected results.
-
-〈Normal3 Inline Functions〉 ≡ template <typename T> Normal3<T> FaceForward(Normal3<T> n, Vector3<T> v) { return (Dot(n, v) < 0.f) ? -n : n; }
-
-```text
-    AbsDot() 90
-    Dot() 89
-    Float 23
-    Normal3 94
-    Point3f 92
-    Ray 95
-    Tuple2 83
-    Tuple3 83
-    Vector3 86
-    Vector3f 86
-```
-
-## 3.6 RAYS
-
-A ray r is a semi-infinite line specified by its origin o and direction d; see Figure 3.8. pbrt represents `Rays` using a `Point3f` for the origin and a `Vector3f` for the direction; there is no need for non-`Float`-based rays in pbrt. See the files `ray.h` and `ray.cpp` in the pbrt source code distribution for the implementation of the `Ray` class implementation.
-
-![Figure 3.8](images/pages/page-0156.png)
-*Figure 3.8: A ray is a semi-infinite line defined by its origin o and its direction vector d.*
-
-〈Ray Definition〉 ≡ class Ray { public: 〈Ray Public Methods 95〉 〈Ray Public Members 95〉 };
-
-Because we will be referring to these variables often throughout the code, the origin and direction members of a `Ray` are succinctly named o and d. Note that we again make the data publicly available for convenience.
-
-〈Ray Public Members〉 ≡ 95
-
-```rust
-   Point3f o;
-   Vector3f d;
-```
-
-The parametric form of a ray expresses it as a function of a scalar value t, giving the set of points that the ray passes through: art The `Ray` class overloads the function application operator for rays in order to match the r(t) notation in Equation (3.4).
-
-〈Ray Public Methods〉 ≡ 95
-
-```rust
-   Point3f operator()(Float t) const { return o + d * t; }
-```
-
-Given this method, when we need to find the point at a particular position along a ray, we can write code like:
-
-```rust
-         Ray r(Point3f(0, 0, 0), Vector3f(1, 2, 3));
-         Point3f p = r(1.7);
-```
-
-Each ray also has a time value associated with it. In scenes with animated objects, the rendering system constructs a representation of the scene at the appropriate time for each ray.
-
-〈Ray Public Members〉 +≡ 95
-
-```rust
-   Float time = 0;
-```
-
-```text
-    Float 23
-    Medium 714
-    Point3f 92
-    Ray 95
-    Ray::d 95
-    Ray::o 95
-    Vector3f 86
-```
-
-Each ray also records the medium at its origin. The `Medium` class, which will be introduced in Section 11.4, encapsulates the (potentially spatially varying) properties of participating media such as a foggy atmosphere, smoke, or scattering liquids like milk. Associating this information with rays makes it possible for other parts of the system to account correctly for the effect of rays passing from one medium to another.
-
-〈Ray Public Members〉 +≡ 95
-
-```rust
-   Medium medium = None;
-```
-
-Constructing `Rays` is straightforward. The default constructor relies on the `Point3f` and `Vector3f` constructors to set the origin and direction to (0, 0, 0). Alternately, a particular point and direction can be provided. If an origin and direction are provided, the constructor allows values to be given for the ray’s time and medium.
-
-〈Ray Public Methods〉 +≡ 95
-
-```rust
-   Ray(Point3f o, Vector3f d, Float time = 0.f, Medium medium = None)
-        : o(o), d(d), time(time), medium(medium) {}
-```
-
-### 3.6.1 RAY DIFFERENTIALS
-
-To be able to perform better antialiasing with the texture functions defined in Chapter 10, pbrt makes use of the `RayDifferential` class, which is a subclass of `Ray` that contains additional information about two auxiliary rays. These extra rays represent camera rays offset by one sample in the x and y direction from the main ray on the film plane. By determining the area that these three rays project to on an object being shaded, a `Texture` can estimate an area to average over for proper antialiasing (Section 10.1).
-
-Because `RayDifferential` inherits from `Ray`, geometric interfaces in the system can be written to take const `Ray` & parameters, so that either a `Ray` or `RayDifferential` can be passed to them. Only the routines that need to account for antialiasing and texturing require `RayDifferential` parameters.
-
-〈RayDifferential Definition〉 ≡ class RayDifferential : public Ray { public: 〈RayDifferential Public Methods 96〉 〈RayDifferential Public Members 96〉 };
-
-The `RayDifferential` constructor mirrors the `Ray`’s.
-
-〈RayDifferential Public Methods〉 ≡ 96
-
-```rust
-   RayDifferential(Point3f o, Vector3f d, Float time = 0.f,
-                         Medium medium = None)
-         : Ray(o, d, time, medium) {}
-```
-
-In some cases, differential rays may not be available. Routines that take `RayDifferential` parameters should check the `hasDifferentials` member variable before accessing the differential rays’ origins or directions.
-
-〈RayDifferential Public Members〉 ≡ 96
-
-```rust
-   bool hasDifferentials = false;
-   Point3f rxOrigin, ryOrigin;
-   Vector3f rxDirection, ryDirection;
-```
-
-There is also a constructor to create a `RayDifferential` from a `Ray`. As with the previous constructor, the default false value of the `hasDifferentials` member variable is left as is.
-
-〈RayDifferential Public Methods〉 +≡ 96
-
-```rust
-   explicit RayDifferential(const Ray &ray) : Ray(ray) {}
-```
-
-```text
-    Camera 206
-    Float 23
-    Medium 714
-    Point3f 92
-    Ray 95
-    RayDifferential 96
-    Texture 655
-    Vector3f 86
-```
-
-`Camera` implementations in pbrt compute differentials for rays leaving the camera under the assumption that camera rays are spaced one pixel apart. Integrators usually generate multiple camera rays per pixel, in which case the actual distance between samples is lower and the differentials should be updated accordingly; if this factor is not accounted for, then textures in images will generally be too blurry. The `ScaleDifferentials()` method below takes care of this, given an estimated sample spacing of s. It is called, for example, by the fragment Generate camera ray for current sample in Chapter 1.
-
-〈RayDifferential Public Methods〉 +≡ 96
-
-```rust
-   void ScaleDifferentials(Float s) {
-        rxOrigin = o + (rxOrigin - o) * s;
-        ryOrigin = o + (ryOrigin - o) * s;
-        rxDirection = d + (rxDirection - d) * s;
-        ryDirection = d + (ryDirection - d) * s;
-   }
-```
-
-## 3.7 BOUNDING BOXES
-
-Many parts of the system operate on axis-aligned regions of space. For example, multi-threading in pbrt is implemented by subdividing the image into 2D rectangular tiles that can be processed independently, and the bounding volume hierarchy in Section 7.3 uses 3D boxes to bound geometric primitives in the scene. The `Bounds2` and `Bounds3` template classes are used to represent the extent of these sorts of regions. Both are parameterized by a type T that is used to represent the coordinates of their extents. As with the earlier vector math types, we will focus here on the 3D variant, `Bounds3`, since `Bounds2` is effectively a subset of it.
-
-〈Bounds2 Definition〉 ≡ template <typename T> class Bounds2 { public: 〈Bounds2 Public Methods〉 〈Bounds2 Public Members〉 };
-
-〈Bounds3 Definition〉 ≡ template <typename T> class Bounds3 { public: 〈Bounds3 Public Methods 98〉 〈Bounds3 Public Members 98〉 };
-
-We use the same shorthand as before to define names for commonly used bounding types.
-
-〈Bounds[23][fi] Definitions〉 ≡ using Bounds2f = Bounds2<Float>; using Bounds2i = Bounds2<int>; using Bounds3f = Bounds3<Float>; using Bounds3i = Bounds3<int>;
-
-```text
-    Bounds2 97
-    Bounds3 97
-    Float 23
-    Ray::d 95
-    Ray::o 95
-    RayDifferential::rxDirection 96
-    RayDifferential::rxOrigin 96
-    RayDifferential::ryDirection 96
-    RayDifferential::ryOrigin 96
-```
-
-There are a few possible representations for these sorts of bounding boxes; pbrt uses axis-aligned bounding boxes (AABBs), where the box edges are mutually perpendicular and aligned with the coordinate system axes. Another possible choice is oriented bounding boxes (OBBs), where the box edges on different sides are still perpendicular to each other but not necessarily coordinate-system aligned. A 3D AABB can be described by one of its vertices and three lengths, each representing the distance spanned along the x, y, and z coordinate axes. Alternatively, two opposite vertices of the box can describe it. We chose the two-point representation for pbrt’s `Bounds2` and `Bounds3` classes; they store the positions of the vertex with minimum coordinate values and of the one with maximum coordinate values. A 2D illustration of a bounding box and its representation is shown in Figure 3.9.
-
-![Figure 3.9](images/pages/page-0161.png)
-*Figure 3.9: An Axis-Aligned Bounding Box. The `Bounds2` and `Bounds3` classes store only the coordinates of the minimum and maximum points of the box; the other box corners are implicit in this representation.*
-
-〈Bounds3 Public Members〉 ≡ 97
-
-```rust
-   Point3<T> pMin, pMax;
-```
-
-The default constructors create an empty box by setting the extent to an invalid configuration, which violates the invariant that `pMin.x` <= `pMax.x` (and similarly for the other dimensions). By initializing two corner points with the largest and smallest representable number, any operations involving an empty box (e.g., `Union()`) will yield the correct result.
-
-〈Bounds3 Public Methods〉 ≡ 97
-
-```rust
-   Bounds3() {
-       T minNum = std::numeric_limits<T>::lowest();
-       T maxNum = std::numeric_limits<T>::max();
-       pMin = Point3<T>(maxNum, maxNum, maxNum);
-       pMax = Point3<T>(minNum, minNum, minNum);
-   }
-```
-
-It is also useful to be able to initialize bounds that enclose just a single point:
-
-〈Bounds3 Public Methods〉 +≡ 97
-
-```rust
-   explicit Bounds3(Point3<T> p) : pMin(p), pMax(p) {}
-```
-
-If the caller passes two corner points (p1 and p2) to define the box, the constructor needs to find their component-wise minimum and maximum values since it is not necessarily the case that p1.x <= p2.x, and so on.
-
-〈Bounds3 Public Methods〉 +≡ 97
-
-```rust
-   Bounds3(Point3<T> p1, Point3<T> p2)
-       : pMin(Min(p1, p2)), pMax(Max(p1, p2)) {}
-```
-
-It can be useful to use array indexing to select between the two points at the corners of the box. Assertions in the debug build, not shown here, check that the provided index is either 0 or 1.
-
-〈Bounds3 Public Methods〉 +≡ 97
-
-```rust
-   Point3<T> operator[](int i) const { return (i == 0) ? pMin :
-   pMax; }
-   Point3<T> &operator[](int i) { return (i == 0) ? pMin : pMax;
-   }
-```
-
-```text
-    Bounds2 97
-    Bounds3 97
-    Bounds3::pMax 98
-    Bounds3::pMin 98
-    Point3 92
-    Tuple3::Max() 85
-    Tuple3::Min() 85
-```
-
-The Corner() method returns the coordinates of one of the eight corners of the bounding box. Its logic calls the operator[] method with a zero or one value for each dimension that is based on one of the low three bits of corner and then extracts the corresponding component.
-
-It is worthwhile to verify that this method returns the positions of all eight corners when passed values from 0 to 7 if that is not immediately evident.
-
-〈Bounds3 Public Methods〉 +≡ 97
-
-```rust
-   Point3<T> Corner(int corner) const {
-       return Point3<T>((*this)[(corner & 1)].x,
-                            (*this)[(corner & 2) ? 1 : 0].y,
-                            (*this)[(corner & 4) ? 1 : 0].z);
-   }
-```
-
-Given a bounding box and a point, the `Union()` function returns a new bounding box that encompasses that point as well as the original bounds.
-
-〈Bounds3 Inline Functions〉 ≡ template <typename T> Bounds3<T> Union(const Bounds3<T> &b, Point3<T> p) {
-```rust
-    Bounds3<T> ret;
-    ret.pMin = Min(b.pMin, p);
-    ret.pMax = Max(b.pMax, p);
-    return ret;
+impl<T: Copy> std::ops::Index<usize> for Tuple3<T> {
+    type Output = T;
+    fn index(&self, i: usize) -> &Self::Output {
+        match i {
+            0 => &self.x,
+            1 => &self.y,
+            2 => &self.z,
+            _ => panic!("tuple index out of range"),
+        }
+    }
+}
+
+impl<T: Copy> std::ops::IndexMut<usize> for Tuple3<T> {
+    fn index_mut(&mut self, i: usize) -> &mut Self::Output {
+        match i {
+            0 => &mut self.x,
+            1 => &mut self.y,
+            2 => &mut self.z,
+            _ => panic!("tuple index out of range"),
+        }
+    }
 }
 ```
 
-One subtlety that applies to this and some of the following functions is that it is important that the pMin and pMax members of ret be set directly here, rather than passing the values returned by `Min()` and `Max()` to the `Bounds3` constructor. The detail stems from the fact that if the provided bounds are both degenerate, the returned bounds should be degenerate as well. If a degenerate extent is passed to the constructor, then it will sort the coordinate values, which in turn leads to what is essentially an infinite bound.
+Arithmetic operates component-wise. Because the C++ method is templated on a second type `U`, it supports adding two values of the same `Child` template type even if their component types differ (`T` and `U`). The parameter's base type is `Child`, not `Tuple3`, so addition with an arbitrary tuple-derived type is not silently allowed. The return type is `Child<decltype(T{} + U{})>`: adding two `Vector3`s returns a `Vector3` (never a `Tuple3`, which would permit nonsensical assignments such as adding two vectors and storing the result in a `Point3`), and the component type follows normal promotion rules (an integer vector plus a float vector yields a float vector). Rust has no `decltype`; the idiom is to require matching scalar types (`Vec3<f32> + Vec3<f32>`) and convert explicitly when promotion is wanted, e.g. `Vec3i → Vec3f` via `as_vec3()`. The semantic point is unchanged: the result of vector arithmetic is a vector.
 
-It is similarly possible to construct a new box that bounds the space encompassed by two other bounding boxes. The definition of this function is similar to the earlier `Union()` method that takes a `Point3f`; the difference is that the pMin and pMax of the second box are used for the `Min()` and `Max()` tests, respectively.
-
-〈Bounds3 Inline Functions〉 +≡ template <typename T> Bounds3<T> Union(const Bounds3<T> &b1, const Bounds3<T> &b2) { Bounds3<T> ret; ret.pMin = Min(b1.pMin, b2.pMin); ret.pMax = Max(b1.pMax, b2.pMax); return ret; }
-
-The intersection of two bounding boxes can be found by computing the maximum of their two respective minimum coordinates and the minimum of their maximum coordinates. (See Figure 3.10.) 〈Bounds3 Inline Functions〉 +≡ template <typename T> Bounds3<T> Intersect(const Bounds3<T> &b1, const Bounds3<T> &b2) { Bounds3<T> b; b.pMin = Max(b1.pMin, b2.pMin); b.pMax = Min(b1.pMax, b2.pMax); return b; }
-
-```text
-    Bounds3 97
-    Bounds3::pMax 98
-    Bounds3::pMin 98
-    Point3 92
-    Point3f 92
-    Tuple3::Max() 85
-    Tuple3::Min() 85
-```
-
-![Figure 3.10](images/pages/page-0164.png)
-*Figure 3.10: Intersection of Two Bounding Boxes. Given two bounding boxes with pMin and pMax points denoted by open circles, the bounding box of their area of intersection (shaded region) has a minimum point (lower left filled circle) with coordinates given by the maximum of the coordinates of the minimum points of the two boxes in each dimension. Similarly, its maximum point (upper right filled circle) is given by the minimums of the boxes’ maximum coordinates.*
-
-We can also determine if two bounding boxes overlap by seeing if their extents overlap in all of x, y, and z: 〈Bounds3 Inline Functions〉 +≡ template <typename T> bool Overlaps(const Bounds3<T> &b1, const Bounds3<T> &b2) { bool x = (b1.pMax.x >= b2.pMin.x) && (b1.pMin.x <= b2.pMax.x); bool y = (b1.pMax.y >= b2.pMin.y) && (b1.pMin.y <= b2.pMax.y); bool z = (b1.pMax.z >= b2.pMin.z) && (b1.pMin.z <= b2.pMax.z); return (x && y && z); }
-
-Three 1D containment tests determine if a given point is inside a bounding box. 〈Bounds3 Inline Functions〉 +≡ template <typename T> bool Inside(Point3<T> p, const Bounds3<T> &b) { return (p.x >= b.pMin.x && p.x <= b.pMax.x && p.y >= b.pMin.y && p.y <= b.pMax.y && p.z >= b.pMin.z && p.z <= b.pMax.z); }
-
-The InsideExclusive() variant of Inside() does not consider points on the upper boundary to be inside the bounds. It is mostly useful with integer-typed bounds. 〈Bounds3 Inline Functions〉 +≡ template <typename T> bool InsideExclusive(Point3<T> p, const Bounds3<T> &b) { return (p.x >= b.pMin.x && p.x < b.pMax.x && p.y >= b.pMin.y && p.y < b.pMax.y && p.z >= b.pMin.z && p.z < b.pMax.z); }
-
-```text
-   Bounds3 97
-   Bounds3::pMax 98
-   Bounds3::pMin 98
-   Point3 92
-```
-
-`DistanceSquared()` returns the squared distance from a point to a bounding box or zero if the point is inside it. The geometric setting of the computation is shown in Figure 3.11. After the distance from the point to the box is computed in each dimension, the squared distance is found by summing the squares of each of the 1D distances.
-
-![Figure 3.11](images/pages/page-0165.png)
-*Figure 3.11: Computing the Squared Distance from a Point to an Axis-Aligned Bounding Box. We first find the distance from the point to the box in each dimension. Here, the point represented by an empty circle on the upper left is above to the left of the box, so its x and y distances are respectively `pMin.x` - p.x and `pMin.y` - p.y. The other point represented by an empty circle is to the right of the box but overlaps its extent in the y dimension, giving it respective distances of p.x - `pMax.x` and zero. The logic in `Bounds3::DistanceSquared()` computes these distances by finding the maximum of zero and the distances to the minimum and maximum points in each dimension.*
-
-〈Bounds3 Inline Functions〉 +≡ template <typename T, typename U> auto DistanceSquared(Point3<T> p, const Bounds3<U> &b) {
 ```rust
-    using TDist = decltype(T{} - U{});
-    TDist dx = std::max<TDist>({0, b.pMin.x - p.x, p.x - b.pMax.x});
-    TDist dy = std::max<TDist>({0, b.pMin.y - p.y, p.y - b.pMax.y});
-    TDist dz = std::max<TDist>({0, b.pMin.z - p.z, p.z - b.pMax.z});
-    return Sqr(dx) + Sqr(dy) + Sqr(dz);
+impl<T: Float> std::ops::Add for Tuple3<T> {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+    }
 }
 ```
 
-It is easy to compute the distance from a point to a bounding box, though some indirection is needed to be able to determine the correct return type using TupleLength. 〈Bounds3 Inline Functions〉 +≡ template <typename T, typename U> auto Distance(Point3<T> p, const Bounds3<U> &b) { auto dist2 = DistanceSquared(p, b); using TDist = typename TupleLength<decltype(dist2)>::type; return std::sqrt(TDist(dist2)); }
+The full set of `Tuple2`/`Tuple3` capabilities is summarized here.
 
-The Expand() function pads the bounding box by a constant factor in all dimensions. 〈Bounds3 Inline Functions〉 +≡ template <typename T, typename U> Bounds3<T> Expand(const Bounds3<T> &b, U delta) { Bounds3<T> ret; ret.pMin = b.pMin - Vector3<T>(delta, delta, delta); ret.pMax = b.pMax + Vector3<T>(delta, delta, delta); return ret; }
+| Operation | Meaning |
+| --- | --- |
+| `+`, `-`, unary `-`, `+=`, `-=` | Per-component addition, subtraction, negation (and in-place forms) |
+| `* s`, `/ s`, `*= s`, `/= s` | Component-wise multiplication and division by a scalar, including in-place forms |
+| `abs(a)` | Absolute value of every component |
+| `ceil(a)`, `floor(a)` | Round components up/down to the nearest integer |
+| `lerp(t, a, b)` | Linear interpolation $(1-t)a + tb$ |
+| `fma(a, b, c)` | Component-wise fused multiply-add $ab + c$ |
+| `min(a, b)`, `max(a, b)` | Component-wise minimum/maximum of two tuples |
+| `min_component_value(a)`, `max_component_value(a)` | Smallest/largest component value |
+| `min_component_index(a)`, `max_component_index(a)` | Zero-based index of the smallest/largest component |
+| `permute(a, perm)` | Reorder components according to an index array |
+| `hprod(a)` | Horizontal product: all component values multiplied together |
 
-```text
-   Bounds3 97
-   Bounds3::DistanceSquared() 101
-```
+<details>
+<summary>Book cross-references (original edition)</summary>
 
-```text
-   Bounds3::pMax 98
-   Bounds3::pMin 98
-   Point3 92
-   Sqr() 1034
-   TupleLength 88
-   Vector3 86
-```
+`Tuple2` p. 83 · `Tuple3` p. 83
 
-Diagonal() returns the vector along the box diagonal from the minimum point to the maximum point. 〈Bounds3 Public Methods〉 +≡ 97
+</details>
 
-Vector3<T> Diagonal() const { return pMax - pMin; }
+## 3.3 Vectors
 
-Methods for computing the surface area of the six faces of the box and the volume inside of it are also useful. (This is a place where `Bounds2` and `Bounds3` diverge: these methods are not available in `Bounds2`, though it does have an Area() method.)
+pbrt provides 2D and 3D vector classes based on the corresponding tuple classes. Both are parameterized by the element type, so integer and floating-point vectors are equally easy to instantiate.
 
-〈Bounds3 Public Methods〉 +≡ 97
-
-T SurfaceArea() const { Vector3<T> d = Diagonal(); return 2 * (d.x * d.y + d.x * d.z + d.y * d.z); }
-
-〈Bounds3 Public Methods〉 +≡ 97
-
-T Volume() const { Vector3<T> d = Diagonal(); return d.x * d.y * d.z; }
-
-The Bounds3::MaxDimension() method returns the index of which of the three axes is longest. This is useful, for example, when deciding which axis to subdivide when building some of the ray-intersection acceleration structures. 〈Bounds3 Public Methods〉 +≡ 97
-
-int MaxDimension() const { Vector3<T> d = Diagonal(); if (d.x > d.y && d.x > d.z) return 0; else if (d.y > d.z) return 1; else return 2; }
-
-Lerp() linearly interpolates between the corners of the box by the given amount in each dimension. 〈Bounds3 Public Methods〉 +≡ 97
-
-Point3f Lerp(Point3f t) const { return Point3f(pbrt::Lerp(t.x, pMin.x, pMax.x), pbrt::Lerp(t.y, pMin.y, pMax.y), pbrt::Lerp(t.z, pMin.z, pMax.z)); }
-
-Offset() is effectively the inverse of Lerp(). It returns the continuous position of a point relative to the corners of the box, where a point at the minimum corner has offset (0, 0, 0), a point at the maximum corner has offset (1, 1, 1), and so forth. 〈Bounds3 Public Methods〉 +≡ 97
-
-Vector3f Offset(Point3f p) const { Vector3f o = p - pMin; if (pMax.x > pMin.x) o.x /= pMax.x - pMin.x; if (pMax.y > pMin.y) o.y /= pMax.y - pMin.y; if (pMax.z > pMin.z) o.z /= pMax.z - pMin.z; return o; }
-
-```text
-   Bounds3 97
-   Bounds3::Diagonal() 101
-   Bounds3::MaxDimension() 102
-   Bounds3::pMax 98
-   Bounds3::pMin 98
-   Lerp() 72
-   Point3f 92
-   Vector3 86
-   Vector3f 86
-```
-
-Bounds3 also provides a method that returns the center and radius of a sphere that bounds the bounding box. In general, this may give a far looser fit than a sphere that bounded the original contents of the Bounds3 directly, although for some geometric operations it is easier to work with a sphere than a box, in which case the worse fit may be an acceptable trade-off. 〈Bounds3 Public Methods〉 +≡ 97
-
-void BoundingSphere(Point3<T> *center, Float *radius) const {
 ```rust
-    *center = (pMin + pMax) / 2;
-    *radius = Inside(*center, *this) ? Distance(*center, pMax) : 0;
+pub type Vector2<T> = Tuple2<T>;
+pub type Vector3<T> = Tuple3<T>;
+pub type Vector2f = Vector2<f32>;
+pub type Vector2i = Vector2<i32>;
+pub type Vector3f = Vector3<f32>;
+pub type Vector3i = Vector3<i32>;
+```
+
+(Use `glam::Vec2`/`Vec3` in production code; the aliases above keep the book's naming visible.) A `Vector3`'s components give its representation with respect to the $x$, $y$, and $z$ axes of the space it is defined in; we write them $\mathbf v_x$, $\mathbf v_y$, and $\mathbf v_z$. Constructors include a default constructor, one that sets each component, and an *explicit* constructor from a vector with a different element type so that it is never used for an unintended automatic conversion. Explicit constructors also convert from `Point3` and `Normal3`, again to ensure they are used only where the conversion is meaningful.
+
+```rust
+impl<T: Float> Vector3<T> {
+    pub fn new(x: T, y: T, z: T) -> Self { Tuple3::new(x, y, z) }
+
+    /// Explicit conversion from a vector of another element type.
+    pub fn from_vector3<U: Float>(v: Vector3<U>) -> Self
+    where T: From<U> {
+        Self::new(v.x.into(), v.y.into(), v.z.into())
+    }
+}
+// impl From<Point3<f32>> for Vector3<f32> and From<Normal3<f32>> for Vector3<f32>
+// follow the same pattern.
+```
+
+Addition and subtraction are component-wise via the tuple operations. Geometrically, the sum $\mathbf v + \mathbf w$ is the diagonal of the parallelogram formed by $\mathbf v$ and $\mathbf w$, which also shows commutativity, $\mathbf v + \mathbf w = \mathbf w + \mathbf v$ (Figure 3.3). Figure 3.4 shows subtraction: the two diagonals of the parallelogram are $\mathbf w - \mathbf v$ and $-\mathbf v - \mathbf w$. A vector's length can be changed by component-wise multiplication or division by a scalar, again supplied by the tuple class.
+
+```mermaid
+flowchart LR
+    O((o)) -- "v" --> V((v))
+    O -- "w" --> W((w))
+    V -- "w" --> S((v + w))
+    W -- "v" --> S
+```
+
+*Figure 3.3: Vector addition. The sum $\mathbf v + \mathbf w$ forms the diagonal of the parallelogram spanned by $\mathbf v$ and $\mathbf w$, showing that addition is commutative.*
+
+```mermaid
+flowchart LR
+    O((o)) -- "v" --> V((v))
+    O -- "w" --> W((w))
+    V -- "w − v" --> W
+    W -- "−v − w" --> O
+```
+
+*Figure 3.4: Vector subtraction. Considering the parallelogram formed by two vectors, its diagonals are $\mathbf w - \mathbf v$ (dashed in the book) and $-\mathbf v - \mathbf w$ (not shown).*
+
+### 3.3.1 Normalization and Vector Length
+
+It is often necessary to **normalize** a vector: compute a new vector pointing in the same direction but with unit length, written $\hat{\mathbf v} = \mathbf v / \|\mathbf v\|$ and called a *unit vector*. First we need the vector's length. The squared length is the sum of the squares of the components:
+
+$$
+\|\mathbf v\|^2 = v_x^2 + v_y^2 + v_z^2.
+$$
+
+```rust
+pub fn length_squared<T: Float>(v: Vector3<T>) -> T {
+    v.x * v.x + v.y * v.y + v.z * v.z
 }
 ```
 
-Straightforward methods test for empty and degenerate bounding boxes. Note that “empty” means that a bounding box has zero volume but does not necessarily imply that it has zero surface area. 〈Bounds3 Public Methods〉 +≡ bool IsEmpty() const { return pMin.x >= pMax.x ‖ pMin.y >= pMax.y ‖ pMin.z >= pMax.z; } bool IsDegenerate() const { return pMin.x > pMax.x ‖ pMin.y > pMax.y ‖ pMin.z > pMax.z; }
-
-Finally, for integer bounds, there is an iterator class that fulfills the requirements of a C++ forward iterator (i.e., it can only be advanced). The details are slightly tedious and not particularly interesting, so the code is not included in the book. Having this definition makes it possible to write code using range-based for loops to iterate over integer coordinates in a bounding box: Bounds2i b = …; for (Point2i p : b) { ⋮ }
-
-As implemented, the iteration goes up to but does not visit points equal to the maximum extent in each dimension. 3.8 SPHERICAL GEOMETRY
-
-Geometry on the unit sphere is also frequently useful in rendering. 3D unit direction vectors can equivalently be represented as points on the unit sphere, and sets of directions can be represented as areas on the unit sphere. Useful operations such as bounding a set of directions can often be cleanly expressed as bounds on the unit sphere. We will therefore introduce some
-
-useful principles of spherical geometry and related classes and functions in this section.
-
-### 3.8.1 SOLID ANGLES
-
-In 2D, the planar angle is the total angle subtended by some object with respect to some position (Figure 3.12). Consider the unit circle around the point p; if we project the shaded object onto that circle, some length of the circle s will be covered by its projection. The arc length of s (which is the same as the angle θ) is the angle subtended by the object. Planar angles are measured in radians and the entire unit circle covers 2π radians. The solid angle extends the 2D unit circle to a 3D unit sphere (Figure 3.13). The total area s is the solid angle subtended by the object. Solid angles are measured in steradians (sr). The entire sphere subtends a solid angle of 4π sr, and a hemisphere subtends 2π sr.
-
-```text
-    Bounds3::Inside() 100
-    Bounds3::pMax 98
-    Bounds3::pMin 98
-    Distance() 93
-    Float 23
-    Point3 92
-```
-
-![Figure 3.12](images/pages/page-0170.png)
-*Figure 3.12: Planar Angle. The planar angle of an object as seen from a point p is equal to the angle it subtends as seen from p or, equivalently, as the length of the arc s on the unit sphere.*
-
-![Figure 3.13](images/pages/page-0170.png)
-*Figure 3.13: Solid Angle. The solid angle s subtended by a 3D object is computed by projecting the object onto the unit sphere and measuring the area of its projection.*
-
-By providing a way to measure area on the unit sphere (and thus over the unit directions), the solid angle also provides the foundation for a measure for integrating spherical functions; the differential solid angle dω corresponds to the differential area measure on the unit sphere.
-
-### 3.8.2 SPHERICAL POLYGONS
-
-We will sometimes find it useful to consider the set of directions from a point to the surface of a polygon. (Doing so can be useful, for example, when computing the illumination arriving at a point from an emissive polygon.) If a regular planar polygon is projected onto the unit sphere, it forms a spherical polygon. A vertex of a spherical polygon can be found by normalizing the vector from the center of the sphere to the corresponding vertex of the original polygon. Each edge of a spherical polygon is given by the intersection of the unit sphere with the plane that goes through the sphere’s center and the corresponding two vertices of the polygon. The result is a great circle on the sphere that is the shortest distance between the two vertices on the surface of the sphere (Figure 3.14).
-
-![Figure 3.14](images/pages/page-0171.png)
-*Figure 3.14: A spherical polygon corresponds to the projection of a polygon onto the unit sphere. Its vertices correspond to the unit vectors to the original polygon’s vertices and its edges are defined by the intersection of the sphere and the planes that go through the sphere’s center and two vertices of the polygon.*
-
-![Figure 3.15](images/pages/page-0171.png)
-*Figure 3.15: A Spherical Triangle. Each vertex’s angle is labeled with the Greek letter corresponding to the letter used for its vertex.*
-
-The angle at each vertex is given by the angle between the planes corresponding to the two edges that meet at the vertex (Figure 3.15). (The
-
-angle between two planes is termed their dihedral angle.) We will label the angle at each vertex with the Greek letter that corresponds to its label (α for the vertex a and so forth). Unlike planar triangles, the three angles of a spherical triangle do not sum to π radians; rather, their sum is π + A, where A is the spherical triangle’s area. Given the angles α, β, and γ, it follows that the area of a spherical triangle can be computed using Girard’s theorem, which says that a triangle’s surface area A on the unit sphere is given by the “excess angle” art Direct implementation of Equation (3.5) requires multiple calls to expensive inverse trigonometric functions, and its computation can be prone to error due to floating-point cancellation. A more efficient and accurate approach is to apply the relationship art which can be derived from Equation (3.5) using spherical trigonometric identities. That approach is used in SphericalTriangleArea(), which takes three vectors on the unit sphere corresponding to the spherical triangle’s vertices. 〈Spherical Geometry Inline Functions〉 ≡ Float SphericalTriangleArea(Vector3f a, Vector3f b, Vector3f c) { return std::abs(2 * std::atan2(Dot(a, Cross(b, c)), 1 + Dot(a, b) + Dot(a, c) + Dot(b, c))); }
-
-The area of a quadrilateral projected onto the unit sphere is given by α + β + γ + δ − 2π, where α, β, γ, and δ are its interior angles. This value is computed by `SphericalQuadArea()`, which takes the vertex positions on the unit sphere. Its implementation is very similar to `SphericalTriangleArea()`, so it is not included here.
-
-〈Spherical Geometry Inline Functions〉 +≡ Float SphericalQuadArea(Vector3f a, Vector3f b, Vector3f c, Vector3f d);
-
-### 3.8.3 SPHERICAL PARAMETERIZATIONS
-
-The 3D Cartesian coordinates of a point on the unit sphere are not always the most convenient representation of a direction. For example, if we are tabulating a function over the unit sphere, a 2D parameterization that takes advantage of the fact that the sphere’s surface is two-dimensional is preferable. There are a variety of mappings between 2D and the sphere. Developing such mappings that fulfill various goals has been an important part of map making since its beginnings. It can be shown that any mapping from the plane to the sphere introduces some form of distortion; the task then is to choose a mapping that best fulfills the requirements for a particular application. pbrt thus uses three different spherical parameterizations, each with different advantages and disadvantages.
-
-Spherical Coordinates Spherical coordinates (θ, ϕ) are a well-known parameterization of the sphere. For a general sphere of radius r, they are related to Cartesian coordinates by art (See Figure 3.16.) For convenience, we will define a SphericalDirection() function that converts a θ and ϕ pair into a unit (x, y, z) vector, applying these equations directly. Notice that the function is given the sine and cosine of θ, rather than θ itself. This is because the sine and cosine of θ are often already available to the caller. This is not normally the case for ϕ, however, so ϕ is passed in as is. 〈Spherical Geometry Inline Functions〉 +≡ Vector3f SphericalDirection(Float sinTheta, Float cosTheta, Float phi) { return Vector3f(Clamp(sinTheta, -1, 1) * std::cos(phi), Clamp(sinTheta, -1, 1) * std::sin(phi), Clamp(cosTheta, -1, 1)); }
-
-```text
-    Cross() 91
-```
-
-```text
-   Dot() 89
-   Float 23
-   SphericalTriangleArea() 106
-   Vector3f 86
-```
-
-![Figure 3.16](images/pages/page-0174.png)
-*Figure 3.16: A direction vector can be written in terms of spherical coordinates (θ, ϕ) if the x, y, and z basis vectors are given as well. The spherical angle formulae make it easy to convert between the two representations.*
-
-The conversion of a direction (x, y, z) to spherical coordinates can be found by art The corresponding functions follow. Note that SphericalTheta() assumes that the vector v has been normalized before being passed in; using SafeACos() in place of std::acos() avoids errors if |v.z| is slightly greater than 1 due to floating-point round-off error. 〈Spherical Geometry Inline Functions〉 +≡ Float SphericalTheta(Vector3f v) { return SafeACos(v.z); }
-
-`SphericalPhi()` returns an angle in [0, 2π], which sometimes requires an adjustment to the value returned by std::atan2().
-
-〈Spherical Geometry Inline Functions〉 +≡ Float SphericalPhi(Vector3f v) { Float p = std::atan2(v.y, v.x); return (p < 0) ? (p + 2 * Pi) : p; }
-
-Given a direction vector ω, it is easy to compute quantities like the cosine of the angle θ: cos θ = ((0, 0, 1) · ω) = ωz.
-
-This is a much more efficient computation than it would have been to compute ω’s θ value using first an expensive inverse trigonometric function to compute θ and then another expensive function to compute its cosine. The following functions compute this cosine and a few useful variations.
-
-```text
-   Float 23
-   Pi 1033
-   SafeACos() 1035
-   SphericalTheta() 107
-   Sqr() 1034
-   Vector3f 86
-```
-
-〈Spherical Geometry Inline Functions〉 +≡ Float CosTheta(Vector3f w) { return w.z; } Float Cos2Theta(Vector3f w) { return Sqr(w.z); } Float AbsCosTheta(Vector3f w) { return std::abs(w.z); }
-
-The value of sin2 θ can be efficiently computed using the trigonometric identity sin2 θ + cos2 θ = 1, though we need to be careful to avoid returning a negative value in the rare case that 1 - `Cos2Theta(w)` is less than zero due to floating-point round-off error.
-
-![Figure 3.17](images/pages/page-0175.png)
-*Figure 3.17: The values of sin ϕ and cos ϕ can be computed using the circular coordinate equations x = r cos ϕ and y = r sin ϕ, where r, the length of the dashed line, is equal to sin θ.*
-
-〈Spherical Geometry Inline Functions〉 +≡ Float Sin2Theta(Vector3f w) { return std::max<Float>(0, 1 - Cos2Theta(w)); } Float SinTheta(Vector3f w) { return std::sqrt(Sin2Theta(w)); }
-
-The tangent of the angle θ can be computed via the identity tan θ = sin θ/cos θ. 〈Spherical Geometry Inline Functions〉 +≡
-
-Float TanTheta(Vector3f w) { return SinTheta(w) / CosTheta(w); } Float Tan2Theta(Vector3f w) { return Sin2Theta(w) / Cos2Theta(w); }
-
-The sine and cosine of the ϕ angle can also be easily found from (x, y, z) coordinates without using inverse trigonometric functions (Figure 3.17). In the z = 0 plane, the vector ω has coordinates (x, y), which are given by r cos ϕ and r sin ϕ, respectively. The radius r is sin θ, so art 〈Spherical Geometry Inline Functions〉 +≡ Float CosPhi(Vector3f w) { Float sinTheta = SinTheta(w); return (sinTheta == 0) ? 1 : Clamp(w.x / sinTheta, -1, 1); } Float SinPhi(Vector3f w) { Float sinTheta = SinTheta(w); return (sinTheta == 0) ? 0 : Clamp(w.y / sinTheta, -1, 1); }
-
-Finally, the cosine of the angle Δϕ between two vectors’ ϕ values can be found by zeroing their z coordinates to get 2D vectors in the z = 0 plane and then normalizing them. The dot product of these two vectors gives the cosine of the angle between them. The implementation below rearranges the terms a bit for efficiency so that only a single square root operation needs to be performed.
-
-```text
-   Clamp() 1033
-   Cos2Theta() 107
-   CosTheta() 107
-   Float 23
-   Sin2Theta() 108
-   SinTheta() 108
-   Vector3f 86
-```
-
-〈Spherical Geometry Inline Functions〉 +≡
-
-Float CosDPhi(Vector3f wa, Vector3f wb) { Float waxy = Sqr(wa.x) + Sqr(wa.y), wbxy = Sqr(wb.x) + Sqr(wb.y); if (waxy == 0 ‖ wbxy == 0) return 1; return Clamp((wa.x * wb.x + wa.y * wb.y) / std::sqrt(waxy * wbxy), -1, 1); }
-
-Parameterizing the sphere with spherical coordinates corresponds to the equirectangular mapping of the sphere. It is not a particularly good parameterization for representing regularly sampled data on the sphere due to substantial distortion at the sphere’s poles.
-
-Octahedral Encoding While `Vector3f` is a convenient representation for computation using unit vectors, it does not use storage efficiently: not only does it use 12 bytes of memory (assuming 4-byte `Floats`), but it is capable of representing 3D direction vectors of arbitrary length. Normalized vectors are a small subset of all the possible `Vector3fs`, however, which means that the storage represented by those 12 bytes is not well allocated for them. When many normalized vectors need to be stored in memory, a more space-efficient representation can be worthwhile. Spherical coordinates could be used for this task. Doing so would reduce the storage required to two `Floats`, though with the disadvantage that relatively expensive trigonometric and inverse trigonometric functions would be required to convert to and from `Vector3s`. Further, spherical coordinates provide more precision near the poles and less near the equator; a more equal distribution of precision across all unit vectors is preferable. (Due to the way that floating-point numbers are represented, `Vector3f` suffers from providing different precision in different parts of the unit sphere as well.) `OctahedralVector` provides a compact representation for unit vectors with an even distribution of precision and efficient encoding and decoding routines. Our implementation uses just 4 bytes of memory for each unit vector; all the possible values of those 4 bytes correspond to a
-
-valid unit vector. Its representation is not suitable for computation, but it is easy to convert between it and Vector3f, which makes it an appealing option for in-memory storage of normalized vectors. 〈OctahedralVector Definition〉 ≡ class OctahedralVector { public: 〈OctahedralVector Public Methods 110〉 private: 〈OctahedralVector Private Methods 110〉 〈OctahedralVector Private Members 110〉 };
-
-As indicated by its name, this unit vector is based on an octahedral mapping of the unit sphere that is illustrated in Figure 3.18. The algorithm to convert a unit vector to this representation is surprisingly simple. The first step is to project the vector onto the faces of the 3D octahedron; this can be done by dividing the vector components by the vector’s L1 norm, |vx| + |vy| + |vz|. For points in the upper hemisphere (i.e., with vz ≥ 0), projection down to the z = 0 plane then just requires taking the x and y components directly.
-
-```text
-   Clamp() 1033
-   Float 23
-   OctahedralVector 109
-   Sqr() 1034
-   Vector3 86
-   Vector3f 86
-```
-
-![Figure 3.18](images/pages/page-0179.png)
-*Figure 3.18: The `OctahedralVector`’s parameterization of the unit sphere can be understood by first considering (a) an octahedron inscribed in the sphere. Its 2D parameterization is then defined by (b) flattening the top pyramid into the z = 0 plane and (c) unwrapping the bottom half and projecting its triangles onto the same plane. (d) The result allows a simple [−1, 1]2 parameterization. (Figure after Figure 2 in Meyer et al. (2010).)*
-
-〈OctahedralVector Public Methods〉 ≡ 109
-
-OctahedralVector(Vector3f v) { v /= std::abs(v.x) + std::abs(v.y) + std::abs(v.z); if (v.z >= 0) { x = Encode(v.x); y = Encode(v.y); } else { 〈Encode octahedral vector with z < 0 110〉 } }
-
-For directions in the lower hemisphere, the reprojection to the appropriate point in [−1, 1]2 is slightly more complex, though it can be expressed without any conditional control flow with a bit of care. (Here is another concise fragment of code that is worth understanding; consider in comparison code based on if statements that handled unwrapping the four triangles independently.) 〈Encode octahedral vector with z < 0〉 ≡ 110
-
-x = Encode((1 - std::abs(v.y)) * Sign(v.x)); y = Encode((1 - std::abs(v.x)) * Sign(v.y));
-
-The helper function OctahedralVector::Sign() uses the standard math library function std::copysign() to return ±1 according to the sign of v (positive/negative zero are treated like ordinary numbers). 〈OctahedralVector Private Methods〉 ≡ 109
-
-static Float Sign(Float v) { return std::copysign(1.f, v); }
-
-The 2D parameterization in Figure 3.18(d) is then represented using a 16-bit value for each coordinate that quantizes the range [−1, 1]with 216 steps.
-
-〈OctahedralVector Private Members〉 ≡ 109
-
-uint16_t x, y;
-
-Encode() performs the encoding from a value in [−1, 1]to the integer encoding. 〈OctahedralVector Private Methods〉 +≡ static uint16_t Encode(Float f) { return pstd::round(Clamp((f + 1) / 2, 0, 1) * 65535.f); }
-
-```text
-   Clamp() 1033
-   Float 23
-   OctahedralVector 109
-   OctahedralVector::Encode() 110
-   OctahedralVector::Sign() 110
-   Vector3f 86
-```
-
-The mapping back to a Vector3f follows the same steps in reverse. For directions in the upper hemisphere, the z value on the octahedron face is easily found. Normalizing that vector then gives the corresponding unit vector. 〈OctahedralVector Public Methods〉 +≡ 109
-
-explicit operator Vector3f() const { Vector3f v; v.x = -1 + 2 * (x / 65535.f); v.y = -1 + 2 * (y / 65535.f); v.z = 1 - (std::abs(v.x) + std::abs(v.y)); 〈Reparameterize directions in the z < 0 portion of the octahedron 111〉 return Normalize(v); }
-
-For directions in the lower hemisphere, the inverse of the mapping implemented in the 〈Encode octahedral vector with z < 0〉 fragment must be performed before the direction is normalized. 〈Reparameterize directions in the z < 0 portion of the octahedron〉 ≡ 111
+The length itself raises a type question: for an integer vector, `i32` is not an appropriate return type because the length need not be integral; `f32` would be better, but a `Vector3<f64>` should return `f64`. C++ solves this with the `TupleLength<T>` type trait, defaulting to `Float` and specialized so `TupleLength<double>::type` is `double`. The `Length()` function uses a trailing return type because `T` is only known once the parameter list is parsed. A second subtlety is the `using std::sqrt;` declaration followed by an unqualified `sqrt()` call: this allows custom scalar types (such as the later `Interval` class) to supply their own `sqrt()`; the standard version is used when it supports `T`, otherwise an overload for the custom type is found. In Rust, the analogous mechanism is the `num_traits::Float` (or `FloatCore`) trait bound: `length` returns the associated scalar type, and `Float::sqrt()` is dispatched statically.
 
 ```rust
-if (v.z < 0) { Float xo = v.x; v.x = (1 - std::abs(v.y)) * Sign(xo);
-       v.y = (1 - std::abs(xo)) * Sign(v.y);
-   }
-```
-
-Equal-Area Mapping The third spherical parameterization used in pbrt is carefully designed to preserve area: any area on the surface of the sphere maps to a proportional area in the parametric domain. This representation is a good choice for tabulating functions on the sphere, as it is continuous, has reasonably low distortion, and all values stored represent the same solid angle. It combines the octahedral mapping used in the `OctahedralVector` class with a variant of the square-to-disk mapping from Section A.5.1, which maps the unit square to the hemisphere in a way that preserves area. The mapping splits the unit square into four sectors, each of which is mapped to a sector of the hemisphere (see Figure 3.19).
-
-Given (u, v) ∈ [−1, 1]2; then in the first sector where u ≥ 0 and u − |v| ≥ 0, defining the polar coordinates of a point on the unit disk by art gives an area-preserving mapping with ϕ ∈ [−π/4, π/4]. Similar mappings can be found for the other three sectors. Given (r, ϕ), the corresponding point on the positive hemisphere is then given by art This mapping is also area-preserving. This mapping can be extended to the entire sphere using the same octahedral mapping that was used for the `OctahedralVector`. There are then three steps: `Float` 23 `Normalize()` 88 `OctahedralVector` 109 `OctahedralVector::Sign()` 110 `Vector3f` 86 1. First, the octahedral mapping is applied to the direction, giving a point (u, v) ∈ [−1, 1]2.
-
-2. For directions in the upper hemisphere, the concentric hemisphere
-mapping, Equation (3.9), is applied to the inner square of the
-octahedral mapping. Doing so requires accounting for the fact
-that it is rotated by 45° from the square expected by the
-hemispherical mapping.
-3. Directions in the lower hemisphere are mirrored over across their
-quadrant’s diagonal before the hemispherical mapping is applied.
-The resulting direction vector’s z component is then negated.
-
-![Figure 3.19](images/pages/page-0182.png)
-*Figure 3.19: The uniform hemispherical mapping (a) first transforms the unit square to the unit disk so that the four shaded sectors of the square are mapped to the corresponding shaded sectors of the disk. (b) Points on the disk are then mapped to the hemisphere in a manner that preserves relative area.*
-
-The following implementation of this approach goes through some care to be branch free: no matter what the input value, there is a single path of control flow through the function. When possible, this characteristic is often helpful for performance, especially on the GPU, though we note that this function usually represents a small fraction of pbrt’s execution time, so this characteristic does not affect the system’s overall performance. 〈Square–Sphere Mapping Function Definitions〉 ≡ Vector3f EqualAreaSquareToSphere(Point2f p) { 〈Transform p to [−1, 1]2 and compute absolute values 113〉 〈Compute radius r as signed distance from diagonal 113〉 〈Compute angle ϕ for square to sphere mapping 113〉 〈Find z coordinate for spherical direction 113〉 〈Compute cos ϕ and sin ϕ for original quadrant and return vector 113〉
-
+pub fn length<T: Float>(v: Vector3<T>) -> T {
+    length_squared(v).sqrt()
 }
 
-After transforming the original point p in [0, 1]2 to (u, v) ∈ [−1, 1]2, the implementation also computes the absolute value of these coordinates u′ = |u| and v′ = |v|. Doing so remaps the three quadrants with one or two negative coordinate values to the positive quadrant, flipping each quadrant
-
-so that its upper hemisphere is mapped to u′ + v′ < 1, which corresponds to the upper hemisphere in the original positive quadrant. (Each lower hemisphere is also mapped to the u′ + v′ > 1 region, corresponding to the original negative quadrant.) `Point2f` 92 `Vector3f` 86
-
-![Figure 3.20](images/pages/page-0183.png)
-*Figure 3.20: Computation of the Radius r for the Square-to-Disk Mapping. The signed distance to the u′ + v′ = 1 line is computed. One minus its absolute value gives a radius between 0 and 1.*
-
-〈Transform p to [−1, 1]2 and compute absolute values〉 ≡
-
-Float u = 2 * p.x - 1, v = 2 * p.y - 1; Float up = std::abs(u), vp = std::abs(v);
-
-Most of this function’s implementation operates using (u′, v′) in the positive quadrant. Its next step is to compute the radius r for the mapping to the disk by computing the signed distance to the u + v = 1 diagonal that splits the upper and lower hemispheres where the lower hemisphere’s signed distance is negative (Figure 3.20). 〈Compute radius r as signed distance from diagonal〉 ≡ 112
-
-Float signedDistance = 1 - (up + vp); Float d = std::abs(signedDistance); Float r = 1 - d;
-
-The ϕ computation accounts for the 45° rotation with an added π/4 term. 〈Compute angle ϕ for square to sphere mapping〉 ≡ 112
-
-Float phi = (r == 0 ? 1 : (vp - up) / r + 1) * Pi / 4;
-
-The sign of the signed distance computed earlier indicates whether the (u′, v′) point is in the lower hemisphere; the returned z coordinate takes its sign. 〈Find z coordinate for spherical direction〉 ≡ 112
-
-Float z = pstd::copysign(1 - Sqr(r), signedDistance);
-
-After computing cos ϕ and sin ϕ in the positive quadrant, it is necessary to remap those values to the correct ones for the actual quadrant of the original point (u, v). Associating the sign of u with the computed cos ϕ value and the sign of v with sin ϕ suffices to do so and this operation can be done with another use of copysign().
-
-〈Compute cos ϕ and sin ϕ for original quadrant and return vector〉 ≡ 112
-
-Float cosPhi = pstd::copysign(std::cos(phi), u); Float sinPhi = pstd::copysign(std::sin(phi), v); return Vector3f(cosPhi * r * SafeSqrt(2 - Sqr(r)), sinPhi * r * SafeSqrt(2 - Sqr(r)), z);
-
-```text
-    EqualAreaSquareToSphere() 112
-    Float 23
-    Pi 1033
-    SafeSqrt() 1034
-    Sqr() 1034
-    Vector3f 86
-```
-
-The inverse mapping is performed by the `EqualAreaSphereToSquare()` function, which effectively performs the same operations in reverse and is therefore not included here. Also useful and also not included, `WrapEqualAreaSquare()` handles the boundary cases of points p that are just outside of [0, 1]2 (as may happen during bilinear interpolation with image texture lookups) and wraps them around to the appropriate valid coordinates that can be passed to `EqualAreaSquareToSphere()`.
-
-![Figure 3.21](images/pages/page-0184.png)
-*Figure 3.21: Bounding a Set of Directions with a Cone. A set of directions, shown here as a shaded region on the sphere, can be bounded using a cone described by a central direction vector v and a spread angle θ set such that all the directions in the set are inside the cone.*
-
-### 3.8.4 BOUNDING DIRECTIONS
-
-In addition to bounding regions of space, it is also sometimes useful to bound a set of directions. For example, if a light source emits illumination in some directions but not others, that information can be used to cull that
-
-light source from being included in lighting calculations for points it certainly does not illuminate. pbrt provides the DirectionCone class for such uses; it represents a cone that is parameterized by a central direction and an angular spread (see Figure 3.21). 〈DirectionCone Definition〉 ≡ class DirectionCone { public: 〈DirectionCone Public Methods 114〉 〈DirectionCone Public Members 114〉 };
-
-The DirectionCone provides a variety of constructors, including one that takes the central axis of the cone and the cosine of its spread angle and one that bounds a single direction. For both the constructor parameters and the cone representation stored in the class, the cosine of the spread angle is used rather than the angle itself. Doing so makes it possible to perform some of the following operations with DirectionCones using efficient dot products in place of more expensive trigonometric functions. 〈DirectionCone Public Methods〉 ≡ 114
-
-DirectionCone() = default; DirectionCone(Vector3f w, Float cosTheta) : w(Normalize(w)), cosTheta(cosTheta) {} explicit DirectionCone(Vector3f w) : DirectionCone(w, 1) {}
-
-The default `DirectionCone` is empty; an invalid value of infinity for cosTheta encodes that case.
-
-〈DirectionCone Public Members〉 ≡ 114
-
-Vector3f w; Float cosTheta = Infinity;
-
-A convenience method reports whether the cone is empty. 〈DirectionCone Public Methods〉 +≡ 114
-
-bool IsEmpty() const { return cosTheta == Infinity; }
-
-```text
-   DirectionCone 114
-   DirectionCone::cosTheta 114
-```
-
-```text
-   Float 23
-   Infinity 361
-   Normalize() 88
-   Vector3f 86
-```
-
-Another convenience method provides the bound for all directions. 〈DirectionCone Public Methods〉 +≡ 114
-
-static DirectionCone EntireSphere() { return DirectionCone(Vector3f(0, 0, 1), -1); }
-
-Given a DirectionCone, it is easy to check if a given direction vector is inside its bounds: the cosine of the angle between the direction and the cone’s central direction must be greater than the cosine of the cone’s spread angle. (Note that for the angle to be smaller, the cosine must be larger.) 〈DirectionCone Inline Functions〉 ≡ bool Inside(const DirectionCone &d, Vector3f w) { return !d.IsEmpty() && Dot(d.w, Normalize(w)) >= d.cosTheta; }
-
-BoundSubtendedDirections() returns a DirectionCone that bounds the directions subtended by a given bounding box with respect to a point p. 〈DirectionCone Inline Functions〉 +≡ DirectionCone BoundSubtendedDirections(const Bounds3f &b, Point3f p) { 〈Compute bounding sphere for b and check if p is inside 115〉 〈Compute and return DirectionCone for bounding sphere 115〉 }
-
-First, a bounding sphere is found for the bounds b. If the given point p is inside the sphere, then a direction bound of all directions is returned. Note that the point p may be inside the sphere but outside b, in which case the returned bounds will be overly conservative. This issue is discussed further in an exercise at the end of the chapter. 〈Compute bounding sphere for b and check if p is inside〉 ≡ 115
-
-```rust
-   Float radius;
-   Point3f pCenter;
-   b.BoundingSphere(&pCenter, &radius);
-   if (DistanceSquared(p, pCenter) < Sqr(radius))
-       return DirectionCone::EntireSphere();
-```
-
-```text
-   Bounds3::BoundingSphere() 103
-   Bounds3f 97
-   DirectionCone 114
-   DirectionCone::cosTheta 114
-   DirectionCone::EntireSphere() 115
-   DirectionCone::IsEmpty() 114
-   DirectionCone::w 114
-   DistanceSquared() 93
-   Dot() 89
-   Float 23
-   Normalize() 88
-   Point3f 92
-   SafeSqrt() 1034
-   Sqr() 1034
-   Vector3f 86
-```
-
-Otherwise the central axis of the bounds is given by the vector from p to the center of the sphere and the cosine of the spread angle is easily found using basic trigonometry (see Figure 3.22). 〈Compute and return DirectionCone for bounding sphere〉 ≡ 115
-
-Vector3f w = Normalize(pCenter - p); Float sin2ThetaMax = Sqr(radius) / DistanceSquared(pCenter, p); Float cosThetaMax = SafeSqrt(1 - sin2ThetaMax); return DirectionCone(w, cosThetaMax);
-
-Finally, we will find it useful to be able to take the union of two `DirectionCones`, finding a `DirectionCone` that bounds both of them.
-
-![Figure 3.22](images/pages/page-0188.png)
-*Figure 3.22: Finding the Angle That a Bounding Sphere Subtends from a Point p. Given a bounding sphere and a reference point p outside of the sphere, the cosine of the angle θ can be found by first computing sin θ by dividing the sphere’s radius r by the distance d between p and the sphere’s center and then using the identity sin2 θ + cos2 θ = 1.*
-
-〈DirectionCone Function Definitions〉 ≡ DirectionCone Union(const DirectionCone &a, const DirectionCone &b) { 〈Handle the cases where one or both cones are empty 116〉 〈Handle the cases where one cone is inside the other 116〉 〈Compute the spread angle of the merged cone, θo 117〉 〈Find the merged cone’s axis and return cone union 118〉 }
-
-If one of the cones is empty, we can immediately return the other one. 〈Handle the cases where one or both cones are empty〉 ≡ 116
-
-if (a.IsEmpty()) return b; if (b.IsEmpty()) return a;
-
-Otherwise the implementation computes a few angles that will be helpful, including the actual spread angle of each cone as well as the angle between their two central direction vectors. These values give enough information to determine if one cone is entirely bounded by the other (see Figure 3.23). 〈Handle the cases where one cone is inside the other〉 ≡ 116
-
-Float theta_a = SafeACos(a.cosTheta), theta_b = SafeACos(b.cosTheta); Float theta_d = AngleBetween(a.w, b.w); if (std::min(theta_d + theta_b, Pi) <= theta_a) return a; if (std::min(theta_d + theta_a, Pi) <= theta_b) return b;
-
-Otherwise it is necessary to compute a new cone that bounds both of them. As illustrated in Figure 3.24, the sum of θa, θd, and θb gives the full angle that the new cone must cover; half of that is its spread angle.
-
-```text
-   AngleBetween() 89
-   DirectionCone 114
-   DirectionCone::cosTheta 114
-   DirectionCone::IsEmpty() 114
-   DirectionCone::w 114
-   Float 23
-   Pi 1033
-   SafeACos() 1035
-```
-
-![Figure 3.23](images/pages/page-0189.png)
-*Figure 3.23: Determining If One Cone of Directions Is Entirely inside Another. Given two direction cones a and b, their spread angles θa and θb, and the angle between their two central direction vectors θd, we can determine if one cone is entirely inside the other. Here, θa > θd + θb, and so b is inside a.*
-
-![Figure 3.24](images/pages/page-0189.png)
-*Figure 3.24: Computing the Spread Angle of the Direction Cone That Bounds Two Others. If θd is the angle between two cones’ central axes and the two cones have spread angles θa and θb, then the total angle that the cone bounds is θa + θd + θb and so its spread angle is half of that.*
-
-〈Compute the spread angle of the merged cone, θo〉 ≡ 116
-
-```rust
-   Float theta_o = (theta_a + theta_d + theta_b) / 2;
-   if (theta_o >= Pi)
-       return DirectionCone::EntireSphere();
-```
-
-The direction vector for the new cone should not be set with the average of the two cones’ direction vectors; that vector and a spread angle of θo does not necessarily bound the two given cones. Using that vector would require
-
-a spread angle of θd/2 + max(2θa, 2θb), which is never less than θo. (It is worthwhile to sketch out a few cases on paper to convince yourself of this.) `DirectionCone::EntireSphere()` 115 `Float` 23 `Pi` 1033 `Rotate()` 126
-
-Instead, we find the vector perpendicular to the cones’ direction vectors using the cross product and rotate a.w by the angle around that axis that causes it to bound both cones’ angles. (The Rotate() function used for this will be introduced shortly, in Section 3.9.7.) In the case that LengthSquared(wr) == 0, the vectors face in opposite directions and a bound of the entire sphere is returned.2 〈Find the merged cone’s axis and return cone union〉 ≡ 116
-
-Float theta_r = theta_o - theta_a; Vector3f wr = Cross(a.w, b.w); if (LengthSquared(wr) == 0) return DirectionCone::EntireSphere(); Vector3f w = Rotate(Degrees(theta_r), wr)(a.w); return DirectionCone(w, std::cos(theta_o));
-
-## 3.9 TRANSFORMATIONS
-
-In general, a transformation T is a mapping from points to points and from vectors to vectors: p′ = T(p) v′ = T(v). The transformation T may be an arbitrary procedure. However, we will consider a subset of all possible transformations in this chapter. In particular, they will be
-
-Linear: If T is an arbitrary linear transformation and s is an arbitrary scalar, then T(sv) =
-sT(v) and T(v1 + v2) = T(v1) + T(v2). These two properties can greatly simplify
-reasoning about transformations.
-Continuous: Roughly speaking, T maps the neighborhoods around p and v to
-neighborhoods around p′ and v′.
-One-to-one and invertible: For each p, T maps p′ to a single unique p′. Furthermore, there
-exists an inverse transform T−1 that maps p′ back to p.
-
-We will often want to take a point, vector, or normal defined with respect to one coordinate frame and find its coordinate values with respect to another frame. Using basic properties of linear algebra, a 4 × 4 matrix can be shown to express the linear transformation of a point or vector from one frame to another. Furthermore, such a 4 × 4 matrix suffices to express all linear transformations of points and vectors within a fixed frame, such as translation in space or rotation around a point. Therefore, there are two different (and incompatible!) ways that a matrix can be interpreted:
-
-Transformation within the frame: Given a point, the matrix could express how to compute
-a new point in the same frame that represents the transformation of the original point
-(e.g., by translating it in some direction).
-Transformation from one frame to another: A matrix can express the coordinates of a
-point or vector in a new frame in terms of the coordinates in the original frame.
-
-Most uses of transformations in pbrt are for transforming points from one frame to another.
-
-In general, transformations make it possible to work in the most convenient coordinate space. For example, we can write routines that define a virtual camera, assuming that the camera is located at the origin, looks down the z axis, and has the y axis pointing up and the x axis pointing right. These assumptions greatly simplify the camera implementation. To place the camera at any point in the scene looking in any direction, we construct a transformation that maps points in the scene’s coordinate system to the camera’s coordinate system. (See Section 5.1.1 for more information about camera coordinate spaces in pbrt.) `Cross()` 91 Degrees() 1033 `DirectionCone` 114 `DirectionCone::EntireSphere()` 115 `DirectionCone::w` 114 `Float` 23 `LengthSquared()` 87
-
-`Rotate()` 126 `Vector3f` 86
-
-### 3.9.1 HOMOGENEOUS COORDINATES
-
-Given a frame defined by (po, v1, v2, v3), there is ambiguity between the representation of a point (px, py, pz) and a vector (vx, vy, vz) with the same (x, y, z) coordinates. Using the representations of points and vectors introduced at the start of the chapter, we can write the point as the inner product [s1 s2 s3 1][v1 v2 v3 po]T and the vector as the inner product art. These four-vectors of three si values and a zero or one are called the homogeneous representations of the point and the vector. The fourth coordinate of the homogeneous representation is sometimes called the weight. For a point, its value can be any scalar other than zero: the homogeneous points [1, 3, −2, 1] and [−2, −6, 4, −2] describe the same Cartesian point (1, 3, −2). Converting homogeneous points into ordinary points entails dividing the first three components by the weight: art We will use these facts to see how a transformation matrix can describe how points and vectors in one frame can be mapped to another frame. Consider a matrix M that describes the transformation from one coordinate system to another: art (In this book, we define matrix element indices starting from zero, so that equations and source code correspond more directly.) Then if the transformation represented by M is applied to the x axis vector (1, 0, 0), we have Mx = M[1 0 0 0]T = [m0, 0 m1, 0 m2, 0 m3, 0]T. Thus, directly reading the columns of the matrix shows how the basis vectors and the origin of the current coordinate system are transformed by the matrix: My = [m0, 1 m1, 1 m2, 1 m3, 1]T Mz = [m0, 2 m1, 2 m2, 2 m3, 2]T Mp = [m0, 3 m1, 3 m2, 3 m3, 3]T.
-
-In general, by characterizing how the basis is transformed, we know how any point or vector specified in terms of that basis is transformed. Because points and vectors in a coordinate system are expressed in terms of the coordinate system’s frame, applying the transformation to them directly is
-
-equivalent to applying the transformation to the coordinate system’s basis and finding their coordinates in terms of the transformed basis. We will not use homogeneous coordinates explicitly in our code; there is no Homogeneous Point class in pbrt. However, the various transformation routines in the next section will implicitly convert points, vectors, and normals to homogeneous form, transform the homogeneous points, and then convert them back before returning the result. This isolates the details of homogeneous coordinates in one place (namely, the implementation of transformations).
-
-### 3.9.2 Transform CLASS DEFINITION
-
-The `Transform` class represents a 4 × 4 transformation. Its implementation is in the files `util/transform.h` and `util/transform.cpp`.
-
-〈Transform Definition〉 ≡ class Transform { public: 〈Transform Public Methods 120〉 private: 〈Transform Private Members 120〉 };
-
-The transformation matrix is represented by the elements of the matrix m, which is represented by a SquareMatrix<4> object. (The SquareMatrix class is defined in Section B.2.12.) The matrix m is stored in row-major form, so element m[i][j] corresponds to mi,j, where i is the row number and j is the column number. For convenience, the Transform also stores the inverse of m in its Transform::mInv member variable; for pbrt’s needs, it is better to have the inverse easily available than to repeatedly compute it as needed. 〈Transform Private Members〉 ≡ 120
-
-SquareMatrix<4> m, mInv;
-
-This representation of transformations is relatively memory hungry: assuming 4 bytes of storage for a `Float` value, a `Transform` requires 128
-
-bytes of storage. Used naïvely, this approach can be wasteful; if a scene has millions of shapes but only a few thousand unique transformations, there is no reason to redundantly store the same matrices many times. Therefore, `Shapes` in pbrt store a pointer to a `Transform` and the scene specification code defined in Section C.2.3 uses an `InternCache` of `Transforms` to ensure that all shapes that share the same transformation point to a single instance of that transformation in memory.
-
-### 3.9.3 BASIC OPERATIONS
-
-When a new Transform is created, it defaults to the identity transformation —the transformation that maps each point and each vector to itself. This transformation is represented by the identity matrix: art The implementation here relies on the default SquareMatrix constructor to fill in the identity matrix for m and mInv. 〈Transform Public Methods〉 ≡ 120
-
-Transform() = default;
-
-A Transform can also be created from a given matrix. In this case, the matrix must be explicitly inverted. 〈Transform Public Methods〉 +≡ 120
-
-Transform(const SquareMatrix<4> &m) : m(m) { pstd::optional<SquareMatrix<4>> inv = Inverse(m); if (inv) mInv = *inv; else { 〈Initialize mInv with not-a-number values 121〉 } }
-
-```text
-    InternCache 1070
-    Shape 261
-    SquareMatrix 1049
-    SquareMatrix::Inverse() 1051
-    Transform 120
-    Transform::mInv 120
-```
-
-If the matrix provided by the caller is degenerate and cannot be inverted, mInv is initialized with floating-point not-a-number values, which poison computations that involve them: arithmetic performed using a not-a-number value always gives a not-a-number value. In this way, a caller who provides a degenerate matrix m can still use the Transform as long as no methods that access mInv are called. 〈Initialize mInv with not-a-number values〉 ≡ 120
-
-```rust
-   Float NaN = std::numeric_limits<Float>::has_signaling_NaN
-                                   ?
-                                   std::numeric_limits<Float>::signaling_NaN()
-                                   : std::numeric_limits<Float>::quiet_NaN();
-   for (int i = 0; i < 4; ++i)
-         for (int j = 0; j < 4; ++j)
-              mInv[i][j] = NaN;
-```
-
-Another constructor allows specifying the elements of the matrix using a regular 2D array. 〈Transform Public Methods〉 +≡ 120
-
-Transform(const Float mat[4][4]) : Transform(SquareMatrix<4> (mat)) {}
-
-The most commonly used constructor takes a reference to the transformation matrix along with an explicitly provided inverse. This is a superior approach to computing the inverse in the constructor because many geometric transformations have simple inverses and we can avoid the expense and potential loss of numeric accuracy from computing a general 4 × 4 matrix inverse. Of course, this places the burden on the caller to make sure that the supplied inverse is correct. 〈Transform Public Methods〉 +≡ 120
-
-Transform(const SquareMatrix<4> &m, const SquareMatrix<4> &mInv) : m(m), mInv(mInv) {}
-
-Both the matrix and its inverse are made available for callers that need to access them directly. 〈Transform Public Methods〉 +≡ 120
-
-const SquareMatrix<4> &GetMatrix() const { return m; } const SquareMatrix<4> &GetInverseMatrix() const { return mInv; }
-
-The `Transform` representing the inverse of a `Transform` can be returned by just swapping the roles of mInv and m.
-
-〈Transform Inline Functions〉 ≡ Transform Inverse(const Transform &t) { return Transform(t.GetInverseMatrix(), t.GetMatrix()); }
-
-Transposing the two matrices in the transform to compute a new transform can also be useful. 〈Transform Inline Functions〉 +≡ Transform Transpose(const Transform &t) { return Transform(Transpose(t.GetMatrix()), Transpose(t.GetInverseMatrix())); }
-
-The `Transform` class also provides equality and inequality testing methods as well as an `IsIdentity()` method that checks to see if the transformation is the identity.
-
-```text
-    Float 23
-    SquareMatrix 1049
-    SquareMatrix::Transpose() 1051
-    Transform 120
-    Transform::GetInverseMatrix() 121
-    Transform::GetMatrix() 121
-    Transform::m 120
-    Transform::mInv 120
-```
-
-〈Transform Public Methods〉 +≡ 120
-
-bool operator==(const Transform &t) const { return t.m == m; } bool operator!=(const Transform &t) const { return t.m != m; } bool IsIdentity() const { return m.IsIdentity(); }
-
-### 3.9.4 TRANSLATIONS
-
-One of the simplest transformations is the translation transformation, T(Δx, Δy, Δz). When applied to a point p, it translates p’s coordinates by Δx, Δy, and Δz, as shown in Figure 3.25. As an example, T(2, 2, 1)(x, y, z) = (x + 2, y + 2, z + 1). Translation has some basic properties: art Translation only affects points, leaving vectors unchanged. In matrix form, the translation transformation is art When we consider the operation of a translation matrix on a point, we see the value of homogeneous coordinates. Consider the product of the matrix for T(Δx, Δy, Δz) with a point p in homogeneous coordinates [x y z 1]T: art As expected, we have computed a new point with its coordinates offset by (Δx, Δy, Δz). However, if we apply T to a vector v, we have art
-
-```text
-   SquareMatrix::IsIdentity() 1050
-   Transform 120
-   Transform::m 120
-```
-
-![Figure 3.25](images/pages/page-0197.png)
-*Figure 3.25: Translation in 2D. Adding offsets Δx and Δy to a point’s coordinates correspondingly changes its position in space.*
-
-The result is the same vector v. This makes sense because vectors represent directions, so translation leaves them unchanged. The Translate() function returns a Transform that represents a given translation—it is a straightforward application of the translation matrix equation. The inverse of the translation is easily computed, so it is provided to the Transform constructor as well. 〈Transform Function Definitions〉 ≡ Transform Translate(Vector3f delta) {
-```rust
-    SquareMatrix<4> m(1, 0, 0, delta.x,
-                      0, 1, 0, delta.y,
-                      0, 0, 1, delta.z,
-                      0, 0, 0, 1);
-    SquareMatrix<4> minv(1, 0, 0, -delta.x,
-                         0, 1, 0, -delta.y,
-                         0, 0, 1, -delta.z,
-                         0, 0, 0, 1);
-    return Transform(m, minv);
+pub fn normalize<T: Float>(v: Vector3<T>) -> Vector3<T> {
+    v / length(v) // integer components therefore yield a float vector
 }
 ```
 
-### 3.9.5 SCALING
+<details>
+<summary>Book cross-references (original edition)</summary>
 
-Another basic transformation is the scale transformation, S(sx, sy, sz). It has the effect of taking a point or vector and multiplying its components by scale factors in x, y, and z: S(2, 2, 1)(x, y, z) = (2x, 2y, z). It has the following basic properties: art We can differentiate between uniform scaling, where all three scale factors have the same value, and nonuniform scaling, where they may have different values. The general scale matrix is art 〈Transform Function Definitions〉 +≡ Transform Scale(Float x, Float y, Float z) {
+`Normal3` p. 94 · `Point3` p. 92 · `Sqr()` p. 1034 · `Tuple3` p. 83 · `Vector3` p. 86 · `Float` p. 23 · `Interval` p. 1057 · `Length()` p. 88 · `LengthSquared()` p. 87 · `TupleLength` p. 88
+
+</details>
+
+### 3.3.2 Dot and Cross Product
+
+The **dot product** (scalar or inner product) of two 3D vectors is
+
+$$
+\mathbf v \cdot \mathbf w = v_x w_x + v_y w_y + v_z w_z,
+$$
+
+implemented directly:
+
 ```rust
-    SquareMatrix<4> m(x, 0, 0, 0,
-                      0, y, 0, 0,
-                      0, 0, z, 0,
-                      0, 0, 0, 1);
-    SquareMatrix<4> minv(1 / x, 0, 0, 0,
-                         0, 1 / y, 0, 0,
-                         0, 0, 1 / z, 0,
-                         0, 0, 0, 1);
-    return Transform(m, minv);
+pub fn dot<T: Float>(v: Vector3<T>, w: Vector3<T>) -> T {
+    v.x * w.x + v.y * w.y + v.z * w.z
 }
 ```
 
-```text
-    Float 23
-    SquareMatrix 1049
-    Transform 120
-    Vector3f 86
-```
+Basic properties follow immediately. For vectors $\mathbf u, \mathbf v, \mathbf w$ and scalar $s$:
 
-It is useful to be able to test if a transformation has a scaling term in it; an easy way to do this is to transform the three coordinate axes and see if any of their lengths are appreciably different from one. 〈Transform Public Methods〉 +≡ 120
+$$
+\begin{aligned}
+\mathbf u \cdot \mathbf v &= \mathbf v \cdot \mathbf u, \\
+(s\mathbf u)\cdot \mathbf v &= s(\mathbf u \cdot \mathbf v), \\
+\mathbf u \cdot (\mathbf v + \mathbf w) &= (\mathbf u\cdot\mathbf v) + (\mathbf u\cdot\mathbf w).
+\end{aligned}
+$$
 
-bool HasScale(Float tolerance = 1e-3f) const { Float la2 = LengthSquared((*this)(Vector3f(1, 0, 0))); Float lb2 = LengthSquared((*this)(Vector3f(0, 1, 0))); Float lc2 = LengthSquared((*this)(Vector3f(0, 0, 1))); return (std::abs(la2 - 1) > tolerance ‖ std::abs(lb2 - 1) > tolerance ‖ std::abs(lc2 - 1) > tolerance); }
+The dot product relates to the angle $\theta$ between the vectors:
 
-### 3.9.6 x, y, AND z AXIS ROTATIONS
+$$
+\mathbf v\cdot\mathbf w = \|\mathbf v\|\,\|\mathbf w\|\cos\theta. \tag{3.1}
+$$
 
-Another useful type of transformation is the rotation transformation, R. In general, we can define an arbitrary axis from the origin in any direction and then rotate around that axis by a given angle. The most common rotations of this type are around the x, y, and z coordinate axes. We will write these rotations as Rx(θ), Ry(θ), and so on. The rotation around an arbitrary axis (x, y, z) is denoted by R(x,y,z)(θ).
+Hence $\mathbf v\cdot\mathbf w = 0$ if and only if $\mathbf v$ and $\mathbf w$ are perpendicular, provided neither is the degenerate vector $(0,0,0)$. A set of mutually perpendicular vectors is **orthogonal**; an orthogonal set of unit vectors is **orthonormal**. For unit vectors, the dot product is the cosine of the angle between them — a property used constantly in rendering.
 
-Rotations also have some basic properties: art
+Computing the angle of two normalized vectors with `acos(dot)` loses accuracy when the vectors are nearly parallel or nearly opposite. The following reformulation does more of its work near the origin, where floating-point precision is greater:
 
-where RT is the matrix transpose of R. This last property, that the inverse of R is equal to its transpose, stems from the fact that R is an orthogonal matrix; its first three columns (or rows) are all normalized and orthogonal to each other. Fortunately, the transpose is much easier to compute than a full matrix inverse.
-
-For a left-handed coordinate system, the matrix for clockwise rotation around the x axis is art Figure 3.26 gives an intuition for how this matrix works. It is easy to see that the matrix leaves the x axis unchanged:
-
-Rx(θ)[1 0 0 0]T = [1 0 0 0]T.
-
-It maps the y axis (0, 1, 0) to (0, cos θ, sin θ) and the z axis to (0, − sin θ, cos θ). The y and z axes remain in the same plane, perpendicular to the x axis, but are rotated by the given angle. An arbitrary point in space is similarly rotated about the x axis by this transformation while staying in the same yz plane as it was originally. The implementation of the `RotateX()` function is straightforward.
-
-```text
-   Float 23
-   LengthSquared() 87
-   RotateX() 125
-   Vector3f 86
-```
-
-![Figure 3.26](images/pages/page-0200.png)
-*Figure 3.26: Clockwise rotation by an angle θ about the x axis leaves the x coordinate unchanged. The y and z axes are mapped to the vectors given by the dashed lines; y and z coordinates move accordingly.*
-
-〈Transform Function Definitions〉 +≡ Transform RotateX(Float theta) {
 ```rust
-    Float sinTheta = std::sin(Radians(theta));
-    Float cosTheta = std::cos(Radians(theta));
-    SquareMatrix<4> m(1, 0, 0, 0,
-                      0, cosTheta, -sinTheta, 0,
-                      0, sinTheta, cosTheta, 0,
-                      0, 0, 0, 1);
-    return Transform(m, Transpose(m));
+pub fn angle_between<T: Float>(v1: Vector3<T>, v2: Vector3<T>) -> T {
+    let two = T::from(2).unwrap();
+    let pi = T::from(std::f64::consts::PI).unwrap();
+    if dot(v1, v2) < T::zero() {
+        pi - two * safe_asin(length(v1 + v2) / two)
+    } else {
+        two * safe_asin(length(v2 - v1) / two)
+    }
 }
 ```
 
-Similarly, for clockwise rotation around y and z, we have art The implementations of `RotateY()` and `RotateZ()` follow directly and are not included here.
-
-### 3.9.7 ROTATION AROUND AN ARBITRARY AXIS
-
-We also provide a routine to compute the transformation that represents rotation around an arbitrary axis. A common derivation of this matrix is based on computing rotations that map the given axis to a fixed axis (e.g., z), performing the rotation there, and then rotating the fixed axis back to the original axis. A more elegant derivation can be constructed with vector algebra. Consider a normalized direction vector a that gives the axis to rotate around by angle θ, and a vector v to be rotated (Figure 3.27). First, we can compute the vector vc along the axis a that is in the plane through the end point of v and is parallel to a. Assuming v and a form an angle α, we have vc = a ‖v‖ cos α = a(v · a).
-
-```text
-    Float 23
-    Radians() 1033
-    SquareMatrix 1049
-    Transform 120
-```
-
-We now compute a pair of basis vectors v1 and v2 in this plane. Trivially, one of them is v1 = v − vc,
-
-![Figure 3.27](images/pages/page-0202.png)
-*Figure 3.27: A vector v can be rotated around an arbitrary axis a by constructing a coordinate system (p, v1, v2) in the plane perpendicular to the axis that passes through v’s end point and rotating the vectors v1 and v2 about p. Applying this rotation to the axes of the coordinate system (1, 0, 0), (0, 1, 0), and (0, 0, 1) gives the general rotation matrix for this rotation.*
-
-and the other can be computed with a cross product v2 = (v1 × a).
-
-Because a is normalized, v1 and v2 have the same length, equal to the length of the vector between v and vc. To now compute the rotation by an angle θ about vc in the plane of rotation, the rotation formulae earlier give us v′ = vc + v1 cos θ + v2 sin θ. To convert this to a rotation matrix, we apply this formula to the basis vectors (1, 0, 0), (0, 1, 0), and (0, 0, 1) to get the values of the rows of the matrix. The result of all this is encapsulated in the following function. As with the other rotation matrices, the inverse is equal to the transpose. Because some callers of the Rotate() function already have sin θ and cos θ at hand, pbrt provides a variant of the function that takes those values directly. 〈Transform Inline Functions〉 +≡ Transform Rotate(Float sinTheta, Float cosTheta, Vector3f axis) { Vector3f a = Normalize(axis); SquareMatrix<4> m; 〈Compute rotation of first basis vector 126〉 〈Compute rotations of second and third basis vectors〉 return Transform(m, Transpose(m)); }
-
-〈Compute rotation of first basis vector〉 ≡ 126
-
-m[0][0] = a.x * a.x + (1 - a.x * a.x) * cosTheta;
+We also frequently need the absolute value of a dot product, so `abs_dot()` avoids a separate `abs()` call:
 
 ```rust
-   m[0][1] = a.x * a.y * (1 - cosTheta) - a.z * sinTheta;
-   m[0][2] = a.x * a.z * (1 - cosTheta) + a.y * sinTheta;
-   m[0][3] = 0;
-```
-
-```text
-    Float 23
-    Normalize() 88
-    SquareMatrix 1049
-    SquareMatrix::Transpose() 1051
-    Transform 120
-    Vector3f 86
-```
-
-The code for the other two basis vectors follows similarly and is not included here. A second variant of Rotate() takes the angle θ in degrees, computes its sine and cosine, and calls the first. 〈Transform Inline Functions〉 +≡ Transform Rotate(Float theta, Vector3f axis) { Float sinTheta = std::sin(Radians(theta)); Float cosTheta = std::cos(Radians(theta)); return Rotate(sinTheta, cosTheta, axis); }
-
-### 3.9.8 ROTATING ONE VECTOR TO ANOTHER
-
-It is sometimes useful to find the transformation that performs a rotation that aligns one unit vector f with another t (where f denotes “from” and t denotes “to”). One way to do so is to define a rotation axis by the cross product of the two vectors, compute the rotation angle as the arccosine of their dot product, and then use the `Rotate()` function. However, this approach not only becomes unstable when the two vectors are nearly parallel but also requires a number of expensive trigonometric function calls. A different approach to deriving this rotation matrix is based on finding a pair of reflection transformations that reflect f to an intermediate vector r and then reflect r to t. The product of such a pair of reflections gives the desired rotation. The Householder matrix H(v) provides a way to find these
-
-reflections: it reflects the given vector v to its negation −v while leaving all vectors orthogonal to v unchanged and is defined as where I is the identity matrix. With the product of the two reflections art the second matrix reflects f to r and the first then reflects r to t, which together give the desired rotation. 〈Transform Inline Functions〉 +≡ Transform RotateFromTo(Vector3f from, Vector3f to) { 〈Compute intermediate vector for vector reflection 127〉 〈Initialize matrix r for rotation 128〉 return Transform(r, Transpose(r)); }
-
-The intermediate reflection direction refl is determined by choosing a basis vector that is not too closely aligned to either of the from and to vectors. In the computation here, because 0.72 is just slightly greater than , the absolute value of at least one pair of matching coordinates must then both be less than 0.72, assuming the vectors are normalized. In this way, a loss of accuracy is avoided when the reflection direction is nearly parallel to either from or to. 〈Compute intermediate vector for vector reflection〉 ≡ 127
-
-Vector3f refl; if (std::abs(from.x) < 0.72f && std::abs(to.x) < 0.72f) refl = Vector3f(1, 0, 0); else if (std::abs(from.y) < 0.72f && std::abs(to.y) < 0.72f) refl = Vector3f(0, 1, 0); else refl = Vector3f(0, 0, 1);
-
-```text
-   Float 23
-   Radians() 1033
-   Rotate() 126
-   SquareMatrix::Transpose() 1051
-```
-
-```text
-    Transform 120
-    Vector3f 86
-```
-
-Given the reflection axis, the matrix elements can be initialized directly. 〈Initialize matrix r for rotation〉 ≡ 127
-
-```rust
-   Vector3f u = refl - from, v = refl - to;
-   SquareMatrix<4> r;
-   for (int i = 0; i < 3; ++i)
-         for (int j = 0; j < 3; ++j)
-              〈Initialize matrix element r[i][j] 128〉
-```
-
-Expanding the product of the Householder matrices in Equation (3.10), we can find that the matrix element ri,j is given by art where δi,j is the Kronecker delta function that is 1 if i and j are equal and 0 otherwise. The implementation follows directly. 〈Initialize matrix element r[i][j]〉 ≡ 128
-
-```rust
-   r[i][j] = ((i == j) ? 1 : 0) -
-                 2 / Dot(u, u) * u[i] * u[j] -
-                 2 / Dot(v, v) * v[i] * v[j] +
-                 4 * Dot(u, v) / (Dot(u, u) * Dot(v, v)) * v[i] *
-                 u[j];
-```
-
-### 3.9.9 THE LOOK-AT TRANSFORMATION
-
-The look-at transformation is particularly useful for placing a camera in the scene. The caller specifies the desired position of the camera, a point the camera is looking at, and an “up” vector that orients the camera along the viewing direction implied by the first two parameters. All of these values are typically given in world-space coordinates; this gives a transformation from world space to camera space (Figure 3.28). We will assume that use in the discussion below, though note that this way of specifying transformations can also be useful for placing light sources in the scene. In order to find the entries of the look-at transformation matrix, we use principles described earlier in this section: the columns of a transformation matrix give the effect of the transformation on the basis of a coordinate system.
-
-```text
-    Dot() 89
-```
-
-```text
-   SquareMatrix 1049
-   Vector3f 86
-```
-
-![Figure 3.28](images/pages/page-0206.png)
-*Figure 3.28: Given a camera position, the position being looked at from the camera, and an “up” direction, the look-at transformation describes a transformation from a left-handed viewing coordinate system where the camera is at the origin looking down the +z axis, and the +y axis is along the up direction.*
-
-〈Transform Function Definitions〉 +≡ Transform LookAt(Point3f pos, Point3f look, Vector3f up) { SquareMatrix<4> worldFromCamera; 〈Initialize fourth column of viewing matrix 129〉 〈Initialize first three columns of viewing matrix 129〉 SquareMatrix<4> cameraFromWorld = InvertOrExit(worldFromCamera); return Transform(cameraFromWorld, worldFromCamera); }
-
-The easiest column is the fourth one, which gives the point that the camera-space origin, [0 0 0 1]T, maps to in world space. This is clearly just the camera position, supplied by the user. 〈Initialize fourth column of viewing matrix〉 ≡ 129
-
-```rust
-   worldFromCamera[0][3] = pos.x;
-   worldFromCamera[1][3] = pos.y;
-   worldFromCamera[2][3] = pos.z;
-   worldFromCamera[3][3] = 1;
-```
-
-The other three columns are not much more difficult. First, `LookAt()` computes the normalized direction vector from the camera location to the look-at point; this gives the vector coordinates that the z axis should map to and, thus, the third column of the matrix. (In a left-handed coordinate system, camera space is defined with the viewing direction down the +z axis.) The first column, giving the world-space direction that the +x axis in
-
-camera space maps to, is found by taking the cross product of the user-supplied “up” vector with the recently computed viewing direction vector. Finally, the “up” vector is recomputed by taking the cross product of the viewing direction vector with the transformed x axis vector, thus ensuring that the y and z axes are perpendicular and we have an orthonormal viewing coordinate system. 〈Initialize first three columns of viewing matrix〉 ≡ 129
-
-```rust
-   Vector3f dir = Normalize(look - pos);
-   Vector3f right = Normalize(Cross(Normalize(up), dir));
-   Vector3f newUp = Cross(dir, right);
-   worldFromCamera[0][0] = right.x;
-   worldFromCamera[1][0] = right.y;
-   worldFromCamera[2][0] = right.z;
-   worldFromCamera[3][0] = 0.;
-   worldFromCamera[0][1] = newUp.x;
-   worldFromCamera[1][1] = newUp.y;
-   worldFromCamera[2][1] = newUp.z;
-   worldFromCamera[3][1] = 0.;
-   worldFromCamera[0][2] = dir.x;
-   worldFromCamera[1][2] = dir.y;
-   worldFromCamera[2][2] = dir.z;
-   worldFromCamera[3][2] = 0.;
-```
-
-```text
-   Cross() 91
-   LookAt() 129
-   Normalize() 88
-   Point3f 92
-   SquareMatrix 1049
-   SquareMatrix::InvertOrExit() 1051
-   Transform 120
-   Vector3f 86
-```
-
-## 3.10 APPLYING TRANSFORMATIONS
-
-We can now define routines that perform the appropriate matrix multiplications to transform points and vectors. We will overload the function application operator to describe these transformations; this lets us write code like: Point3f p = ...;
-
-```rust
-        Transform T = ...;
-        Point3f pNew = T(p);
-```
-
-### 3.10.1 POINTS
-
-The point transformation routine takes a point (x, y, z) and implicitly represents it as the homogeneous column vector [x y z 1]T. It then transforms the point by premultiplying this vector with the transformation matrix. Finally, it divides by w to convert back to a non-homogeneous point representation. For efficiency, this method skips the division by the homogeneous weight, w, when w = 1, which is common for most of the transformations that will be used in pbrt—only the projective transformations defined in Chapter 5 will require this division. 〈Transform Inline Methods〉 ≡ template <typename T> Point3<T> Transform::operator()(Point3<T> p) const { T xp = m[0][0] * p.x + m[0][1] * p.y + m[0][2] * p.z + m[0][3]; T yp = m[1][0] * p.x + m[1][1] * p.y + m[1][2] * p.z + m[1][3]; T zp = m[2][0] * p.x + m[2][1] * p.y + m[2][2] * p.z + m[2][3]; T wp = m[3][0] * p.x + m[3][1] * p.y + m[3][2] * p.z + m[3][3]; if (wp == 1) return Point3<T>(xp, yp, zp); else return Point3<T>(xp, yp, zp) / wp; }
-
-The `Transform` class also provides a corresponding `ApplyInverse()` method for each type it transforms. The one for `Point3` applies its inverse transformation to the given point. Calling this method is more succinct and generally more efficient than calling `Transform::Inverse()` and then calling its operator().
-
-〈Transform Public Methods〉 +≡ 120
-
-template <typename T> Point3<T> ApplyInverse(Point3<T> p) const;
-
-All subsequent types that can be transformed also have an `ApplyInverse()` method, though we will not include them in the book text.
-
-### 3.10.2 VECTORS
-
-The transformations of vectors can be computed in a similar fashion. However, the multiplication of the matrix and the column vector is simplified since the implicit homogeneous w coordinate is zero. 〈Transform Inline Methods〉 +≡ template <typename T> Vector3<T> Transform::operator()(Vector3<T> v) const { return Vector3<T>(m[0][0] * v.x + m[0][1] * v.y + m[0] [2] * v.z, m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z, m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z); }
-
-```text
-    Point3 92
-    Transform 120
-    Transform::Inverse() 121
-    Transform::m 120
-    Vector3 86
-```
-
-![Figure 3.29](images/pages/page-0209.png)
-*Figure 3.29: Transforming Surface Normals. (a) Original circle, with the normal at a point indicated by an arrow. (b) When scaling the circle to be half as tall in the y direction, simply treating the normal as a direction and scaling it in the same manner gives a normal that is no longer perpendicular to the surface. (c) A properly transformed normal.*
-
-### 3.10.3 NORMALS
-
-Normals do not transform in the same way that vectors do, as shown in Figure 3.29. Although tangent vectors at a surface transform in the straightforward way, normals require special treatment. Because the normal vector n and any tangent vector t on the surface are orthogonal by construction, we know that n · t = nT t = 0. When we transform a point on the surface by some matrix M, the new tangent vector t′ at the transformed point is Mt. The transformed normal n′ should be equal to Sn for some 4×4 matrix S. To maintain the orthogonality requirement, we must have art This condition holds if ST M = I, the identity matrix. Therefore, ST = M−1, and so S = (M−1)T, and we see that normals must be transformed by the inverse transpose of the transformation matrix. This detail is one of the reasons why `Transforms` maintain their inverses. Note that this method does not explicitly compute the transpose of the inverse when transforming normals. It just indexes into the inverse matrix in a different order (compare to the code for transforming `Vector3fs`).
-
-〈Transform Inline Methods〉 +≡ template <typename T> Normal3<T> Transform::operator()(Normal3<T> n) const { T x = n.x, y = n.y, z = n.z; return Normal3<T>(mInv[0][0] * x + mInv[1][0] * y + mInv[2][0] * z, mInv[0][1] * x + mInv[1][1] * y + mInv[2] [1] * z, mInv[0][2] * x + mInv[1][2] * y + mInv[2] [2] * z); }
-
-```text
-    Normal3 94
-    RayDifferential 96
-    Transform 120
-    Transform::mInv 120
-    Vector3f 86
-```
-
-### 3.10.4 RAYS
-
-Transforming rays is conceptually straightforward: it is a matter of transforming the constituent origin and direction and copying the other data members. (pbrt also provides a similar method for transforming RayDifferentials.) The approach used in pbrt to manage floating-point round-off error introduces some subtleties that require a small adjustment to the transformed ray origin. The 〈Offset ray origin to edge of error bounds and compute tMax〉 fragment handles these details; it is defined in Section 6.8.6, where round-off error and pbrt’s mechanisms for dealing with it are discussed. 〈Transform Inline Methods〉 +≡ Ray Transform::operator()(const Ray &r, Float *tMax) const { Point3fi o = (*this)(Point3fi(r.o)); Vector3f d = (*this)(r.d); 〈Offset ray origin to edge of error bounds and compute tMax 383〉 return Ray(Point3f(o), d, r.time, r.medium); }
-
-### 3.10.5 BOUNDING BOXES
-
-The easiest way to transform an axis-aligned bounding box is to transform all eight of its corner vertices and then compute a new bounding box that encompasses those points. The implementation of this approach is shown below; one of the exercises for this chapter is to implement a technique to do this computation more efficiently. 〈Transform Method Definitions〉 ≡ Bounds3f Transform::operator()(const Bounds3f &b) const { Bounds3f bt; for (int i = 0; i < 8; ++i) bt = Union(bt, (*this)(b.Corner(i))); return bt; }
-
-### 3.10.6 COMPOSITION OF TRANSFORMATIONS
-
-Having defined how the matrices representing individual types of transformations are constructed, we can now consider an aggregate transformation resulting from a series of individual transformations. We will finally see the real value of representing transformations with matrices. Consider a series of transformations ABC. We would like to compute a new transformation T such that applying T gives the same result as applying each of A, B, and C in reverse order; that is, A(B(C(p))) = T(p). Such a transformation T can be computed by multiplying the matrices of the transformations A, B, and C together. In pbrt, we can write: `Transform` T = A * B * C; Then we can apply T to `Point3fs` p as usual, `Point3f` pp = T(p), instead of applying each transformation in turn: `Point3f` pp = A(B(C(p))).
-
-We overload the C++ * operator in the `Transform` class to compute the new transformation that results from postmultiplying a transformation with another transformation t2. In matrix multiplication, the (i, j)th element of the resulting matrix is the inner product of the ith row of the first matrix with the jth column of the second.
-
-```text
-    Bounds3::Corner() 99
-    Bounds3::Union() 99
-    Bounds3f 97
-    Float 23
-    Point3f 92
-    Point3fi 1061
-    Ray 95
-    Transform 120
-    Vector3f 86
-```
-
-The inverse of the resulting transformation is equal to the product of t2.mInv * mInv. This is a result of the matrix identity (AB)−1 = B−1A−1.
-
-〈Transform Method Definitions〉 +≡ Transform Transform::operator*(const Transform &t2) const {
-```rust
-    return Transform(m * t2.m, t2.mInv * mInv);
+pub fn abs_dot<T: Float>(v1: Vector3<T>, v2: Vector3<T>) -> T {
+    dot(v1, v2).abs()
 }
 ```
 
-### 3.10.7 TRANSFORMATIONS AND COORDINATE SYSTEM HANDEDNESS
+Based on the dot product, the **Gram–Schmidt process** turns a non-orthogonal basis into an orthogonal one spanning the same space. It repeatedly applies the orthogonal projection of a vector $\mathbf v$ onto a normalized vector $\hat{\mathbf w}$, $(\mathbf v\cdot\hat{\mathbf w})\hat{\mathbf w}$ (Figure 3.5). The resulting vector $\mathbf v_\perp$ is orthogonal to $\mathbf w$, and the two span the same subspace as $\mathbf v$ and $\mathbf w$ did:
 
-Certain types of transformations change a left-handed coordinate system into a right-handed one, or vice versa. Some routines will need to know if the handedness of the source coordinate system is different from that of the destination. In particular, routines that want to ensure that a surface normal always points “outside” of a surface might need to flip the normal’s direction after transformation if the handedness changes. Fortunately, it is easy to tell if handedness is changed by a transformation: it happens only when the determinant of the transformation’s upper-left 3×3 submatrix is negative. 〈Transform Method Definitions〉 +≡ bool Transform::SwapsHandedness() const { SquareMatrix<3> s(m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[2][1], m[2][2]); return Determinant(s) < 0; }
+$$
+\mathbf v_\perp = \mathbf v - (\mathbf v\cdot\hat{\mathbf w})\hat{\mathbf w}. \tag{3.2}
+$$
 
-### 3.10.8 VECTOR FRAMES
+`gram_schmidt()` implements Equation (3.2) and expects $\mathbf w$ already to be normalized.
 
-It is sometimes useful to define a rotation that aligns three orthonormal vectors in a coordinate system with the x, y, and z axes. Applying such a transformation to direction vectors in that coordinate system can simplify subsequent computations. For example, in pbrt, BSDF evaluation is performed in a coordinate system where the surface normal is aligned with the z axis. Among other things, this makes it possible to efficiently evaluate trigonometric functions using functions like the `CosTheta()` function that was introduced in Section 3.8.3. The `Frame` class efficiently represents and performs such transformations, avoiding the full generality (and hence, complexity) of the `Transform` class. It only needs to store a 3 × 3 matrix, and storing the inverse is
-
-unnecessary since it is just the matrix’s transpose, given orthonormal basis vectors. 〈Frame Definition〉 ≡ class Frame { public: 〈Frame Public Methods 133〉 〈Frame Public Members 133〉 };
-
-Given three orthonormal vectors x, y, and z, the matrix F that transforms vectors into their space is art The `Frame` stores this matrix using three `Vector3fs`.
-
-〈Frame Public Members〉 ≡ 133
-
-Vector3f x, y, z;
-
-```text
-   CosTheta() 107
-   DCHECK() 1066
-   Frame 133
-   SquareMatrix 1049
-   SquareMatrix::Determinant() 1051
-   Vector3f 86
-```
-
-The three basis vectors can be specified explicitly; in debug builds, DCHECK()s in the constructor ensure that the provided vectors are orthonormal. 〈Frame Public Methods〉 ≡ 133
-
-Frame() : x(1, 0, 0), y(0, 1, 0), z(0, 0, 1) {} Frame(Vector3f x, Vector3f y, Vector3f z);
-
-Frame also provides convenience methods that construct a frame from just two of the basis vectors, using the cross product to compute the third. 〈Frame Public Methods〉 +≡ 133
-
-static Frame FromXZ(Vector3f x, Vector3f z) { return Frame(x, Cross(z, x), z); } static Frame FromXY(Vector3f x, Vector3f y) {
 ```rust
-    return Frame(x, y, Cross(x, y));
+pub fn gram_schmidt<T: Float>(v: Vector3<T>, w: Vector3<T>) -> Vector3<T> {
+    v - dot(v, w) * w
 }
 ```
 
-Only the z axis vector can be provided as well, in which case the others are set arbitrarily. 〈Frame Public Methods〉 +≡ 133
-
-static Frame FromZ(Vector3f z) { Vector3f x, y; CoordinateSystem(z, &x, &y); return Frame(x, y, z); }
-
-A variety of other functions, not included here, allow specifying a frame using a normal vector and specifying it via just the x or y basis vector. Transforming a vector into the frame’s coordinate space is done using the F matrix. Because Vector3fs were used to store its rows, the matrix-vector product can be expressed as three dot products. 〈Frame Public Methods〉 +≡ 133
-
-Vector3f ToLocal(Vector3f v) const { return Vector3f(Dot(v, x), Dot(v, y), Dot(v, z)); }
-
-A ToLocal() method is also provided for normal vectors. In this case, we do not need to compute the inverse transpose of F for the transformation normals (recall the discussion of transforming normals in Section 3.10.3). Because F is an orthonormal matrix (its rows and columns are mutually orthogonal and unit length), its inverse is equal to its transpose, so it is its own inverse transpose already. 〈Frame Public Methods〉 +≡ 133
-
-Normal3f ToLocal(Normal3f n) const { return Normal3f(Dot(n, x), Dot(n, y), Dot(n, z)); }
-
-The method that transforms vectors out of the frame’s local space transposes F to find its inverse before multiplying by the vector. In this case, the resulting computation can be expressed as the sum of three scaled
-
-versions of the matrix columns. As before, surface normals transform as regular vectors. (That method is not included here.) `CoordinateSystem()` 92 `Cross()` 91 `Dot()` 89 `Frame` 133 `Frame::x` 133 `Frame::y` 133 `Frame::z` 133 `Normal3f` 94 `Transform` 120 `Vector3f` 86
-
-〈Frame Public Methods〉 +≡ 133
-
-Vector3f FromLocal(Vector3f v) const { return v.x * x + v.y * y + v.z * z; }
-
-For convenience, there is a Transform constructor that takes a Frame. Its simple implementation is not included here. 〈Transform Public Methods〉 +≡ 120
-
-explicit Transform(const Frame &frame);
-
-![Figure 3.30](images/pages/page-0216.png)
-*Figure 3.30: Spinning Spheres. Three spheres, reflected in a mirror, spinning at different rates using pbrt’s transformation animation code. Note that the reflections of the spheres are blurry as well as the spheres themselves.*
-
-### 3.10.9 ANIMATING TRANSFORMATIONS
-
-pbrt supports time-varying transformation matrices for cameras and geometric primitives in the scene. Rather than just supplying a single
-
-transformation to place an object in the scene, the user may supply a number of keyframe transformations, each one associated with a particular time. This makes it possible for the camera to move and for objects in the scene to be in motion during the time the simulated camera’s shutter is open. Figure 3.30 shows three spheres animated using keyframe matrix animation in pbrt.
-
-Directly interpolating the matrix elements of transformation matrices at different times usually does not work well, especially if a rotation is included in the associated change of transformation. pbrt therefore implements algorithms that decompose transformations into translations, rotations, and scales, each of which can be independently interpolated before they are reassembled to form an interpolated transformation. The AnimatedTransform class that implements those algorithms is not included here in the printed book, though the online edition of the book (recall Section 1.4.3) includes thorough documentation of its implementation. Here we will summarize its interface so that its use in forthcoming text can be understood. Its constructor takes two transformations and associated times. Due to the computational cost of decomposing and recomposing transformations as well as the storage requirements of AnimatedTransform, which total roughly 400 bytes, it is worthwhile to avoid using AnimatedTransform if the two matrices are equal. AnimatedTransform(Transform startTransform, Float startTime, Transform endTransform, Float endTime);
-
-The Interpolate() method returns the interpolated transformation for the given time. If the time is outside of the range specified to the constructor, whichever of startTransform or endTransform is closest in time is returned. Transform Interpolate(Float time) const;
-
-```text
-   Point3f 92
+```mermaid
+flowchart LR
+    O((o)) -- "v" --> V((v))
+    O -- "ŵ (unit)" --> W((ŵ))
+    V -- "v − vₒ" --> VP((vₒ ∥ ŵ))
+    W -- "projection (v·ŵ)ŵ" --> VP
 ```
 
-Methods are also available to apply transformations and inverse transformations to pbrt’s basic geometric classes. For example, the following two methods transform points. (Because Point3f does not store an associated time, the time must be provided separately. However, classes like Ray and Interaction that do store a time are passed to their transformation methods unaccompanied.) Point3f operator()(Point3f p, Float time) const; Point3f ApplyInverse(Point3f p, Float time) const; It is usually more efficient to transform a geometric object using those methods than to retrieve the interpolated Transform using the Interpolate() method and then use its transformation methods since the specialized transformation methods can apply optimizations like not computing unneeded inverse transformations. The other key method provided by AnimatedTransform is MotionBounds(), which computes a bounding box that bounds the motion of a bounding box over the AnimatedTransform’s time range. Taking the union of the bounds of the transformed bounding box at startTime and endTime is not sufficient to bound the box’s motion over intermediate times; this method therefore takes care of the tricky details of accurately bounding the motion. Bounds3f MotionBounds(const Bounds3f &b) const;
+*Figure 3.5: The orthogonal projection of $\mathbf v$ onto the normalized vector $\hat{\mathbf w}$ gives a vector $\mathbf v_o$ parallel to $\hat{\mathbf w}$. The difference $\mathbf v - \mathbf v_o$ (dashed in the book) is perpendicular to $\hat{\mathbf w}$.*
 
-## 3.11 INTERACTIONS
+The **cross product** of two 3D vectors is perpendicular to both; for orthogonal $\mathbf v$ and $\mathbf w$, the triple $(\mathbf v, \mathbf w, \mathbf v\times\mathbf w)$ forms an orthogonal coordinate system:
 
-The last abstractions in this chapter, `SurfaceInteraction` and `MediumInteraction`, respectively represent local information at points on surfaces and in participating media. For example, the ray–shape intersection routines in Chapter 6 return information about the local differential geometry at intersection points in a `SurfaceInteraction`. Later, the texturing code in Chapter 10 computes material properties using values from the `SurfaceInteraction`. The closely related `MediumInteraction` class is used to represent points where light interacts with participating media like smoke or clouds. The implementations of all of these classes are in the files `interaction.h` and `interaction.cpp`.
+$$
+\begin{aligned}
+(\mathbf v\times\mathbf w)_x &= v_y w_z - v_z w_y, \\
+(\mathbf v\times\mathbf w)_y &= v_z w_x - v_x w_z, \\
+(\mathbf v\times\mathbf w)_z &= v_x w_y - v_y w_x.
+\end{aligned}
+$$
 
-Both `SurfaceInteraction` and `MediumInteraction` inherit from a generic `Interaction` class that provides common member variables and methods, which allows parts of the system for which the differences between surface and medium interactions do not matter to be implemented purely in terms of `Interactions`.
+A mnemonic is the determinant of a matrix whose first row holds the axis vectors $\mathbf i=(1,0,0)$, $\mathbf j=(0,1,0)$, $\mathbf k=(0,0,1)$:
 
-〈Interaction Definition〉 ≡ class Interaction { public: 〈Interaction Public Methods 136〉 〈Interaction Public Members 137〉 };
+$$
+\mathbf v\times\mathbf w =
+\begin{vmatrix}
+\mathbf i & \mathbf j & \mathbf k \\
+v_x & v_y & v_z \\
+w_x & w_y & w_z
+\end{vmatrix}.
+$$
 
-A variety of Interaction constructors are available; depending on what sort of interaction is being constructed and what sort of information about it is relevant, corresponding sets of parameters are accepted. This one is the most general of them. 〈Interaction Public Methods〉 ≡ 136
+This is only a memory aid, not a rigorous construction: the matrix mixes scalars and vectors.
+
+```mermaid
+flowchart TD
+    V["v"] --> X["v × w (perpendicular to both)"]
+    W["w"] --> X
+    X --> R["(v, w, v × w) is an orthogonal frame"]
+```
+
+*Figure 3.6: The area of a parallelogram with edges $\mathbf v_1$ and $\mathbf v_2$ is $\|\mathbf v_1\|h$. Since $h = \sin\theta\,\|\mathbf v_2\|$, Equation (3.3) shows that the area equals $\|\mathbf v_1\times\mathbf v_2\|$.*
+
+The implementation uses `difference_of_products(a, b, c, d)`, which computes $ab - cd$ with more floating-point accuracy than the direct expression. This is not merely theoretical: earlier pbrt versions resorted to double precision in `Cross()` to avoid numerical artifacts in rendered images. The fused-difference approach works entirely in single precision with low error.
 
 ```rust
-   Interaction(Point3fi pi, Normal3f n, Point2f uv, Vector3f wo, Float time)
-        : pi(pi), n(n), uv(uv), wo(Normalize(wo)), time(time) {}
+pub fn cross<T: Float>(v: Vector3<T>, w: Vector3<T>) -> Vector3<T> {
+    Vector3::new(
+        difference_of_products(v.y, w.z, v.z, w.y),
+        difference_of_products(v.z, w.x, v.x, w.z),
+        difference_of_products(v.x, w.y, v.y, w.x),
+    )
+}
 ```
 
-```text
-   Float 23
-   Interaction 136
-   Interval 1057
-   MediumInteraction 141
-   Normal3f 94
-   Point2f 92
-   Point3fi 1061
-   Ray 95
-   Vector3f 86
-```
+From the definition,
 
-All interactions have a point p associated with them. This point is stored using the `Point3fi` class, which uses an `Interval` to represent each coordinate value. Storing a small interval of floating-point values rather than a single `Float` makes it possible to represent bounds on the numeric error in the intersection point, as occurs when the point p was computed by a ray intersection calculation. This information will be useful for avoiding
+$$
+\|\mathbf v\times\mathbf w\| = \|\mathbf v\|\,\|\mathbf w\|\,|\sin\theta|, \tag{3.3}
+$$
 
-incorrect self-intersections for rays leaving surfaces, as will be discussed in Section 6.8.6. 〈Interaction Public Members〉 ≡ 136
+where $\theta$ is the angle between the vectors. Therefore the cross product of two perpendicular unit vectors is itself a unit vector, and the result degenerates to zero if $\mathbf v$ and $\mathbf w$ are parallel. Equation (3.3) also gives a convenient parallelogram area: with edges $\mathbf v_1$, $\mathbf v_2$ and height $h$, the area is $\|\mathbf v_1\|h = \|\mathbf v_1\times\mathbf v_2\|$.
+
+### 3.3.3 Coordinate System From a Vector
+
+We sometimes need a local coordinate system given only a single normalized 3D vector: two more normalized vectors must be found so that all three are mutually perpendicular. Given a vector $\mathbf v$, the two vectors
+
+$$
+\mathbf v_2 = \left(1 - \frac{v_x^2}{1+v_z},\; -\frac{v_x v_y}{1+v_z},\; -v_x\right), \qquad
+\mathbf v_3 = \left(-\frac{v_x v_y}{1+v_z},\; 1 - \frac{v_y^2}{1+v_z},\; -v_y\right)
+$$
+
+fulfill these conditions. Computing them directly has high error when $v_z \approx -1$, because $1/(1+v_z)$ loses accuracy there; the implementation reformulates the computation with `copysign` to address that issue.
 
 ```rust
-   Point3fi pi;
+pub fn coordinate_system(v1: Vector3f, v2: &mut Vector3f, v3: &mut Vector3f) {
+    let sign = v1.z.signum();                 // copysign(1, v1.z)
+    let a = -1.0 / (sign + v1.z);
+    let b = v1.x * v1.y * a;
+    *v2 = Vector3f::new(1.0 + sign * v1.x * v1.x * a, sign * b, -sign * v1.x);
+    *v3 = Vector3f::new(b, sign + v1.y * v1.y * a, -v1.y);
+}
 ```
 
-Interaction provides a convenience method that returns a regular Point3f for the interaction point for the parts of the system that do not need to account for any error in it (e.g., the texture evaluation routines). 〈Interaction Public Methods〉 +≡ 136
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`DifferenceOfProducts()` p. 1044 · `Vector3` p. 86
+
+</details>
+
+## 3.4 Points
+
+A **point** is a zero-dimensional location in 2D or 3D space. The `Point2` and `Point3` classes represent points in the obvious way: $(x, y)$ or $(x, y, z)$ coordinates with respect to a coordinate system. Points are denoted in text by $p$. Although the representation matches that of a vector, the fact that a point represents a *position* whereas a vector represents a *direction* leads to important differences in how they are treated. As before, only the 3D implementations are shown here.
 
 ```rust
-   Point3f p() const { return Point3f(pi); }
+pub type Point2<T> = Tuple2<T>;
+pub type Point3<T> = Tuple3<T>;
+pub type Point3f = Point3<f32>;
+pub type Point3i = Point3<i32>;
 ```
 
-All interactions also have a time associated with them. Among other uses, this value is necessary for setting the time of a spawned ray leaving the interaction. 〈Interaction Public Members〉 +≡ 136
+It is useful to convert a point with one element type (e.g. `Point3f`) to another (e.g. `Point3i`), and to convert a point to a vector with a different element type. Both conversions are explicit so that their use is clear at the call site.
 
 ```rust
-   Float time = 0;
+impl<T: Float> Point3<T> {
+    pub fn from_point<U: Float>(p: Point3<U>) -> Self where T: From<U> {
+        Self::new(p.x.into(), p.y.into(), p.z.into())
+    }
+    pub fn from_vector<U: Float>(v: Vector3<U>) -> Self where T: From<U> {
+        Self::new(v.x.into(), v.y.into(), v.z.into())
+    }
+}
 ```
 
-For interactions that lie along a ray (either from a ray–shape intersection or from a ray passing through participating media), the negative ray direction is stored in the wo member variable, which corresponds to ωo, the notation we use for the outgoing direction when computing lighting at points. For other types of interaction points where the notion of an outgoing direction does not apply (e.g., those found by randomly sampling points on the surface of shapes), wo has the value (0, 0, 0). 〈Interaction Public Members〉 +≡ 136
+Some `Point3` methods take or return a `Vector3`. Adding a vector to a point offsets it in that direction and gives a new point; the analogous subtraction of a vector from a point also exists.
 
 ```rust
-   Vector3f wo;
+impl<T: Float> std::ops::Add<Vector3<T>> for Point3<T> {
+    type Output = Point3<T>;
+    fn add(self, v: Vector3<T>) -> Self::Output {
+        Self::new(self.x + v.x, self.y + v.y, self.z + v.z)
+    }
+}
 ```
 
-For interactions on surfaces, n stores the surface normal at the point and uv stores its (u, v) parametric coordinates. It is fair to ask, why are these values stored in the base `Interaction` class rather than in `SurfaceInteraction`? The reason is that there are some parts of the system that mostly do not care about the distinction between surface and medium interactions—for example, some of the routines that sample points on light sources given a point to be illuminated. Those make use of these values if they are available and ignore them if they are set to zero. By accepting the small dissonance of
+```mermaid
+flowchart LR
+    P((p)) -- "+ v" --> PP(("p′ = p + v"))
+    P -- "component-wise subtraction" --> V["v = p′ − p"]
+    PP --> V
+```
 
-having them in the wrong place here, the implementations of those methods and the code that calls them is made that much simpler. 〈Interaction Public Members〉 +≡ 136
+*Figure 3.7: Obtaining the vector between two points. The vector $\mathbf v = p' - p$ is the component-wise subtraction of the points $p'$ and $p$.*
+
+Subtracting one point from another yields the vector between them — note that the result really is a `Vector3`, not a `Point3`.
 
 ```rust
-   Normal3f n;
-   Point2f uv;
+impl<T: Float> std::ops::Sub for Point3<T> {
+    type Output = Vector3<T>;
+    fn sub(self, p: Point3<T>) -> Self::Output {
+        Vector3::new(self.x - p.x, self.y - p.y, self.z - p.z)
+    }
+}
 ```
 
-It is possible to check if a pointer or reference to an Interaction is one of the two subclasses. A nonzero surface normal is used as a distinguisher for a surface. 〈Interaction Public Methods〉 +≡ 136
+The distance between two points is the length of the vector between them. Because `length()` already picks the right return type, no extra type trait is needed here.
 
 ```rust
-   bool IsSurfaceInteraction() const { return n != Normal3f(0, 0, 0); }
-   bool IsMediumInteraction() const { return !IsSurfaceInteraction(); }
+pub fn distance<T: Float>(p1: Point3<T>, p2: Point3<T>) -> T {
+    length(p1 - p2)
+}
+
+pub fn distance_squared<T: Float>(p1: Point3<T>, p2: Point3<T>) -> T {
+    length_squared(p1 - p2)
+}
 ```
 
-Methods are provided to cast to the subclass types as well. This is a good place for a run-time check to ensure that the requested conversion is valid. The non-const variant of this method as well as corresponding `AsMedium()` methods follow similarly and are not included in the text.
+<details>
+<summary>Book cross-references (original edition)</summary>
 
-```text
-   Float 23
-   Interaction:: IsSurfaceInteraction() 137
-   Interaction::n 137
-   Normal3f 94
-   Point2f 92
-   Point3f 92
-   Point3fi 1061
-   Vector3f 86
-```
+`Float` p. 23 · `Point3` p. 92 · `Sqr()` p. 1034 · `Tuple3` p. 83 · `Vector3` p. 86
 
-〈Interaction Public Methods〉 +≡ 136
+</details>
+
+## 3.5 Normals
+
+A **surface normal** (or just *normal*) is a vector perpendicular to a surface at a particular position. It can be defined as the cross product of any two nonparallel vectors tangent to the surface at that point. Although normals look superficially like vectors, they are a distinct entity: because a normal is defined by its relationship to a particular surface, it behaves differently in some situations, especially when transformations are applied (Section 3.10).
 
 ```rust
-   const SurfaceInteraction &AsSurface() const {
-        CHECK(IsSurfaceInteraction());
-        return (const SurfaceInteraction &)*this;
-   }
+pub type Normal3<T> = Tuple3<T>;
+pub type Normal3f = Normal3<f32>;
 ```
 
-`Interactions` can also represent either an interface between two types of participating media using an instance of the `MediumInterface` class, which is defined in Section 11.4, or the properties of the scattering medium at their point using a `Medium`. Here as well, the `Interaction` abstraction leaks: surfaces can represent interfaces between media, and at a point inside a
-
-medium, there is no interface but there is the current medium. Both of these values are stored in Interaction for the same reasons of expediency that n and uv were. 〈Interaction Public Members〉 +≡ 136
+`Normal3` and `Vector3` implementations are very similar: three components $x, y, z$; addition and subtraction; scaling and normalization. But a normal cannot be added to a point, and the cross product of two normals is not defined. Note the unfortunate terminology: a normal is **not necessarily normalized**. As with the other tuple-based classes, conversion from a `Vector3` is explicit.
 
 ```rust
-   const MediumInterface *mediumInterface = None;
-   Medium medium = None;
+impl<T: Float> Normal3<T> {
+    pub fn from_vector<U: Float>(v: Vector3<U>) -> Self where T: From<U> {
+        Self::new(v.x.into(), v.y.into(), v.z.into())
+    }
+    /// Flip n so that it lies in the same hemisphere as v.
+    pub fn face_forward(n: Normal3<T>, v: Vector3<T>) -> Normal3<T> {
+        if dot(n, v) < T::zero() { -n } else { n }
+    }
+}
 ```
 
-### 3.11.1 SURFACE INTERACTION
+The `dot()` and `abs_dot()` functions are overloaded for all combinations of normals and vectors (code omitted here), and the remaining `Normal3` methods mirror those of vectors.
 
-As described earlier, the geometry of a particular point on a surface (often a position found by intersecting a ray against the surface) is represented by a SurfaceInteraction. Having this abstraction lets most of the system work with points on surfaces without needing to consider the particular type of geometric shape the points lie on. 〈SurfaceInteraction Definition〉 ≡ class SurfaceInteraction : public Interaction { public: 〈SurfaceInteraction Public Methods 139〉 〈SurfaceInteraction Public Members 138〉 };
+One new operation flips a surface normal so that it lies in the same hemisphere as a given vector — for example, the normal on the same side as a ray leaving the surface. `FaceForward()` encapsulates this small computation; pbrt also provides variants for the other three `Vector3`/`Normal3` parameter combinations. **Caution:** in the two-`Vector3` version, the first argument is the one returned (possibly flipped) and the second is the one tested against; reversing them gives unexpected results.
 
-In addition to the point p, the surface normal n, and (u, v) coordinates from the parameterization of the surface from the Interaction base class, the SurfaceInteraction also stores the parametric partial derivatives of the point ∂p/∂u and ∂p/∂v and the partial derivatives of the surface normal ∂n/ ∂u and ∂n/∂v. See Figure 3.31 for a depiction of these values. 〈SurfaceInteraction Public Members〉 ≡ 138
+<details>
+<summary>Book cross-references (original edition)</summary>
 
-Vector3f dpdu, dpdv; Normal3f dndu, dndv;
+`AbsDot()` p. 90 · `Dot()` p. 89 · `Float` p. 23 · `Normal3` p. 94 · `Point3f` p. 92 · `Ray` p. 95 · `Tuple2` p. 83 · `Tuple3` p. 83 · `Vector3` p. 86 · `Vector3f` p. 86
 
-This representation implicitly assumes that shapes have a parametric description—that for some range of (u, v) values, points on the surface are given by some function f such that p = f(u, v). Although this is not true for all shapes, all of the shapes that pbrt supports do have at least a local parametric description, so we will stick with the parametric representation
+</details>
 
-since this assumption is helpful elsewhere (e.g., for antialiasing of textures in Chapter 10).
+## 3.6 Rays
 
-```text
-   CHECK() 1066
-   Interaction 136
-   Interaction:: IsSurfaceInteraction() 137
-   Medium 714
-   MediumInterface 715
-   Normal3f 94
-   SurfaceInteraction 138
-   Vector3f 86
+A ray $\mathbf r$ is a **semi-infinite line** specified by its origin $\mathbf o$ and direction $\mathbf d$ (Figure 3.8). pbrt represents a `Ray` with a `Point3f` origin and a `Vector3f` direction; there is no need for non-`Float` rays. The implementation lives in `ray.h` and `ray.cpp`.
+
+```mermaid
+flowchart LR
+    O((o)) -- "d" --> A((r(t) = o + t·d))
+    A -- "t ≥ 0" --> B["semi-infinite line"]
 ```
 
-The `SurfaceInteraction` constructor takes parameters that set all of these values. It computes the normal as the cross product of the partial derivatives.
-
-![Figure 3.31](images/pages/page-0223.png)
-*Figure 3.31: The Local Differential Geometry around a Point p. The parametric partial derivatives of the surface, ∂p/∂u and ∂p/∂v, lie in the tangent plane but are not necessarily orthogonal. The surface normal n is given by the cross product of ∂p/∂u and ∂p/∂v. The vectors ∂n/∂u and ∂n/∂v record the differential change in surface normal as we move u and v along the surface.*
-
-〈SurfaceInteraction Public Methods〉 ≡ 138
-
-SurfaceInteraction(Point3fi pi, Point2f uv, Vector3f wo, Vector3f dpdu, Vector3f dpdv, Normal3f dndu, Normal3f dndv, Float time, bool flipNormal) : Interaction(pi, Normal3f(Normalize(Cross(dpdu, dpdv))), uv, wo, time), dpdu(dpdu), dpdv(dpdv), dndu(dndu), dndv(dndv) { 〈Initialize shading geometry from true geometry 139〉 〈Adjust normal based on orientation and handedness 140〉 }
-
-SurfaceInteraction stores a second instance of a surface normal and the various partial derivatives to represent possibly perturbed values of these quantities—as can be generated by bump mapping or interpolated per-
-
-vertex normals with meshes. Some parts of the system use this shading geometry, while others need to work with the original quantities. 〈SurfaceInteraction Public Members〉 +≡ 138
-
-struct { Normal3f n; Vector3f dpdu, dpdv; Normal3f dndu, dndv; } shading;
-
-The shading geometry values are initialized in the constructor to match the original surface geometry. If shading geometry is present, it generally is not computed until some time after the SurfaceInteraction constructor runs. The SetShadingGeometry() method, to be defined shortly, updates the shading geometry. 〈Initialize shading geometry from true geometry〉 ≡ 139
+*Figure 3.8: A ray is a semi-infinite line defined by its origin $\mathbf o$ and its direction vector $\mathbf d$.*
 
 ```rust
-   shading.n = n;
-   shading.dpdu = dpdu;
-   shading.dpdv = dpdv;
-   shading.dndu = dndu;
-   shading.dndv = dndv;
+#[derive(Clone, Copy, Debug)]
+pub struct Ray {
+    pub o: Point3f,
+    pub d: Vec3,
+    pub time: f32,
+    pub medium: Option<Medium>,
+}
 ```
 
-```text
-   Cross() 91
-   Float 23
-   Interaction 136
-   Normal3f 94
-   Normalize() 88
-   Point2f 92
-   Point3fi 1061
-   SurfaceInteraction 138
-   SurfaceInteraction:: shading::dndu 139
-   SurfaceInteraction:: shading::dndv 139
-   SurfaceInteraction:: shading::dpdu 139
-   SurfaceInteraction:: shading::dpdv 139
-   SurfaceInteraction:: shading::n 139
-   Vector3f 86
-```
+The origin and direction are named `o` and `d` because they are referenced constantly; the data is public for convenience. The parametric form expresses the ray as a function of $t$, giving the set of points it passes through:
 
-The surface normal has special meaning to pbrt, which assumes that, for closed shapes, the normal is oriented such that it points to the outside of the shape. For geometry used as an area light source, light is by default emitted from only the side of the surface that the normal points toward; the other
+$$
+\mathbf r(t) = \mathbf o + t\,\mathbf d, \qquad 0 \le t < \infty. \tag{3.4}
+$$
 
-side is black. Because normals have this special meaning, pbrt provides a mechanism for the user to reverse the orientation of the normal, flipping it to point in the opposite direction. A ReverseOrientation directive in a pbrt input file flips the normal to point in the opposite, non-default direction. Therefore, it is necessary to check if the given Shape has the corresponding flag set and, if so, switch the normal’s direction here. However, one other factor plays into the orientation of the normal and must be accounted for here as well. If a shape’s transformation matrix has switched the handedness of the object coordinate system from pbrt’s default left-handed coordinate system to a right-handed one, we need to switch the orientation of the normal as well. To see why this is so, consider a scale matrix S(1, 1, −1). We would naturally expect this scale to switch the direction of the normal, although because we have computed the normal by n = ∂p/∂u × ∂p/∂v, art Therefore, it is also necessary to flip the normal’s direction if the transformation switches the handedness of the coordinate system, since the flip will not be accounted for by the computation of the normal’s direction using the cross product. A flag passed by the caller indicates whether this flip is necessary. 〈Adjust normal based on orientation and handedness〉 ≡ 139
-
-if (flipNormal) { n *= -1; shading.n *= -1; }
-
-pbrt also provides the capability to associate an integer index with each face of a polygon mesh. This information is used for certain texture mapping operations. A separate SurfaceInteraction constructor allows its specification. 〈SurfaceInteraction Public Members〉 +≡ 138
-
-int faceIndex = 0;
-
-When a shading coordinate frame is computed, the SurfaceInteraction is updated via its SetShadingGeometry() method. 〈SurfaceInteraction Public Methods〉 +≡ 138
+The function application operator is overloaded to match this notation:
 
 ```rust
-   void SetShadingGeometry(Normal3f ns, Vector3f dpdus, Vector3f dpdvs,
-                           Normal3f dndus, Normal3f dndvs,
-                           bool orientationIsAuthoritative) {
-       〈Compute shading.n for SurfaceInteraction 141〉
-       〈Initialize shading partial derivative values 141〉
-   }
+impl Ray {
+    pub fn at(&self, t: f32) -> Point3f { self.o + self.d * t }
+
+    pub fn new(o: Point3f, d: Vec3, time: f32, medium: Option<Medium>) -> Self {
+        Self { o, d, time, medium }
+    }
+}
+
+let r = Ray::new(Point3f::new(0.0, 0.0, 0.0), Vec3::new(1.0, 2.0, 3.0), 0.0, None);
+let p = r.at(1.7);
 ```
 
-```text
-   Interaction::n 137
-   Normal3f 94
-   SurfaceInteraction:: shading::n 139
-   Vector3f 86
-```
+Each ray carries a **time** value: in animated scenes the renderer constructs a representation of the scene at the appropriate time for each ray. Each ray also records the **medium** at its origin. The `Medium` class (Section 11.4) encapsulates the possibly spatially varying properties of participating media such as fog, smoke, or scattering liquids like milk; associating it with rays lets other parts of the system handle rays crossing from one medium to another. The default constructor leaves the origin and direction at $(0,0,0)$, with time $0$ and no medium.
 
-After performing the same cross product (and possibly flipping the orientation of the normal) as before to compute an initial shading normal, the implementation then flips either the shading normal or the true geometric normal if needed so that the two normals lie in the same hemisphere. Since the shading normal generally represents a relatively small perturbation of the geometric normal, the two of them should always be in the same hemisphere. Depending on the context, either the geometric normal or the shading normal may more authoritatively point toward the correct “outside” of the surface, so the caller passes a Boolean value that determines which should be flipped if needed. 〈Compute shading.n for SurfaceInteraction〉 ≡ 140
+<details>
+<summary>Book cross-references (original edition)</summary>
 
-shading.n = ns; if (orientationIsAuthoritative) n = FaceForward(n, shading.n); else shading.n = FaceForward(shading.n, n);
+`Float` p. 23 · `Medium` p. 714 · `Point3f` p. 92 · `Ray` p. 95 · `Ray::d` p. 95 · `Ray::o` p. 95 · `Vector3f` p. 86
 
-With the normal set, the various partial derivatives can be copied. 〈Initialize shading partial derivative values〉 ≡ 140
+</details>
+
+### 3.6.1 Ray Differentials
+
+For better antialiasing of the texture functions in Chapter 10, pbrt uses `RayDifferential`, a subclass of `Ray` holding information about two auxiliary rays. These represent camera rays offset by one sample in the $x$ and $y$ directions from the main ray on the film plane. From the area that the three rays project onto a shaded object, a `Texture` can estimate an area to average over (Section 10.1).
+
+Because `RayDifferential` inherits from `Ray`, geometric interfaces can take a `const Ray&`, so either type can be passed; only routines concerned with antialiasing and texturing need the derived type. In Rust the equivalent is an enum or a wrapper struct with a `Deref<Target = Ray>` implementation.
 
 ```rust
-   shading.dpdu = dpdus;
-   shading.dpdv = dpdvs;
-   shading.dndu = dndus;
-   shading.dndv = dndvs;
+#[derive(Clone, Copy, Debug)]
+pub struct RayDifferential {
+    pub ray: Ray,
+    pub has_differentials: bool,
+    pub rx_origin: Point3f,
+    pub ry_origin: Point3f,
+    pub rx_direction: Vec3,
+    pub ry_direction: Vec3,
+}
+
+impl RayDifferential {
+    pub fn new(o: Point3f, d: Vec3, time: f32, medium: Option<Medium>) -> Self {
+        Self {
+            ray: Ray::new(o, d, time, medium),
+            has_differentials: false,
+            rx_origin: o, ry_origin: o,
+            rx_direction: d, ry_direction: d,
+        }
+    }
+}
 ```
 
-### 3.11.2 MEDIUM INTERACTION
+In some cases differential rays are unavailable; routines taking a `RayDifferential` must check `has_differentials` before reading its origins or directions. A constructor from a plain `Ray` leaves the flag at `false`.
 
-As described earlier, the MediumInteraction class is used to represent an interaction at a point in a scattering medium like smoke or clouds. 〈MediumInteraction Definition〉 ≡ class MediumInteraction : public Interaction { public: 〈MediumInteraction Public Methods 141〉 〈MediumInteraction Public Members 141〉 };
+`Camera` implementations compute differentials assuming camera rays are one pixel apart. Integrators usually generate several rays per pixel, so the actual sample spacing is smaller and the differentials must be scaled accordingly — otherwise textures become too blurry. `ScaleDifferentials()` does this given an estimated spacing $s$; it is called, for example, by the "Generate camera ray for current sample" fragment in Chapter 1.
 
-In contrast to `SurfaceInteraction`, it adds little to the base `Interaction` class. The only addition is a `PhaseFunction`, which describes how the particles in the medium scatter light. Phase functions and the `PhaseFunction` class are introduced in Section 11.3.
-
-〈MediumInteraction Public Methods〉 ≡ 141
-
-MediumInteraction(Point3f p, Vector3f wo, Float time, Medium medium, PhaseFunction phase) : Interaction(p, wo, time, medium), phase(phase) {}
-
-〈MediumInteraction Public Members〉 ≡ 141
-
-PhaseFunction phase;
-
-```text
-    FaceForward() 94
-    Float 23
-    Interaction 136
-    Interaction::n 137
-    Medium 714
-    MediumInteraction 141
-    PhaseFunction 710
-    Point3f 92
-    SurfaceInteraction:: shading::dndu 139
-    SurfaceInteraction:: shading::dndv 139
-    SurfaceInteraction:: shading::dpdu 139
-    SurfaceInteraction:: shading::dpdv 139
-    SurfaceInteraction:: shading::n 139
-    Vector3f 86
+```rust
+impl RayDifferential {
+    pub fn scale_differentials(&mut self, s: f32) {
+        self.rx_origin = self.ray.o + (self.rx_origin - self.ray.o) * s;
+        self.ry_origin = self.ray.o + (self.ry_origin - self.ray.o) * s;
+        self.rx_direction = self.ray.d + (self.rx_direction - self.ray.d) * s;
+        self.ry_direction = self.ray.d + (self.ry_direction - self.ray.d) * s;
+    }
+}
 ```
 
-## FURTHER READING
+<details>
+<summary>Book cross-references (original edition)</summary>
 
-DeRose, Goldman, and their collaborators have argued for an elegant “coordinate-free” approach to describing vector geometry for graphics, where the fact that positions and directions happen to be represented by (x, y, z) coordinates with respect to a particular coordinate system is deemphasized and where points and vectors themselves record which coordinate system they are expressed in terms of (Goldman 1985; DeRose 1989; Mann, Litke, and DeRose 1997). This makes it possible for a software layer to ensure that common errors like adding a vector in one coordinate system to a point in another coordinate system are transparently handled by transforming them to a common coordinate system first. A related approach was described by Geisler et al. (2020), who encoded coordinate systems using the programming language’s type system. We have not followed either of these approaches in pbrt, although the principles behind them are well worth understanding and keeping in mind when working with coordinate systems in computer graphics. Schneider and Eberly’s Geometric Tools for Computer Graphics is influenced by the coordinate-free approach and covers the topics of this chapter in much greater depth (Schneider and Eberly 2003). It is also full of useful geometric algorithms for graphics. A classic and more traditional introduction to the topics of this chapter is Mathematical Elements for Computer Graphics by Rogers and Adams (1990). Note that their book uses a row-vector representation of points and vectors, however, which means that our matrices would be transposed when expressed in their framework, and that they multiply points and vectors by matrices to transform them (pM), rather than multiplying matrices by points as we do (Mp). Homogeneous coordinates were only briefly mentioned in this chapter, although they are the basis of projective geometry, where they are the foundation of many elegant algorithms. Stolfi’s book is an excellent introduction to this topic (Stolfi 1991). There are many good books on linear algebra and vector geometry. We have found Lang (1986) and Buck (1978) to be good references on these respective topics. See also Akenine-Möller et al.’s Real-Time Rendering book (2018) for a solid graphics-based introduction to linear algebra. Ström et al. have written an excellent online linear algebra book, immersivemath.com, that features interactive figures that illustrate the key concepts (2020).
+`Camera` p. 206 · `Float` p. 23 · `Medium` p. 714 · `Point3f` p. 92 · `Ray` p. 95 · `RayDifferential` p. 96 · `Texture` p. 655 · `Vector3f` p. 86
 
-Donnay’s book (1945) gives a concise but complete introduction to spherical trigonometry. The expression for the solid angle of a triangle in Equation (3.6) is due to Van Oosterom and Strackee (1983). An alternative approach for designing a vector math library is exemplified by the widely used eigen system by Guennebaud, Jacob, and others (2010). In addition to including support for CPU SIMD vector instruction sets, it makes extensive use of expression templates, a C++ programming technique that makes it possible to simplify and optimize the evaluation of vector and matrix expressions at compile time. The subtleties of how normal vectors are transformed were first widely understood in the graphics community after articles by Wallis (1990) and Turkowski (1990b). Cigolle et al. (2014) compared a wide range of approaches for compactly encoding unit vectors. The approach implemented in `OctahedralVector` is due to Meyer et al. (2010), who also showed that if 52 bits are used with this representation, the precision is equal to that of normalized `Vector3fs`. (Our implementation also includes an improvement suggested by Cigolle et al. (2014).) The octahedral encoding it is based on was introduced by Praun and Hoppe (2003). The equal-area sphere mapping algorithm in Section 3.8.3 is due to Clarberg (2008); our implementation of the mapping functions is derived from the high-performance CPU SIMD implementation that accompanies that paper. The square-to-hemisphere mapping that it is based on was developed by Shirley and Chiu (1997). The algorithm used in `CoordinateSystem()` is based on an approach first derived by Frisvad (2012). The reformulation to improve numerical accuracy that we have used in our implementation was derived concurrently by Duff et al. (2017) and by Max (2017). The algorithm implemented in `RotateFromTo()` was introduced by Möller and Hughes (1999), with an adjustment to the computation of the reflection vector due to Hughes (2021). The numerically robust `AngleBetween()` function defined in this chapter is due to Hatch (2003).
+</details>
 
-```text
-     AngleBetween() 89
-     CoordinateSystem() 92
-     OctahedralVector 109
-     RotateFromTo() 127
-     Vector3f 86
+## 3.7 Bounding Boxes
+
+Many parts of the system operate on axis-aligned regions of space: pbrt's multithreading subdivides the image into 2D rectangular tiles, and the bounding volume hierarchy of Section 7.3 uses 3D boxes to bound geometric primitives. `Bounds2` and `Bounds3` represent such regions, parameterized by a coordinate type `T`. We focus on `Bounds3`; `Bounds2` is effectively a subset of it.
+
+```rust
+pub struct Bounds2<T> { pub p_min: Point2<T>, pub p_max: Point2<T> }
+pub struct Bounds3<T> { pub p_min: Point3<T>, pub p_max: Point3<T> }
+
+pub type Bounds2f = Bounds2<f32>;
+pub type Bounds2i = Bounds2<i32>;
+pub type Bounds3f = Bounds3<f32>;
+pub type Bounds3i = Bounds3<i32>;
 ```
 
-An algorithm to compute a tight bounding cone for multiple direction vectors was given by Barequet and Elber (2005). The algorithms used in the `AnimatedTransform` implementation are based on the polar matrix decomposition approach that was described by Shoemake and Duff (1992); see the online edition of this book for further references to methods for animating transformations.
+Several representations are possible. pbrt uses **axis-aligned bounding boxes** (AABBs), whose edges are mutually perpendicular and aligned with the axes. **Oriented bounding boxes** (OBBs) also have mutually perpendicular edges but need not be axis-aligned. A 3D AABB can be described by one vertex plus three axis-aligned lengths, or by two opposite vertices. pbrt chooses the **two-point representation**, storing the vertex with minimum coordinates and the one with maximum coordinates.
 
-## EXERCISES
-
-➊ 3.1 Find a more efficient way to transform axis-aligned bounding boxes by taking advantage of the symmetries of the problem: because the eight corner points are linear combinations of three axis-aligned basis vectors and a single corner point, their transformed bounding box can be found more efficiently than by the method we have presented (Arvo 1990). ➋ 3.2 Instead of boxes, tighter bounds around objects could be computed by using the intersections of many nonorthogonal slabs. Extend the bounding box representation in pbrt to allow the user to specify a bound comprised of arbitrary slabs. ➋ 3.3 The `DirectionCone::BoundSubtendedDirections()` method bounds the directions that a `Bounds3f` subtends from a given reference point by first finding a sphere that bounds the `Bounds3f` and then bounding the directions it subtends. While this gives a valid bound, it is not necessarily the smallest one possible. Derive an improved algorithm that acts directly on the bounding box, update the implementation of `BoundSubtendedDirections()`, and render scenes where that method is used (e.g., those that use a `BVHLightSampler` to sample light sources). How are running time and image quality affected? Can you find a scene where this change gives a significant benefit? ➊ 3.4 Change pbrt so that it transforms `Normal3fs` just like `Vector3fs`, and create a scene that gives a clearly incorrect image due to this bug. (Do not forget to revert this change from your copy of the source code when you are done!)
-
-```text
-     AnimatedTransform 135
-     Bounds3f 97
-     BVHLightSampler 796
-     DirectionCone:: BoundSubtendedDirections() 115
-     Normal3f 94
-     Vector3f 86
+```mermaid
+flowchart TD
+    A["pMin (minimum x, y, z)"] --- B["box"]
+    C["pMax (maximum x, y, z)"] --- B
+    B --- D["other six corners are implicit"]
 ```
 
-_________________ 1 This form of inheritance is often referred to as the curiously recurring template pattern (CRTP) in C++. 2 A tighter bound is possible in this case, but it occurs very rarely and so we have not bothered with handling it more effectively.
+*Figure 3.9: An axis-aligned bounding box. Only the minimum and maximum points are stored; the other corners are implicit in the representation.*
+
+The default constructor creates an **empty** box by setting the extent to an invalid configuration that violates the invariant `pMin.x <= pMax.x`: the minimum corner starts at the largest representable value and the maximum corner at the smallest. Consequently operations such as `Union()` on an empty box produce the correct result.
+
+```rust
+impl<T: Bounded + Float> Default for Bounds3<T> {
+    fn default() -> Self {
+        Self {
+            p_min: Point3::new(T::max_value(), T::max_value(), T::max_value()),
+            p_max: Point3::new(T::min_value(), T::min_value(), T::min_value()),
+        }
+    }
+}
+```
+
+It is also useful to construct bounds around a single point, or from two corner points — in the latter case taking component-wise `min`/`max` because the caller need not supply them in sorted order. Array indexing selects one of the two corner points (debug assertions check that the index is 0 or 1).
+
+```rust
+impl<T: Float> Bounds3<T> {
+    pub fn from_point(p: Point3<T>) -> Self { Self { p_min: p, p_max: p } }
+    pub fn new(p1: Point3<T>, p2: Point3<T>) -> Self {
+        Self { p_min: p1.min(p2), p_max: p1.max(p2) }
+    }
+    pub fn at(&self, i: usize) -> Point3<T> {
+        debug_assert!(i <= 1);
+        if i == 0 { self.p_min } else { self.p_max }
+    }
+}
+```
+
+`Corner()` returns one of the eight corners. Its logic uses the low three bits of `corner` to select between minimum and maximum in each dimension; passing 0 through 7 visits all eight corners.
+
+```rust
+impl<T: Float> Bounds3<T> {
+    pub fn corner(&self, corner: usize) -> Point3<T> {
+        Point3::new(
+            self.at(corner & 1).x,
+            self.at(if corner & 2 != 0 { 1 } else { 0 }).y,
+            self.at(if corner & 4 != 0 { 1 } else { 0 }).z,
+        )
+    }
+}
+```
+
+`Union()` with a point returns a new box encompassing that point as well as the original bounds. A subtlety shared with the following functions: `p_min` and `p_max` must be assigned **directly**, not passed through the two-point constructor. If the input bounds are degenerate, the constructor would sort the coordinate values and produce what is essentially an infinite bound. The two-box version uses the second box's extrema in the `min`/`max` tests.
+
+```rust
+pub fn union_point<T: Float>(b: Bounds3<T>, p: Point3<T>) -> Bounds3<T> {
+    Bounds3 { p_min: b.p_min.min(p), p_max: b.p_max.max(p) }
+}
+
+pub fn union_bounds<T: Float>(b1: Bounds3<T>, b2: Bounds3<T>) -> Bounds3<T> {
+    Bounds3 { p_min: b1.p_min.min(b2.p_min), p_max: b1.p_max.max(b2.p_max) }
+}
+```
+
+The intersection of two boxes is found by taking the maximum of their minimum coordinates and the minimum of their maximum coordinates (Figure 3.10).
+
+```rust
+pub fn intersect<T: Float>(b1: Bounds3<T>, b2: Bounds3<T>) -> Bounds3<T> {
+    Bounds3 { p_min: b1.p_min.max(b2.p_min), p_max: b1.p_max.min(b2.p_max) }
+}
+```
+
+```mermaid
+flowchart TD
+    A["Box A: pMin_A, pMax_A"] --> I
+    B["Box B: pMin_B, pMax_B"] --> I
+    I["pMin = max(pMin_A, pMin_B)<br/>pMax = min(pMax_A, pMax_B)"] --> R["Shaded intersection region"]
+```
+
+*Figure 3.10: Intersection of two bounding boxes. The minimum point of the intersection uses the per-axis maximum of the boxes' minima; the maximum point uses the per-axis minimum of their maxima.*
+
+Two boxes overlap when their extents overlap in all of $x$, $y$, and $z$. Three 1D containment tests determine whether a point lies inside a box; `InsideExclusive()` does not count points on the upper boundary, which is mostly useful for integer-typed bounds.
+
+```rust
+pub fn overlaps<T: Float>(b1: Bounds3<T>, b2: Bounds3<T>) -> bool {
+    b1.p_max.x >= b2.p_min.x && b1.p_min.x <= b2.p_max.x
+        && b1.p_max.y >= b2.p_min.y && b1.p_min.y <= b2.p_max.y
+        && b1.p_max.z >= b2.p_min.z && b1.p_min.z <= b2.p_max.z
+}
+
+impl<T: Float> Bounds3<T> {
+    pub fn inside(&self, p: Point3<T>) -> bool {
+        p.x >= self.p_min.x && p.x <= self.p_max.x
+            && p.y >= self.p_min.y && p.y <= self.p_max.y
+            && p.z >= self.p_min.z && p.z <= self.p_max.z
+    }
+    pub fn inside_exclusive(&self, p: Point3<T>) -> bool {
+        p.x >= self.p_min.x && p.x < self.p_max.x
+            && p.y >= self.p_min.y && p.y < self.p_max.y
+            && p.z >= self.p_min.z && p.z < self.p_max.z
+    }
+}
+```
+
+`DistanceSquared()` returns the squared distance from a point to the box (zero if the point is inside). In each dimension the distance is the maximum of zero, the distance to the minimum face, and the distance to the maximum face; the 1D distances are then squared and summed.
+
+```mermaid
+flowchart LR
+    P1((•)) -->|"dx = pMin.x − p.x, dy = pMin.y − p.y"| B["box"]
+    P2((•)) -->|"dx = p.x − pMax.x, dy = 0"| B
+    B --> D["max(0, pMin−p, p−pMax) per axis"]
+```
+
+*Figure 3.11: Computing the squared distance from a point to an AABB. A point above-left of the box has distances `pMin.x − p.x` and `pMin.y − p.y`; a point to the right but overlapping in $y$ has distances `p.x − pMax.x` and zero. Each is clamped at zero by taking a maximum with zero.*
+
+```rust
+pub fn distance_squared<T: Float, U: Float>(p: Point3<T>, b: Bounds3<U>) -> T {
+    let dx = T::zero().max(b.p_min.x.into() - p.x).max(p.x - b.p_max.x.into());
+    let dy = T::zero().max(b.p_min.y.into() - p.y).max(p.y - b.p_max.y.into());
+    let dz = T::zero().max(b.p_min.z.into() - p.z).max(p.z - b.p_max.z.into());
+    dx * dx + dy * dy + dz * dz
+}
+```
+
+`Distance()` takes the square root, again using the length-type machinery to determine the correct return type; `Expand()` pads the box by a constant amount in every dimension.
+
+```rust
+pub fn distance<T: Float>(p: Point3<T>, b: Bounds3<T>) -> T {
+    distance_squared(p, b).sqrt()
+}
+
+pub fn expand<T: Float>(b: Bounds3<T>, delta: T) -> Bounds3<T> {
+    let d = Vec3::splat(delta);
+    Bounds3 { p_min: b.p_min - d, p_max: b.p_max + d }
+}
+```
+
+Remaining `Bounds3` methods:
+
+- `Diagonal()` — the vector from the minimum corner to the maximum corner, `p_max - p_min`.
+- `SurfaceArea()` — $2(xy + xz + yz)$ for the diagonal $(x,y,z)$; `Volume()` — $xyz$. (`Bounds2` diverges here: it has `Area()` but no surface-area/volume methods.)
+- `MaxDimension()` — the index of the longest axis, useful when deciding which axis to split for an acceleration structure.
+- `Lerp(t)` — interpolate between corners, one scalar per dimension.
+- `Offset(p)` — the inverse of `Lerp()`: the continuous position of a point relative to the box, with $(0,0,0)$ at the minimum corner and $(1,1,1)$ at the maximum.
+- `BoundingSphere()` — center and radius of a sphere bounding the box. This can be much looser than a sphere bounding the original contents directly, but a sphere is sometimes easier to work with.
+- `IsEmpty()` / `IsDegenerate()` — "empty" means zero volume but does not necessarily imply zero surface area.
+
+```rust
+impl<T: Float> Bounds3<T> {
+    pub fn diagonal(&self) -> Vec3 { self.p_max - self.p_min }
+    pub fn surface_area(&self) -> T {
+        let d = self.diagonal();
+        T::from(2).unwrap() * (d.x * d.y + d.x * d.z + d.y * d.z)
+    }
+    pub fn volume(&self) -> T {
+        let d = self.diagonal();
+        d.x * d.y * d.z
+    }
+    pub fn max_dimension(&self) -> usize {
+        let d = self.diagonal();
+        if d.x > d.y && d.x > d.z { 0 } else if d.y > d.z { 1 } else { 2 }
+    }
+    pub fn lerp(&self, t: Vec3) -> Point3<T> {
+        Point3::new(
+            lerp(t.x, self.p_min.x, self.p_max.x),
+            lerp(t.y, self.p_min.y, self.p_max.y),
+            lerp(t.z, self.p_min.z, self.p_max.z),
+        )
+    }
+    pub fn offset(&self, p: Point3<T>) -> Vec3 {
+        let mut o = p - self.p_min;
+        if self.p_max.x > self.p_min.x { o.x /= self.p_max.x - self.p_min.x; }
+        if self.p_max.y > self.p_min.y { o.y /= self.p_max.y - self.p_min.y; }
+        if self.p_max.z > self.p_min.z { o.z /= self.p_max.z - self.p_min.z; }
+        o
+    }
+    pub fn bounding_sphere(&self) -> (Point3<T>, T) {
+        let center = (self.p_min + self.p_max) / T::from(2).unwrap();
+        let radius = if self.inside(center) { distance(center, self.p_max) } else { T::zero() };
+        (center, radius)
+    }
+    pub fn is_empty(&self) -> bool {
+        self.p_min.x >= self.p_max.x || self.p_min.y >= self.p_max.y || self.p_min.z >= self.p_max.z
+    }
+    pub fn is_degenerate(&self) -> bool {
+        self.p_min.x > self.p_max.x || self.p_min.y > self.p_max.y || self.p_min.z > self.p_max.z
+    }
+}
+```
+
+Finally, integer bounds support a forward iterator (only advanceable; code omitted). It allows range-based iteration over integer coordinates in a box:
+
+```rust
+let b: Bounds2i = /* ... */;
+for p in b { /* p: Point2i */ }
+```
+
+As implemented, iteration goes up to but does **not** visit points equal to the maximum extent in each dimension.
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`Bounds2` p. 97 · `Bounds3` p. 97 · `Float` p. 23 · `Ray::d` p. 95 · `Ray::o` p. 95 · `RayDifferential::rxDirection` p. 96 · `RayDifferential::rxOrigin` p. 96 · `RayDifferential::ryDirection` p. 96 · `RayDifferential::ryOrigin` p. 96 · `Bounds3::pMax` p. 98 · `Bounds3::pMin` p. 98 · `Point3` p. 92 · `Tuple3::Max()` p. 85 · `Tuple3::Min()` p. 85 · `Bounds3::DistanceSquared()` p. 101 · `Sqr()` p. 1034 · `TupleLength` p. 88 · `Vector3` p. 86 · `Bounds3::Diagonal()` p. 101 · `Bounds3::MaxDimension()` p. 102 · `Lerp()` p. 72 · `Vector3f` p. 86 · `Bounds3::Inside()` p. 100 · `Distance()` p. 93 · `Bounds3::BoundingSphere()` p. 103 · `Bounds3::Corner()` p. 99 · `Bounds3::Union()` p. 99
+
+</details>
+
+## 3.8 Spherical Geometry
+
+Geometry on the unit sphere is also frequently useful in rendering. A 3D unit direction vector can equivalently be represented as a point on the unit sphere, and sets of directions as areas on the sphere. Operations such as bounding a set of directions can often be expressed cleanly as bounds on the unit sphere, so we introduce some principles of spherical geometry and related classes and functions here.
+
+### 3.8.1 Solid Angles
+
+In 2D, the **planar angle** is the total angle subtended by an object with respect to a position (Figure 3.12). Consider the unit circle around the point $p$: projecting the shaded object onto that circle covers some arc length $s$. The arc length $s$ (equivalently the angle $\theta$) is the angle subtended by the object. Planar angles are measured in **radians**, and the entire unit circle covers $2\pi$ radians.
+
+The **solid angle** extends the 2D unit circle to a 3D unit sphere (Figure 3.13). The total projected area $s$ is the solid angle subtended by the object, measured in **steradians** (sr). The entire sphere subtends $4\pi$ sr and a hemisphere $2\pi$ sr.
+
+```mermaid
+flowchart LR
+    P((p)) -->|"project object"| C["unit circle around p"]
+    C --> A["covered arc length s = θ"]
+    A --> R["full circle = 2π radians"]
+```
+
+*Figure 3.12: Planar angle. The planar angle of an object seen from $p$ equals the angle it subtends, or equivalently the length of the arc $s$ on the unit circle.*
+
+```mermaid
+flowchart LR
+    O((object)) -->|"project onto unit sphere"| S["sphere"]
+    S --> A["covered area s = solid angle (sr)"]
+    A --> R["sphere 4π sr; hemisphere 2π sr"]
+```
+
+*Figure 3.13: Solid angle. The solid angle $s$ subtended by a 3D object is the area of its projection onto the unit sphere.*
+
+By measuring area on the unit sphere — and thus over unit directions — the solid angle provides the foundation for integrating spherical functions: the differential solid angle $d\omega$ corresponds to the differential area measure on the unit sphere.
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`Bounds3::Inside()` p. 100 · `Bounds3::pMax` p. 98 · `Bounds3::pMin` p. 98 · `Distance()` p. 93 · `Float` p. 23 · `Point3` p. 92
+
+</details>
+
+### 3.8.2 Spherical Polygons
+
+It is sometimes useful to consider the set of directions from a point to the surface of a polygon — for example, when computing the illumination arriving at a point from an emissive polygon. Projecting a planar polygon onto the unit sphere gives a **spherical polygon**. A vertex is the normalized vector from the sphere's center to the corresponding original vertex. Each edge lies at the intersection of the sphere with the plane through the center and the two corresponding vertices; the result is a **great circle**, the shortest path between those vertices on the sphere (Figure 3.14).
+
+```mermaid
+flowchart TD
+    P["planar polygon"] -->|"normalize vertex directions"| SP["spherical polygon on unit sphere"]
+    SP --> E["edges = sphere ∩ planes through center and vertex pairs"]
+    E --> G["great circles: shortest surface paths"]
+```
+
+*Figure 3.14: A spherical polygon corresponds to the projection of a polygon onto the unit sphere. Its vertices are the unit vectors to the original vertices, and its edges lie at the intersections of the sphere with planes through the center and vertex pairs.*
+
+The angle at each vertex is the angle between the two planes of the edges meeting there, i.e. their **dihedral angle** (Figure 3.15); we label the angles $\alpha$, $\beta$, $\gamma$ after their vertices. Unlike planar triangles, the angles of a spherical triangle sum to $\pi + A$, where $A$ is its area. Given $\alpha,\beta,\gamma$, **Girard's theorem** gives the area on the unit sphere as
+
+$$
+A = \alpha + \beta + \gamma - \pi. \tag{3.5}
+$$
+
+```mermaid
+flowchart TD
+    A((a, α)) --- B((b, β))
+    B --- C((c, γ))
+    C --- A
+    A --- O((sphere center))
+    B --- O
+    C --- O
+```
+
+*Figure 3.15: A spherical triangle. Each vertex angle is labeled with the Greek letter corresponding to its vertex.*
+
+Direct evaluation of Equation (3.5) needs several expensive inverse trigonometric functions and can suffer from floating-point cancellation. A better approach uses the identity (derived from (3.5) by spherical trigonometry)
+
+$$
+\tan\frac{A}{2} = \frac{\mathbf a\cdot(\mathbf b\times\mathbf c)}
+{1 + (\mathbf a\cdot\mathbf b) + (\mathbf a\cdot\mathbf c) + (\mathbf b\cdot\mathbf c)}, \tag{3.6}
+$$
+
+which is what `SphericalTriangleArea()` implements; its arguments are the three unit-sphere vertex vectors.
+
+```rust
+pub fn spherical_triangle_area(a: Vec3, b: Vec3, c: Vec3) -> f32 {
+    (2.0 * a.dot(b.cross(c))
+        .atan2(1.0 + a.dot(b) + a.dot(c) + b.dot(c))).abs()
+}
+```
+
+A quadrilateral projected onto the unit sphere has area $\alpha+\beta+\gamma+\delta-2\pi$, computed by `SphericalQuadArea()` from its vertex positions; its implementation is very similar and is not included here.
+
+```rust
+pub fn spherical_quad_area(a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> f32;
+```
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`Cross()` p. 91 · `Dot()` p. 89 · `Float` p. 23 · `SphericalTriangleArea()` p. 106 · `Vector3f` p. 86
+
+</details>
+
+### 3.8.3 Spherical Parameterizations
+
+Cartesian coordinates on the unit sphere are not always the most convenient representation of a direction. For tabulating a function over the sphere, a 2D parameterization that exploits the sphere's two-dimensional surface is preferable. Many mappings between the plane and the sphere exist; any such mapping introduces some distortion, so the task is to choose one that best fits the application. pbrt uses three different parameterizations, each with different advantages and disadvantages.
+
+#### Spherical Coordinates
+
+For a sphere of radius $r$, spherical coordinates $(\theta,\phi)$ relate to Cartesian coordinates by
+
+$$
+x = r\sin\theta\cos\phi,\qquad
+y = r\sin\theta\sin\phi,\qquad
+z = r\cos\theta. \tag{3.7}
+$$
+
+Figure 3.16 shows the geometry. `SphericalDirection()` applies these equations directly, but takes $\sin\theta$ and $\cos\theta$ rather than $\theta$ itself because those are often already available to the caller; $\phi$ is not, so it is passed as an angle. Components are clamped to $[-1,1]$ to protect against round-off.
+
+```mermaid
+flowchart LR
+    Z["+z axis"] -->|"θ from +z"| V["direction vector"]
+    V -->|"φ around z from +x"| XY["projection into xy-plane"]
+    XY --> X["x = r sinθ cosφ"]
+    XY --> Y["y = r sinθ sinφ"]
+    Z --> Zc["z = r cosθ"]
+```
+
+*Figure 3.16: A direction vector written in spherical coordinates $(\theta,\phi)$ given the $x$, $y$, $z$ basis vectors. The spherical angle formulae make conversion between the representations easy.*
+
+```rust
+pub fn spherical_direction(sin_theta: f32, cos_theta: f32, phi: f32) -> Vec3 {
+    let st = sin_theta.clamp(-1.0, 1.0);
+    Vec3::new(st * phi.cos(), st * phi.sin(), cos_theta.clamp(-1.0, 1.0))
+}
+```
+
+The inverse conversion of $(x,y,z)$ is
+
+$$
+\theta = \arccos z,\qquad \phi = \arctan\frac{y}{x}.
+$$
+
+`SphericalTheta()` assumes a normalized vector and uses `SafeACos()` instead of `acos()` in case $|v_z|$ is slightly greater than 1 from round-off. `SphericalPhi()` returns $[0,2\pi]$, adjusting a negative `atan2` result.
+
+```rust
+pub fn spherical_theta(v: Vec3) -> f32 { safe_acos(v.z) }
+
+pub fn spherical_phi(v: Vec3) -> f32 {
+    let p = v.y.atan2(v.x);
+    if p < 0.0 { p + 2.0 * PI } else { p }
+}
+```
+
+For a direction $\omega$, the cosine of $\theta$ needs no inverse trigonometric function at all:
+
+$$
+\cos\theta = ((0,0,1)\cdot\omega) = \omega_z.
+$$
+
+This is far more efficient than computing $\theta$ and then its cosine. The following variants follow directly.
+
+```rust
+pub fn cos_theta(w: Vec3) -> f32 { w.z }
+pub fn cos2_theta(w: Vec3) -> f32 { w.z * w.z }
+pub fn abs_cos_theta(w: Vec3) -> f32 { w.z.abs() }
+```
+
+$\sin^2\theta$ uses $\sin^2\theta+\cos^2\theta = 1$, clamped at zero in the rare case that $1-\cos^2\theta$ is slightly negative from round-off; $\tan\theta=\sin\theta/\cos\theta$ follows.
+
+```rust
+pub fn sin2_theta(w: Vec3) -> f32 { 0.0f32.max(1.0 - cos2_theta(w)) }
+pub fn sin_theta(w: Vec3) -> f32 { sin2_theta(w).sqrt() }
+pub fn tan_theta(w: Vec3) -> f32 { sin_theta(w) / cos_theta(w) }
+pub fn tan2_theta(w: Vec3) -> f32 { sin2_theta(w) / cos2_theta(w) }
+```
+
+In the $z=0$ plane the vector $\omega$ has coordinates $(x,y) = (r\cos\phi, r\sin\phi)$ with $r=\sin\theta$ (Figure 3.17), so
+
+$$
+\cos\phi = \frac{x}{r} = \frac{x}{\sin\theta},\qquad
+\sin\phi = \frac{y}{r} = \frac{y}{\sin\theta}.
+$$
+
+```mermaid
+flowchart TD
+    O((origin)) -->|"r = sin θ"| D["dashed radius in z = 0 plane"]
+    D -->|"x = r cos φ"| X["x component"]
+    D -->|"y = r sin φ"| Y["y component"]
+```
+
+*Figure 3.17: The values of $\sin\phi$ and $\cos\phi$ come from $x = r\cos\phi$ and $y = r\sin\phi$, where $r$, the length of the dashed line, equals $\sin\theta$.*
+
+```rust
+pub fn cos_phi(w: Vec3) -> f32 {
+    let st = sin_theta(w);
+    if st == 0.0 { 1.0 } else { (w.x / st).clamp(-1.0, 1.0) }
+}
+pub fn sin_phi(w: Vec3) -> f32 {
+    let st = sin_theta(w);
+    if st == 0.0 { 0.0 } else { (w.y / st).clamp(-1.0, 1.0) }
+}
+```
+
+Finally, $\cos\Delta\phi$ between two vectors' $\phi$ values can be found by zeroing their $z$ coordinates and normalizing the resulting 2D vectors, then taking the dot product. The implementation rearranges the terms so only one square root is needed.
+
+```rust
+pub fn cos_dphi(wa: Vec3, wb: Vec3) -> f32 {
+    let waxy = wa.x * wa.x + wa.y * wa.y;
+    let wbxy = wb.x * wb.x + wb.y * wb.y;
+    if waxy == 0.0 || wbxy == 0.0 { return 1.0; }
+    ((wa.x * wb.x + wa.y * wb.y) / (waxy * wbxy).sqrt()).clamp(-1.0, 1.0)
+}
+```
+
+Spherical coordinates correspond to the **equirectangular mapping** of the sphere; substantial distortion at the poles makes it a poor choice for regularly sampled data.
+
+#### Octahedral Encoding
+
+`Vector3f` is convenient for computation but storage-inefficient: 12 bytes (with 4-byte floats), and it can represent directions of arbitrary length even though normalized vectors are a small subset. Spherical coordinates would use two floats but require relatively expensive trigonometric conversions and give more precision near the poles than the equator. `OctahedralVector` packs a unit vector into **4 bytes**, with every bit pattern mapping to a valid unit vector, even precision distribution, and efficient encode/decode. It is a storage format, not a format for computation.
+
+The mapping projects the vector onto the faces of an octahedron by dividing by its $L_1$ norm $|v_x|+|v_y|+|v_z|$. For the upper hemisphere ($v_z\ge0$), projection to $z=0$ just takes the $x$ and $y$ components; the lower hemisphere uses a branch-free reprojection into $[-1,1]^2$ (Figure 3.18).
+
+```mermaid
+flowchart LR
+    S["unit sphere"] -->|"inscribe octahedron"| O["3D octahedron"]
+    O -->|"flatten top pyramid into z = 0"| T["upper half of square"]
+    O -->|"unwrap bottom half"| B["lower half of square"]
+    T --> R["2D parameterization in [−1, 1]²"]
+    B --> R
+```
+
+*Figure 3.18: The octahedral parameterization: (a) an octahedron inscribed in the sphere; (b) flatten the top pyramid into $z=0$; (c) unwrap the bottom half and project its triangles into the same plane; (d) the result is a simple $[-1,1]^2$ parameterization (after Figure 2 in Meyer et al. 2010).*
+
+For the lower hemisphere the reprojection uses `Sign()`, built from `copysign` so that positive/negative zero behave like ordinary numbers. Each coordinate is quantized to a 16-bit value covering $[-1,1]$ in $2^{16}$ steps.
+
+```rust
+struct OctahedralVector { x: u16, y: u16 }
+
+impl OctahedralVector {
+    fn sign(v: f32) -> f32 { if v.is_sign_negative() { -1.0 } else { 1.0 } }
+    fn encode(f: f32) -> u16 { ((f + 1.0) / 2.0).clamp(0.0, 1.0) * 65535.0 + 0.5 }
+
+    fn from_vec3(mut v: Vec3) -> Self {
+        v /= v.x.abs() + v.y.abs() + v.z.abs();
+        if v.z >= 0.0 {
+            Self { x: Self::encode(v.x), y: Self::encode(v.y) }
+        } else {
+            Self {
+                x: Self::encode((1.0 - v.y.abs()) * Self::sign(v.x)),
+                y: Self::encode((1.0 - v.x.abs()) * Self::sign(v.y)),
+            }
+        }
+    }
+}
+
+impl From<OctahedralVector> for Vec3 {
+    fn from(ov: OctahedralVector) -> Self {
+        let mut v = Vec3::new(
+            -1.0 + 2.0 * (ov.x as f32 / 65535.0),
+            -1.0 + 2.0 * (ov.y as f32 / 65535.0),
+            0.0,
+        );
+        v.z = 1.0 - (v.x.abs() + v.y.abs());
+        if v.z < 0.0 {
+            let xo = v.x;
+            v.x = (1.0 - v.y.abs()) * OctahedralVector::sign(xo);
+            v.y = (1.0 - xo.abs()) * OctahedralVector::sign(v.y);
+        }
+        v.normalize()
+    }
+}
+```
+
+> **On the GPU:** octahedral-encoded normals are a natural fit for compact G-buffer formats (e.g. two `unorm16` channels). Decoding in WGSL mirrors the Rust code:
+>
+> ```wgsl
+> fn octahedral_decode(e: vec2<f32>) -> vec3<f32> {
+>     var v = vec3<f32>(2.0 * e - 1.0, 0.0);
+>     v.z = 1.0 - (abs(v.x) + abs(v.y));
+>     if (v.z < 0.0) {
+>         let x = v.x;
+>         v.x = (1.0 - abs(v.y)) * sign(x);
+>         v.y = (1.0 - abs(x)) * sign(v.y);
+>     }
+>     return normalize(v);
+> }
+> ```
+
+#### Equal-Area Mapping
+
+The third parameterization deliberately preserves area: any area on the sphere maps to a proportional area in the parameter domain. It is continuous, has reasonably low distortion, and every stored value represents the same solid angle — ideal for tabulating functions on the sphere. It combines the octahedral mapping with a variant of the square-to-disk mapping from Section A.5.1, splitting the unit square into four sectors, each mapped to a hemisphere sector (Figure 3.19).
+
+Given $(u,v)\in[-1,1]^2$, in the first sector ($u\ge0$ and $u-|v|\ge0$), the polar coordinates of a point on the unit disk are
+
+$$
+r = u,\qquad \phi = \frac{\pi}{4}\frac{v}{u},\qquad \phi\in\left[-\frac{\pi}{4},\frac{\pi}{4}\right].
+$$
+
+Mapping the disk point to the positive hemisphere with
+
+$$
+x = \cos\phi\, r\sqrt{2-r^2},\qquad
+y = \sin\phi\, r\sqrt{2-r^2},\qquad
+z = 1-r^2
+$$
+
+is also area-preserving. To extend this to the whole sphere:
+
+1. Apply the octahedral mapping to the direction, giving $(u,v)\in[-1,1]^2$.
+2. For the upper hemisphere, apply the concentric hemisphere mapping to the inner square, accounting for its $45^\circ$ rotation relative to the square the mapping expects.
+3. For the lower hemisphere, mirror across the quadrant's diagonal before mapping, then negate the resulting $z$ component.
+
+```mermaid
+flowchart LR
+    SQ["unit square in four sectors"] -->|"square → disk (area preserving)"| DK["unit disk in matching sectors"]
+    DK -->|"disk → hemisphere"| HS["hemisphere"]
+    HS --> O["octahedral wrap for full sphere"]
+```
+
+*Figure 3.19: The uniform hemispherical mapping first transforms the unit square to the unit disk, mapping the four shaded sectors of the square to the corresponding sectors of the disk; points on the disk then map to the hemisphere preserving relative area.*
+
+The implementation is carefully **branch-free** — one control-flow path for every input — which is often useful for performance, especially on the GPU. (The book notes that this function is normally a small fraction of pbrt's execution time, so the property does not affect overall system performance.) After mapping $p\in[0,1]^2$ to $(u,v)\in[-1,1]^2$ and taking $u'=|u|$, $v'=|v|$, three quadrants are remapped into the positive one; each lower hemisphere lies in $u'+v'>1$, each upper hemisphere in $u'+v'<1$.
+
+The disk radius is the signed distance to the diagonal $u+v=1$: $r = 1 - \big|\,1-(u'+v')\,\big|$ (Figure 3.20), and the angle adds a $\pi/4$ term for the $45^\circ$ rotation.
+
+```mermaid
+flowchart LR
+    Q["point (u′, v′) in positive quadrant"] --> D["signedDistance = 1 − (u′ + v′)"]
+    D --> A["d = |signedDistance|"]
+    A --> R["r = 1 − d ∈ [0, 1]"]
+    R --> DI["disk radius"]
+```
+
+*Figure 3.20: Computation of the radius $r$ for the square-to-disk mapping. One minus the absolute signed distance to the $u'+v'=1$ line gives a radius between 0 and 1.*
+
+```rust
+pub fn equal_area_square_to_sphere(p: Vec2) -> Vec3 {
+    // Transform to [−1, 1]² and take absolute values.
+    let u = 2.0 * p.x - 1.0;
+    let v = 2.0 * p.y - 1.0;
+    let (up, vp) = (u.abs(), v.abs());
+
+    // Radius as signed distance from the diagonal.
+    let signed_distance = 1.0 - (up + vp);
+    let r = 1.0 - signed_distance.abs();
+
+    // Angle, including the 45° rotation.
+    let phi = if r == 0.0 { 1.0 } else { (vp - up) / r + 1.0 } * PI / 4.0;
+
+    // z takes the sign of the signed distance.
+    let z = signed_distance.signum() * (1.0 - r * r);
+
+    // Remap cos φ and sin φ to the original quadrant.
+    let cos_phi = phi.cos().copysign(u);
+    let sin_phi = phi.sin().copysign(v);
+    let s = r * safe_sqrt(2.0 - r * r);
+    Vec3::new(cos_phi * s, sin_phi * s, z)
+}
+```
+
+The inverse mapping, `EqualAreaSphereToSquare()`, performs the same operations in reverse and is not included here. `WrapEqualAreaSquare()` handles points just outside $[0,1]^2$ (as can happen during bilinear interpolation in image texture lookups) by wrapping them to valid coordinates.
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`EqualAreaSquareToSphere()` p. 112 · `Float` p. 23 · `Pi` p. 1033 · `SafeSqrt()` p. 1034 · `Sqr()` p. 1034 · `Vector3f` p. 86 · `Clamp()` p. 1033 · `Cos2Theta()` p. 107 · `CosTheta()` p. 107 · `Sin2Theta()` p. 108 · `SinTheta()` p. 108 · `SafeACos()` p. 1035 · `SphericalTheta()` p. 107 · `Normalize()` p. 88 · `OctahedralVector` p. 109 · `OctahedralVector::Encode()` p. 110 · `OctahedralVector::Sign()` p. 110
+
+</details>
+
+### 3.8.4 Bounding Directions
+
+Besides bounding regions of space, it is useful to bound a *set of directions*. For example, if a light emits in only some directions, that information can cull it from lighting calculations at points it certainly does not illuminate. `DirectionCone` represents a cone parameterized by a central direction and an angular spread (Figure 3.21).
+
+```mermaid
+flowchart TD
+    V["central direction v"] --> C["cone"]
+    T["spread angle θ"] --> C
+    S["set of directions on sphere"] --> C
+    C --> I["all directions inside the cone"]
+```
+
+*Figure 3.21: Bounding a set of directions with a cone described by a central direction $\mathbf v$ and a spread angle $\theta$ chosen so all directions in the set lie inside.*
+
+`DirectionCone` offers several constructors: one taking the axis and the **cosine** of the spread angle, one bounding a single direction, and a default empty cone. Storing the cosine rather than the angle lets later operations use efficient dot products instead of trigonometry. The empty state is encoded with `cosTheta = Infinity`; `EntireSphere()` uses $(0,0,1)$ with cosine $-1$.
+
+```rust
+#[derive(Clone, Copy, Debug)]
+pub struct DirectionCone {
+    pub w: Vec3,
+    pub cos_theta: f32,
+}
+
+impl DirectionCone {
+    pub fn new(w: Vec3, cos_theta: f32) -> Self {
+        Self { w: w.normalize(), cos_theta }
+    }
+    pub fn from_direction(w: Vec3) -> Self { Self::new(w, 1.0) }
+    pub fn is_empty(&self) -> bool { self.cos_theta == f32::INFINITY }
+    pub fn entire_sphere() -> Self { Self::new(Vec3::new(0.0, 0.0, 1.0), -1.0) }
+}
+
+pub fn inside(d: DirectionCone, w: Vec3) -> bool {
+    !d.is_empty() && d.w.dot(w.normalize()) >= d.cos_theta
+}
+```
+
+A direction lies inside the cone when the cosine of the angle to the axis is *greater* than the cosine of the spread (a smaller angle means a larger cosine).
+
+`BoundSubtendedDirections()` returns a cone bounding the directions subtended by a box from a point $p$. It first finds a bounding sphere for the box; if $p$ is inside that sphere, the bound is all directions. (The point may be inside the sphere but outside the box, in which case the bound is merely conservative — see Exercise 3.3.) Otherwise the axis is the vector from $p$ to the sphere center and the spread's cosine follows from basic trigonometry (Figure 3.22):
+
+$$
+\sin^2\theta_{\max} = \frac{r^2}{d^2},\qquad
+\cos\theta_{\max} = \sqrt{1-\sin^2\theta_{\max}}.
+$$
+
+```mermaid
+flowchart LR
+    P((p)) -->|"distance d"| C((sphere center))
+    C -->|"radius r"| S["bounding sphere"]
+    P -->|"sin θ = r / d"| T["θ subtended"]
+    T --> CS["cos θ = √(1 − sin² θ)"]
+```
+
+*Figure 3.22: Finding the angle a bounding sphere subtends from $p$: compute $\sin\theta = r/d$ and use $\sin^2\theta+\cos^2\theta=1$.*
+
+```rust
+pub fn bound_subtended_directions(b: Bounds3f, p: Point3f) -> DirectionCone {
+    let (center, radius) = b.bounding_sphere();
+    if distance_squared(p, center) < radius * radius {
+        return DirectionCone::entire_sphere();
+    }
+    let w = (center - p).normalize();
+    let sin2_theta_max = radius * radius / distance_squared(center, p);
+    let cos_theta_max = safe_sqrt(1.0 - sin2_theta_max);
+    DirectionCone::new(w, cos_theta_max)
+}
+```
+
+The **union** of two direction cones bounds both. The algorithm is:
+
+1. If either cone is empty, return the other.
+2. Compute each spread angle $\theta_a,\theta_b$ and the angle $\theta_d$ between the axes (Figure 3.23). If $\theta_d+\theta_b \le \theta_a$ (clamped to $\pi$), $a$ already bounds $b$; and symmetrically.
+3. Otherwise the new spread is $\theta_o = (\theta_a+\theta_d+\theta_b)/2$ (Figure 3.24); if $\theta_o\ge\pi$, return the entire sphere.
+4. Do **not** use the average of the two axes: with spread $\theta_o$ it would not necessarily bound both cones (it would need $\theta_d/2 + \max(2\theta_a,2\theta_b) \ge \theta_o$). Instead take the cross product of the axes, rotate $a.\mathbf w$ about that perpendicular by $\theta_r=\theta_o-\theta_a$, and use the result. If the cross product has zero length the cones face opposite directions, so return the entire sphere.<sup>[2](#fn2)</sup>
+
+```mermaid
+flowchart TD
+    A["cone a: axis a.w, spread θa"] --> C["θd = angle between axes"]
+    B["cone b: axis b.w, spread θb"] --> C
+    C --> Q{"θa ≥ θd + θb ?"}
+    Q -- yes --> RA["a bounds b → return a"]
+    Q -- no --> TH["θo = (θa + θd + θb)/2"]
+```
+
+*Figure 3.23: Determining whether one cone lies entirely inside another. Here $\theta_a > \theta_d+\theta_b$, so $b$ is inside $a$.*
+
+```mermaid
+flowchart LR
+    A["θa"] --> S["total = θa + θd + θb"]
+    D["θd"] --> S
+    B["θb"] --> S
+    S --> O["spread θo = total / 2"]
+```
+
+*Figure 3.24: Computing the spread of a cone bounding two others: the total angle covered is $\theta_a+\theta_d+\theta_b$, so the spread is half that.*
+
+```rust
+pub fn union(a: DirectionCone, b: DirectionCone) -> DirectionCone {
+    if a.is_empty() { return b; }
+    if b.is_empty() { return a; }
+
+    let theta_a = safe_acos(a.cos_theta);
+    let theta_b = safe_acos(b.cos_theta);
+    let theta_d = angle_between(a.w, b.w);
+    if theta_d + theta_b <= PI { /* clamped to π in the book */
+        if theta_a >= theta_d + theta_b { return a; }
+    }
+    if theta_d + theta_a <= PI && theta_b >= theta_d + theta_a { return b; }
+
+    let theta_o = (theta_a + theta_d + theta_b) / 2.0;
+    if theta_o >= PI { return DirectionCone::entire_sphere(); }
+
+    let theta_r = theta_o - theta_a;
+    let wr = a.w.cross(b.w);
+    if wr.length_squared() == 0.0 {
+        return DirectionCone::entire_sphere();
+    }
+    let w = rotate(Degrees(theta_r), wr) * a.w; // Rotate() from Section 3.9.7
+    DirectionCone::new(w, theta_o.cos())
+}
+```
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`DirectionCone` p. 114 · `DirectionCone::cosTheta` p. 114 · `Float` p. 23 · `Infinity` p. 361 · `Normalize()` p. 88 · `Vector3f` p. 86 · `Bounds3::BoundingSphere()` p. 103 · `Bounds3f` p. 97 · `DirectionCone::EntireSphere()` p. 115 · `DirectionCone::IsEmpty()` p. 114 · `DirectionCone::w` p. 114 · `DistanceSquared()` p. 93 · `SafeSqrt()` p. 1034 · `Sqr()` p. 1034 · `AngleBetween()` p. 89 · `Pi` p. 1033 · `SafeACos()` p. 1035 · `Rotate()` p. 126
+
+</details>
+
+## 3.9 Transformations
+
+In general, a transformation $\mathbf T$ is a mapping from points to points and from vectors to vectors:
+
+$$
+p' = \mathbf T(p),\qquad \mathbf v' = \mathbf T(\mathbf v).
+$$
+
+$\mathbf T$ could be an arbitrary procedure, but we restrict ourselves to transformations that are:
+
+- **Linear** — for a scalar $s$, $\mathbf T(s\mathbf v) = s\,\mathbf T(\mathbf v)$ and $\mathbf T(\mathbf v_1+\mathbf v_2) = \mathbf T(\mathbf v_1)+\mathbf T(\mathbf v_2)$; these properties greatly simplify reasoning.
+- **Continuous** — roughly, neighborhoods around $p$ and $\mathbf v$ map to neighborhoods around $p'$ and $\mathbf v'$.
+- **One-to-one and invertible** — each $p$ maps to a single unique $p'$, and an inverse $\mathbf T^{-1}$ maps $p'$ back to $p$.
+
+We often want to take a point, vector, or normal defined in one frame and find its coordinates in another. Basic linear algebra shows that a $4\times4$ matrix can express the linear transformation from one frame to another; the same matrix also expresses all linear transformations *within* a fixed frame, such as translation or rotation about a point. Hence a matrix has two different — and incompatible — interpretations:
+
+1. **Transformation within the frame** — compute a new point in the same frame (e.g. translated in some direction).
+2. **Transformation from one frame to another** — express a point's or vector's coordinates in a new frame in terms of the old.
+
+Most uses in pbrt are of the second kind. Transformations let us work in the most convenient coordinate space: for example, a virtual camera can be written assuming it sits at the origin looking down the $z$ axis with $+y$ up and $+x$ right. To place that camera anywhere, we build a transformation from scene coordinates to camera coordinates (Section 5.1.1).
+
+```mermaid
+flowchart LR
+    subgraph WORLD["world space"]
+        P["point p in world frame"]
+    end
+    subgraph CAM["camera space"]
+        Q["same point in camera frame"]
+    end
+    P -->|"worldFromCamera matrix"| Q
+    Q -->|"cameraFromWorld = inverse"| P
+```
+
+### 3.9.1 Homogeneous Coordinates
+
+Given a frame $(p_o,\mathbf v_1,\mathbf v_2,\mathbf v_3)$, the triples $(p_x,p_y,p_z)$ and $(v_x,v_y,v_z)$ are ambiguous. Using the representations from the start of the chapter, the point is
+
+$$
+\begin{bmatrix}s_1 & s_2 & s_3 & 1\end{bmatrix}
+\begin{bmatrix}\mathbf v_1 & \mathbf v_2 & \mathbf v_3 & p_o\end{bmatrix}^T,
+$$
+
+and the vector is the same expression with the last weight $0$ and different coefficients $s'_i$:
+
+$$
+\begin{bmatrix}s'_1 & s'_2 & s'_3 & 0\end{bmatrix}
+\begin{bmatrix}\mathbf v_1 & \mathbf v_2 & \mathbf v_3 & p_o\end{bmatrix}^T.
+$$
+
+These four-vectors are the **homogeneous representations** of the point and the vector; the fourth coordinate is the **weight**. For a point it can be any nonzero scalar: $[1,3,-2,1]$ and $[-2,-6,4,-2]$ describe the same Cartesian point $(1,3,-2)$. Converting back divides the first three components by the weight:
+
+$$
+(x, y, z, w) \longrightarrow \left(\frac{x}{w}, \frac{y}{w}, \frac{z}{w}\right).
+$$
+
+Now consider a matrix $M$ describing a transformation from one coordinate system to another (indices start at zero so equations and code correspond):
+
+$$
+M = \begin{pmatrix}
+m_{0,0} & m_{0,1} & m_{0,2} & m_{0,3} \\
+m_{1,0} & m_{1,1} & m_{1,2} & m_{1,3} \\
+m_{2,0} & m_{2,1} & m_{2,2} & m_{2,3} \\
+m_{3,0} & m_{3,1} & m_{3,2} & m_{3,3}
+\end{pmatrix}.
+$$
+
+Applying $M$ to the $x$-axis vector gives
+
+$$
+M\mathbf x = M\begin{bmatrix}1&0&0&0\end{bmatrix}^T
+= \begin{bmatrix}m_{0,0}&m_{1,0}&m_{2,0}&m_{3,0}\end{bmatrix}^T,
+$$
+
+and reading the other columns shows how the whole basis is transformed:
+
+$$
+\begin{aligned}
+M\mathbf y &= \begin{bmatrix}m_{0,1}&m_{1,1}&m_{2,1}&m_{3,1}\end{bmatrix}^T, \\
+M\mathbf z &= \begin{bmatrix}m_{0,2}&m_{1,2}&m_{2,2}&m_{3,2}\end{bmatrix}^T, \\
+Mp &= \begin{bmatrix}m_{0,3}&m_{1,3}&m_{2,3}&m_{3,3}\end{bmatrix}^T.
+\end{aligned}
+$$
+
+Characterizing the basis's transformation tells us how *any* point or vector expressed in that basis is transformed: applying the matrix directly is equivalent to transforming the basis and re-expressing coordinates in the new basis. pbrt has no `HomogeneousPoint` class and never uses homogeneous coordinates explicitly in its code; the transformation routines implicitly promote to homogeneous form, transform, and convert back. This isolates the details in one place.
+
+### 3.9.2 `Transform` Class Definition
+
+`Transform` represents a $4\times4$ transformation; its implementation is in `util/transform.h` and `util/transform.cpp`. The matrix `m` is a `SquareMatrix<4>` (Section B.2.12), stored row-major so `m[i][j]` is $m_{i,j}$. For convenience the inverse is stored too — it is better to have it readily available than to recompute it. In Rust we use `glam::Mat4`, which is column-major internally; `Mat4::from_rows()` mirrors the book's notation while the shader-side WGSL `mat4x4<f32>` is also column-major.
+
+```rust
+#[derive(Clone, Copy, Debug)]
+pub struct Transform {
+    m: Mat4,
+    m_inv: Mat4,
+}
+```
+
+This representation is memory-hungry: 128 bytes assuming 4-byte floats. Used naïvely it is wasteful — if a scene has millions of shapes but only a few thousand unique transforms, there is no reason to duplicate the matrices. pbrt therefore stores a *pointer* to a `Transform` in each `Shape`, and the scene specification code (Section C.2.3) uses an `InternCache` of transforms so that shapes sharing a transform point to a single instance.
+
+> On the GPU, the same 64 bytes per matrix are usually passed in a uniform or storage buffer. Instancing is the direct analogue of pbrt's intern cache: store one matrix per instance in a storage buffer and index it with `instance_index`.
+
+### 3.9.3 Basic Operations
+
+A new `Transform` defaults to the **identity**, mapping every point and vector to itself:
+
+$$
+I = \begin{pmatrix}
+1&0&0&0\\0&1&0&0\\0&0&1&0\\0&0&0&1
+\end{pmatrix}.
+$$
+
+A transform can also be created from a matrix, in which case the matrix must be inverted. If the caller's matrix is degenerate, `m_inv` is filled with NaN values, which poison any computation that uses them — arithmetic with a NaN yields a NaN. A caller can still use such a transform as long as no method touching `m_inv` is called.
+
+The most useful constructor takes the matrix **and an explicitly supplied inverse**: many geometric transforms have simple inverses, so this avoids the cost and potential accuracy loss of a general $4\times4$ inversion. The burden of supplying the correct inverse is on the caller.
+
+```rust
+impl Transform {
+    pub fn identity() -> Self { Self { m: Mat4::IDENTITY, m_inv: Mat4::IDENTITY } }
+
+    pub fn new(m: Mat4) -> Self {
+        let m_inv = m.inverse(); // NaN-filled if singular in the book's implementation
+        Self { m, m_inv }
+    }
+
+    /// Preferred: the caller supplies the (cheap, exact) inverse.
+    pub fn with_inverse(m: Mat4, m_inv: Mat4) -> Self { Self { m, m_inv } }
+
+    pub fn matrix(&self) -> &Mat4 { &self.m }
+    pub fn inverse_matrix(&self) -> &Mat4 { &self.m_inv }
+}
+
+pub fn inverse(t: Transform) -> Transform {
+    Transform::with_inverse(t.m_inv, t.m) // swap roles
+}
+
+pub fn transpose(t: Transform) -> Transform {
+    Transform::with_inverse(t.m.transpose(), t.m_inv.transpose())
+}
+```
+
+Equality, inequality, and `IsIdentity()` tests are also provided (a Rust `PartialEq` implementation plus `is_identity()`).
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`InternCache` p. 1070 · `Shape` p. 261 · `SquareMatrix` p. 1049 · `SquareMatrix::Inverse()` p. 1051 · `Transform` p. 120 · `Transform::mInv` p. 120 · `SquareMatrix::IsIdentity()` p. 1050 · `Transform::m` p. 120 · `SquareMatrix::Transpose()` p. 1051 · `Transform::GetInverseMatrix()` p. 121 · `Transform::GetMatrix()` p. 121
+
+</details>
+
+### 3.9.4 Translations
+
+The translation $T(\Delta x,\Delta y,\Delta z)$ offsets a point's coordinates: $T(2,2,1)(x,y,z) = (x+2,y+2,z+1)$ (Figure 3.25). Its basic properties are
+
+$$
+\begin{aligned}
+T(0,0,0) &= I, \\
+T(x_1,y_1,z_1)\,T(x_2,y_2,z_2) &= T(x_1+x_2,\;y_1+y_2,\;z_1+z_2), \\
+T(x_1,y_1,z_1)\,T(x_2,y_2,z_2) &= T(x_2,y_2,z_2)\,T(x_1,y_1,z_1), \\
+T^{-1}(x,y,z) &= T(-x,-y,-z).
+\end{aligned}
+$$
+
+In matrix form,
+
+$$
+T(\Delta x,\Delta y,\Delta z) =
+\begin{pmatrix}
+1&0&0&\Delta x\\0&1&0&\Delta y\\0&0&1&\Delta z\\0&0&0&1
+\end{pmatrix}.
+$$
+
+The value of homogeneous coordinates becomes clear when the matrix multiplies a point $[x\;y\;z\;1]^T$:
+
+$$
+\begin{pmatrix}
+1&0&0&\Delta x\\0&1&0&\Delta y\\0&0&1&\Delta z\\0&0&0&1
+\end{pmatrix}
+\begin{pmatrix}x\\y\\z\\1\end{pmatrix}
+= \begin{pmatrix}x+\Delta x\\y+\Delta y\\z+\Delta z\\1\end{pmatrix},
+$$
+
+whereas applying $T$ to a vector gives back the same vector (its homogeneous $w$ is zero):
+
+$$
+\begin{pmatrix}
+1&0&0&\Delta x\\0&1&0&\Delta y\\0&0&1&\Delta z\\0&0&0&1
+\end{pmatrix}
+\begin{pmatrix}x\\y\\z\\0\end{pmatrix}
+= \begin{pmatrix}x\\y\\z\\0\end{pmatrix}.
+$$
+
+This makes sense: vectors are directions, so translation leaves them unchanged. `Translate()` is a direct application of the matrix, and the inverse is trivial to provide.
+
+```rust
+pub fn translate(delta: Vec3) -> Transform {
+    let m = Mat4::from_rows([
+        [1.0, 0.0, 0.0, delta.x],
+        [0.0, 1.0, 0.0, delta.y],
+        [0.0, 0.0, 1.0, delta.z],
+        [0.0, 0.0, 0.0, 1.0],
+    ]);
+    let m_inv = Mat4::from_rows([
+        [1.0, 0.0, 0.0, -delta.x],
+        [0.0, 1.0, 0.0, -delta.y],
+        [0.0, 0.0, 1.0, -delta.z],
+        [0.0, 0.0, 0.0, 1.0],
+    ]);
+    Transform::with_inverse(m, m_inv)
+    // equivalently: glam's Mat4::from_translation(delta)
+}
+```
+
+```mermaid
+flowchart LR
+    P((p = (x, y))) -->|"+ (Δx, Δy)"| PP(("p′ = (x+Δx, y+Δy)"))
+    V["vector v"] -->|"unchanged"| V2["vector v"]
+```
+
+*Figure 3.25: Translation in 2D. Adding offsets $\Delta x$ and $\Delta y$ to a point's coordinates changes its position in space.*
+
+### 3.9.5 Scaling
+
+The scale transformation $S(s_x,s_y,s_z)$ multiplies components by the scale factors: $S(2,2,1)(x,y,z) = (2x,2y,z)$. Its properties are
+
+$$
+\begin{aligned}
+S(1,1,1) &= I, \\
+S(x_1,y_1,z_1)\,S(x_2,y_2,z_2) &= S(x_1x_2,\;y_1y_2,\;z_1z_2), \\
+S(x_1,y_1,z_1)\,S(x_2,y_2,z_2) &= S(x_2,y_2,z_2)\,S(x_1,y_1,z_1), \\
+S^{-1}(x,y,z) &= S(1/x,\;1/y,\;1/z).
+\end{aligned}
+$$
+
+We distinguish **uniform** scaling (all factors equal) from **nonuniform** scaling. The general scale matrix is
+
+$$
+S(x,y,z) = \begin{pmatrix}
+x&0&0&0\\0&y&0&0\\0&0&z&0\\0&0&0&1
+\end{pmatrix}.
+$$
+
+```rust
+pub fn scale(x: f32, y: f32, z: f32) -> Transform {
+    let m = Mat4::from_rows([
+        [x, 0.0, 0.0, 0.0], [0.0, y, 0.0, 0.0],
+        [0.0, 0.0, z, 0.0], [0.0, 0.0, 0.0, 1.0],
+    ]);
+    let m_inv = Mat4::from_rows([
+        [1.0/x, 0.0, 0.0, 0.0], [0.0, 1.0/y, 0.0, 0.0],
+        [0.0, 0.0, 1.0/z, 0.0], [0.0, 0.0, 0.0, 1.0],
+    ]);
+    Transform::with_inverse(m, m_inv)
+}
+
+impl Transform {
+    pub fn has_scale(&self, tolerance: f32) -> bool {
+        let axes = [Vec3::X, Vec3::Y, Vec3::Z];
+        axes.iter().any(|&a| ((self.m * a.extend(0.0)).truncate().length_squared() - 1.0).abs() > tolerance)
+    }
+}
+```
+
+`HasScale()` transforms the three coordinate axes and tests whether any length differs appreciably from one (default tolerance $10^{-3}$).
+
+### 3.9.6 $x$, $y$, and $z$ Axis Rotations
+
+The rotation transformation $R$ can be about any axis from the origin; the common cases are the coordinate axes, written $R_x(\theta)$, $R_y(\theta)$, $R_z(\theta)$, and the general $R_{(x,y,z)}(\theta)$. Rotations satisfy
+
+$$
+\begin{aligned}
+R_a(0) &= I, \\
+R_a(\theta_1)\,R_a(\theta_2) &= R_a(\theta_1+\theta_2), \\
+R_a(\theta_1)\,R_a(\theta_2) &= R_a(\theta_2)\,R_a(\theta_1), \\
+R_a^{-1}(\theta) &= R_a(-\theta) = R_a^T(\theta).
+\end{aligned}
+$$
+
+The inverse equals the transpose because $R$ is an **orthogonal** matrix: its first three columns (or rows) are normalized and mutually orthogonal. Computing a transpose is much cheaper than a full matrix inverse.
+
+In pbrt's left-handed system the matrix for clockwise rotation about $x$ is
+
+$$
+R_x(\theta) =
+\begin{pmatrix}
+1&0&0&0\\
+0&\cos\theta&-\sin\theta&0\\
+0&\sin\theta&\cos\theta&0\\
+0&0&0&1
+\end{pmatrix}.
+$$
+
+Figure 3.26 gives the intuition: the $x$ axis is unchanged, $R_x(\theta)[1\;0\;0\;0]^T = [1\;0\;0\;0]^T$; $y$ maps to $(0,\cos\theta,\sin\theta)$ and $z$ to $(0,-\sin\theta,\cos\theta)$. The $y$ and $z$ axes stay in their plane, perpendicular to $x$, rotated by $\theta$; an arbitrary point rotates in its original $yz$ plane.
+
+```rust
+pub fn rotate_x(theta_deg: f32) -> Transform {
+    let theta = theta_deg.to_radians();
+    let (s, c) = theta.sin_cos();
+    let m = Mat4::from_rows([
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, c, -s, 0.0],
+        [0.0, s, c, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]);
+    Transform::with_inverse(m, m.transpose())
+    // glam's Mat4::from_rotation_x(theta) is equivalent
+}
+```
+
+```mermaid
+flowchart TD
+    X["x axis unchanged"] --- P["rotation about x"]
+    Y["+y → (0, cos θ, sin θ)"] --- P
+    Z["+z → (0, −sin θ, cos θ)"] --- P
+```
+
+*Figure 3.26: Clockwise rotation by $\theta$ about $x$ leaves the $x$ coordinate unchanged; the $y$ and $z$ axes are mapped as shown, and their coordinates rotate accordingly.*
+
+Similarly, for clockwise rotations about $y$ and $z$:
+
+$$
+R_y(\theta) =
+\begin{pmatrix}
+\cos\theta&0&\sin\theta&0\\
+0&1&0&0\\
+-\sin\theta&0&\cos\theta&0\\
+0&0&0&1
+\end{pmatrix},\qquad
+R_z(\theta) =
+\begin{pmatrix}
+\cos\theta&-\sin\theta&0&0\\
+\sin\theta&\cos\theta&0&0\\
+0&0&1&0\\
+0&0&0&1
+\end{pmatrix}.
+$$
+
+`RotateY()` and `RotateZ()` follow directly and are not included here.
+
+### 3.9.7 Rotation Around an Arbitrary Axis
+
+A common derivation maps the given axis to a fixed one (e.g. $z$), rotates there, and rotates back; a more elegant derivation uses vector algebra. Let $\mathbf a$ be the normalized axis, $\mathbf v$ the vector to rotate, and $\alpha$ the angle between them. First compute the component of $\mathbf v$ along $\mathbf a$ (Figure 3.27):
+
+$$
+\mathbf v_c = \mathbf a\,\|\mathbf v\|\cos\alpha = \mathbf a\,(\mathbf v\cdot\mathbf a).
+$$
+
+Then find two basis vectors in the plane of rotation (the plane through $\mathbf v$'s endpoint perpendicular to $\mathbf a$):
+
+$$
+\mathbf v_1 = \mathbf v - \mathbf v_c,\qquad
+\mathbf v_2 = (\mathbf v_1\times\mathbf a).
+$$
+
+Because $\mathbf a$ is normalized, $\mathbf v_1$ and $\mathbf v_2$ have equal length. Rotating by $\theta$ about $\mathbf v_c$ in that plane gives
+
+$$
+\mathbf v' = \mathbf v_c + \mathbf v_1\cos\theta + \mathbf v_2\sin\theta.
+$$
+
+Applying this formula to the basis vectors $(1,0,0)$, $(0,1,0)$, $(0,0,1)$ yields the rows of the rotation matrix. The inverse is again the transpose, and because some callers already have $\sin\theta$ and $\cos\theta$, a variant takes them directly.
+
+```mermaid
+flowchart LR
+    V((v)) -->|"project onto axis a"| VC((vc))
+    VC -->|"v₁ = v − vc"| V1((v₁))
+    V1 -->|"v₂ = v₁ × a"| V2((v₂))
+    V1 --> R["v′ = vc + v₁ cosθ + v₂ sinθ"]
+    V2 --> R
+```
+
+*Figure 3.27: Rotation about an arbitrary axis $\mathbf a$ constructs a coordinate system $(\mathbf p,\mathbf v_1,\mathbf v_2)$ in the perpendicular plane through $\mathbf v$'s endpoint and rotates $\mathbf v_1,\mathbf v_2$ about $\mathbf p$. Applying it to the axes $(1,0,0)$, $(0,1,0)$, $(0,0,1)$ gives the general rotation matrix.*
+
+```rust
+pub fn rotate_sincos(sin_theta: f32, cos_theta: f32, axis: Vec3) -> Transform {
+    let a = axis.normalize();
+    let mut m = Mat4::from_rows([
+        [
+            a.x * a.x + (1.0 - a.x * a.x) * cos_theta,
+            a.x * a.y * (1.0 - cos_theta) - a.z * sin_theta,
+            a.x * a.z * (1.0 - cos_theta) + a.y * sin_theta,
+            0.0,
+        ],
+        [0.0; 4], [0.0; 4], [0.0, 0.0, 0.0, 1.0],
+    ]);
+    // "Compute rotations of second and third basis vectors" — analogous entries:
+    let (ax, ay, az) = (a.x, a.y, a.z);
+    m = Mat4::from_rows([
+        [ax * ax + (1.0 - ax * ax) * cos_theta,
+         ax * ay * (1.0 - cos_theta) - az * sin_theta,
+         ax * az * (1.0 - cos_theta) + ay * sin_theta, 0.0],
+        [ay * ax * (1.0 - cos_theta) + az * sin_theta,
+         ay * ay + (1.0 - ay * ay) * cos_theta,
+         ay * az * (1.0 - cos_theta) - ax * sin_theta, 0.0],
+        [az * ax * (1.0 - cos_theta) - ay * sin_theta,
+         az * ay * (1.0 - cos_theta) + ax * sin_theta,
+         az * az + (1.0 - az * az) * cos_theta, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]);
+    Transform::with_inverse(m, m.transpose())
+}
+
+pub fn rotate(theta_deg: f32, axis: Vec3) -> Transform {
+    let (s, c) = theta_deg.to_radians().sin_cos();
+    rotate_sincos(s, c, axis)
+}
+```
+
+### 3.9.8 Rotating One Vector to Another
+
+It is sometimes useful to find the rotation that aligns a unit vector $\mathbf f$ ("from") with $\mathbf t$ ("to"). Using the cross product as the axis and `acos(dot)` as the angle is unstable for nearly parallel vectors and needs expensive trigonometry. Instead, use a pair of **reflections**: reflect $\mathbf f$ to an intermediate $\mathbf r$, then $\mathbf r$ to $\mathbf t$; their product is the desired rotation. The Householder matrix reflects $\mathbf v$ to $-\mathbf v$ while leaving vectors orthogonal to $\mathbf v$ unchanged:
+
+$$
+H(\mathbf v) = I - \frac{2}{\mathbf v\cdot\mathbf v}\,\mathbf v\mathbf v^T.
+$$
+
+With $\mathbf u = \mathbf r - \mathbf f$ and $\mathbf v = \mathbf r - \mathbf t$,
+
+$$
+\mathbf R = H(\mathbf v)\,H(\mathbf r-\mathbf t)\;H(\mathbf u)\;=\;H(\mathbf r-\mathbf t)\,H(\mathbf r-\mathbf f),
+$$
+
+the second matrix reflects $\mathbf f$ to $\mathbf r$ and the first reflects $\mathbf r$ to $\mathbf t$.
+
+The intermediate direction $\mathbf r$ is chosen as a basis vector not too closely aligned with either input. Because $0.72$ is slightly greater than $\sqrt{2}/2$, at least one matching coordinate pair of two normalized vectors must both have absolute value below $0.72$ — choosing that axis avoids a loss of accuracy when the reflection direction is nearly parallel to $\mathbf f$ or $\mathbf t$.
+
+```rust
+pub fn rotate_from_to(from: Vec3, to: Vec3) -> Transform {
+    let refl = if from.x.abs() < 0.72 && to.x.abs() < 0.72 { Vec3::X }
+        else if from.y.abs() < 0.72 && to.y.abs() < 0.72 { Vec3::Y }
+        else { Vec3::Z };
+
+    let u = refl - from;
+    let v = refl - to;
+    let mut r = Mat4::IDENTITY;
+    // Initialize r[i][j] for i, j in 0..3:
+    for i in 0..3 {
+        for j in 0..3 {
+            r.row_mut(i)[j] = if i == j { 1.0 } else { 0.0 }
+                - 2.0 / u.dot(u) * u[i] * u[j]
+                - 2.0 / v.dot(v) * v[i] * v[j]
+                + 4.0 * u.dot(v) / (u.dot(u) * v.dot(v)) * v[i] * u[j];
+        }
+    }
+    Transform::with_inverse(r, r.transpose())
+}
+```
+
+Expanding the Householder product gives the matrix element
+
+$$
+r_{i,j} = \delta_{i,j}
+- \frac{2u_i u_j}{\mathbf u\cdot\mathbf u}
+- \frac{2v_i v_j}{\mathbf v\cdot\mathbf v}
++ \frac{4(\mathbf u\cdot\mathbf v)\,v_i u_j}{(\mathbf u\cdot\mathbf u)(\mathbf v\cdot\mathbf v)},
+$$
+
+where $\delta_{i,j}$ is the Kronecker delta ($1$ if $i=j$, otherwise $0$); the implementation follows directly.
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`Float` p. 23 · `Radians()` p. 1033 · `Rotate()` p. 126 · `SquareMatrix::Transpose()` p. 1051 · `Transform` p. 120 · `Vector3f` p. 86
+
+</details>
+
+### 3.9.9 The Look-At Transformation
+
+The **look-at** transformation is especially useful for placing a camera: the caller supplies a camera position, a point to look at, and an "up" vector that orients the camera along the viewing direction. These are typically world-space coordinates, so the result maps world space to camera space (Figure 3.28). The same construction is also useful for placing light sources. The key principle: the *columns* of a transformation matrix give the effect of the transform on a coordinate system's basis.
+
+```mermaid
+flowchart LR
+    subgraph W["world space"]
+        POS["camera position pos"]
+        LOOK["look-at point"]
+        UP["up vector"]
+    end
+    subgraph C["camera space (left-handed)"]
+        O["camera at origin"]
+        Z["+z = viewing direction"]
+        Y["+y = up"]
+        X["+x = right"]
+    end
+    POS --> O
+    LOOK --> Z
+    UP --> Y
+    X --- Y
+    Y --- Z
+```
+
+*Figure 3.28: Given a camera position, the point being looked at, and an "up" direction, the look-at transformation maps from a left-handed viewing system in which the camera sits at the origin looking down $+z$ and $+y$ is the up direction.*
+
+The easiest column is the fourth: it is the world-space point to which the camera-space origin $[0\;0\;0\;1]^T$ maps, namely `pos`. For the other three, compute the normalized direction `dir = Normalize(look - pos)` (the $+z$ column, since camera space looks down $+z$ in this left-handed system); `right = Normalize(Cross(Normalize(up), dir))` gives the $+x$ column; and recomputing `newUp = Cross(dir, right)` makes the $y$ and $z$ axes perpendicular, giving an orthonormal viewing frame. The inverse is obtained by matrix inversion and stored as the transform's inverse.
+
+```rust
+pub fn look_at(pos: Point3f, look: Point3f, up: Vec3) -> Transform {
+    let mut world_from_camera = Mat4::IDENTITY;
+
+    // Book notation m[i][j] maps to glam's m.row(i)[j] (glam is column-major).
+    // Fourth column: camera-space origin maps to the camera position.
+    world_from_camera[3][0] = pos.x;
+    world_from_camera[3][1] = pos.y;
+    world_from_camera[3][2] = pos.z;
+    world_from_camera[3][3] = 1.0;
+
+    // First three columns: right, up, viewing direction.
+    let dir = (look - pos).normalize();
+    let right = up.normalize().cross(dir).normalize();
+    let new_up = dir.cross(right);
+    for (c, v) in [right, new_up, dir].iter().enumerate() {
+        world_from_camera[c][0] = v.x;
+        world_from_camera[c][1] = v.y;
+        world_from_camera[c][2] = v.z;
+        world_from_camera[c][3] = 0.0;
+    }
+
+    let camera_from_world = world_from_camera.inverse();
+    Transform::with_inverse(camera_from_world, world_from_camera)
+}
+```
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`Cross()` p. 91 · `LookAt()` p. 129 · `Normalize()` p. 88 · `Point3f` p. 92 · `SquareMatrix` p. 1049 · `SquareMatrix::InvertOrExit()` p. 1051 · `Transform` p. 120 · `Vector3f` p. 86
+
+</details>
+
+## 3.10 Applying Transformations
+
+We can now define the routines that perform the matrix multiplications that transform points and vectors. The function application operator is overloaded for these transformations, so one can write:
+
+```rust
+let t: Transform = /* ... */;
+let p: Point3f = /* ... */;
+let p_new = t * p; // the book writes T(p)
+```
+
+### 3.10.1 Points
+
+The point transformation promotes $(x,y,z)$ to the homogeneous column vector $[x\;y\;z\;1]^T$, premultiplies by the matrix, and divides by $w$ to return to non-homogeneous form. For efficiency the division is skipped when $w=1$, which is the common case — only the projective transformations of Chapter 5 require it.
+
+```rust
+impl Transform {
+    pub fn transform_point<T: Float>(&self, p: Point3<T>) -> Point3<T> {
+        let (x, y, z) = (p.x, p.y, p.z);
+        let m = self.m;
+        // Book's m[i][j] == glam's m.row(i)[j].
+        let xp = m.row(0)[0]*x + m.row(0)[1]*y + m.row(0)[2]*z + m.row(0)[3];
+        let yp = m.row(1)[0]*x + m.row(1)[1]*y + m.row(1)[2]*z + m.row(1)[3];
+        let zp = m.row(2)[0]*x + m.row(2)[1]*y + m.row(2)[2]*z + m.row(2)[3];
+        let wp = m.row(3)[0]*x + m.row(3)[1]*y + m.row(3)[2]*z + m.row(3)[3];
+        let p = Point3::new(xp, yp, zp);
+        if wp == T::one() { p } else { p / wp }
+    }
+}
+```
+
+Every transformable type also has an `ApplyInverse()` method that applies the inverse transformation. It is more succinct and generally more efficient than calling `Inverse()` and then applying the result; the variants for the other types follow the same pattern and are not shown.
+
+```rust
+impl Transform {
+    pub fn apply_inverse_point<T: Float>(&self, p: Point3<T>) -> Point3<T> {
+        /* same computation with m_inv in place of m */
+        let _ = p;
+        unimplemented!()
+    }
+}
+```
+
+### 3.10.2 Vectors
+
+Vector transformation is similar, but the implicit homogeneous $w$ is zero, so the last column and the division disappear:
+
+```rust
+impl Transform {
+    pub fn transform_vector<T: Float>(&self, v: Vector3<T>) -> Vector3<T> {
+        let m = self.m;
+        Vector3::new(
+            m.row(0)[0]*v.x + m.row(0)[1]*v.y + m.row(0)[2]*v.z,
+            m.row(1)[0]*v.x + m.row(1)[1]*v.y + m.row(1)[2]*v.z,
+            m.row(2)[0]*v.x + m.row(2)[1]*v.y + m.row(2)[2]*v.z,
+        )
+    }
+}
+```
+
+### 3.10.3 Normals
+
+Normals do **not** transform like vectors (Figure 3.29). Tangent vectors at a surface transform in the straightforward way, but a normal is defined by orthogonality to those tangents. If $\mathbf n\cdot\mathbf t = \mathbf n^T\mathbf t = 0$, a point transformed by $M$ has tangent $\mathbf t' = M\mathbf t$, and we want a normal $\mathbf n' = S\mathbf n$ that is still orthogonal to it:
+
+$$
+\begin{aligned}
+0 &= (\mathbf n')^T\mathbf t' \\
+  &= (S\mathbf n)^T M\mathbf t \\
+  &= \mathbf n^T S^T M\,\mathbf t.
+\end{aligned}
+$$
+
+This holds for all tangents when $S^T M = I$, so $S^T = M^{-1}$ and
+
+$$
+S = (M^{-1})^T.
+$$
+
+Normals must therefore be transformed by the **inverse transpose** of the transformation matrix — one of the reasons `Transform` stores its inverse. The implementation does not explicitly form the transpose; it indexes the inverse matrix in a different order.
+
+```rust
+impl Transform {
+    pub fn transform_normal<T: Float>(&self, n: Normal3<T>) -> Normal3<T> {
+        let (x, y, z) = (n.x, n.y, n.z);
+        let i = self.m_inv;
+        // Indexing the inverse "transposed" gives (M⁻¹)ᵀ without forming it.
+        Normal3::new(
+            i.row(0)[0]*x + i.row(1)[0]*y + i.row(2)[0]*z,
+            i.row(0)[1]*x + i.row(1)[1]*y + i.row(2)[1]*z,
+            i.row(0)[2]*x + i.row(1)[2]*y + i.row(2)[2]*z,
+        )
+    }
+}
+```
+
+```mermaid
+flowchart LR
+    C1["(a) circle with normal n"] -->|"scale y by ½"| C2["(b) treating n as a vector: no longer perpendicular"]
+    C2 -->|"inverse transpose"| C3["(c) correctly transformed normal"]
+```
+
+*Figure 3.29: Transforming surface normals. (a) A circle with a normal at a point. (b) Scaling the circle to half height and scaling the normal as if it were a direction gives a normal no longer perpendicular to the surface. (c) A properly transformed normal.*
+
+> In WGSL the same rule applies: pass the inverse-transpose (or, for a rigid transform, reuse the model matrix) as a separate `mat3x3<f32>` uniform and transform normals with it.
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`Normal3` p. 94 · `RayDifferential` p. 96 · `Transform` p. 120 · `Transform::mInv` p. 120 · `Vector3f` p. 86
+
+</details>
+
+### 3.10.4 Rays
+
+Transforming a ray is conceptually straightforward: transform the origin and direction, copy the remaining data members. pbrt also provides the same for `RayDifferential`. Floating-point round-off introduces subtleties requiring a small adjustment to the transformed origin; that is handled by the `Offset ray origin to edge of error bounds and compute tMax` fragment of Section 6.8.6. The origin is first promoted to `Point3fi` (an interval-valued point) so the error bounds are available.
+
+```rust
+impl Transform {
+    pub fn transform_ray(&self, r: &Ray) -> Ray {
+        let o = self.transform_point_interval(Point3fi::from(r.o));
+        let d = self.transform_vector(r.d);
+        let (o, t_max) = offset_ray_origin(o, d); // Section 6.8.6
+        Ray::new(Point3f::from(o), d, r.time, r.medium)
+    }
+}
+```
+
+### 3.10.5 Bounding Boxes
+
+The easiest way to transform an AABB is to transform all eight corners and build a new box enclosing them. A more efficient technique is left as Exercise 3.1.
+
+```rust
+impl Transform {
+    pub fn transform_bounds(&self, b: Bounds3f) -> Bounds3f {
+        let mut bt = Bounds3f::default();
+        for i in 0..8 { bt = union_bounds(bt, self.transform_point(b.corner(i))); }
+        bt
+    }
+}
+```
+
+### 3.10.6 Composition of Transformations
+
+Now the real value of matrices becomes apparent. Given a series of transformations $ABC$, we want a single $T$ such that $A(B(C(p))) = T(p)$. It is obtained by multiplying the matrices: in Rust `let t = a * b * c;`, then `t * p` gives the same result as applying each transform in turn. Multiplying postmultiplies one transform by another; element $(i,j)$ of the product is the inner product of row $i$ of the first matrix with column $j$ of the second.
+
+The inverse of the product is `t2.m_inv * m_inv`, from the identity
+
+$$
+(AB)^{-1} = B^{-1}A^{-1}.
+$$
+
+```rust
+impl std::ops::Mul for Transform {
+    type Output = Transform;
+    fn mul(self, t2: Transform) -> Transform::Output {
+        Transform::with_inverse(self.m * t2.m, t2.m_inv * self.m_inv)
+    }
+}
+```
+
+### 3.10.7 Transformations and Coordinate System Handedness
+
+Some transformations change a left-handed system into a right-handed one or vice versa. Routines that want a normal always to point "outside" a surface may need to flip it after the transform. Handedness changes **only** when the determinant of the transformation's upper-left $3\times3$ submatrix is negative:
+
+```rust
+impl Transform {
+    pub fn swaps_handedness(&self) -> bool {
+        let m = self.m;
+        let s = Mat3::from_cols(
+            Vec3::new(m.row(0)[0], m.row(1)[0], m.row(2)[0]),
+            Vec3::new(m.row(0)[1], m.row(1)[1], m.row(2)[1]),
+            Vec3::new(m.row(0)[2], m.row(1)[2], m.row(2)[2]),
+        );
+        s.determinant() < 0.0
+    }
+}
+```
+
+### 3.10.8 Vector Frames
+
+It is often useful to define a rotation aligning three orthonormal vectors with the $x$, $y$, and $z$ axes; transforming directions into that space simplifies later computations. In pbrt, BSDF evaluation happens with the surface normal along $z$, enabling efficient functions like `CosTheta()` from Section 3.8.3. The `Frame` class represents such transforms efficiently: only a $3\times3$ matrix is needed, and no inverse is stored because for an orthonormal basis it is just the transpose.
+
+Given orthonormal $\mathbf x,\mathbf y,\mathbf z$, the transform into their space is
+
+$$
+F = \begin{pmatrix}
+x_x & x_y & x_z\\
+y_x & y_y & y_z\\
+z_x & z_y & z_z
+\end{pmatrix}
+= \begin{pmatrix}\mathbf x\\ \mathbf y\\ \mathbf z\end{pmatrix},
+$$
+
+stored as three `Vec3`s.
+
+```rust
+#[derive(Clone, Copy, Debug)]
+pub struct Frame { pub x: Vec3, pub y: Vec3, pub z: Vec3 }
+
+impl Frame {
+    pub const IDENTITY: Self = Self { x: Vec3::X, y: Vec3::Y, z: Vec3::Z };
+
+    pub fn from_xz(x: Vec3, z: Vec3) -> Self { Self { x, y: z.cross(x), z } }
+    pub fn from_xy(x: Vec3, y: Vec3) -> Self { Self { x, y, z: x.cross(y) } }
+    pub fn from_z(z: Vec3) -> Self {
+        let (mut x, mut y) = (Vec3::ZERO, Vec3::ZERO);
+        coordinate_system(z, &mut x, &mut y);
+        Self { x, y, z }
+    }
+
+    pub fn to_local(&self, v: Vec3) -> Vec3 {
+        Vec3::new(v.dot(self.x), v.dot(self.y), v.dot(self.z))
+    }
+    pub fn to_local_normal(&self, n: Normal3f) -> Normal3f {
+        // No inverse transpose needed: F is orthonormal, so it is its own inverse transpose.
+        Normal3f::new(n.dot(self.x), n.dot(self.y), n.dot(self.z))
+    }
+    pub fn from_local(&self, v: Vec3) -> Vec3 {
+        v.x * self.x + v.y * self.y + v.z * self.z
+    }
+}
+```
+
+Construction from a normal and from just the $x$ or $y$ vector is also available (not included here). `FromLocal()` transposes $F$ to find its inverse and expresses the result as a sum of three scaled columns. Surface normals transform as regular vectors here, for the reason noted above. A `Transform` constructor taking a `Frame` is provided for convenience (implementation omitted).
+
+```rust
+impl From<Frame> for Transform {
+    fn from(frame: Frame) -> Self { /* build the 4×4 matrix from frame.x/y/z */ Transform::identity() }
+}
+```
+
+*Figure 3.30: Spinning Spheres. Three spheres reflected in a mirror, spinning at different rates using pbrt's transformation animation code; the reflections are blurry as well as the spheres themselves. (The extracted page scan contained only an `art` placeholder for this rendered image, so no screenshot is retained here.)*
+
+### 3.10.9 Animating Transformations
+
+pbrt supports time-varying transformation matrices for cameras and geometric primitives. Instead of one transform, the user supplies keyframes with associated times, so the camera can move and objects can be in motion while the simulated shutter is open (Figure 3.30).
+
+Interpolating matrix elements directly usually works poorly, especially when a rotation is involved. pbrt therefore decomposes transforms into translations, rotations, and scales, interpolates each independently, and reassembles them. `AnimatedTransform` implements these algorithms; it is not in the printed book but the online edition documents it thoroughly. Its constructor takes two transforms and their times; because decomposition and recomposition are costly and an `AnimatedTransform` occupies roughly 400 bytes, it is worth avoiding when the two matrices are equal.
+
+```rust
+pub struct AnimatedTransform {
+    start_transform: Transform,
+    start_time: f32,
+    end_transform: Transform,
+    end_time: f32,
+}
+
+impl AnimatedTransform {
+    pub fn new(start_transform: Transform, start_time: f32,
+               end_transform: Transform, end_time: f32) -> Self { /* ... */ }
+
+    /// Returns the interpolated transform; outside the range, returns the closest keyframe.
+    pub fn interpolate(&self, time: f32) -> Transform { /* decompose → lerp → recompose */ }
+
+    pub fn transform_point(&self, p: Point3f, time: f32) -> Point3f { /* ... */ }
+    pub fn apply_inverse_point(&self, p: Point3f, time: f32) -> Point3f { /* ... */ }
+
+    /// Bounds the motion of a bounding box over the whole time range.
+    pub fn motion_bounds(&self, b: Bounds3f) -> Bounds3f { /* ... */ }
+}
+```
+
+`Interpolate()` clamps to the nearer keyframe outside the specified range. Types that store their own time, such as `Ray` and `Interaction`, pass it implicitly rather than as a separate argument. Applying transforms through `AnimatedTransform`'s methods is usually more efficient than calling `Interpolate()` and then a transform method, because the specialized methods can skip unneeded inverse computations. `MotionBounds()` is the other key method: taking the union of the box transformed at `startTime` and `endTime` is **not** sufficient to bound intermediate times, so it handles the tricky details of accurately bounding the motion.
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`Point3f` p. 92
+
+</details>
+
+## 3.11 Interactions
+
+The last abstractions in this chapter, `SurfaceInteraction` and `MediumInteraction`, represent local information at points on surfaces and in participating media. Ray–shape intersection routines in Chapter 6 return local differential geometry in a `SurfaceInteraction`; the texturing code in Chapter 10 computes material properties from it. `MediumInteraction` represents points where light interacts with media such as smoke or clouds. All of these are implemented in `interaction.h` and `interaction.cpp`.
+
+Both classes inherit from a generic `Interaction` that provides common members and methods, so parts of the system where the distinction does not matter can be written purely in terms of `Interaction`. A variety of constructors accept the information relevant to each kind of interaction; the most general is shown.
+
+```rust
+#[derive(Clone, Copy, Debug)]
+pub struct Interaction {
+    pub pi: Point3fi,
+    pub n: Normal3f,
+    pub uv: Point2f,
+    pub wo: Vec3,
+    pub time: f32,
+    pub medium_interface: Option<MediumInterface>,
+    pub medium: Option<Medium>,
+}
+
+impl Interaction {
+    pub fn new(pi: Point3fi, n: Normal3f, uv: Point2f, wo: Vec3, time: f32) -> Self {
+        Self { pi, n, uv, wo: wo.normalize(), time, medium_interface: None, medium: None }
+    }
+    pub fn p(&self) -> Point3f { Point3f::from(self.pi) }
+    pub fn is_surface_interaction(&self) -> bool { self.n != Normal3f::ZERO }
+    pub fn is_medium_interaction(&self) -> bool { !self.is_surface_interaction() }
+}
+```
+
+Every interaction has a point, stored as `Point3fi`: each coordinate is an `Interval` of floats rather than a single value, capturing bounds on numeric error when the point came from a ray intersection. This is useful for avoiding incorrect self-intersections of rays leaving surfaces (Section 6.8.6). `p()` returns an ordinary `Point3f` for code that does not need the error bounds, such as texture evaluation.
+
+Every interaction also has a **time**, needed among other things to set the time of a spawned ray. For interactions lying along a ray, `wo` stores the negative ray direction — $\omega_o$, the outgoing direction used in lighting calculations. For interactions without an outgoing direction (e.g. points sampled randomly on a surface), `wo` is $(0,0,0)$. For surface interactions, `n` is the surface normal and `uv` the parametric coordinates. These live in the base class even though they are surface-specific: some routines (e.g. sampling points on lights given a point to illuminate) mostly ignore the distinction and use these values when available, treating zero as "unavailable". The small dissonance of placing them here greatly simplifies that code.
+
+`IsSurfaceInteraction()` tests for a nonzero normal; cast methods such as `AsSurface()` perform a run-time `CHECK()` before the conversion. (Non-const variants and `AsMedium()` are analogous.) An interaction can also represent an interface between two participating media via `MediumInterface` (Section 11.4), or the medium at the point via `Medium`; both values are stored in `Interaction` for the same reasons of expediency.
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`Float` p. 23 · `Interaction` p. 136 · `Interaction::IsSurfaceInteraction()` p. 137 · `Interaction::n` p. 137 · `Normal3f` p. 94 · `Point2f` p. 92 · `Point3f` p. 92 · `Point3fi` p. 1061 · `Vector3f` p. 86 · `CHECK()` p. 1066 · `Medium` p. 714 · `MediumInterface` p. 715
+
+</details>
+
+### 3.11.1 Surface Interaction
+
+`SurfaceInteraction` represents the geometry at a point on a surface, usually found by intersecting a ray with it. Having this abstraction lets most of the system work with surface points without knowing the particular shape they lie on. In addition to $p$, $n$, and $(u,v)$ from `Interaction`, it stores the parametric partial derivatives $\partial p/\partial u$, $\partial p/\partial v$ and the normal derivatives $\partial n/\partial u$, $\partial n/\partial v$ (Figure 3.31).
+
+```rust
+pub struct SurfaceInteraction {
+    pub interaction: Interaction,
+    pub dpdu: Vec3,
+    pub dpdv: Vec3,
+    pub dndu: Normal3f,
+    pub dndv: Normal3f,
+    pub shading: Shading,
+    pub face_index: i32,
+}
+
+pub struct Shading {
+    pub n: Normal3f,
+    pub dpdu: Vec3,
+    pub dpdv: Vec3,
+    pub dndu: Normal3f,
+    pub dndv: Normal3f,
+}
+```
+
+```mermaid
+flowchart TD
+    N["normal n = (∂p/∂u) × (∂p/∂v)"] --- T["tangent plane"]
+    DU["∂p/∂u"] --- T
+    DV["∂p/∂v"] --- T
+    DNU["∂n/∂u"] -->|"differential change of n"| N
+    DNV["∂n/∂v"] -->|"differential change of n"| N
+```
+
+*Figure 3.31: Local differential geometry around $p$. The parametric partial derivatives lie in the tangent plane but need not be orthogonal. The normal is their cross product; $\partial n/\partial u$ and $\partial n/\partial v$ record how the normal changes as $u$ and $v$ vary.*
+
+This representation assumes shapes have a parametric description, $p = f(u,v)$ over some $(u,v)$ range. Not all mathematical shapes do, but all shapes pbrt supports have at least a local parametric description, and the assumption is useful elsewhere (e.g. texture antialiasing in Chapter 10). The constructor sets all values and computes the normal as $\mathbf n = \operatorname{Normalize}(\partial p/\partial u\times\partial p/\partial v)$.
+
+`SurfaceInteraction` also stores a second copy of the normal and derivatives in `shading`, representing perturbed values from bump mapping or interpolated per-vertex normals. Some parts of the system use the shading geometry, others the true geometry. The values are initialized to match the original geometry; `SetShadingGeometry()` updates them later.
+
+```rust
+impl SurfaceInteraction {
+    pub fn set_shading_geometry(
+        &mut self, ns: Normal3f, dpdus: Vec3, dpdvs: Vec3,
+        dndus: Normal3f, dndvs: Normal3f, orientation_is_authoritative: bool,
+    ) {
+        // Compute shading.n from the partials and FaceForward, then copy derivatives.
+        self.shading.n = ns;
+        if orientation_is_authoritative {
+            self.interaction.n = face_forward(self.interaction.n, self.shading.n);
+        } else {
+            self.shading.n = face_forward(self.shading.n, self.interaction.n);
+        }
+        self.shading.dpdu = dpdus;
+        self.shading.dpdv = dpdvs;
+        self.shading.dndu = dndus;
+        self.shading.dndv = dndvs;
+    }
+}
+```
+
+After computing an initial shading normal (with the same cross product and possible orientation flip), the implementation flips either the shading normal or the true geometric normal so the two lie in the same hemisphere — the shading normal is generally a small perturbation of the geometric one. `orientationIsAuthoritative` decides which one may be flipped, depending on which more reliably points "outside".
+
+The surface normal has special meaning in pbrt: for closed shapes it should point outward, and area lights emit only from the side the normal points toward (the other side is black). A `ReverseOrientation` directive flips it. In addition, if a shape's transform changes handedness from pbrt's default left-handed system to right-handed, the normal's orientation must be switched. To see why, consider $S(1,1,-1)$: one expects it to reverse the normal, but the cross product gives
+
+$$
+\begin{aligned}
+S(1,1,-1)\frac{\partial p}{\partial u}\times S(1,1,-1)\frac{\partial p}{\partial v}
+&= S(-1,-1,1)\left(\frac{\partial p}{\partial u}\times\frac{\partial p}{\partial v}\right) \\
+&= S(-1,-1,1)\,\mathbf n \\
+&\ne S(1,1,-1)\,\mathbf n.
+\end{aligned}
+$$
+
+The cross product therefore does not account for the flip, so the caller passes a `flipNormal` flag; when set, both the true and shading normals are negated. pbrt can also associate an integer index with each face of a polygon mesh for texture mapping, stored in `faceIndex` (a separate constructor accepts it).
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`Cross()` p. 91 · `Float` p. 23 · `Interaction` p. 136 · `Normal3f` p. 94 · `Normalize()` p. 88 · `Point2f` p. 92 · `Point3fi` p. 1061 · `SurfaceInteraction` p. 138 · `SurfaceInteraction::shading::*` p. 139 · `Vector3f` p. 86
+
+</details>
+
+### 3.11.2 Medium Interaction
+
+`MediumInteraction` represents an interaction at a point in a scattering medium such as smoke or clouds. It adds little to `Interaction`: only a `PhaseFunction`, which describes how the medium's particles scatter light (introduced in Section 11.3).
+
+```rust
+pub struct MediumInteraction {
+    pub interaction: Interaction,
+    pub phase: PhaseFunction,
+}
+
+impl MediumInteraction {
+    pub fn new(p: Point3f, wo: Vec3, time: f32, medium: Medium, phase: PhaseFunction) -> Self {
+        Self { interaction: Interaction { medium: Some(medium), ..Interaction::new(/* ... */) }, phase }
+    }
+}
+```
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`FaceForward()` p. 94 · `Float` p. 23 · `Interaction` p. 136 · `Interaction::n` p. 137 · `Medium` p. 714 · `MediumInteraction` p. 141 · `PhaseFunction` p. 710 · `Point3f` p. 92 · `SurfaceInteraction::shading::*` p. 139 · `Vector3f` p. 86
+
+</details>
+
+## Further Reading
+
+DeRose, Goldman, and their collaborators argued for an elegant "coordinate-free" approach to vector geometry for graphics, in which the fact that positions and directions happen to be represented by coordinates relative to a particular system is deemphasized and points and vectors themselves record which system they are expressed in (Goldman 1985; DeRose 1989; Mann, Litke, and DeRose 1997). A software layer can then transparently handle errors such as adding a vector in one coordinate system to a point in another by first transforming to a common system. Geisler et al. (2020) encoded coordinate systems using the programming language's type system. pbrt follows neither approach, but the principles are well worth keeping in mind. Schneider and Eberly's *Geometric Tools for Computer Graphics* (2003) is influenced by the coordinate-free approach, covers this chapter's topics in much greater depth, and is full of useful geometric algorithms. A classic, more traditional introduction is Rogers and Adams's *Mathematical Elements for Computer Graphics* (1990); note that it uses row vectors, so its matrices are transposed relative to ours and it writes $pM$ where we write $Mp$. Homogeneous coordinates were only briefly mentioned here, but they underlie projective geometry and many elegant algorithms; Stolfi (1991) is an excellent introduction.
+
+There are many good books on linear algebra and vector geometry: Lang (1986) and Buck (1978) are good references on these respective topics; Akenine-Möller et al. (2018) give a solid graphics-based introduction; and Ström et al.'s *Immersive Linear Algebra* (2020) is an excellent online book with interactive figures. Donnay (1945) is a concise but complete introduction to spherical trigonometry. The expression for the solid angle of a triangle in Equation (3.6) is due to Van Oosterom and Strackee (1983). An alternative vector-math-library design is the widely used Eigen system (Guennebaud, Jacob, and others 2010), which supports CPU SIMD instruction sets and makes extensive use of expression templates — a C++ technique for simplifying and optimizing vector and matrix expressions at compile time. (Rust's `nalgebra`/`glam` and shader languages take different approaches to the same trade-off.) The subtleties of normal-vector transformation became widely understood after Wallis (1990) and Turkowski (1990b). Cigolle et al. (2014) compared compact unit-vector encodings; `OctahedralVector` is due to Meyer et al. (2010), who also showed that 52 bits give precision equal to normalized `Vector3f`s (our implementation includes an improvement suggested by Cigolle et al.); the octahedral encoding itself was introduced by Praun and Hoppe (2003). The equal-area sphere mapping of Section 3.8.3 is due to Clarberg (2008), derived from the high-performance CPU SIMD implementation accompanying that paper; its square-to-hemisphere mapping comes from Shirley and Chiu (1997). `CoordinateSystem()` is based on Frisvad (2012), with the numerical reformulation derived concurrently by Duff et al. (2017) and Max (2017). `RotateFromTo()` was introduced by Möller and Hughes (1999), with a reflection-vector adjustment due to Hughes (2021). The numerically robust `AngleBetween()` is due to Hatch (2003). A tight bounding cone for multiple directions was given by Barequet and Elber (2005). The `AnimatedTransform` algorithms use the polar matrix decomposition of Shoemake and Duff (1992); see the online edition for further animation references.
+
+<details>
+<summary>Full reference list</summary>
+
+- Akenine-Möller, T., E. Haines, N. Hoffman, A. Peesce, M. Iwanicki, and S. Hillaire. 2018. *Real-Time Rendering* (4th ed.). CRC Press.
+- Arvo, J. 1990. Transforming axis-aligned bounding boxes. In *Graphics Gems I*, 548–50. Academic Press.
+- Barequet, G., and G. Elber. 2005. Optimal bounding cones of vectors in three dimensions. *Information Processing Letters* 93(2), 83–89.
+- Buck, R. C. 1978. *Advanced Calculus*. McGraw-Hill.
+- Cigolle, Z. H., et al. 2014. Survey of efficient representations for independent unit vectors. *JCGT* 3(2), 1–30.
+- Clarberg, P. 2008. Fast equal-area mapping of the (hemi)sphere using SIMD. *Journal of Graphics Tools* 13(3), 53–68.
+- DeRose, T. D. 1989. *A Coordinate-Free Approach to Geometric Programming*. SIGGRAPH course notes.
+- Donnay, J. D. H. 1945. *Spherical Trigonometry after the Cesàro Method*. Interscience.
+- Duff, T., et al. 2017. Building an orthonormal basis, revisited. *JCGT* 6(1), 1–8.
+- Frisvad, J. R. 2012. Building an orthonormal basis from a 3D unit vector without normalization. *Journal of Graphics Tools* 16(3), 151–159.
+- Geisler, D., et al. 2020. Geometry types for graphics programming. *PACMPL (OOPSLA 2020)* 4, 173:1–25.
+- Goldman, R. 1985. Illicit expressions in vector algebra. *ACM TOG* 4(3), 223–43.
+- Guennebaud, G., B. Jacob, and others. 2010. Eigen v3. http://eigen.tuxfamily.org.
+- Hatch, D. 2003. The right way to calculate stuff. http://www.plunk.org/~hatch/rightway.html.
+- Hughes, J. F. 2021. Personal communication.
+- Lang, S. 1986. *An Introduction to Linear Algebra*. Springer-Verlag.
+- Möller, T., and J. Hughes. 1999. Efficiently building a matrix to rotate one vector to another. *Journal of Graphics Tools* 4(4), 1–4.
+- Mann, S., N. Litke, and T. DeRose. 1997. A coordinate free geometry ADT. Research Report CS-97-15, University of Waterloo.
+- Max, N. 2017. Improved accuracy when building an orthonormal basis. *JCGT* 6(1), 9–16.
+- Meyer, Q., et al. 2010. On floating-point normal vectors. *EGSR 2010*, 1405–9.
+- Praun, E., and H. Hoppe. 2003. Spherical parameterization and remeshing. *ACM TOG* 22(3), 340–49.
+- Rogers, D. F., and J. A. Adams. 1990. *Mathematical Elements for Computer Graphics*. McGraw-Hill.
+- Schneider, P. J., and D. H. Eberly. 2003. *Geometric Tools for Computer Graphics*. Morgan Kaufmann.
+- Shirley, P., and K. Chiu. 1997. A low distortion map between disk and square. *Journal of Graphics Tools* 2(3), 45–52.
+- Shoemake, K., and T. Duff. 1992. Matrix animation and polar decomposition. *Graphics Interface 1992*.
+- Stolfi, J. 1991. *Oriented Projective Geometry*. Academic Press.
+- Ström, J., K. Åström, and T. Akenine-Möller. 2020. Immersive linear algebra. immersivemath.com.
+- Turkowski, K. 1990b. Properties of surface-normal transformations. In *Graphics Gems I*, 539–47. Academic Press.
+- Van Oosterom, A., and J. Strackee. 1983. The solid angle of a plane triangle. *IEEE TBME* BME-30(2), 125–26.
+- Wallis, B. 1990. Forms, vectors, and transforms. In *Graphics Gems I*, 533–38. Academic Press.
+
+</details>
+
+## Exercises
+
+**➊ 3.1** Find a more efficient way to transform axis-aligned bounding boxes by exploiting the problem's symmetries: the eight corners are linear combinations of three axis-aligned basis vectors and a single corner point, so their transformed bounding box can be computed more efficiently than by the method presented here (Arvo 1990).
+
+**➋ 3.2** Instead of boxes, tighter bounds around objects could be computed from the intersections of many nonorthogonal slabs. Extend pbrt's bounding-box representation so the user can specify a bound comprised of arbitrary slabs.
+
+**➋ 3.3** `DirectionCone::BoundSubtendedDirections()` bounds the directions a `Bounds3f` subtends from a reference point by first finding a bounding sphere and then bounding the directions it subtends. This is valid but not necessarily the smallest possible bound. Derive an improved algorithm acting directly on the box, update the implementation, and render scenes that use it (e.g. those using a `BVHLightSampler` to sample lights). How are running time and image quality affected? Can you find a scene where the change gives a significant benefit?
+
+**➊ 3.4** Change pbrt so that it transforms `Normal3f`s just like `Vector3f`s, and create a scene that gives a clearly incorrect image due to this bug. (Remember to revert the change when you are done!)
+
+<details>
+<summary>Book cross-references (original edition)</summary>
+
+`AnimatedTransform` p. 135 · `Bounds3f` p. 97 · `BVHLightSampler` p. 796 · `DirectionCone::BoundSubtendedDirections()` p. 115 · `Normal3f` p. 94 · `Vector3f` p. 86
+
+</details>
+
+## Footnotes
+
+<a id="fn1"></a> <sup>[1]</sup> This form of inheritance — the base class knowing its child's type — is often called the *curiously recurring template pattern* (CRTP) in C++.
+
+<a id="fn2"></a> <sup>[2]</sup> A tighter bound is possible in this case, but it occurs very rarely and so we have not bothered with handling it more effectively.
+
+---
+
+[↑ Back to top](#contents)
+
