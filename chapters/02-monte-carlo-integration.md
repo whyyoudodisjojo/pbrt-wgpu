@@ -15,11 +15,11 @@ flowchart LR
 
 Rendering is full of integration problems. In addition to the light transport equation (1.1), in the following chapters we will see that integral equations also describe a variety of additional quantities related to light, including the sensor response in a camera, the attenuation and scattering of light in participating media, and scattering from materials like skin. These integral equations generally do not have analytic solutions, so we must turn to numerical methods. Although standard numerical integration techniques like trapezoidal integration or Gaussian quadrature are effective at solving low-dimensional smooth integrals, their rate of convergence is poor for the higher dimensional and discontinuous integrals that are common in rendering. Monte Carlo integration techniques provide one solution to this problem. They use random sampling to evaluate integrals with a convergence rate that is independent of the dimensionality of the integrand.
 
-Monte Carlo integration1 has the useful property that it only requires the ability to evaluate an integrand f(x) at arbitrary points in the domain in order to estimate the value of its integral ∫ f(x) dx. This property not only makes Monte Carlo easy to implement but also makes the technique applicable to a broad variety of integrands. It has a natural extension to multidimensional functions; in Chapter 13, we will see that the light transport algorithm implemented in the RandomWalkIntegrator can be shown to be estimating the value of an infinite-dimensional integral.
+Monte Carlo integration1 has the useful property that it only requires the ability to evaluate an integrand f(x) at arbitrary points in the domain in order to estimate the value of its integral ∫ f(x) dx. This property not only makes Monte Carlo easy to implement but also makes the technique applicable to a broad variety of integrands. It has a natural extension to multidimensional functions; in Chapter 13, we will see that the light transport algorithm implemented in the `RandomWalkIntegrator` can be shown to be estimating the value of an infinite-dimensional integral.
 
 Judicious use of randomness has revolutionized the field of algorithm design. Randomized algorithms fall broadly into two classes: Las Vegas and Monte Carlo. Las Vegas algorithms are those that use randomness but always give the same result in the end (e.g., choosing a random array entry as the pivot element in Quicksort). Monte Carlo algorithms, on the other hand, give different results depending on the particular random numbers used along the way but give the right answer on average. So, by averaging the results of several runs of a Monte Carlo algorithm (on the same input), it is possible to find a result that is statistically very likely to be close to the true answer.
 
-RandomWalkIntegrator 33
+`RandomWalkIntegrator` 33
 
 The following sections discuss the basic principles of Monte Carlo integration, focusing on those that are widely used in pbrt. See also Appendix A, which has the implementations of additional Monte Carlo sampling functions that are more rarely used in the system.
 
@@ -49,11 +49,11 @@ For dependent random variables, one’s probability affects the other’s. Consi
 
 where p(Y|X) is the conditional probability of Y given a value of X.
 
-BVHLightSampler 796
+`BVHLightSampler` 796
 
 In the following, it will often be the case that a random variable’s probability is conditioned on many values; for example, when choosing a light source from which to sample illumination, the
 
-BVHLightSampler in Section 12.6.3 considers the 3D position of the receiving point and its surface normal, and so the choice of light is conditioned on them. However, we will often omit the variables that a random variable is conditioned on in cases where there are many of them and where enumerating them would obscure notation.
+`BVHLightSampler` in Section 12.6.3 considers the 3D position of the receiving point and its surface normal, and so the choice of light is conditioned on them. However, we will often omit the variables that a random variable is conditioned on in cases where there are many of them and where enumerating them would obscure notation.
 
 A particularly important random variable is the canonical uniform random variable, which we will write as ξ. This variable takes on all values in its domain [0, 1) independently and with uniform probability. This particular variable is important for two reasons. First, it is easy to generate a variable with this distribution in software—most runtime libraries have a pseudo-random number generator that does just that.2 Second, we can take the canonical uniform random variable ξ and map it to a discrete random variable, choosing Xi if
 
@@ -107,7 +107,7 @@ can be used to estimate the integral instead. The only limitation on p(x) is tha
 
 It is similarly not too hard to see that the expected value of this estimator is the desired integral of f:
 
-We can now understand the factor of 1/(4π) in the implementation of the RandomWalk Integrator: directions are uniformly sampled over the unit sphere, which has area 4π. Because the PDF is normalized over the sampling domain, it must have the constant value 1/(4π). When the estimator of Equation (2.7) is applied, that value appears in the divisor.
+We can now understand the factor of 1/(4π) in the implementation of the `RandomWalkIntegrator`: directions are uniformly sampled over the unit sphere, which has area 4π. Because the PDF is normalized over the sampling domain, it must have the constant value 1/(4π). When the estimator of Equation (2.7) is applied, that value appears in the divisor.
 
 With Monte Carlo, the number of samples n can be chosen arbitrarily, regardless of the dimensionality of the integrand. This is another important advantage of Monte Carlo over traditional deterministic quadrature techniques, which typically require a number of samples that is exponential in the dimension.
 
@@ -141,7 +141,7 @@ or one could use the biased estimator
 
 The first estimator is unbiased but has variance with order O(n−1). The second estimator’s expected value is
 
-so it is biased, although its variance is O(n−2), which is much better. This estimator has the useful property that its error goes to 0 in the limit as the number of samples n goes to infinity; such estimators are consistent.4 Most of the Monte Carlo estimators used in pbrt are unbiased, with the notable exception of the SPPMIntegrator, which implements a photon mapping algorithm.
+so it is biased, although its variance is O(n−2), which is much better. This estimator has the useful property that its error goes to 0 in the limit as the number of samples n goes to infinity; such estimators are consistent.4 Most of the Monte Carlo estimators used in pbrt are unbiased, with the notable exception of the `SPPMIntegrator`, which implements a photon mapping algorithm.
 
 Closely related to the variance is the mean squared error (MSE), which is defined as the expectation of the squared difference of an estimator and the true value,
 
@@ -155,7 +155,7 @@ The sample variance is itself an estimate of the variance, so it has variance it
 
 If an accurate estimate of the integral art can be computed (for example, using a large number of samples), then the mean squared error can be estimated by
 
-The imgtool utility program that is provided in pbrt’s distribution can compute an image’s MSE with respect to a reference image via its diff option.
+The `imgtool` utility program that is provided in pbrt’s distribution can compute an image’s MSE with respect to a reference image via its `diff` option.
 
 ## 2.2 IMPROVING EFFICIENCY
 
@@ -187,6 +187,7 @@ To compare this result to the variance without stratification, we note that choo
 
 where Q is the mean of f over the whole domain Λ.5
 
+![Figure 2.1](images/pages/page-0118.png)
 *Figure 2.1: Variance is higher and the image noisier (a) when independent random sampling is used than (b) when a stratified distribution of sample directions is used instead. (Bunny model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 There are two things to notice about Equation (2.12). First, we know that the right-hand sum must be nonnegative, since variance is always nonnegative. Second, it demonstrates that stratified sampling can never increase variance. Stratification always reduces variance unless the right-hand sum is exactly 0. It can only be 0 when the function f has the same mean over each stratum Λi. For stratified sampling to work best, we would like to maximize the right-hand sum, so it is best to make the strata have means that are as unequal as possible. This explains why compact strata are desirable if one does not know anything about the function f. If the strata are wide, they will contain more variation and will have μi closer to the true mean Q.
@@ -213,6 +214,7 @@ If samples are instead drawn from the piecewise-constant distribution
 
 which is plotted in Figure 2.2(b), and the estimator from Equation (2.7) is used instead, then variance is reduced by a factor of approximately 6.7×. A representative set of 6 points from this distribution is shown in Figure 2.2(c); we can see that most of the evaluations of f(x) are in the interesting region where it is not nearly zero.
 
+![Figure 2.2](images/pages/page-0120.png)
 *Figure 2.2: (a) A narrow Gaussian function that is close to zero over most of the range [0, 1]. The basic Monte Carlo estimator of Equation (2.6) has relatively high variance if it is used to integrate this function, since most samples have values that are close to zero. (b) A PDF that roughly approximates the function’s distribution. If this PDF is used to generate samples, variance is reduced substantially. (c) A representative distribution of samples generated according to (b).*
 
 Importance sampling can increase variance if a poorly chosen distribution is used, however. Consider instead using the distribution
@@ -251,18 +253,26 @@ With the balance heuristic and our example of taking a single sample from each o
 
 Each evaluation of f is divided by the sum of all PDFs for the corresponding sample rather than just the one that generated the sample. Thus, if pa generates a sample with low probability at a point where the pb has a higher probability, then dividing by pa(X) + pb(X) reduces the sample’s contribution. Effectively, such samples are downweighted when sampled from pa, recognizing that the sampling technique associated with pb is more effective at the corresponding point in the integration domain. As long as just one of the sampling techniques has a reasonable probability of sampling a point where the function’s value is large, the MIS weights can lead to a significant reduction in variance.
 
-BalanceHeuristic() computes Equation (2.14) for the specific case of two distributions pa and pb. We will not need a more general multidistribution case in pbrt.
+`BalanceHeuristic()` computes Equation (2.14) for the specific case of two distributions pa and pb. We will not need a more general multidistribution case in pbrt.
 
-〈Sampling Inline Functions〉 ≡ Float BalanceHeuristic(int nf, Float fPdf, int ng, Float gPdf) { return (nf * fPdf) / (nf * fPdf + ng * gPdf); }
+〈Sampling Inline Functions〉 ≡
+
+```text
+Float BalanceHeuristic(int nf, Float fPdf, int ng, Float gPdf) { return (nf * fPdf) / (nf * fPdf + ng * gPdf); }
+```
 
 In practice, the power heuristic often reduces variance even further. For an exponent β, the power heuristic is
 
 Note that the power heuristic has a similar form to the balance heuristic, though it further reduces the contribution of relatively low probabilities. Our implementation has β = 2 hard-coded in its implementation; that parameter value usually works well in practice.
 
-Float 23
-Sqr() 1034
+`Float` 23
+`Sqr()` 1034
 
-〈Sampling Inline Functions〉 +≡ Float PowerHeuristic(int nf, Float fPdf, int ng, Float gPdf) { Float f = nf * fPdf, g = ng * gPdf; return Sqr(f) / (Sqr(f) + Sqr(g)); }
+〈Sampling Inline Functions〉 +≡
+
+```text
+Float PowerHeuristic(int nf, Float fPdf, int ng, Float gPdf) { Float f = nf * fPdf, g = ng * gPdf; return Sqr(f) / (Sqr(f) + Sqr(g)); }
+```
 
 Multiple importance sampling can be applied even without sampling from all the distributions. This approach is known as the single sample model. We will not include the derivation here, but it can be shown that given an integrand f(x), if a sampling technique pi is chosen from a set of techniques with probability qi and a sample X is drawn from pi, then the single sample estimator
 
@@ -324,30 +334,38 @@ which can be interpreted graphically by stacking the bars of the PMF on top of e
 
 The sampling operation of Equation (2.2) can be expressed as finding i such that
 
+![Figure 2.3](images/pages/page-0126.png)
 *Figure 2.3: A PMF for Four Events, Each with a Probability pi. The sum of their probabilities ∑i pi is necessarily 1.*
 
+![Figure 2.4](images/pages/page-0126.png)
 *Figure 2.4: A Discrete CDF, Corresponding to the PMF in Figure 2.3. Each column’s height is given by the PMF for the event that it represents plus the sum of the PMFs for the previous events, art.*
 
 which can be interpreted as inverting the CDF P, and thus, the name of the technique. Continuing the graphical interpretation, this sampling operation can be considered in terms of projecting the events’ probabilities onto the vertical axis where they cover the range [0, 1] and using a random variable ξ to select among them (see Figure 2.5). It should be clear that this draws from the correct distribution—
 
 the probability of the uniform sample hitting any particular bar is exactly equal to the height of that bar.
 
-The SampleDiscrete() function implements this algorithm. It takes a not-necessarily normalized set of nonnegative weights, a uniform random sample u, and returns the index of one of the weights with probability proportional to its weight. The sampling operation it performs corresponds to finding i such that
+The `SampleDiscrete()` function implements this algorithm. It takes a not-necessarily normalized set of nonnegative weights, a uniform random sample u, and returns the index of one of the weights with probability proportional to its weight. The sampling operation it performs corresponds to finding i such that
 
 which corresponds to multiplying Equation (2.19) by ∑ wi. (Not requiring a normalized PMF is a convenience for calling code and not much more work in the function’s implementation.) Two optional parameters are provided to return the value of the PMF for the sample as well as a new uniform random sample that is derived from u.
 
-This function is designed for the case where only a single sample needs to be generated from the weights’ distribution; if multiple samples are required, the AliasTable, which will be introduced in Section A.1, should generally be used instead: it generates samples in O(1) time after an O(n) preprocessing step, whereas SampleDiscrete() requires O(n) time for each sample generated.
+This function is designed for the case where only a single sample needs to be generated from the weights’ distribution; if multiple samples are required, the `AliasTable`, which will be introduced in Section A.1, should generally be used instead: it generates samples in O(1) time after an O(n) preprocessing step, whereas `SampleDiscrete()` requires O(n) time for each sample generated.
 
-〈Sampling Inline Functions〉 +≡ int SampleDiscrete(pstd::span<const Float> weights, Float u, Float *pmf, Float *uRemapped) { 〈Handle empty weights for discrete sampling 71〉 〈Compute sum of weights 71〉 〈Compute rescaled u sample 71〉 〈Find offset in weights corresponding to u′ 71〉 〈Compute PMF and remapped u value, if necessary 71〉 return offset; }
+〈Sampling Inline Functions〉 +≡
 
-AliasTable 994
-Float 23
+```text
+int SampleDiscrete(pstd::span<const Float> weights, Float u, Float *pmf, Float *uRemapped) { 〈Handle empty weights for discrete sampling 71〉 〈Compute sum of weights 71〉 〈Compute rescaled u sample 71〉 〈Find offset in weights corresponding to u′ 71〉 〈Compute PMF and remapped u value, if necessary 71〉 return offset; }
+```
+
+`AliasTable` 994
+`Float` 23
 
 The case of weights being empty is handled first so that subsequent code can assume that there is at least one weight.
 
 〈Handle empty weights for discrete sampling〉 ≡ 70
 
+```text
 if (weights.empty()) { if (pmf) *pmf = 0; return -1; }
+```
 
 The discrete probability of sampling the ith element is given by weights[i] divided by the sum of all weight values. Therefore, the function computes that sum next.
 
@@ -388,9 +406,9 @@ After the while loop terminates, the randomness in the provided sample u has onl
 
 One might ask: why bother? It is not too difficult to generate uniform random variables, so the benefit of providing this option may seem marginal. However, for some of the high-quality sample generation algorithms in Chapter 8, it can be beneficial to reuse samples in this way rather than generating new ones—thus, this option is provided.
 
-Float 23
-NextFloatDown() 366
-OneMinusEpsilon 470
+`Float` 23
+`NextFloatDown()` 366
+`OneMinusEpsilon` 470
 
 〈Compute PMF and remapped u value, if necessary〉 ≡ 70
 
@@ -403,6 +421,7 @@ OneMinusEpsilon 470
    }
 ```
 
+![Figure 2.5](images/pages/page-0129.png)
 *Figure 2.5: To use the inversion method to draw a sample from the distribution described by the PMF in Figure 2.3, a canonical uniform random variable is plotted on the vertical axis. By construction, the horizontal extension of ξ will intersect the box representing the ith outcome with probability pi. If the corresponding event is chosen for a set of random variables ξ, then the resulting distribution of events will be distributed according to the PMF.*
 
 ### 2.3.2 CONTINUOUS CASE
@@ -419,13 +438,21 @@ We will illustrate this algorithm with a simple example; see Section A.4 for its
 
 Sampling a Linear Function The function f(x) = (1 − x)a + xb defined over [0, 1] linearly interpolates between a at x = 0 and b at x = 1. Here we will assume that a, b ≥ 0; an exercise at the end of the chapter discusses the more general case.
 
-〈Math Inline Functions〉 ≡ Float Lerp(Float x, Float a, Float b) { return (1 - x) * a + x * b; }
+〈Math Inline Functions〉 ≡
+
+```text
+Float Lerp(Float x, Float a, Float b) { return (1 - x) * a + x * b; }
+```
 
 The function’s integral is art, which gives the normalization constant 2/(a + b) to define its PDF,
 
-Float 23
+`Float` 23
 
-〈Sampling Inline Functions〉 +≡ Float LinearPDF(Float x, Float a, Float b) { if (x < 0 || x > 1) return 0; return 2 * Lerp(x, a, b) / (a + b); }
+〈Sampling Inline Functions〉 +≡
+
+```text
+Float LinearPDF(Float x, Float a, Float b) { if (x < 0 || x > 1) return 0; return 2 * Lerp(x, a, b) / (a + b); }
+```
 
 Integrating the PDF gives the CDF, which is the quadratic function
 
@@ -435,9 +462,13 @@ though note that in this form, the case a = b gives an indeterminate result. The
 
 computes the same result and is implemented here.
 
-〈Sampling Inline Functions〉 +≡ Float SampleLinear(Float u, Float a, Float b) { if (u == 0 && a == 0) return 0; Float x = u * (a + b) / (a + std::sqrt(Lerp(u, Sqr(a), Sqr(b)))); return std::min(x, OneMinusEpsilon); }
+〈Sampling Inline Functions〉 +≡
 
-One detail to note is the std::min call in the return statement, which ensures that the returned value is within the range [0, 1). Although the sampling algorithm generates values in that range given ξ ∈ [0, 1), round-off error may cause the result to be equal to 1. Because some of the code that calls the sampling routines depends on the returned values being in the specified range, the sampling routines must ensure this is so.
+```text
+Float SampleLinear(Float u, Float a, Float b) { if (u == 0 && a == 0) return 0; Float x = u * (a + b) / (a + std::sqrt(Lerp(u, Sqr(a), Sqr(b)))); return std::min(x, OneMinusEpsilon); }
+```
+
+One detail to note is the `std::min` call in the return statement, which ensures that the returned value is within the range [0, 1). Although the sampling algorithm generates values in that range given ξ ∈ [0, 1), round-off error may cause the result to be equal to 1. Because some of the code that calls the sampling routines depends on the returned values being in the specified range, the sampling routines must ensure this is so.
 
 In addition to providing functions that sample from a distribution and compute the PDF of a sample, pbrt usually also provides functions that invert sampling operations, returning the random sample ξ that corresponds to a value x. In the 1D case, this is equivalent to evaluating the CDF.
 
@@ -449,10 +480,10 @@ In addition to providing functions that sample from a distribution and compute t
    }
 ```
 
-Float 23
-Lerp() 72
-OneMinusEpsilon 470
-Sqr() 1034
+`Float` 23
+`Lerp()` 72
+`OneMinusEpsilon` 470
+`Sqr()` 1034
 
 ## 2.4 TRANSFORMING BETWEEN DISTRIBUTIONS
 
@@ -529,19 +560,27 @@ The bilinear function
 
 interpolates between four values wi at the four corners of [0, 1]2. (w0 is at (0, 0), w1 is at (1, 0), w2 at (0, 1), and w3 at (1, 1).) After integration and normalization, we can find that its PDF is
 
-〈Sampling Inline Functions〉 +≡ Float BilinearPDF(Point2f p, pstd::span<const Float> w) { if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) return 0; if (w[0] + w[1] + w[2] + w[3] == 0) return 1; return 4 * ((1 - p[0]) * (1 - p[1]) * w[0] + p[0] * (1 - p[1]) * w[1] + (1 - p[0]) * p[1] * w[2] + p[0] * p[1] * w[3]) / (w[0] + w[1] + w[2] + w[3]); }
+〈Sampling Inline Functions〉 +≡
+
+```text
+Float BilinearPDF(Point2f p, pstd::span<const Float> w) { if (p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1) return 0; if (w[0] + w[1] + w[2] + w[3] == 0) return 1; return 4 * ((1 - p[0]) * (1 - p[1]) * w[0] + p[0] * (1 - p[1]) * w[1] + (1 - p[0]) * p[1] * w[2] + p[0] * p[1] * w[3]) / (w[0] + w[1] + w[2] + w[3]); }
+```
 
 The two dimensions of this function are not independent, so the sampling method samples a marginal distribution before sampling the resulting conditional distribution.
 
-〈Sampling Inline Functions〉 +≡ Point2f SampleBilinear(Point2f u, pstd::span<const Float> w) { Point2f p; 〈Sample y for bilinear marginal distribution 77〉 〈Sample x for bilinear conditional distribution 77〉 return p; }
+〈Sampling Inline Functions〉 +≡
+
+```text
+Point2f SampleBilinear(Point2f u, pstd::span<const Float> w) { Point2f p; 〈Sample y for bilinear marginal distribution 77〉 〈Sample x for bilinear conditional distribution 77〉 return p; }
+```
 
 We can choose either x or y to be the marginal distribution. If we choose y and integrate out x, we find that
 
-Float 23
-Point2f 92
-SampleLinear() 73
+`Float` 23
+`Point2f` 92
+`SampleLinear()` 73
 
-p(y) performs linear interpolation between two constant values, and so we can use Sample Linear() to sample from the simplified proportional function since it normalizes the associated PDF.
+p(y) performs linear interpolation between two constant values, and so we can use `SampleLinear()` to sample from the simplified proportional function since it normalizes the associated PDF.
 
 〈Sample y for bilinear marginal distribution〉 ≡ 76
 
@@ -551,18 +590,21 @@ p(y) performs linear interpolation between two constant values, and so we can us
 
 Applying Equation (2.1) and again canceling out common factors, we have
 
-which can also be sampled in x using SampleLinear().
+which can also be sampled in x using `SampleLinear()`.
 
 〈Sample x for bilinear conditional distribution〉 ≡ 76
 
 ```rust
-   p.x = sample_linear(u[0], lerp(p.y, w[0], w[2]), lerp(p.y,
-   w[1], w[3]));
+   p.x = sample_linear(u[0], lerp(p.y, w[0], w[2]), lerp(p.y, w[1], w[3]));
 ```
 
 Because the bilinear sampling routine is based on the composition of two 1D linear sampling operations, it can be inverted by applying the inverses of those two operations in reverse order.
 
-〈Sampling Inline Functions〉 +≡ Point2f InvertBilinearSample(Point2f p, pstd::span<const Float> w) { return {InvertLinearSample(p.x, Lerp(p.y, w[0], w[2]), Lerp(p.y, w[1], w[3])), InvertLinearSample(p.y, w[0] + w[1], w[2] + w[3])}; }
+〈Sampling Inline Functions〉 +≡
+
+```text
+Point2f InvertBilinearSample(Point2f p, pstd::span<const Float> w) { return {InvertLinearSample(p.x, Lerp(p.y, w[0], w[2]), Lerp(p.y, w[1], w[3])), InvertLinearSample(p.y, w[0] + w[1], w[2] + w[3])}; }
+```
 
 See Section A.5 for further examples of multidimensional sampling algorithms, including techniques for sampling directions on the unit sphere and hemisphere, sampling unit disks, and other useful distributions for rendering.
 
@@ -574,17 +616,17 @@ Most of the functions of interest in rendering are nonnegative; applying importa
 
 Multiple importance sampling was developed by Veach and Guibas (Veach and Guibas 1995; Veach 1997). Normally, a predetermined number of samples are taken using each sampling technique; see Pajot et al. (2011) and Lu et al. (2013) for approaches to adaptively distributing the samples over strategies in an effort to reduce variance by choosing those that are the best match to the integrand. Grittmann et al. (2019) tracked the variance of each sampling technique and then dynamically adjusted the MIS weights accordingly. The MIS compensation approach was developed by Karlík et al. (2019).
 
-Float 23
-InvertLinearSample() 73
-Lerp() 72
-Point2f 92
-SampleLinear() 73
+`Float` 23
+`InvertLinearSample()` 73
+`Lerp()` 72
+`Point2f` 92
+`SampleLinear()` 73
 
 Sbert and collaborators (2016, 2017, 2018) have performed further variance analysis on MIS estimators and have developed improved methods based on allocating samples according to the variance and cost of each technique. Kondapaneni et al. (2019) considered the generalization of MIS to include negative weights and derived optimal estimators in that setting. West et al. (2020) considered the case where a continuum of sampling techniques are available and derived an optimal MIS estimator for that case, and Grittmann et al. (2021) have developed improved MIS estimators when correlation is present among samples (as is the case, for example, with bidirectional light transport algorithms).
 
 Heitz (2020) described an inversion-based sampling method that can be applied when CDF inversion of a 1D function is not possible. It is based on sampling from a second function that approximates the first and then using a second random variable to adjust the sample to match the original function’s distribution. An interesting alternative to manually deriving sampling techniques was described by Anderson et al. (2017), who developed a domain-specific language for sampling where probabilities are automatically computed, given the implementation of a sampling algorithm. They showed the effectiveness of their approach with succinct implementations of a number of tricky sampling techniques.
 
-The numerically stable sampling technique used in SampleLinear() is an application of Muller’s method (1956) due to Heitz (2020).
+The numerically stable sampling technique used in `SampleLinear()` is an application of Muller’s method (1956) due to Heitz (2020).
 
 In applications of Monte Carlo in graphics, the integrand is often a product of factors, where no sampling distribution is available that fits the full product. While multiple importance sampling can give reasonable results in this case, at least minimizing variance from ineffective sampling techniques, sampling the full product is still preferable. Talbot et al. (2005) applied importance resampling to this problem, taking multiple samples from some distribution and then choosing among them with probability proportional to the full integrand. More recently, Hart et al. (2020) presented a simple technique based on warping uniform samples that can be used to approximate product sampling. For more information on this topic, see also the “Further Reading” sections of Chapters 13 and 14, which discuss product sampling approaches in the context of specific light transport algorithms.
 
@@ -596,10 +638,10 @@ See also the “Further Reading” section in Appendix A, which has information 
 
 ## EXERCISES
 
- SampleLinear() 73
+ `SampleLinear()` 73
 
-➋ 2.1 Write a program that compares Monte Carlo and one or more alternative numerical integration techniques. Structure this program so that it is easy to replace the particular function being integrated. Verify that the different techniques compute the same result (given a sufficient number of samples for each of them). Modify your program so that it draws samples from distributions other than the uniform distribution for the Monte Carlo estimate, and verify that it still computes the correct result when the correct estimator, Equation (2.7), is used. (Make sure that any alternative distributions you use have nonzero probability of choosing any value of x where f (x) > 0.) ➊ 2.2 Write a program that computes unbiased Monte Carlo estimates of the integral of a given function. Compute an estimate of the variance of the estimates by performing a series of trials with successively more samples and computing the mean squared error for each one. Demonstrate numerically that variance decreases at a rate of O(n). ➋ 2.3 The algorithm for sampling the linear interpolation function in Section 2.3.2 implicitly assumes that a, b ≥ 0 and that thus f(x) ≥ 0. If f is negative, then the importance sampling PDF should be proportional to |f(x)|. Generalize Sample Linear() and the associated PDF and inversion functions to handle the case where f is always negative as well as the case where it crosses zero due to a and b having different signs.
+➋ 2.1 Write a program that compares Monte Carlo and one or more alternative numerical integration techniques. Structure this program so that it is easy to replace the particular function being integrated. Verify that the different techniques compute the same result (given a sufficient number of samples for each of them). Modify your program so that it draws samples from distributions other than the uniform distribution for the Monte Carlo estimate, and verify that it still computes the correct result when the correct estimator, Equation (2.7), is used. (Make sure that any alternative distributions you use have nonzero probability of choosing any value of x where f (x) > 0.) ➊ 2.2 Write a program that computes unbiased Monte Carlo estimates of the integral of a given function. Compute an estimate of the variance of the estimates by performing a series of trials with successively more samples and computing the mean squared error for each one. Demonstrate numerically that variance decreases at a rate of O(n). ➋ 2.3 The algorithm for sampling the linear interpolation function in Section 2.3.2 implicitly assumes that a, b ≥ 0 and that thus f(x) ≥ 0. If f is negative, then the importance sampling PDF should be proportional to |f(x)|. Generalize `SampleLinear()` and the associated PDF and inversion functions to handle the case where f is always negative as well as the case where it crosses zero due to a and b having different signs.
 
- SampleLinear() 73
+ `SampleLinear()` 73
 
 _________________ 1 For brevity, we will refer to Monte Carlo integration simply as “Monte Carlo.” 2 Although the theory of Monte Carlo is based on using truly random numbers, in practice a well-written pseudo-random number generator (PRNG) is sufficient. pbrt uses a particularly high-quality PRNG that returns a sequence of pseudo-random values that is effectively as “random” as true random numbers. True random numbers, found by measuring random phenomena like atomic decay or atmospheric noise, are available from sources like www.random.org for those for whom PRNGs are not acceptable. 3 When computing expected values with a uniform distribution, we will drop the subscript p from Ep. 4 As a technical note, it is possible for an estimator with infinite variance to be unbiased but not consistent. Such estimators do not generally come up in rendering, however. 5 See Veach (1997) for a derivation of this result. 6 We will generally assume that f(x) ≥ 0; if it is negative, we might set p(x) ∝ |f(x)|. See the “Further Reading” section for more discussion of this topic. 7 Note that the definition of variance in Equation (2.8) does not preclude computing the variance of a function itself. 8 In general, the lower limit of integration should be −∞, although if p(x) = 0 for x < 0, this equation is equivalent.

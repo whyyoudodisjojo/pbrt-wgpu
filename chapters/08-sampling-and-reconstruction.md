@@ -14,7 +14,7 @@ Although the final output of a renderer is generally a 2D grid of colored pixels
 
 This chapter starts by introducing sampling theory—the theory of taking discrete sample values from functions defined over continuous domains and then using those samples to reconstruct new functions that are similar to the original. In pbrt, integration is more often the goal than reconstruction is, though we will see that Fourier analysis—the foundation of sampling theory—also provides insight about error in Monte Carlo integration. We discuss those connections as well as other approaches for evaluating the quality of sampling algorithms in the second section of this chapter.
 
-With these ideas in hand, the implementations of six Samplers make up the bulk of this chapter. They span a wide variety of approaches to the sampling problem. The chapter concludes with the Filter class, which determines how multiple samples near each pixel are blended together to compute the final pixel value. Both of pbrt’s Film implementations use these filters to accumulate image sample contributions into pixels of images.
+With these ideas in hand, the implementations of six Samplers make up the bulk of this chapter. They span a wide variety of approaches to the sampling problem. The chapter concludes with the `Filter` class, which determines how multiple samples near each pixel are blended together to compute the final pixel value. Both of pbrt’s `Film` implementations use these filters to accumulate image sample contributions into pixels of images.
 
 ## 8.1 SAMPLING THEORY
 
@@ -38,9 +38,11 @@ One of the foundations of Fourier analysis is the Fourier transform, which repre
 
 ![Figure 8.1](images/img-696-092.png)
 
+
 *Figure 8.1: (a) By taking a set of point samples of f (x) (indicated by dots), we determine the value of the function at those positions. (b) The sample values can be used to reconstruct a function that is an approximation to f (x). The sampling theorem, introduced in Section 8.1.3, makes a precise statement about the conditions on f (x), the number of samples taken, and the reconstruction technique used under which is exactly the same as f (x). The fact that the original function can sometimes be reconstructed exactly from point samples alone is remarkable.*
 
 ![Figure 8.2](images/img-696-093.png)
+
 
 *Figure 8.2: (a) Low-frequency function and (b) high-frequency function. Roughly speaking, the higher frequency a function is, the more quickly it varies over a given region.*
 
@@ -51,6 +53,7 @@ Most functions can be decomposed into a weighted sum of shifted sinusoids. This 
 insight into the error that is introduced by the sampling and reconstruction process and how to reduce the perceptual impact of this error.
 
 ![Figure 8.3](images/img-697-094.png)
+
 
 *Figure 8.3: Frequency Space Representations of the Functions in Figure 8.2. The graphs show the contribution of each frequency ω to each of the functions in the spatial domain.*
 
@@ -77,6 +80,7 @@ The delta distribution cannot be expressed as a standard mathematical function, 
 
 ![Figure 8.4](images/img-698-095.png)
 
+
 *Figure 8.4: Formalizing the Sampling Process. (a) The function f (x) is multiplied by (b) the shah function , giving (c) an infinite sequence of scaled delta functions that represent its value at each sample point.*
 
 ### 8.1.2 IDEAL SAMPLING AND RECONSTRUCTION
@@ -90,6 +94,7 @@ These sample values can be used to define a reconstructed function by choosing a
 where the convolution operation ⊗ is defined as
 
 ![Figure 8.5](images/img-699-096.png)
+
 
 *Figure 8.5: The sum of instances of the triangle reconstruction filter, shown with dashed lines, gives the reconstructed approximation to the original function, shown with a solid line.*
 
@@ -109,9 +114,11 @@ We also know the spectrum of the shah function from Table 8.1; the Fourier trans
 
 ![Figure 8.6](images/img-700-097.png)
 
+
 *Figure 8.6: The Convolution of F (ω) and the Shah Function. The result is infinitely many copies of F.*
 
 ![Figure 8.7](images/img-700-098.png)
+
 
 *Figure 8.7: Multiplying (a) a series of copies of F (ω) by (b) the appropriate box function yields (c) the original spectrum.*
 
@@ -145,9 +152,11 @@ Because the copies are added together, the resulting spectrum no longer looks li
 
 ![Figure 8.8](images/img-702-099.png)
 
+
 *Figure 8.8: (a) When the sampling rate is too low, the copies of the function’s spectrum overlap, resulting in (b) aliasing when reconstruction is performed.*
 
 ![Figure 8.9](images/img-703-100.png)
+
 
 *Figure 8.9: Aliasing from Point Sampling the Function 1 + cos(4πx2). (a) The function. (b) The reconstructed function from sampling it with samples spaced 0.125 units apart and performing perfect reconstruction with the sinc filter. Aliasing causes the high-frequency information in the original function to be lost and to reappear as lower-frequency error.*
 
@@ -185,6 +194,7 @@ In this case, the range of continuous coordinates for the discrete range [x0, x1
 
 ![Figure 8.10](images/img-704-101.png)
 
+
 *Figure 8.10: Pixels in an image can be addressed with either discrete or continuous coordinates. A discrete image five pixels wide covers the continuous pixel range [0, 5). A particular discrete pixel d’s coordinate in the continuous representation is d + 1/2.*
 
 ### 8.1.5 SAMPLING AND ALIASING IN RENDERING
@@ -193,11 +203,12 @@ The application of the principles of sampling theory to the 2D case of sampling 
 
 Even more generally, because the integrators defined in Chapters 13 through 15 use Monte Carlo integration to estimate the radiance along a given ray, they may return a different radiance value when repeatedly given the same ray. If we further extend the scene radiance function to include sample values used by the integrator (e.g., values used to choose points on area light sources for illumination computations), we have an even higher-dimensional image function
 
-Sampling all of these dimensions well is an important part of generating high-quality imagery efficiently. For example, if we ensure that nearby (x, y) positions on the image tend to have dissimilar (u, v) positions on the lens, the resulting rendered images will have less error because each sample is more likely to account for information about the scene that its neighboring samples do not. The Sampler class implementations later in this chapter will address the issue of sampling all of these dimensions effectively.
+Sampling all of these dimensions well is an important part of generating high-quality imagery efficiently. For example, if we ensure that nearby (x, y) positions on the image tend to have dissimilar (u, v) positions on the lens, the resulting rendered images will have less error because each sample is more likely to account for information about the scene that its neighboring samples do not. The `Sampler` class implementations later in this chapter will address the issue of sampling all of these dimensions effectively.
 
 Sources of Aliasing
 
 ![Figure 8.11](images/img-705-102.png)
+
 
 *Figure 8.11: Illustration of the Gibbs Phenomenon. When a function has not been sampled at the Nyquist rate and the set of aliased samples is reconstructed with the sinc filter, the reconstructed function will have “ringing” artifacts, where it oscillates around the true function. Here a 1D step function (dashed line) has been sampled with a sample spacing of 0.125. When reconstructed with the sinc, the ringing appears (solid line).*
 
@@ -223,6 +234,7 @@ Recall that we would like to multiply the original function’s spectrum with a 
 
 ![Figure 8.12](images/img-707-103.png)
 
+
 *Figure 8.12: Graph of the function 1 + cos(4πx2) convolved with a filter that removes frequencies beyond the Nyquist limit for a sampling rate of T = 0.125. High-frequency detail has been removed from the function, so that the new function can at least be sampled and reconstructed without aliasing.*
 
 *Figure 8.12 shows the function 1 + cos(4πx2) convolved with a variant of the sinc with finite extent that will be introduced in Section 8.8. Note that the high-frequency details have been eliminated; this function can be sampled and reconstructed at the sampling rate used in Figure 8.9 without aliasing.*
@@ -239,6 +251,7 @@ In some cases, the PSD of a sampling pattern can be derived analytically: doing 
 
 ![Figure 8.13](images/img-708-104.png)
 
+
 *Figure 8.13: Graph of the PSD of jittered samples with T = 1, as given by Equation (8.7).*
 
 The ideal sampling pattern’s PSD would have a single delta distribution spike at the origin and be zero everywhere else: in that case, sampling would exactly replicate Pf. Unfortunately, such a sampling pattern would require an infinite sampling density. (This can be understood by considering the inverse Fourier transform of S(ω) = δ(ω), which is a constant function.) The PSD makes it possible to analyze the effects of stochastic sampling. One way to do so is through jittering, which adds uniform random offsets to regularly spaced sample points. With a uniform random number ξ between 0 and 1, a random set of samples based on the impulse train is
@@ -250,6 +263,7 @@ This function is graphed in Figure 8.13. Note that there is a spike at the origi
 We can use the PSD to compare the effect of undersampling a function in two different ways: using regularly spaced samples and using jittered samples. Figure 8.14(a) shows the frequency space representation of a function with energy in frequencies |ω| > 1/2, which is the maximum frequency content that can be perfectly reconstructed with regular sampling with T = 1. Figure 8.14(b) then shows the result of convolving the function’s PSD with regular samples and Figure 8.14(c) shows the result with jittered samples.
 
 ![Figure 8.14](images/img-709-105.png)
+
 
 *Figure 8.14: The Effect of Jittered Sampling on Aliasing. (a) The power spectral density of a function that cannot be perfectly reconstructed with regularly spaced samples at a rate T = 1. (b) The PSD from sampling the function with a shah function with T = 1 (red), which is given by the convolution of their PSDs. The original function is shown in blue and the extent of the ideal reconstruction filter is shown with dashed lines. (c) The PSD from jittered sampling (red), which is given by convolving Pf with Equation (8.7). (The original function is again in blue and the perfect reconstruction filter is indicated by the dashed box.)*
 
@@ -271,6 +285,7 @@ We will occasionally find precomputed 2D tables of values that have blue noise c
 
 ![Figure 8.15](images/img-710-106.png)
 
+
 *Figure 8.15: 256 × 256 pixels with (a) values distributed with white noise characteristics, and (b) with blue noise. (Blue noise table courtesy of Christoph Peters.)*
 
 ## 8.2 SAMPLING AND INTEGRATION
@@ -279,7 +294,7 @@ The lighting integration algorithms used throughout pbrt are based on Monte Carl
 
 and both Fourier analysis and other approaches to analyzing point-sampling algorithms, however. For example, jittered sampling is a form of stratified sampling, a variance reduction technique that was introduced in Section 2.2.1. Thus, we can see that jittered sampling is advantageous from both perspectives.
 
-Given multiple perspectives on the problem, one might ask, what is the best sampling approach to use for Monte Carlo integration? There is no easy answer to this question, which is reflected by the fact that this chapter presents a total of 6 classes that implement the upcoming Sampler interface to generate sample points, though a number of them offer a few variations of an underlying sampling approach, giving a total of 17 different techniques.
+Given multiple perspectives on the problem, one might ask, what is the best sampling approach to use for Monte Carlo integration? There is no easy answer to this question, which is reflected by the fact that this chapter presents a total of 6 classes that implement the upcoming `Sampler` interface to generate sample points, though a number of them offer a few variations of an underlying sampling approach, giving a total of 17 different techniques.
 
 Although some of this variety is for pedagogy, it is largely due to the fact that the question of which sampling technique is best is not easily answered. Not only do the various mathematical approaches to analyzing sampling techniques often disagree, but another difficulty comes from the human visual system: rendered images are generally for human consumption and most mathematical approaches for evaluating sampling patterns do not account for this fact. Later in this chapter, we will see that sampling patterns that lead to errors in the image having blue noise characteristics are visually preferable, yet may not have any lower numeric error than those that do not. Thus, pbrt provides a variety of options, allowing the user to make their own choice among them.
 
@@ -336,6 +351,7 @@ An insight that directly follows from Equation (8.12) is that with uniform rando
 
 ![Figure 8.16](images/img-714-107.png)
 
+
 *Figure 8.16: 256 sample points distributed using (a) a jittered distribution, and (b) a Poisson disk distribution. Poisson disk point sets combine some randomness in the locations of the points with some structure from no two of them being too close together.*
 
 which is the same variance of the Monte Carlo estimator that was derived earlier using different means in Section 2.1.4. More generally, if the PSD for a sampling technique can be asymptotically bounded, it can be shown that the technique exhibits a higher rate of variance reduction given a suitable function being integrated. One example is that in 2D, a jittered sampling pattern can achieve O(n−2) variance, given a smooth integrand.
@@ -348,9 +364,11 @@ Radially averaged plots of the distribution of energy in these PSDs, however, ma
 
 ![Figure 8.17](images/img-715-108.png)
 
+
 *Figure 8.17: PSDs of (a) jittered and (b) Poisson disk–distributed sample points. The origin with the central spike is at the center of each image.*
 
 ![Figure 8.18](images/img-715-109.png)
+
 
 *Figure 8.18: Radially averaged PSDs of (a) jittered and (b) Poisson disk–distributed sample points.*
 
@@ -363,6 +381,7 @@ Outside of Fourier analysis, another useful approach for evaluating the quality 
 In discussing the discrepancy of sample points, we will draw a distinction between sample sets, which are a specific number of points, and sample sequences, which are defined by an algorithm that can generate an arbitrary number of points. For a fixed number of samples, it is generally possible to distribute points in a sample set slightly better than the same number of points in a sample sequence. However, sequences can be especially useful with adaptive sampling algorithms, thanks to their flexibility in the number of points they generate.
 
 ![Figure 8.19](images/img-716-110.png)
+
 
 *Figure 8.19: The discrepancy of a box (shaded) given a set of 2D sample points in [0, 1)2. One of the four sample points is inside the box, so this set of points would estimate the box’s area to be 1/4. The true area of the box is 0.3 × 0.3 = .09, so the discrepancy for this particular box is .25 − .09 = .16. In general, we are interested in finding the maximum discrepancy of all possible boxes (or some other shape).*
 
@@ -410,7 +429,7 @@ Given the definition of low discrepancy from Equation (8.15), we can see from th
 
 However, because QMC integration is deterministic, it is not possible to use variance as a measure of an estimator’s quality, though of course one can still compute the mean squared error. Alternatively, the sample points can be randomized using approaches that are carefully designed not to harm their discrepancy. We will see later in the chapter that randomization can even lead to improved rates of convergence. Such approaches are randomized quasi–Monte Carlo (RQMC) methods and again allow the use of variance. RQMC is the foundation of most of pbrt’s Monte Carlo integration algorithms.
 
-In most of this text, we have glossed over the differences between Monte Carlo, QMC, and RQMC, and have localized the choice among them in the Samplers in this chapter. Doing so introduces the possibility of subtle errors if a Sampler generates quasi-random sample points that an Integrator then improperly uses as part of an implementation of an algorithm that is not suitable for quasi Monte Carlo, though none of the integrators described in the text do so.
+In most of this text, we have glossed over the differences between Monte Carlo, QMC, and RQMC, and have localized the choice among them in the Samplers in this chapter. Doing so introduces the possibility of subtle errors if a `Sampler` generates quasi-random sample points that an `Integrator` then improperly uses as part of an implementation of an algorithm that is not suitable for quasi Monte Carlo, though none of the integrators described in the text do so.
 
 ## 8.3 SAMPLING INTERFACE
 
@@ -419,23 +438,25 @@ In most of this text, we have glossed over the differences between Monte Carlo, 
     Sampler 469
 ```
 
-pbrt’s Sampler interface makes it possible to use a variety of sample generation algorithms for rendering. The sample points that they provide are used by pbrt’s Integrators in a multitude of ways, ranging from determining points on the image plane from which camera rays originate to selecting which light source to trace a shadow ray to and at which point on it the shadow ray should terminate.
+pbrt’s `Sampler` interface makes it possible to use a variety of sample generation algorithms for rendering. The sample points that they provide are used by pbrt’s Integrators in a multitude of ways, ranging from determining points on the image plane from which camera rays originate to selecting which light source to trace a shadow ray to and at which point on it the shadow ray should terminate.
 
 As we will see in the following sections, the benefits of carefully crafted sampling patterns are not just theoretical; they can substantially improve the quality of rendered images. The runtime expense for using good sampling algorithms is relatively small; because evaluating the radiance for each image sample is much more expensive than computing the sample’s component values, doing this work pays dividends (Figure 8.20).
 
 ![Figure 8.20](images/img-720-111.png)
 
+
 *Figure 8.20: Scene rendered with (a) a relatively ineffective sampler and (b) a carefully designed sampler, using the same number of samples for each. The improvement in image quality, ranging from the shadow on the floor to the quality of the glossy reflections, is noticeable. Both images are rendered with 8 samples per pixel. (Killeroo model courtesy of headus/Rezard.)*
 
 ![Figure 8.21](images/img-720-112.png)
 
+
 *Figure 8.21: Samplers generate a d-dimensional sample point for each of the image samples taken to generate the final image. Here, the pixel (3, 8) is being sampled, and there are two image samples in the pixel area. The first two dimensions of the sample give the (x, y) offset of the sample within the pixel, and the next three dimensions determine the time and lens position of the corresponding camera ray. Subsequent dimensions are used by the Monte Carlo light transport algorithms implemented in pbrt’s Integrators.*
 
-The task of a Sampler is to generate uniform d-dimensional sample points, where each coordinate’s value is in the range [0, 1). The total number of dimensions in each point is not set ahead of time; Samplers must generate additional dimensions on demand, depending on the number of dimensions required for the calculations performed by the light transport algorithms. (See Figure 8.21.) While this design makes implementing a Sampler slightly more complex than if its task was to generate all the dimensions of each sample point up front, it is more convenient for integrators, which end up needing a different number of dimensions depending on the particular path they follow through the scene.
+The task of a `Sampler` is to generate uniform d-dimensional sample points, where each coordinate’s value is in the range [0, 1). The total number of dimensions in each point is not set ahead of time; Samplers must generate additional dimensions on demand, depending on the number of dimensions required for the calculations performed by the light transport algorithms. (See Figure 8.21.) While this design makes implementing a `Sampler` slightly more complex than if its task was to generate all the dimensions of each sample point up front, it is more convenient for integrators, which end up needing a different number of dimensions depending on the particular path they follow through the scene.
 
 〈Sampler Definition〉 ≡ class Sampler : public TaggedPointer< 〈Sampler Types 469〉 > { public: 〈Sampler Interface 469〉 };
 
-All the samplers save for MLTSampler are defined in this chapter; that one is used solely by the MLTIntegrator, which is described in the online version of the book.
+All the samplers save for `MLTSampler` are defined in this chapter; that one is used solely by the `MLTIntegrator`, which is described in the online version of the book.
 
 〈Sampler Types〉 ≡ 469
 
@@ -444,7 +465,7 @@ All the samplers save for MLTSampler are defined in this chapter; that one is us
    SobolSampler, ZSobolSampler, MLTSampler
 ```
 
-Sampler implementations specify the number of samples to be taken in each pixel and return this value via SamplesPerPixel(). Most samplers already store this value as a member variable and return it directly in their implementations of this method. We will usually not include the straightforward implementations of this method in the text.
+`Sampler` implementations specify the number of samples to be taken in each pixel and return this value via `SamplesPerPixel()`. Most samplers already store this value as a member variable and return it directly in their implementations of this method. We will usually not include the straightforward implementations of this method in the text.
 
 〈Sampler Interface〉 ≡ 469
 
@@ -452,9 +473,9 @@ Sampler implementations specify the number of samples to be taken in each pixel 
    int SamplesPerPixel() const;
 ```
 
-When an Integrator is ready to start work on a given pixel sample, it starts by calling StartPixelSample(), providing the coordinates of the pixel in the image and the index of the sample within the pixel. (The index should be greater than or equal to zero and less than the value returned by SamplesPerPixel().) The Integrator may also provide a starting dimension at which sample generation should begin.
+When an `Integrator` is ready to start work on a given pixel sample, it starts by calling `StartPixelSample()`, providing the coordinates of the pixel in the image and the index of the sample within the pixel. (The index should be greater than or equal to zero and less than the value returned by `SamplesPerPixel()`.) The `Integrator` may also provide a starting dimension at which sample generation should begin.
 
-This method serves two purposes. First, some Sampler implementations use the knowledge of which pixel is being sampled to improve the overall distribution of the samples that they generate—for example, by ensuring that adjacent pixels do not take two samples that are close together. Attending to this detail, while it may seem minor, can substantially improve image quality.
+This method serves two purposes. First, some `Sampler` implementations use the knowledge of which pixel is being sampled to improve the overall distribution of the samples that they generate—for example, by ensuring that adjacent pixels do not take two samples that are close together. Attending to this detail, while it may seem minor, can substantially improve image quality.
 
 Second, this method allows samplers to put themselves in a deterministic state before generating each sample point. Doing so is an important part of making pbrt’s operation deterministic, which in turn is crucial for debugging. It is expected that all samplers will be implemented so that they generate precisely the same sample coordinate values for a given pixel and sample index across multiple runs of
 
@@ -466,7 +487,7 @@ the renderer. This way, for example, if pbrt crashes in the middle of a lengthy 
    void StartPixelSample(Point2i p, int sampleIndex, int dimension = 0);
 ```
 
-Integrators can request dimensions of the d-dimensional sample point one or two at a time, via the Get1D() and Get2D() methods. While a 2D sample value could be constructed by using values returned by a pair of calls to Get1D(), some samplers can generate better point distributions if they know that two dimensions will be used together. However, the interface does not support requests for 3D or higher-dimensional sample values from samplers because these are generally not needed for the types of rendering algorithms implemented here. In that case, multiple values from lower-dimensional components can be used to construct higher-dimensional sample points.
+Integrators can request dimensions of the d-dimensional sample point one or two at a time, via the `Get1D()` and `Get2D()` methods. While a 2D sample value could be constructed by using values returned by a pair of calls to `Get1D()`, some samplers can generate better point distributions if they know that two dimensions will be used together. However, the interface does not support requests for 3D or higher-dimensional sample values from samplers because these are generally not needed for the types of rendering algorithms implemented here. In that case, multiple values from lower-dimensional components can be used to construct higher-dimensional sample points.
 
 ```text
     HaltonSampler 485
@@ -486,7 +507,7 @@ Integrators can request dimensions of the d-dimensional sample point one or two 
    Point2f Get2D();
 ```
 
-A separate method, GetPixel2D(), is called to retrieve the 2D sample used to determine the point on the film plane that is sampled. Some of the following Sampler implementations handle those dimensions of the sample differently from the way they handle 2D samples in other dimensions; other Samplers implement this method by calling their Get2D() methods.
+A separate method, `GetPixel2D()`, is called to retrieve the 2D sample used to determine the point on the film plane that is sampled. Some of the following `Sampler` implementations handle those dimensions of the sample differently from the way they handle 2D samples in other dimensions; other Samplers implement this method by calling their `Get2D()` methods.
 
 〈Sampler Interface〉 +≡ 469
 
@@ -494,7 +515,7 @@ A separate method, GetPixel2D(), is called to retrieve the 2D sample used to det
    Point2f GetPixel2D();
 ```
 
-Because each sample coordinate must be strictly less than 1, it is useful to define a constant, OneMinusEpsilon, that represents the largest representable floating-point value that is less than 1. Later, the Sampler implementations will sometimes clamp sample values to be no larger than this.
+Because each sample coordinate must be strictly less than 1, it is useful to define a constant, `OneMinusEpsilon`, that represents the largest representable floating-point value that is less than 1. Later, the `Sampler` implementations will sometimes clamp sample values to be no larger than this.
 
 〈Floating-point Constants〉 +≡ static constexpr double DoubleOneMinusEpsilon = 0x1.fffffffffffffp-1; static constexpr float FloatOneMinusEpsilon = 0x1.fffffep-1;
 
@@ -534,7 +555,7 @@ Like many of the following samplers, IndependentSampler takes a seed to use when
        : samplesPerPixel(samplesPerPixel), seed(seed) {}
 ```
 
-An instance of the RNG class is used to generate sample coordinate values.
+An instance of the `RNG` class is used to generate sample coordinate values.
 
 〈IndependentSampler Private Members〉 ≡ 471
 
@@ -552,7 +573,7 @@ So that the IndependentSampler always gives the same sample value for a given pi
    }
 ```
 
-Given a seeded RNG, the implementations of the methods that return 1D and 2D samples are trivial. Note that Get2D() uses C++’s uniform initialization syntax, which ensures that the two calls to Uniform() happen in a well-defined order, which in turn gives consistent results across different compilers.
+Given a seeded `RNG`, the implementations of the methods that return 1D and 2D samples are trivial. Note that `Get2D()` uses C++’s uniform initialization syntax, which ensures that the two calls to `Uniform()` happen in a well-defined order, which in turn gives consistent results across different compilers.
 
 ```text
    Hash() 1042
@@ -572,7 +593,7 @@ Given a seeded RNG, the implementations of the methods that return 1D and 2D sam
    Point2f GetPixel2D() { return Get2D(); }
 ```
 
-All the methods for analyzing sampling patterns from Section 8.2 are in agreement about the IndependentSampler: it is a terrible sampler.
+All the methods for analyzing sampling patterns from Section 8.2 are in agreement about the `IndependentSampler`: it is a terrible sampler.
 
 Independent uniform samples contain all frequencies equally (they are the definition of white noise), so they do not push aliasing out to higher frequencies. Further, the discrepancy of uniform random samples is 1—the worst possible. (To see why, consider the case of all sample dimensions either having the value 0 or 1.) This sampler’s only saving grace comes in the case of integrating a function with a significant amount of energy in its high frequencies (with respect to the sampling rate). In that case, it does about as well as any of the more sophisticated samplers. 8.5 STRATIFIED SAMPLER
 
@@ -594,15 +615,17 @@ Rendering a scene without complex lighting but including defocus blur due to a f
 
 ![Figure 8.22](images/img-728-113.png)
 
+
 *Figure 8.22: We can generate a good sample pattern that reaps the benefits of stratification without requiring all the sampling dimensions to be stratified simultaneously. Here, we have split (x, y) image position, time t, and (u, v) lens position into independent strata with four regions each. Each is sampled independently, and then a time sample and a lens sample are randomly associated with each image sample. We retain the benefits of stratification in each stratification domain without having to exponentially increase the total number of samples.*
 
 ![Figure 8.23](images/img-728-114.png)
+
 
 *Figure 8.23: Effect of Sampling Patterns in Rendering a Purple Sphere with Defocus Blur. (a) A high-quality reference image of a blurry sphere. (b) An image generated with independent random sampling without stratification. (c) An image generated with the same number of samples, but with the StratifiedSampler, which stratified both the image and, more importantly for this image, the lens samples. Stratification gives a substantial improvement and a 3× reduction in mean squared error.*
 
 *Figure 8.24 shows a comparison of a few sampling patterns. The first is an independent uniform random pattern generated by the*
 
-IndependentSampler. The result is terrible; some regions have few samples and other areas have clumps of many samples. The second is an unjittered stratified pattern. In the last, the uniform pattern has been jittered, with a random offset added to each sample’s location, keeping it inside its cell. This gives a better overall distribution than the purely random pattern while preserving the benefits of stratification, though there are still some clumps of samples and some regions that are undersampled.
+`IndependentSampler`. The result is terrible; some regions have few samples and other areas have clumps of many samples. The second is an unjittered stratified pattern. In the last, the uniform pattern has been jittered, with a random offset added to each sample’s location, keeping it inside its cell. This gives a better overall distribution than the purely random pattern while preserving the benefits of stratification, though there are still some clumps of samples and some regions that are undersampled.
 
 ```text
    IndependentSampler 471
@@ -611,11 +634,15 @@ IndependentSampler. The result is terrible; some regions have few samples and ot
 
 ![Figure 8.24](images/img-729-115.png)
 
+
 *Figure 8.24: Three 2D Sampling Patterns. (a) The independent uniform pattern is an ineffective pattern, with many clumps of samples that leave large sections of the image poorly sampled. (b) An unjittered pattern is better distributed but can exacerbate aliasing artifacts. (c) A stratified jittered pattern turns aliasing from the unjittered pattern into high-frequency noise while generally maintaining the benefits of stratification. (See Figure 8.26 for a danger of jittering, however.)*
 
-*Figure 8.25 shows images rendered using the StratifiedSampler and shows how jittered sample positions turn aliasing artifacts into less objectionable noise. 〈StratifiedSampler Definition〉 ≡ class StratifiedSampler { public: 〈StratifiedSampler Public Methods 474〉 private:*
+*Figure 8.25 shows images rendered using the StratifiedSampler and shows how jittered sample positions turn aliasing artifacts into less objectionable noise.*
 
+```rust
+〈StratifiedSampler Definition〉 ≡ class StratifiedSampler { public: 〈StratifiedSampler Public Methods 474〉 private:
 〈StratifiedSampler Private Members 474〉 };
+```
 
 The StratifiedSampler constructor takes a specification of how many 2D strata should be used via specification of x and y sample counts. Parameters that specify whether jittering is enabled and a seed for the random number generator can also be provided to the constructor. 〈StratifiedSampler Public Methods〉 ≡ 474
 
@@ -649,13 +676,15 @@ The total number of samples in each pixel is the product of the two dimensions�
    StratifiedSampler::yPixelSamples 474
 ```
 
-This sampler needs to keep track of the current pixel, sample index, and dimension for use in the sample generation methods. After recording them in member variables, the RNG is seeded so that deterministic values are returned for the sample point, following the same approach as was used in IndependentSampler::StartPixelSample().
+This sampler needs to keep track of the current pixel, sample index, and dimension for use in the sample generation methods. After recording them in member variables, the `RNG` is seeded so that deterministic values are returned for the sample point, following the same approach as was used in `IndependentSampler::StartPixelSample()`.
 
 ![Figure 8.25](images/img-731-116.png)
+
 
 *Figure 8.25: Comparison of Image Sampling Methods with a Checkerboard Texture. This is a difficult image to render well, since the checkerboard’s frequency with respect to the pixel spacing tends toward infinity as we approach the horizon. (a) A reference image, rendered with 256 samples per pixel, showing something close to an ideal result. (b) An image rendered with one sample per pixel, with no jittering. Note the jaggy artifacts at the edges of checks in the foreground. Notice also the artifacts in the distance where the checker function goes through many cycles between samples; as expected from the signal processing theory presented earlier, that detail reappears incorrectly as lower-frequency aliasing. (c) The result of jittering the image samples, still with just one sample per pixel. The regular aliasing of the second image has been replaced by less objectionable noise artifacts. (d) The result of four jittered samples per pixel is still inferior to the reference image but is substantially better than the previous result.*
 
 ![Figure 8.26](images/img-732-117.png)
+
 
 *Figure 8.26: A Worst-Case Situation for Stratified Sampling. In an n × n 2D pattern, up to 2n of the points may project to essentially the same point on one of the axes. When “unlucky” patterns like this are generated, the quality of the results computed with them usually suffers. (Here, 8 of the samples have nearly the same x value.)*
 
@@ -678,11 +707,11 @@ This sampler needs to keep track of the current pixel, sample index, and dimensi
    int sampleIndex = 0, dimension = 0;
 ```
 
-The StratifiedSampler’s implementation is made more complex by the fact that its task is not to generate a full set of sample points for all of the pixel samples at once. If that was the task of the sampler, then the following code suggests how 1D stratified samples for some dimension might be generated: each array element is first initialized with a random point in its corresponding stratum and then the array is randomly shuffled.
+The `StratifiedSampler`’s implementation is made more complex by the fact that its task is not to generate a full set of sample points for all of the pixel samples at once. If that was the task of the sampler, then the following code suggests how 1D stratified samples for some dimension might be generated: each array element is first initialized with a random point in its corresponding stratum and then the array is randomly shuffled.
 
 This shuffling operation is necessary for padding, so that there is no correlation between the pixel sample index and which stratum its sample comes from. If this shuffling was not done, then the sample dimensions’ values would be correlated in a way that would lead to errors in images— for example, the first 2D sample used to choose the film location, as well as the first 2D lens sample, would always each be in the lower left stratum adjacent to the origin. constexpr int n = …; std::array<Float, n> samples; for (int i = 0; i < n; ++i) samples[i] = (i + rng.Uniform<Float>()) / n; std::shuffle(samples.begin(), samples.end(), rng);
 
-In the context of pbrt’s sampling interface, we would like to perform this random sample shuffling without explicitly representing all the dimension’s sample values. The Stratified Sampler therefore uses a random permutation of the sample index to determine which stratum to sample. Given the stratum index, generating a 1D sample is easy. 〈StratifiedSampler Public Methods〉 +≡ 474
+In the context of pbrt’s sampling interface, we would like to perform this random sample shuffling without explicitly representing all the dimension’s sample values. The StratifiedSampler therefore uses a random permutation of the sample index to determine which stratum to sample. Given the stratum index, generating a 1D sample is easy. 〈StratifiedSampler Public Methods〉 +≡ 474
 
 ```rust
    Float Get1D() {
@@ -693,7 +722,7 @@ In the context of pbrt’s sampling interface, we would like to perform this ran
    }
 ```
 
-It is possible to perform the sample index permutation without representing the permutation explicitly thanks to the PermutationElement() routine, which is defined in Section B.2.8. It takes an index, a total permutation size, and a random seed, and returns the element that the given index is mapped to, doing so in such a way that a valid permutation is returned across all indices up to the permutation size. Thus, we just need to compute a consistent seed value that is the same whenever a particular dimension is sampled at a particular pixel. Hash() takes care of this, though note that sampleIndex must not be included in the hashed values, as doing so would lead to different permutations for different samples in a pixel.
+It is possible to perform the sample index permutation without representing the permutation explicitly thanks to the `PermutationElement()` routine, which is defined in Section B.2.8. It takes an index, a total permutation size, and a random seed, and returns the element that the given index is mapped to, doing so in such a way that a valid permutation is returned across all indices up to the permutation size. Thus, we just need to compute a consistent seed value that is the same whenever a particular dimension is sampled at a particular pixel. `Hash()` takes care of this, though note that sampleIndex must not be included in the hashed values, as doing so would lead to different permutations for different samples in a pixel.
 
 ```text
    Float 23
@@ -721,7 +750,7 @@ Generating a 2D sample follows a similar approach, though the stratum index has 
 
 ```rust
    Point2f Get2D() {
-         〈Compute stratum index for current pixel and dimension 477
+         〈Compute stratum index for current pixel and dimension 477〉
          dimension += 2;
          int x = stratum % xPixelSamples, y = stratum / xPixelSamples;
          Float dx = jitter ? rng.Uniform<Float>() : 0.5f;
@@ -730,7 +759,7 @@ Generating a 2D sample follows a similar approach, though the stratum index has 
    }
 ```
 
-The pixel sample is not handled differently than other 2D samples with this sampler, so the GetPixel2D() method just calls Get2D().
+The pixel sample is not handled differently than other 2D samples with this sampler, so the `GetPixel2D()` method just calls `Get2D()`.
 
 〈StratifiedSampler Public Methods〉 +≡ 474
 
@@ -744,7 +773,7 @@ which means that stratified samples do not qualify as having low discrepancy. Th
 
 ⋆ 8.6 HALTON SAMPLER
 
-The underlying goal of the StratifiedSampler is to generate a well-distributed but randomized set of sample points, with no two sample points too close together and no excessively large regions of the sample space that have no samples. As Figure 8.24 showed, a jittered stratified pattern is better at this than an independent uniform random pattern, although its quality can suffer when samples in adjacent strata happen to be close to the shared boundary of their two strata. This section introduces the HaltonSampler, which is based on algorithms that directly generate low-discrepancy sample points that are simultaneously well distributed over all the dimensions of the sample—not just one or two dimensions at a time, as the StratifiedSampler did.
+The underlying goal of the `StratifiedSampler` is to generate a well-distributed but randomized set of sample points, with no two sample points too close together and no excessively large regions of the sample space that have no samples. As Figure 8.24 showed, a jittered stratified pattern is better at this than an independent uniform random pattern, although its quality can suffer when samples in adjacent strata happen to be close to the shared boundary of their two strata. This section introduces the `HaltonSampler`, which is based on algorithms that directly generate low-discrepancy sample points that are simultaneously well distributed over all the dimensions of the sample—not just one or two dimensions at a time, as the `StratifiedSampler` did.
 
 ### 8.6.1 HAMMERSLEY AND HALTON POINTS
 
@@ -799,6 +828,7 @@ The d-dimensional Halton sequence is defined using the radical inverse base b, w
 
 ![Figure 8.27](images/img-738-118.png)
 
+
 *Figure 8.27: The First Points of Two Low-Discrepancy Sequences in 2D. (a) Halton (216 points), (b) Hammersley (256 points).*
 
 Like the van der Corput sequence, the Halton sequence can be used even if the total number of samples needed is not known in advance; all prefixes of the sequence are well distributed, so as additional samples are added to the sequence, low discrepancy will be maintained. (However, its distribution is best when the total number of samples is the product of powers of the bases for integer ki.) The discrepancy of a d-dimensional Halton sequence is
@@ -807,7 +837,7 @@ which is asymptotically optimal. If the number of samples n is fixed, the Hammer
 
 again with a = 0, 1, …, where n is the total number of samples to be taken, and as before all the bases bi are relatively prime. Figure 8.27(a) shows a plot of the first 216 points of the 2D Halton sequence and Figure 8.27(b)
 
-shows a set of 256 Hammersley points. (216 Halton points were used in this figure, since they are based on the radical inverses in base 2 and 3, and 2333 = 216.) The RadicalInverse() function computes the radical inverse for a given number a using the baseIndexth prime number as the base. (It and related functions are defined in the files util/lowdiscrepancy.rs and util/lowdiscrepancy.rs.) It does so by computing the digits di starting with d1 and then computing a series vi where v1 = d1, v2 = bd1 + d2, such that (For example, with base 10, it would convert the value 1234 to 4321.) The value of vn can be found entirely using integer arithmetic, without accumulating any round-off error.
+shows a set of 256 Hammersley points. (216 Halton points were used in this figure, since they are based on the radical inverses in base 2 and 3, and 2333 = 216.) The `RadicalInverse()` function computes the radical inverse for a given number a using the baseIndexth prime number as the base. (It and related functions are defined in the files util/lowdiscrepancy.rs and util/lowdiscrepancy.rs.) It does so by computing the digits di starting with d1 and then computing a series vi where v1 = d1, v2 = bd1 + d2, such that (For example, with base 10, it would convert the value 1234 to 4321.) The value of vn can be found entirely using integer arithmetic, without accumulating any round-off error.
 
 ```text
    RadicalInverse() 480
@@ -844,6 +874,7 @@ are used for sampling points on light sources, these patterns can lead to visibl
 
 ![Figure 8.28](images/img-741-119.png)
 
+
 *Figure 8.28: Plot of Halton Sample Values with and without Scrambling. (a) In higher dimensions, projections of sample values start to exhibit regular structure. Here, points from the dimensions (Φ29(a), Φ31(a)) are shown. (b) Scrambled sequences based on Equation (8.20) break up this structure by permuting the digits of sample indices.*
 
 These issues can be addressed using techniques that randomize the points that are generated by these algorithms while still maintaining low discrepancy. A family of such techniques are based on randomizing the digits of each sample coordinate with random permutations. Over all permutations, each coordinate value is then uniformly distributed over [0, 1), unlike as with the original point. These techniques are often referred to as scrambling. Scrambling can be performed by defining a set of permutations πi for each base b, where each digit has a distinct permutation of {0, 1, …, b − 1} associated with it. (In the following, we will consider scrambling a single
@@ -862,7 +893,7 @@ To save a bit of storage, unsigned 16-bit integers are used for the digit values
 
 int base, nDigits; uint16_t *permutations;
 
-The trailing zero-valued digits must be processed until the digit dm is reached where b−m is small enough that if the product of b−m with the largest digit is subtracted from 1 using floating-point arithmetic, the result is still 1. At this point, no subsequent digits matter, regardless of the permutation. The DigitPermutation constructor performs this check using precisely the same logic as the (soon to be described) ScrambledRadicalInverse() function does, to be sure that they are in agreement about how many digits need to be handled.
+The trailing zero-valued digits must be processed until the digit dm is reached where b−m is small enough that if the product of b−m with the largest digit is subtracted from 1 using floating-point arithmetic, the result is still 1. At this point, no subsequent digits matter, regardless of the permutation. The `DigitPermutation` constructor performs this check using precisely the same logic as the (soon to be described) `ScrambledRadicalInverse()` function does, to be sure that they are in agreement about how many digits need to be handled.
 
 〈Compute number of digits needed for base〉 ≡ 482
 
@@ -887,15 +918,15 @@ The Permute() method takes care of indexing into the permutations array to retur
 
 int Permute(int digitIndex, int digitValue) const { return permutations[digitIndex * base + digitValue]; }
 
-Finally, the ComputeRadicalInversePermutations() utility function returns a vector of Digit Permutations, one for each base up to the maximum.
+Finally, the `ComputeRadicalInversePermutations()` utility function returns a vector of `DigitPermutation` objects, one for each base up to the maximum.
 
 〈Low Discrepancy Function Definitions〉 ≡ pstd::vector<DigitPermutation> * ComputeRadicalInversePermutations(uint32_t seed, Allocator alloc) { pstd::vector<DigitPermutation> *perms = alloc.new_object<pstd::vector<DigitPermutation>> (alloc); perms->resize(PrimeTableSize); for (int i = 0; i < PrimeTableSize; ++i) (*perms)[i] = DigitPermutation(Primes[i], seed, alloc); return perms; }
 
-With DigitPermutations available, we can implement the ScrambledRadicalInverse() function. Its structure is generally the same as RadicalInverse(), though here we can see that it uses a different termination criterion, as was discussed with the implementation of Compute number of digits needed for base above.
+With DigitPermutations available, we can implement the `ScrambledRadicalInverse()` function. Its structure is generally the same as `RadicalInverse()`, though here we can see that it uses a different termination criterion, as was discussed with the implementation of Compute number of digits needed for base above.
 
 〈Low Discrepancy Inline Functions〉 +≡ Float ScrambledRadicalInverse(int baseIndex, uint64_t a, const DigitPermutation &perm) { int base = Primes[baseIndex]; Float invBase = (Float)1 / (Float)base, invBaseM = 1; uint64_t reversedDigits = 0; int digitIndex = 0; while (1 - (base - 1) * invBaseM < 1) { 〈Permute least significant digit from a and update reversedDigits 484〉 } return std::min(invBaseM * reversedDigits, OneMinusEpsilon); }
 
-Each digit is handled the same way as in RadicalInverse(), with the only change being that it is permuted using the provided DigitPermutation.
+Each digit is handled the same way as in `RadicalInverse()`, with the only change being that it is permuted using the provided `DigitPermutation`.
 
 ```text
    Allocator 40
@@ -939,7 +970,7 @@ uint64_t next = a / base; int digitValue = a - next * base; uint32_t digitHash =
 
 Given all the capabilities introduced so far in this section, it is not too hard to implement the HaltonSampler, which generates samples using the Halton sequence. 〈HaltonSampler Definition〉 ≡ class HaltonSampler { public: 〈HaltonSampler Public Methods 488〉 private: 〈HaltonSampler Private Methods 488〉 〈HaltonSampler Private Members 486〉 };
 
-For the pixel samples, the HaltonSampler scales the domain of the first two dimensions of the Halton sequence from [0, 1)2 so that it covers an integral number of pixels in each dimension.10 In doing so, it ensures that the pixel samples for adjacent pixels are well distributed with respect to each other. (This is a useful property that the stratified sampler does not guarantee.) Its constructor takes the full image resolution, even if only a subwindow of it is being rendered. This allows it to always produce the
+For the pixel samples, the `HaltonSampler` scales the domain of the first two dimensions of the Halton sequence from [0, 1)2 so that it covers an integral number of pixels in each dimension.10 In doing so, it ensures that the pixel samples for adjacent pixels are well distributed with respect to each other. (This is a useful property that the stratified sampler does not guarantee.) Its constructor takes the full image resolution, even if only a subwindow of it is being rendered. This allows it to always produce the
 
 same sample values at each pixel, regardless of whether only some of the pixels are being rendered. This is another place where we have tried to ensure that the renderer’s operation is deterministic: rendering a small crop window of an image when debugging does not affect the sample values generated at those pixels if the HaltonSampler is being used. 〈HaltonSampler Method Definitions〉 ≡ HaltonSampler::HaltonSampler(int samplesPerPixel, Point2i fullRes, RandomizeStrategy randomize, int seed, Allocator alloc) : samplesPerPixel(samplesPerPixel), randomize(randomize) { if (randomize == RandomizeStrategy::PermuteDigits) digitPermutations = ComputeRadicalInversePermutations(seed, alloc); 〈Find radical inverse base scales and exponents that cover sampling area 487〉 〈Compute multiplicative inverses for baseScales〉 }
 
@@ -957,7 +988,7 @@ same sample values at each pixel, regardless of whether only some of the pixels 
    RandomizeStrategy::PermuteDigits 486
 ```
 
-HaltonSampler Private Members〉 ≡ 485
+〈HaltonSampler Private Members〉 ≡ 485
 
 ```rust
    int samplesPerPixel;
@@ -967,7 +998,7 @@ HaltonSampler Private Members〉 ≡ 485
 
 For this and the following samplers that allow the user to select a randomization strategy, it will be helpful to have an enumeration that encodes them. (Note that the FastOwen option is not supported by the HaltonSampler.) 〈RandomizeStrategy Definition〉 ≡ enum class RandomizeStrategy { None, PermuteDigits, FastOwen, Owen }; Some sample generation approaches are naturally pixel-based and fit in easily to the Sampler interface as it has been presented so far. For example, the StratifiedSampler can easily start generating samples in a new pixel after its StartPixelSample() method has been called—it just needs to set RNG state so that it is consistent over all the samples in the pixel.
 
-Others, like the HaltonSampler, naturally generate consecutive samples that are spread across the entire image, visiting completely different pixels if the samples are generated in succession. (Many such samplers are effectively placing each additional sample such that it fills the largest hole in the n-dimensional sample space, which leads to subsequent samples being inside different pixels.) These sampling algorithms are somewhat problematic with the Sampler interface as described so far: the StartPixelSample() method must be able to set the sampler’s state so that it is able to generate samples for any requested pixel. Table 8.3 illustrates the issue for Halton samples. The second column shows 2D Halton sample values in [0, 1)2, which are then multiplied by the image resolution in each dimension to get sample positions in the image plane (here we are considering a 2 × 3 image for simplicity). Note that here, each pixel is visited by each sixth sample. If we are rendering an image with three samples per pixel, then to generate all the samples for the pixel (0, 0), we need to generate the samples with indices 0, 6, and 12. Table 8.3: The HaltonSampler generates the coordinates in the middle column for the first two dimensions, which are scaled by 2 in the first dimension and 3 in the second dimension so that they cover a 2 × 3 pixel image. To fulfill the Sampler interface, it is necessary to be able to work backward from a given pixel and sample number within that pixel to find the corresponding sample index in the full Halton sequence.
+Others, like the `HaltonSampler`, naturally generate consecutive samples that are spread across the entire image, visiting completely different pixels if the samples are generated in succession. (Many such samplers are effectively placing each additional sample such that it fills the largest hole in the n-dimensional sample space, which leads to subsequent samples being inside different pixels.) These sampling algorithms are somewhat problematic with the `Sampler` interface as described so far: the `StartPixelSample()` method must be able to set the sampler’s state so that it is able to generate samples for any requested pixel. Table 8.3 illustrates the issue for Halton samples. The second column shows 2D Halton sample values in [0, 1)2, which are then multiplied by the image resolution in each dimension to get sample positions in the image plane (here we are considering a 2 × 3 image for simplicity). Note that here, each pixel is visited by each sixth sample. If we are rendering an image with three samples per pixel, then to generate all the samples for the pixel (0, 0), we need to generate the samples with indices 0, 6, and 12. Table 8.3: The `HaltonSampler` generates the coordinates in the middle column for the first two dimensions, which are scaled by 2 in the first dimension and 3 in the second dimension so that they cover a 2 × 3 pixel image. To fulfill the `Sampler` interface, it is necessary to be able to work backward from a given pixel and sample number within that pixel to find the corresponding sample index in the full Halton sequence.
 
 Sample index [0, 1)2 sample coordinates Pixel sample coordinates (0.000000, 0.000000) (0.000000, 0.000000) 0
 
@@ -1005,7 +1036,7 @@ Sample index [0, 1)2 sample coordinates Pixel sample coordinates (0.000000, 0.00
    StratifiedSampler 474
 ```
 
-To map the first two dimensions of samples from [0, 1)2 to pixel coordinates, the Halton Sampler finds the smallest scale factor (2j, 3k) that is larger than the lower of either the image resolution or MaxHaltonResolution in each dimension. (We will explain shortly how this specific choice of scales makes it easy to see which pixel a sample lands in.) After scaling, any samples outside the image extent will be simply ignored. For images with resolution greater than MaxHaltonResolution in one or both dimensions, a tile of Halton points is repeated across the image. This resolution limit helps maintain sufficient floating-point precision in the computed sample values. 〈Find radical inverse base scales and exponents that cover sampling area〉 ≡ 485
+To map the first two dimensions of samples from [0, 1)2 to pixel coordinates, the HaltonSampler finds the smallest scale factor (2j, 3k) that is larger than the lower of either the image resolution or MaxHaltonResolution in each dimension. (We will explain shortly how this specific choice of scales makes it easy to see which pixel a sample lands in.) After scaling, any samples outside the image extent will be simply ignored. For images with resolution greater than MaxHaltonResolution in one or both dimensions, a tile of Halton points is repeated across the image. This resolution limit helps maintain sufficient floating-point precision in the computed sample values. 〈Find radical inverse base scales and exponents that cover sampling area〉 ≡ 485
 
 for (int i = 0; i < 2; ++i) { int base = (i == 0) ? 2 : 3; int scale = 1, exp = 0; while (scale < std::min(fullRes[i], MaxHaltonResolution)) { scale *= base; ++exp; } baseScales[i] = scale; baseExponents[i] = exp; }
 
@@ -1013,7 +1044,7 @@ For each dimension, baseScales holds the scale factor, 2j or 3k, and baseExponen
 
 static constexpr int MaxHaltonResolution = 128; Point2i baseScales, baseExponents;
 
-To see why the HaltonSampler uses this scheme to map samples to pixel coordinates, consider the effect of scaling a value computed with the radical inverse base b by a factor bm. If the digits of a expressed in base b are di(a), then recall that the radical inverse is the value 0.d1(a)d2(a) … in base b. If we multiply this value by b2, for example, we have d1(a)d2(a).d3(a) …; the first two digits have moved to the left of the radix point, and the fractional component of the value starts with d3(a).
+To see why the `HaltonSampler` uses this scheme to map samples to pixel coordinates, consider the effect of scaling a value computed with the radical inverse base b by a factor bm. If the digits of a expressed in base b are di(a), then recall that the radical inverse is the value 0.d1(a)d2(a) … in base b. If we multiply this value by b2, for example, we have d1(a)d2(a).d3(a) …; the first two digits have moved to the left of the radix point, and the fractional component of the value starts with d3(a).
 
 This operation—scaling by bm—forms the core of being able to determine which sample indices land in which pixels. Considering the first two digits in the above example, we can see that the integer component of the scaled value ranges from 0 to b2 − 1and that as a increases, its last two digits in base b take on any particular value after each b2 sample index values.
 
@@ -1040,7 +1071,7 @@ The methods that generate Halton sample dimensions are straightforward; they jus
 
 Float Get1D() { if (dimension >= PrimeTableSize) dimension = 2; return SampleDimension(dimension++); }
 
-The SampleDimension() method takes care of calling the appropriate radical inverse function for the current sample in the current dimension according to the selected randomization strategy.
+The `SampleDimension()` method takes care of calling the appropriate radical inverse function for the current sample in the current dimension according to the selected randomization strategy.
 
 〈HaltonSampler Private Methods〉 ≡ 485
 
@@ -1068,7 +1099,7 @@ The Get2D() method is easily implemented using SampleDimension(). 〈HaltonSampl
 
 Point2f Get2D() { if (dimension + 1 >= PrimeTableSize) dimension = 2; int dim = dimension; dimension += 2; return {SampleDimension(dim), SampleDimension(dim + 1)}; }
 
-GetPixel2D() has to account for two important details in the rest of the HaltonSampler implementation. First, because the computation of the sample index, haltonIndex, in StartPixel Sample() does not account
+`GetPixel2D()` has to account for two important details in the rest of the `HaltonSampler` implementation. First, because the computation of the sample index, haltonIndex, in `StartPixelSample()` does not account
 
 for random digit permutations, those must not be included in the samples returned for the first two dimensions: a call to RadicalInverse() is always used here. Second, because the first baseExponents[i] digits of the first two dimensions’ radical inverses are used to select which pixel is sampled, these digits must be discarded before computing the radical inverse for the first two dimensions of the sample, since the GetPixel2D() method is supposed to return the fractional offset in [0, 1)2 within the pixel being sampled. This is most easily done by removing the trailing digits of the sample index before computing the radical inverse. Because the first dimension is base 2, this can efficiently be done using a shift, though a divide is necessary for base 3 in the second dimension. 〈HaltonSampler Public Methods〉 +≡ 485
 
@@ -1076,21 +1107,22 @@ Point2f GetPixel2D() { return {RadicalInverse(0, haltonIndex >> baseExponents[0]
 
 ### 8.6.4 EVALUATION
 
-*Figure 8.29 shows plots of the power spectra for the HaltonSampler with each of the three randomization strategies. The frequency space perspective is revealing. First, note that all three strategies have low energy along the two axes: this indicates that they all do well with functions that mostly vary in only one dimension. This behavior can be understood from their construction: because each dimension uses an independent radical inverse, 1D projections of the sample points are stratified. (Consider in comparison the jittered sampling pattern’s PSD, which had a radially symmetric distribution around the origin. Given n 2D stratified samples, only are guaranteed to be stratified along either of the dimensions, whereas with the Halton sampler, all n are.) HaltonSampler 485 HaltonSampler::baseExponents 487 HaltonSampler::baseScales 487 HaltonSampler::dimension 488*
+*Figure 8.29 shows plots of the power spectra for the HaltonSampler with each of the three randomization strategies. The frequency space perspective is revealing. First, note that all three strategies have low energy along the two axes: this indicates that they all do well with functions that mostly vary in only one dimension. This behavior can be understood from their construction: because each dimension uses an independent radical inverse, 1D projections of the sample points are stratified. (Consider in comparison the jittered sampling pattern’s PSD, which had a radially symmetric distribution around the origin. Given n 2D stratified samples, only are guaranteed to be stratified along either of the dimensions, whereas with the Halton sampler, all n are.)*
 
-HaltonSampler::haltonIndex 488 HaltonSampler::SampleDimension() 488 Point2f 92 PrimeTableSize 1032 RadicalInverse() 480 However, the non-randomized Halton sampler has wide variation in its PSD at higher frequencies. Ideally, those frequencies would all have roughly unit energy, but in this case, some frequencies have over a hundred times more and others a hundred times less. Results will be poor if the frequencies of the function match the ones with high power in the PSD. This issue can be seen in rendered images; Figure 8.30 compares the visual results from sampling a checkerboard texture using a Halton-based sampler to using the stratified sampler from the previous section. Note the unpleasant pattern along edges in the foreground and toward the horizon. Returning to the power spectra in Figure 8.29, we can see that random digit permutations give a substantial improvement in the power spectrum, though there is still clear structure, with some frequencies having very low power and others still having high power. The benefit of Owen scrambling in this case is striking: it gives a uniform power spectrum at higher frequencies while maintaining low power along the axes.
+However, the non-randomized Halton sampler has wide variation in its PSD at higher frequencies. Ideally, those frequencies would all have roughly unit energy, but in this case, some frequencies have over a hundred times more and others a hundred times less. Results will be poor if the frequencies of the function match the ones with high power in the PSD. This issue can be seen in rendered images; Figure 8.30 compares the visual results from sampling a checkerboard texture using a Halton-based sampler to using the stratified sampler from the previous section. Note the unpleasant pattern along edges in the foreground and toward the horizon. Returning to the power spectra in Figure 8.29, we can see that random digit permutations give a substantial improvement in the power spectrum, though there is still clear structure, with some frequencies having very low power and others still having high power. The benefit of Owen scrambling in this case is striking: it gives a uniform power spectrum at higher frequencies while maintaining low power along the axes.
 
 ![Figure 8.29](images/img-758-120.png)
+
 
 *Figure 8.29: Power Spectra of Points Generated by the HaltonSampler. (a) Using no randomization, with substantial variation in power at the higher frequencies. (b) Using random digit scrambling, which improves the regularity of the PSD but still contains some spikes. (c) Using Owen scrambling, which gives near unit power at the higher frequencies, making it especially effective for antialiasing and integration.*
 
 ![Figure 8.30](images/img-759-121.png)
 
+
 *Figure 8.30: Comparison of the Stratified Sampler to a Low-Discrepancy Sampler Based on Halton Points on the Image Plane. (a) The stratified sampler with a single sample per pixel and (b) the Halton sampler with a single sample per pixel and no scrambling. Note that although the Halton pattern is able to reproduce the checker pattern farther toward the horizon than the stratified pattern, there is a regular structure to the error that is visually distracting; it does not turn aliasing into less objectionable noise as well as jittering does.*
 
-HaltonSampler 485
-
 ![Figure 8.31](images/img-760-122.png)
+
 
 *Figure 8.31: Mean Squared Error When Integrating Two Simple 2D Functions. Both are plotted using a log–log scale so that the asymptotic convergence rate can be seen from the slopes of the lines. For the stratified sampler, only square n × n stratifications are plotted. (a) With the smooth Gaussian function shown, the Halton sampler has a higher asymptotic rate of convergence than both stratified and independent sampling. Its performance is particularly good for sample counts of 2i3i for integer i. (b) With the rotated checkerboard, stratified sampling is initially no better than independent sampling since the strata are not aligned with the checks. However, once the strata start to become smaller than the checks (around 256 samples), its asymptotic rate of convergence improves.*
 
@@ -1100,9 +1132,11 @@ techniques. For both functions, both stratified and Halton sampling have a highe
 
 ![Figure 8.32](images/img-761-123.png)
 
+
 *Figure 8.32: Test Scene for Sampler Evaluation. This scene requires integrating a function of tens of dimensions, including defocus blur, a moving camera, and multiply scattered illumination from an environment map light source. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 ![Figure 8.33](images/img-762-124.png)
+
 
 *Figure 8.33: Log–Log Plot of MSE versus Number of Samples for the Scene in Figure 8.32. The Halton sampler gives consistently lower error than both the independent and stratified samplers and converges at a slightly higher rate.*
 
@@ -1110,7 +1144,7 @@ techniques. For both functions, both stratified and Halton sampling have a highe
 
 ⋆ 8.7 SOBOL′ SAMPLERS While the Halton sequence is effective for Monte Carlo integration, each radical inverse computation requires one integer division for each digit. The integer division instruction is one of the slowest ones on most processors, which can affect overall rendering performance, especially in highly optimized renderers. Therefore, in this section we will describe three Samplers that are based on the Sobol′ sequence, a low-discrepancy sequence that is defined entirely in base 2, which leads to efficient implementations.
 
-The base-2 radical inverse can be computed more efficiently than the way that the base-agnostic RadicalInverse() function computes it. The key is to take advantage of the fact that numbers are already represented in base 2 on digital computers. If a is a 64-bit value, then from Equation (8.18),
+The base-2 radical inverse can be computed more efficiently than the way that the base-agnostic `RadicalInverse()` function computes it. The key is to take advantage of the fact that numbers are already represented in base 2 on digital computers. If a is a 64-bit value, then from Equation (8.18),
 
 where di(a) are its bits. First, consider reversing its bits, still represented as an integer value, which
 
@@ -1133,18 +1167,17 @@ The first step toward high performance comes from the fact that we are working i
 
 Now consider the task of computing the C[di(a)]T matrix-vector product; using the definition of matrix-vector multiplication, we have:
 
-In other words, for each digit of di that has a value of 1, the corresponding column of C should be summed. This addition can in turn be performed efficiently in ℤ2: in that setting, addition corresponds to the bitwise exclusive OR operation. (Consider the combinations of the two possible operand values—0 and 1—and the result of adding them mod 2, and compare to the values computed by exclusive OR with the same operand values.) Thus, the multiplication C[di(a)]T is just a matter of exclusive ORing together the columns i of C where di(a)’s bit is 1. This computation is implemented in the MultiplyGenerator() function.
-
-〈Low Discrepancy Inline Functions〉 +≡ uint32_t MultiplyGenerator(pstd::span<const uint32_t> C, uint32_t a) { uint32_t v = 0; for (int i = 0; a != 0; ++i, a >>= 1) if (a & 1) v ^= C[i];
+In other words, for each digit of di that has a value of 1, the corresponding column of C should be summed. This addition can in turn be performed efficiently in ℤ2: in that setting, addition corresponds to the bitwise exclusive OR operation. (Consider the combinations of the two possible operand values—0 and 1—and the result of adding them mod 2, and compare to the values computed by exclusive OR with the same operand values.) Thus, the multiplication C[di(a)]T is just a matter of exclusive ORing together the columns i of C where di(a)’s bit is 1. This computation is implemented in the `MultiplyGenerator()` function.
 
 ```rust
+〈Low Discrepancy Inline Functions〉 +≡ uint32_t MultiplyGenerator(pstd::span<const uint32_t> C, uint32_t a) { uint32_t v = 0; for (int i = 0; a != 0; ++i, a >>= 1) if (a & 1) v ^= C[i];
         return v;
    }
 ```
 
 Going back to Equation (8.22), if we denote the column vector from the product v = C[di(a)]T, then
 
-consider the vector product Applying the same ideas as we did before to derive an efficient base-2 radical inverse algorithm, this value can also be computed by reversing the bits of v and dividing by 232. To save the small cost of reversing the bits, we can equivalently reverse the bits in all the columns of the generator matrix before passing it to MultiplyGenerator(). We will use that convention in what follows.
+consider the vector product Applying the same ideas as we did before to derive an efficient base-2 radical inverse algorithm, this value can also be computed by reversing the bits of v and dividing by 232. To save the small cost of reversing the bits, we can equivalently reverse the bits in all the columns of the generator matrix before passing it to `MultiplyGenerator()`. We will use that convention in what follows.
 
 ```text
     MultiplyGenerator() 494
@@ -1153,6 +1186,7 @@ consider the vector product Applying the same ideas as we did before to derive a
 We will not discuss how the Sobol′ matrices are derived in a way that leads to a low-discrepancy sequence; the “Further Reading” section has pointers to more details. However, the first few Sobol′ generator matrices are shown in Figure 8.34. Note that the first is the identity, corresponding to the van der Corput sequence. Subsequent dimensions have various fractal-like structures to their entries.
 
 ![Figure 8.34](images/img-766-125.png)
+
 
 *Figure 8.34: Generator matrices for the first four dimensions of the Sobol′ sequence. Note their regular structure.*
 
@@ -1166,6 +1200,7 @@ Not only are corresponding stratification constraints obeyed by any power-of-2 s
 
 ![Figure 8.35](images/img-767-126.png)
 
+
 *Figure 8.35: A sampling pattern that has a single sample in all the base-2 elementary intervals.*
 
 where the integer . One sample from each of the first values in the sequence will be in each of the elementary intervals. Furthermore, the same property is true for each subsequent set of values. Such a sequence is called a (0, 2)-sequence.
@@ -1176,7 +1211,7 @@ For the same reasons as were discussed in Section 8.6.2 in the context of the Ha
 
 All the following randomization classes take an unsigned 32-bit integer that they should interpret as a fixed-point number with 0 digits before and 32 digits after the radix point. Put another way, after randomization, this value will be divided by 232 to yield the final sample value in [0, 1).
 
-The simplest approach is not to randomize the sample at all. In that case, the value is returned unchanged; this is implemented by NoRandomizer.
+The simplest approach is not to randomize the sample at all. In that case, the value is returned unchanged; this is implemented by `NoRandomizer`.
 
 〈NoRandomizer Definition〉 ≡ struct NoRandomizer { uint32_t operator()(uint32_t v) const { return v; } };
 
@@ -1184,7 +1219,7 @@ Alternatively, random permutations can be applied to the digits, such as was don
 
 〈BinaryPermuteScrambler Definition〉 ≡ struct BinaryPermuteScrambler { BinaryPermuteScrambler(uint32_t perm) : permutation(perm) {} uint32_t operator()(uint32_t v) const { return permutation ^ v; } uint32_t permutation; };
 
-Owen scrambling is also effective with Sobol′ points. pbrt provides two implementations of it, both of which take advantage of their base-2 representation. FastOwenScrambler implements a highly efficient approach, though the spectral properties of the resulting points are not quite as good as a true Owen scramble.
+Owen scrambling is also effective with Sobol′ points. pbrt provides two implementations of it, both of which take advantage of their base-2 representation. `FastOwenScrambler` implements a highly efficient approach, though the spectral properties of the resulting points are not quite as good as a true Owen scramble.
 
 〈FastOwenScrambler Definition〉 ≡ struct FastOwenScrambler { FastOwenScrambler(uint32_t seed) : seed(seed) {} 〈FastOwenScrambler Public Methods 498〉 uint32_t seed; };
 
@@ -1192,7 +1227,7 @@ Its implementation builds on the fact that in base 2, if a number is multiplied 
 
 Thus, for any digit i > 1 where di(b) is one, the value of a is shifted i − 1 bits to the left and added to the final result and so any digit of the result only depends on lower digits of a.
 
-The bits in the value provided to the randomization class must be reversed so that the low bit corresponds to 1/2 in the final sample value. Then, the properties illustrated in Equation (8.25) can be applied: the product of an even value with the sample value v can be interpreted as a bitwise permutation as was done in the BinaryPermuteScrambler, allowing the use of an exclusive OR to permute all the bits. After a few rounds of this and a few operations to mix the seed value in, the bits are reversed again before being returned.
+The bits in the value provided to the randomization class must be reversed so that the low bit corresponds to 1/2 in the final sample value. Then, the properties illustrated in Equation (8.25) can be applied: the product of an even value with the sample value v can be interpreted as a bitwise permutation as was done in the `BinaryPermuteScrambler`, allowing the use of an exclusive OR to permute all the bits. After a few rounds of this and a few operations to mix the seed value in, the bits are reversed again before being returned.
 
 ```text
     BinaryPermuteScrambler 497
@@ -1215,7 +1250,7 @@ The bits in the value provided to the randomization class must be reversed so th
    }
 ```
 
-The OwenScrambler class implements a full Owen scramble, operating on each bit in turn.
+The `OwenScrambler` class implements a full Owen scramble, operating on each bit in turn.
 
 〈OwenScrambler Definition〉 ≡ struct OwenScrambler { OwenScrambler(uint32_t seed) : seed(seed) {} 〈OwenScrambler Public Methods 498〉 uint32_t seed; };
 
@@ -1225,7 +1260,7 @@ The first bit (corresponding to 1/2 in the final sample value) is handled specia
 
 uint32_t operator()(uint32_t v) const { if (seed & 1) v ^= 1u << 31; for (int b = 1; b < 32; ++b) { 〈Apply Owen scrambling to binary digit b in v 498〉 } return v; }
 
-For all the following bits, a bit mask is computed such that the bitwise AND of the mask with the value gives the bits above b—the values of which should determine the permutation that is used for the current bit. Those are run through MixBits() to get a hashed value that is then used to determine whether or not to flip the current bit.
+For all the following bits, a bit mask is computed such that the bitwise AND of the mask with the value gives the bits above b—the values of which should determine the permutation that is used for the current bit. Those are run through `MixBits()` to get a hashed value that is then used to determine whether or not to flip the current bit.
 
 〈Apply Owen scrambling to binary digit b in v〉 ≡ 498
 
@@ -1237,7 +1272,7 @@ For all the following bits, a bit mask is computed such that the bitwise AND of 
 
 ### 8.7.3 SOBOL′ SAMPLE GENERATION
 
-We now have the pieces needed to implement functions that generate Sobol′ samples. The SobolSample() function performs this task for a given sample index a and dimension, applying the provided randomizer to the sample before returning it.
+We now have the pieces needed to implement functions that generate Sobol′ samples. The `SobolSample()` function performs this task for a given sample index a and dimension, applying the provided randomizer to the sample before returning it.
 
 Because this function is templated on the type of the randomizer, a specialized instance of it will be compiled using the provided randomizer, leading to the randomization algorithm being expanded inline in the function. For pbrt’s purposes, there is no need for a more general mechanism for sample randomization, so the small performance benefit is worth taking in this implementation approach.
 
@@ -1252,16 +1287,13 @@ Because this function is templated on the type of the randomizer, a specialized 
 ```rust
     〈Low Discrepancy Inline Functions〉 +≡
         template <typename R>
-```
-
-```rust
         Float SobolSample(int64_t a, int dimension, R randomizer) {
              〈Compute initial Sobol′ sample v using generator matrices 499〉
               〈Randomize Sobol′ sample and return floating-point value 499〉
         }
 ```
 
-Samples are computed using the Sobol′ generator matrices, following the approach described by Equation (8.23). All the generator matrices are stored consecutively in the Sobol Matrices32 array. Each one has SobolMatrixSize columns, so scaling the dimension by SobolMatrixSize brings us to the first column of the matrix for the given dimension.
+Samples are computed using the Sobol′ generator matrices, following the approach described by Equation (8.23). All the generator matrices are stored consecutively in the `SobolMatrices32` array. Each one has `SobolMatrixSize` columns, so scaling the dimension by `SobolMatrixSize` brings us to the first column of the matrix for the given dimension.
 
 〈Compute initial Sobol′ sample v using generator matrices〉 ≡
 
@@ -1285,16 +1317,15 @@ The value is then randomized with the given randomizer before being rescaled to 
 
 ### 8.7.4 GLOBAL SOBOL′ SAMPLER
 
-The SobolSampler generates samples by direct evaluation of the d-dimensional Sobol′ sequence. Like the HaltonSampler, it scales the first two dimensions of the sequence to cover a range of image pixels. Thus, in a similar fashion, nearby pixels have well-distributed ddimensional sample points not just individually but also with respect to nearby pixels.
-
-〈SobolSampler Definition〉 ≡ class SobolSampler { public: 〈SobolSampler Public Methods 500〉 private: 〈SobolSampler Private Methods 501〉
+The `SobolSampler` generates samples by direct evaluation of the d-dimensional Sobol′ sequence. Like the `HaltonSampler`, it scales the first two dimensions of the sequence to cover a range of image pixels. Thus, in a similar fashion, nearby pixels have well-distributed ddimensional sample points not just individually but also with respect to nearby pixels.
 
 ```rust
+〈SobolSampler Definition〉 ≡ class SobolSampler { public: 〈SobolSampler Public Methods 500〉 private: 〈SobolSampler Private Methods 501〉
         〈SobolSampler Private Members 500〉
    };
 ```
 
-The SobolSampler uniformly scales the first two dimensions by the smallest power of 2 that causes the [0, 1)2 sample domain to cover the image area to be sampled. As with the HaltonSampler, this specific scaling scheme is chosen in order to make it easier to compute the reverse mapping from pixel coordinates to the sample indices that land in each pixel.
+The `SobolSampler` uniformly scales the first two dimensions by the smallest power of 2 that causes the [0, 1)2 sample domain to cover the image area to be sampled. As with the `HaltonSampler`, this specific scaling scheme is chosen in order to make it easier to compute the reverse mapping from pixel coordinates to the sample indices that land in each pixel.
 
 ```text
     Float 23
@@ -1316,7 +1347,7 @@ The SobolSampler uniformly scales the first two dimensions by the smallest power
    }
 ```
 
-All four of the randomization approaches from Section 8.7.2 are supported by the Sobol Sampler; randomize encodes which one to apply.
+All four of the randomization approaches from Section 8.7.2 are supported by the `SobolSampler`; randomize encodes which one to apply.
 
 〈SobolSampler Private Members〉 ≡ 499
 
@@ -1325,7 +1356,7 @@ All four of the randomization approaches from Section 8.7.2 are supported by the
    RandomizeStrategy randomize;
 ```
 
-The sampler needs to record the current pixel for use in its GetPixel2D() method and, like other samplers, tracks the current dimension in its dimension member variable.
+The sampler needs to record the current pixel for use in its `GetPixel2D()` method and, like other samplers, tracks the current dimension in its dimension member variable.
 
 〈SobolSampler Public Methods〉 +≡ 499
 
@@ -1348,17 +1379,17 @@ The sampler needs to record the current pixel for use in its GetPixel2D() method
     int64_t sobolIndex;
 ```
 
-The SobolIntervalToIndex() function returns the index of the sampleIndexth sample in the pixel p, if the [0, 1)2 sampling domain has been scaled by 2log2Scale to cover the pixel sampling area.
+The `SobolIntervalToIndex()` function returns the index of the sampleIndexth sample in the pixel p, if the [0, 1)2 sampling domain has been scaled by 2log2Scale to cover the pixel sampling area.
 
 〈Low Discrepancy Declarations〉 ≡ uint64_t SobolIntervalToIndex(uint32_t log2Scale, uint64_t sampleIndex, Point2i p);
 
-The general approach used to derive the algorithm it implements is similar to that used by the Halton sampler in its StartPixelSample() method. Here, scaling by a power of two means that the base-2 logarithm of the scale gives the number of digits of the C[di(a)]T product that form the scaled sample’s integer component. To find the values of a that give a particular integer value after scaling, we can compute the inverse of C: given
+The general approach used to derive the algorithm it implements is similar to that used by the Halton sampler in its `StartPixelSample()` method. Here, scaling by a power of two means that the base-2 logarithm of the scale gives the number of digits of the C[di(a)]T product that form the scaled sample’s integer component. To find the values of a that give a particular integer value after scaling, we can compute the inverse of C: given
 
 then equivalently
 
 We will not include the implementation of this function here.
 
-Sample generation is now straightforward. There is the usual management of the dimension value, again with the first two dimensions reserved for the pixel sample, and then a call to SampleDimension() gives the sample for a single Sobol′ dimension.
+Sample generation is now straightforward. There is the usual management of the dimension value, again with the first two dimensions reserved for the pixel sample, and then a call to `SampleDimension()` gives the sample for a single Sobol′ dimension.
 
 ```text
     Point2i 92
@@ -1385,7 +1416,7 @@ Sample generation is now straightforward. There is the usual management of the d
    }
 ```
 
-The SampleDimension() method takes care of calling SobolSample() for the current sample index and specified dimension using the appropriate randomizer.
+The `SampleDimension()` method takes care of calling `SobolSample()` for the current sample index and specified dimension using the appropriate randomizer.
 
 〈SobolSampler Private Methods〉 ≡ 499
 
@@ -1405,18 +1436,14 @@ If a randomizer is being used, a seed value must be computed for it. Note that t
 ```rust
    uint32_t hash = Hash(dimension, seed);
    if (randomize == RandomizeStrategy::PermuteDigits)
-        return                     SobolSample(sobolIndex,           dimension,
-        BinaryPermuteScrambler(hash));
+        return SobolSample(sobolIndex, dimension, BinaryPermuteScrambler(hash));
    else if (randomize == RandomizeStrategy::FastOwen)
         return SobolSample(sobolIndex, dimension, FastOwenScrambler(hash));
-```
-
-```rust
    else
           return SobolSample(sobolIndex, dimension, OwenScrambler(hash));
 ```
 
-2D sample generation is easily implemented using SampleDimension(). If all sample dimensions have been consumed, Get2D() goes back to the start and skips the first two dimensions, as was done in the HaltonSampler.
+2D sample generation is easily implemented using `SampleDimension()`. If all sample dimensions have been consumed, `Get2D()` goes back to the start and skips the first two dimensions, as was done in the `HaltonSampler`.
 
 〈SobolSampler Public Methods〉 +≡ 499
 
@@ -1451,23 +1478,20 @@ If a randomizer is being used, a seed value must be computed for it. Note that t
     SobolSampler::sobolIndex 500
 ```
 
-Pixel samples are generated using the first two dimensions of the Sobol′ sample. Sobol IntervalToIndex() does not account for randomization, so the NoRandomizer is always used for the pixel sample, regardless of the value of randomize.
+Pixel samples are generated using the first two dimensions of the Sobol′ sample. `SobolIntervalToIndex()` does not account for randomization, so the `NoRandomizer` is always used for the pixel sample, regardless of the value of randomize.
 
 〈SobolSampler Public Methods〉 +≡ 499
 
 ```rust
    Point2f GetPixel2D() {
         Point2f u(SobolSample(sobolIndex, 0, NoRandomizer()),
-```
-
-```rust
                     SobolSample(sobolIndex, 1, NoRandomizer()));
          〈Remap Sobol′ dimensions used for pixel samples 502〉
          return u;
     }
 ```
 
-The samples returned for the pixel position need to be adjusted so that they are offsets within the current pixel. Similar to what was done in the HaltonSampler, the sample value is scaled so that the pixel coordinates are in the integer component of the result. The remaining fractional component gives the offset within the pixel that the sampler returns.
+The samples returned for the pixel position need to be adjusted so that they are offsets within the current pixel. Similar to what was done in the `HaltonSampler`, the sample value is scaled so that the pixel coordinates are in the integer component of the result. The remaining fractional component gives the offset within the pixel that the sampler returns.
 
 〈Remap Sobol′ dimensions used for pixel samples〉 ≡
 
@@ -1478,9 +1502,9 @@ The samples returned for the pixel position need to be adjusted so that they are
 
 ### 8.7.5 PADDED SOBOL′ SAMPLER
 
-The SobolSampler generates sample points that have low discrepancy over all of their d dimensions. However, the distribution of samples in two-dimensional slices of the d-dimensional space is not necessarily particularly good. Figure 8.36 shows an example.
+The `SobolSampler` generates sample points that have low discrepancy over all of their d dimensions. However, the distribution of samples in two-dimensional slices of the d-dimensional space is not necessarily particularly good. Figure 8.36 shows an example.
 
-For rendering, this state of affairs means that, for example, the samples taken over the surface of a light source at a given pixel may not be well distributed. It is of only slight solace to know that the full set of d-dimensional samples are well distributed in return. Figure 8.37 shows this problem in practice with the SobolSampler: 2D projections of the form shown in Figure 8.36 end up generating a characteristic checkerboard pattern in the image at low sampling rates.
+For rendering, this state of affairs means that, for example, the samples taken over the surface of a light source at a given pixel may not be well distributed. It is of only slight solace to know that the full set of d-dimensional samples are well distributed in return. Figure 8.37 shows this problem in practice with the `SobolSampler`: 2D projections of the form shown in Figure 8.36 end up generating a characteristic checkerboard pattern in the image at low sampling rates.
 
 ```text
     Clamp() 1033
@@ -1497,17 +1521,19 @@ For rendering, this state of affairs means that, for example, the samples taken 
 
 ![Figure 8.36](images/img-778-127.png)
 
+
 *Figure 8.36: Plot of the first 256 points from dimensions 4 and 5 of the Sobol′ sequence. The 2D projection of these two dimensions is not well distributed and is not stratified over elementary intervals.*
 
-Therefore, the PaddedSobolSampler generates samples from the Sobol′ sequence in a way that focuses on returning good distributions for the dimensions used by each 1D and 2D sample independently. It does so via padding samples, similarly to the StratifiedSampler, but here using Sobol′ samples rather than jittered samples.
+Therefore, the `PaddedSobolSampler` generates samples from the Sobol′ sequence in a way that focuses on returning good distributions for the dimensions used by each 1D and 2D sample independently. It does so via padding samples, similarly to the `StratifiedSampler`, but here using Sobol′ samples rather than jittered samples.
 
 ![Figure 8.37](images/img-779-128.png)
+
 
 *Figure 8.37: Scene Rendered Using the SobolSampler at a Low Sampling Rate. With that sampler, these sorts of checkerboard patterns can result due to structure in the lower-dimensional projections of the form shown in Figure 8.36. (Killeroo model courtesy of headus/Rezard.)*
 
 〈PaddedSobolSampler Definition〉 ≡ class PaddedSobolSampler { public: 〈PaddedSobolSampler Public Methods 504〉 private: 〈PaddedSobolSampler Private Methods 504〉 〈PaddedSobolSampler Private Members 503〉 };
 
-The constructor, not included here, initializes the following member variables from provided values. As with the SobolSampler, using a pixel sample count that is not a power of 2 will give suboptimal results; a warning is issued in this case.
+The constructor, not included here, initializes the following member variables from provided values. As with the `SobolSampler`, using a pixel sample count that is not a power of 2 will give suboptimal results; a warning is issued in this case.
 
 〈PaddedSobolSampler Private Members〉 ≡ 503
 
@@ -1522,7 +1548,7 @@ The constructor, not included here, initializes the following member variables f
     StratifiedSampler 474
 ```
 
-StartPixelSample(), also not included here, just records the specified pixel, sample index, and dimension.
+`StartPixelSample()`, also not included here, just records the specified pixel, sample index, and dimension.
 
 〈PaddedSobolSampler Private Members〉 +≡ 503
 
@@ -1552,7 +1578,7 @@ Here, the permutation used for padding is based on the current pixel and dimensi
    int index = PermutationElement(sampleIndex, samplesPerPixel, hash);
 ```
 
-Given the permuted sample index value index, a separate method, SampleDimension(), takes care of generating the corresponding Sobol′ sample. The high bits of the hash value are reused for the sample’s randomization; doing so should be safe, since PermutationElement() uses the hash it is passed in an entirely different way than any of the sample randomization schemes do.
+Given the permuted sample index value index, a separate method, `SampleDimension()`, takes care of generating the corresponding Sobol′ sample. The high bits of the hash value are reused for the sample’s randomization; doing so should be safe, since `PermutationElement()` uses the hash it is passed in an entirely different way than any of the sample randomization schemes do.
 
 〈Return randomized 1D van der Corput sample for dimension dim〉 ≡ 504
 
@@ -1560,7 +1586,7 @@ Given the permuted sample index value index, a separate method, SampleDimension(
    return SampleDimension(0, index, hash >> 32);
 ```
 
-SampleDimension() follows the same approach as the corresponding method in SobolSampler, creating the appropriate randomizer before calling SobolSample().
+`SampleDimension()` follows the same approach as the corresponding method in `SobolSampler`, creating the appropriate randomizer before calling `SobolSample()`.
 
 〈PaddedSobolSampler Private Methods〉 ≡ 503
 
@@ -1572,9 +1598,6 @@ SampleDimension() follows the same approach as the corresponding method in Sobol
             return SobolSample(a, dimension, BinaryPermuteScrambler(hash));
        else if (randomize == RandomizeStrategy::FastOwen)
             return SobolSample(a, dimension, FastOwenScrambler(hash));
-```
-
-```rust
          else
              return SobolSample(a, dimension, OwenScrambler(hash));
    }
@@ -1625,7 +1648,7 @@ Randomization also parallels the 1D case; again, bits from hash are used both fo
                      SampleDimension(1, index, hash >> 32));
 ```
 
-For this sampler, pixel samples are generated in the same manner as all other 2D samples, so the sample generation request is forwarded on to Get2D().
+For this sampler, pixel samples are generated in the same manner as all other 2D samples, so the sample generation request is forwarded on to `Get2D()`.
 
 〈PaddedSobolSampler Public Methods〉 +≡ 503
 
@@ -1635,15 +1658,16 @@ For this sampler, pixel samples are generated in the same manner as all other 2D
 
 ### 8.7.6 BLUE NOISE SOBOL′ SAMPLER
 
-ZSobolSampler is a third sampler based on the Sobol′ sequence. It is also based on padding 1D and 2D Sobol′ samples, but uses sample indices in a way that leads to a blue noise distribution of sample values. This tends to push error to higher frequencies, which in turn makes it appear more visually pleasing. Figure 8.38 compares a scene rendered with the PaddedSobolSampler and the ZSobolSampler; both have essentially the same MSE, but the one rendered using ZSobolSampler looks better to most human observers. This Sampler is the default one used by pbrt if no sampler is specified in the scene description.
+`ZSobolSampler` is a third sampler based on the Sobol′ sequence. It is also based on padding 1D and 2D Sobol′ samples, but uses sample indices in a way that leads to a blue noise distribution of sample values. This tends to push error to higher frequencies, which in turn makes it appear more visually pleasing. Figure 8.38 compares a scene rendered with the `PaddedSobolSampler` and the `ZSobolSampler`; both have essentially the same MSE, but the one rendered using `ZSobolSampler` looks better to most human observers. This `Sampler` is the default one used by pbrt if no sampler is specified in the scene description.
 
 〈ZSobolSampler Definition〉 ≡ class ZSobolSampler { public: 〈ZSobolSampler Public Methods 508〉 private: 〈ZSobolSampler Private Members 508〉 };
 
-This sampler generates blue noise samples by taking advantage of the properties of (0, 2)-sequences. To understand the idea behind its implementation, first consider rendering a two-pixel image using 16 samples per pixel where a set of 2D samples are used for area light source sampling in each pixel. If the first 16 samples from a (0, 2)-sequence are used for the first pixel and the next 16 for the second, then not only will each pixel individually use well-stratified samples, but the set of all 32 samples will collectively be well stratified thanks to the stratification of (0, 2)-sequences over elementary intervals (Section 8.7.1). Consequently, the samples used in each pixel will generally be in different locations than in the other pixel, which is precisely the sample decorrelation exhibited by blue noise. (See Figure 8.39.) PaddedSobolSampler 503 PaddedSobolSampler::dimension 504 PaddedSobolSampler::Get2D() 505 PaddedSobolSampler::SampleDimension() 504 Point2f 92 Sampler 469 ZSobolSampler 505 More generally, if all the pixels in an image take different power-of-2 aligned and sized segments of samples from a single large set of Sobol′
+This sampler generates blue noise samples by taking advantage of the properties of (0, 2)-sequences. To understand the idea behind its implementation, first consider rendering a two-pixel image using 16 samples per pixel where a set of 2D samples are used for area light source sampling in each pixel. If the first 16 samples from a (0, 2)-sequence are used for the first pixel and the next 16 for the second, then not only will each pixel individually use well-stratified samples, but the set of all 32 samples will collectively be well stratified thanks to the stratification of (0, 2)-sequences over elementary intervals (Section 8.7.1). Consequently, the samples used in each pixel will generally be in different locations than in the other pixel, which is precisely the sample decorrelation exhibited by blue noise. (See Figure 8.39.) More generally, if all the pixels in an image take different power-of-2 aligned and sized segments of samples from a single large set of Sobol′
 
 samples in a way that nearby pixels generally take adjacent segments, then the distribution of samples across the entire image will be such that pixels generally use different sample values than their neighbors. Allocating segments of samples in scanline order would give good distributions along scanlines, but it would not do much from scanline to scanline. The Morton curve, which was introduced earlier in Section 7.3.3 in the context of linear bounding volume hierarchies, gives a better mechanism for this task: if we compute the Morton code for each pixel (x, y) and then use that to determine the pixel’s starting index into the full set of Sobol′ samples, then nearby pixels—those that are nearby in both x and y—will tend to use nearby segments of the samples. This idea is illustrated in Figure 8.40.
 
 ![Figure 8.38](images/img-785-129.png)
+
 
 *Figure 8.38: The Benefit of Blue Noise with Padded Sobol′ Points. (a) Rendered using the PaddedSobol Sampler. (b) Rendered with the ZSobolSampler. Both images are rendered using 1 sample per pixel and have the same overall error, but the second image looks much better thanks to a blue noise distribution of error. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
@@ -1656,17 +1680,21 @@ Used directly in this manner, the Morton curve can lead to visible structure in 
 
 ![Figure 8.39](images/img-786-130.png)
 
+
 *Figure 8.39: The First 64 2D Sobol′ Points, Colored in Sets of 16. If four adjacent pixels each use one of these sets for sampling, then each would not only have well-distributed points individually, but the points collectively would be decorrelated due to being from a (0, 2)-sequence.*
 
 ![Figure 8.40](images/img-787-131.png)
+
 
 *Figure 8.40: Allocating Sobol′ Samples in Morton Curve Order. With a 4 × 4 pixel image rendered using 2 samples per pixel, we can take the full set of 2 × 4 × 4 Sobol′ samples and then allocate segments of samples to pixels according to their Morton indices. For example, pixel (2, 1) has Morton index 6, so it uses samples with indices 12 and 13.*
 
 ![Figure 8.41](images/img-787-132.png)
 
+
 *Figure 8.41: If a regular Morton curve without permutations is used to allocate Sobol′ indices in pixels, visible structure will be present in the rendered image. (Compare with Figure 8.38(b) where such a permutation is used.) (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 ![Figure 8.42](images/img-788-133.png)
+
 
 *Figure 8.42: If pixels’ Morton indices are interpreted as base-4 numbers and their digits are randomly permuted, the resulting curve is still spatially coherent. (a) Applying the permutation shown to the first base-4 digit for a 4 × 4 pixel image causes the 2 × 2 blocks of pixels to be visited in a different order than the usual Morton curve. (b) If the second base-4 digit is also permuted (here with different permutations for each 2 × 2 block, not shown), then the pixels within each block are also visited in different orders.*
 
@@ -1705,9 +1733,8 @@ uint64_t mortonIndex; int dimension;
 
 Sample generation is similar to the PaddedSobolSampler with the exception that the index of the sample is found with a call to the GetSampleIndex() method (shown next), which randomizes mortonIndex. The Generate 1D Sobol′ sample at sampleIndex fragment then calls SobolSample() to generate the sampleIndexth sample using the appropriate randomizer. It is otherwise effectively the same as the PaddedSobolSampler::SampleDimension() method, so its implementation is not included here. 〈ZSobolSampler Public Methods〉 +≡ 505
 
-Float Get1D() { uint64_t sampleIndex = GetSampleIndex();
-
 ```rust
+Float Get1D() { uint64_t sampleIndex = GetSampleIndex();
         ++dimension;
         〈Generate 1D Sobol′ sample at sampleIndex〉
    }
@@ -1777,6 +1804,7 @@ In this section we have defined three Samplers, each of which supports four rand
 
 ![Figure 8.43](images/img-793-134.png)
 
+
 *Figure 8.43: Power Spectral Density of the Sobol′ Point Set. (a) Unscrambled, (b) scrambled using random digit permutations, (c) scrambled using the FastOwenScrambler, (d) scrambled using hashed Owen scrambling. The unscrambled Sobol′ points have a remarkably bad power spectral density (PSD) and random digit permutations are of only slight benefit. Owen scrambling greatly improves the PSD.*
 
 *Figure 8.43(a) shows the PSD of the unscrambled 2D Sobol′ point set; it is an especially bad power spectrum. Like the Halton points, the 2D Sobol′ points have low energy along the two axes thanks to well-distributed 1D projections, but there is significant structured variation at higher off-axis frequencies, including regions with very high PSD values. As seen in Figure 8.43(b), randomizing the Sobol′ points with random digit permutations only slightly improves the power spectrum. Only with the Owen scrambling algorithms does the power spectrum start to become*
@@ -1789,9 +1817,11 @@ uniform at higher frequencies, though some structure still remains (Figures 8.43
 
 ![Figure 8.44](images/img-794-135.png)
 
+
 *Figure 8.44: (a) Transforming a 4 × 4 stratified sampling pattern to points on a long and thin quadrilateral light source effectively gives fewer than 16 well-distributed samples; stratification in the vertical direction is not helpful. (b) Samples from the Sobol′ sequence remain well distributed even after this transformation.*
 
 ![Figure 8.45](images/img-795-136.png)
+
 
 *Figure 8.45: Comparisons of the Halton and Various Sobol′ Samplers for Rendering Depth of Field. Mean squared error is reported normalized to that of the stratified sampler. (a) An image rendered using the StratifiedSampler (normalized MSE 1), (b) an image rendered using the HaltonSampler (normalized MSE 1.44), (c) an image rendered using the PaddedSobolSampler (normalized MSE 0.96), (d) an image rendered using the SobolSampler (normalized MSE 0.64), and (e) an image rendered using the ZSobolSampler (normalized MSE 0.84). All the low-discrepancy samplers use hashed Owen scrambling for randomization and 16 samples per pixel.*
 
@@ -1803,15 +1833,17 @@ uniform at higher frequencies, though some structure still remains (Figures 8.43
    ZSobolSampler 505
 ```
 
-Returning to the simple scene with defocus blur that was used in Figure 8.23, Figure 8.45 compares using the Halton sampler to the three Sobol′ samplers for rendering that scene. We can see that the Halton sampler has higher error than the StratifiedSampler, which is due to its 2D projections (as are used for sampling the lens) not necessarily being well
+Returning to the simple scene with defocus blur that was used in Figure 8.23, Figure 8.45 compares using the Halton sampler to the three Sobol′ samplers for rendering that scene. We can see that the Halton sampler has higher error than the `StratifiedSampler`, which is due to its 2D projections (as are used for sampling the lens) not necessarily being well
 
-distributed. The PaddedSobolSampler gives little benefit over the stratified sampler, since for sampling a lens, the 4 × 4 stratification is the most important one and both fulfill that. The SobolSampler has remarkably low error, even though the rendered image shows the characteristic structure of 2D projections of the Sobol′ sequence. The ZSobolSampler combines reasonably low error with the visual benefit of distributing its error with blue noise.
+distributed. The `PaddedSobolSampler` gives little benefit over the stratified sampler, since for sampling a lens, the 4 × 4 stratification is the most important one and both fulfill that. The `SobolSampler` has remarkably low error, even though the rendered image shows the characteristic structure of 2D projections of the Sobol′ sequence. The `ZSobolSampler` combines reasonably low error with the visual benefit of distributing its error with blue noise.
 
 ![Figure 8.46](images/img-796-137.png)
+
 
 *Figure 8.46: Error When Integrating Simple 2D Functions with Sobol′ Samples. (a) Sobol′ sampling exhibits lower error and a faster asymptotic rate of convergence than independent sampling does. For a smooth function like the Gaussian, Owen scrambling the sample points gives an even better rate of convergence, especially at power-of-two numbers of sample points. (b) Using Sobol′ points is also effective for the rotated checkerboard function. Owen scrambling gives a further benefit, though without the substantial improvement in rate of convergence that was seen with the Gaussian.*
 
 ![Figure 8.47](images/img-797-138.png)
+
 
 *Figure 8.47: Log–Log Plot of MSE When Rendering the Scene in Figure 8.32 with Low-Discrepancy Samplers. For this scene, both the Halton and Sobol′ samplers are similarly effective.*
 
@@ -1823,7 +1855,7 @@ distributed. The PaddedSobolSampler gives little benefit over the stratified sam
 
 ## 8.8 IMAGE RECONSTRUCTION
 
-As discussed in Section 5.4.3, each pixel in the Film computes an estimate of the integral of the product of a filter function with samples taken from the image function. In Section 8.1, we saw that sampling theory provides a mathematical foundation for how this filtering operation should be performed in order to achieve an antialiased result. We should, in principle: 1. Reconstruct a continuous image function from the set of image samples. 2. Prefilter that function to remove any frequencies past the Nyquist limit for the pixel spacing.
+As discussed in Section 5.4.3, each pixel in the `Film` computes an estimate of the integral of the product of a filter function with samples taken from the image function. In Section 8.1, we saw that sampling theory provides a mathematical foundation for how this filtering operation should be performed in order to achieve an antialiased result. We should, in principle: 1. Reconstruct a continuous image function from the set of image samples. 2. Prefilter that function to remove any frequencies past the Nyquist limit for the pixel spacing.
 
 3. Sample the prefiltered function at the pixel locations to compute the final pixel values. Because we know that we will be resampling the function at only the pixel locations, it is not necessary to construct an explicit representation of the function. Instead, we can combine the first two steps using a single filter function. Recall that if the original function had been uniformly sampled at a frequency greater than the Nyquist frequency and reconstructed with the sinc filter, then the reconstructed function in the first step would match the original image function perfectly—quite a feat since we only have point samples. But because the image function almost always will have higher frequencies than could be accounted for by the sampling rate (due to edges, etc.), we chose to sample it nonuniformly, trading off noise for aliasing. The theory behind ideal reconstruction depends on the samples being uniformly spaced. While a number of attempts have been made to extend the theory to nonuniform sampling, there is not yet an accepted approach to this problem. Furthermore, because the sampling rate is known to be insufficient to capture the function, perfect reconstruction is not possible. Recent research in the field of sampling theory has revisited the issue of reconstruction with the explicit acknowledgment that perfect reconstruction is not generally attainable in practice. This slight shift in perspective has led to powerful new reconstruction techniques. In particular, the goal of research in reconstruction theory has shifted from perfect reconstruction to developing reconstruction techniques that can be shown to minimize error between the reconstructed function and the original function, regardless of whether the original was band limited. The sinc filter is not an appropriate choice here: recall that the ideal sinc filter is prone to ringing when the underlying function has frequencies beyond the Nyquist limit, meaning edges in the image have faint replicated copies of the edge in nearby pixels (the Gibbs phenomenon; see Section 8.1.5). Furthermore, the sinc filter has infinite support: it does not fall off to zero at a finite distance from its center, so all the image samples would need to be filtered for each output pixel. In practice, there is no single best filter function. Choosing the best one for a particular scene takes a mixture of
 
@@ -1831,7 +1863,7 @@ quantitative evaluation and qualitative judgment. pbrt therefore provides a vari
 
 ### 8.8.1 FILTER INTERFACE
 
-The Filter class defines the interface for pixel reconstruction filters in pbrt. It is defined in the file base/filter.rs.
+The `Filter` class defines the interface for pixel reconstruction filters in pbrt. It is defined in the file base/filter.rs.
 
 ```text
     Film 244
@@ -1839,9 +1871,11 @@ The Filter class defines the interface for pixel reconstruction filters in pbrt.
 
 ![Figure 8.48](images/img-799-139.png)
 
+
 *Figure 8.48: The pixel reconstruction filter used to convert the image samples into pixel values can have a noticeable effect on the character of the final image. Here, we see enlargements of a region of the imperial crown model, filtered with (a) the box filter, (b) Gaussian filter, and (c) Mitchell–Netravali filter. Note that the Mitchell filter gives the sharpest image, while the Gaussian blurs it. The box filter is the least desirable, since it allows high-frequency aliasing to leak into the final image. (Note the stair-step pattern along bright gold edges, for example.) (Crown model courtesy of Martin Lubich.)*
 
 ![Figure 8.49](images/img-800-140.png)
+
 
 *Figure 8.49: The extent of filters in pbrt is specified in terms of each one’s radius from the origin to its cutoff point. The support of a filter is its total nonzero extent, here equal to twice its radius.*
 
@@ -1868,7 +1902,7 @@ Filter implementations must also provide a method that evaluates their filter fu
 
 Float Evaluate(Point2f p) const;
 
-Filters also must be able to return their integral. Most are able to compute this value in closed form. Thus, if calling code requires a normalized filter function, it is easy enough to find it by dividing values returned by Evaluate() by the integral.
+Filters also must be able to return their integral. Most are able to compute this value in closed form. Thus, if calling code requires a normalized filter function, it is easy enough to find it by dividing values returned by `Evaluate()` by the integral.
 
 〈Filter Interface〉 +≡ 515
 
@@ -1878,15 +1912,18 @@ Filters must also provide an importance sampling method, Sample, which takes a r
 
 FilterSample Sample(Point2f u) const;
 
-The returned FilterSample structure stores both the sampled position p and a weight, which is the ratio of the value of the filter function at p to the value of the PDF used for sampling there. Because some filters are able to exactly sample from their distribution, returning this ratio directly allows them to save the trouble of evaluating those two values and instead to always return a weight of 1. 〈FilterSample Definition〉 ≡ struct FilterSample { Point2f p;
+The returned `FilterSample` structure stores both the sampled position p and a weight, which is the ratio of the value of the filter function at p to the value of the PDF used for sampling there. Because some filters are able to exactly sample from their distribution, returning this ratio directly allows them to save the trouble of evaluating those two values and instead to always return a weight of 1.
 
+```rust
+〈FilterSample Definition〉 ≡ struct FilterSample { Point2f p;
 Float weight; };
+```
 
-Given the specification of this interface, we can now implement the GetCameraSample() function that most integrators use to compute the CameraSamples that they pass to the Camera::GenerateRay() methods.
+Given the specification of this interface, we can now implement the `GetCameraSample()` function that most integrators use to compute the CameraSamples that they pass to the `Camera::GenerateRay()` methods.
 
 〈Sampler Inline Functions〉 ≡ template <typename S> CameraSample GetCameraSample(S sampler, Point2i pPixel, Filter filter) { FilterSample fs = filter.Sample(sampler.GetPixel2D()); CameraSample cs; 〈Initialize CameraSample member variables 517〉 return cs; }
 
-One subtlety in the definition of this function is that it is templated based on the type of the sampler passed to it. If a value of type Sampler is passed to this method, then it proceeds using pbrt’s usual dynamic dispatch mechanism to call the corresponding methods of the Sampler implementation. However, if a concrete sampler type (e.g., HaltonSampler) is passed to it, then the corresponding methods can be called directly (and are generally expanded inline in the function). This capability is used to improve performance in pbrt’s GPU rendering path; see Section 15.3.3. After the filter’s Sample() method has returned a FilterSample, the image sample position can be found by adding the filter’s sampled offset to the pixel coordinate before a shift of 0.5 in each dimension accounts for the mapping from discrete to continuous pixel coordinates (recall Section 8.1.4). The filter’s weight is passed along in the CameraSample so that it is available to the Film when its AddSample() method is called.
+One subtlety in the definition of this function is that it is templated based on the type of the sampler passed to it. If a value of type `Sampler` is passed to this method, then it proceeds using pbrt’s usual dynamic dispatch mechanism to call the corresponding methods of the `Sampler` implementation. However, if a concrete sampler type (e.g., `HaltonSampler`) is passed to it, then the corresponding methods can be called directly (and are generally expanded inline in the function). This capability is used to improve performance in pbrt’s GPU rendering path; see Section 15.3.3. After the filter’s `Sample()` method has returned a `FilterSample`, the image sample position can be found by adding the filter’s sampled offset to the pixel coordinate before a shift of 0.5 in each dimension accounts for the mapping from discrete to continuous pixel coordinates (recall Section 8.1.4). The filter’s weight is passed along in the `CameraSample` so that it is available to the `Film` when its `AddSample()` method is called.
 
 ```text
    Camera::GenerateRay() 206
@@ -1927,7 +1964,7 @@ domain gives the bounds of the filter and f stores tabularized filter function v
 
 Bounds2f domain; Array2D<Float> f;
 
-All the filters currently implemented in pbrt are symmetric about the origin, which means that they could be tabularized over a single xy quadrant. Further, they are all separable into the product of two 1D functions. Either of these properties could be exploited to reduce the amount of storage required for the tables used for sampling. However, to allow full flexibility with the definition of additional filter functions, the FilterSampler simply evaluates the filter at equally spaced positions over its entire domain to initialize the f array.
+All the filters currently implemented in pbrt are symmetric about the origin, which means that they could be tabularized over a single xy quadrant. Further, they are all separable into the product of two 1D functions. Either of these properties could be exploited to reduce the amount of storage required for the tables used for sampling. However, to allow full flexibility with the definition of additional filter functions, the `FilterSampler` simply evaluates the filter at equally spaced positions over its entire domain to initialize the f array.
 
 〈Tabularize unnormalized filter function in f〉 ≡ 517
 
@@ -1964,6 +2001,7 @@ for (int y = 0; y < f.YSize(); ++y) for (int x = 0; x < f.XSize(); ++x) { Point2
 
 ![Figure 8.50](images/img-805-141.png)
 
+
 *Figure 8.50: Filter function f (x) and a piecewise-constant sampling distribution p(x) found by evaluating it at the center of each cell, as is done by the FilterSampler. If filter positions are found by sampling from p(x) and contributions are weighted using the ratio f (x)/p(x), then different samples may have very different contributions. For example, the two points shown have a 10× difference in their f (x)/p(x) values. This variation in filter weights can lead to variance in images and therefore the FilterSampler uses the same piecewise-constant approximation of f (x) for evaluation as is used for sampling.*
 
 Given a tabularized function, it is easy to initialize the sampling distribution. 〈Compute sampling distribution for filter〉 ≡ 517
@@ -1974,7 +2012,7 @@ distrib = PiecewiseConstant2D(f, domain, alloc);
 
 PiecewiseConstant2D distrib;
 
-There are two important details in the implementation of its Sample() method. First, the implementation does not use Filter::Evaluate() to evaluate the filter function but instead uses the tabularized version of it in f. By using the piecewise constant approximation of the filter function, it ensures that the returned weight f (p′)/p(p′) for a sampled point p′ is always ±c for a constant c. If it did not do this, there would be variation in the returned weight for non-constant filter functions, due to the sampling distribution not being exactly proportional to the filter function—see Figure 8.50, which illustrates the issue. A second important detail is that the integer coordinates of the sample returned by Piecewise Constant2D::Sample() are used to index into f for filter function evaluation. If instead the point p was scaled up by the size of the f array in each dimension and converted to an integer, the result would occasionally differ from the integer coordinates computed during sampling by PiecewiseConstant2D due to floating-point round-off error. (Using the notation of Section 6.8.1, the issue is that with floating-point arithmetic, (a ⊘ b) ⊗ b ≠ (a/b)b = a.) Again, variance would result, as the ratio f (x)/p(x) might not be ±c. 〈FilterSampler Public Methods〉 ≡ 517
+There are two important details in the implementation of its Sample() method. First, the implementation does not use Filter::Evaluate() to evaluate the filter function but instead uses the tabularized version of it in f. By using the piecewise constant approximation of the filter function, it ensures that the returned weight f (p′)/p(p′) for a sampled point p′ is always ±c for a constant c. If it did not do this, there would be variation in the returned weight for non-constant filter functions, due to the sampling distribution not being exactly proportional to the filter function—see Figure 8.50, which illustrates the issue. A second important detail is that the integer coordinates of the sample returned by PiecewiseConstant2D::Sample() are used to index into f for filter function evaluation. If instead the point p was scaled up by the size of the f array in each dimension and converted to an integer, the result would occasionally differ from the integer coordinates computed during sampling by PiecewiseConstant2D due to floating-point round-off error. (Using the notation of Section 6.8.1, the issue is that with floating-point arithmetic, (a ⊘ b) ⊗ b ≠ (a/b)b = a.) Again, variance would result, as the ratio f (x)/p(x) might not be ±c. 〈FilterSampler Public Methods〉 ≡ 517
 
 FilterSample Sample(Point2f u) const { Float pdf; Point2i pi; Point2f p = distrib.Sample(u, &pdf, &pi); return FilterSample{p, f[pi] / pdf}; }
 
@@ -2001,9 +2039,11 @@ One of the most commonly used filters in graphics is the box filter (and, in fac
 
 ![Figure 8.51](images/img-807-142.png)
 
+
 *Figure 8.51: Graphs of the (a) box filter and (b) triangle filter. Although neither of these is a particularly good filter, they are both computationally efficient, easy to implement, and good baselines for evaluating other filters.*
 
 ![Figure 8.52](images/img-808-143.png)
+
 
 *Figure 8.52: The box filter reconstructing (a) a step function and (b) a sinusoidal function with increasing frequency as x increases. This filter does well with the step function, as expected, but does an extremely poor job with the sinusoidal function.*
 
@@ -2074,15 +2114,17 @@ Unlike the box and triangle filters, the Gaussian filter gives a reasonably good
 
 ![Figure 8.53](images/img-811-144.png)
 
+
 *Figure 8.53: Graphs of (a) the Gaussian filter and (b) the Mitchell filter with and , each with a width of 2. The Gaussian gives images that tend to be a bit blurry, while the negative lobes of the Mitchell filter help to accentuate and sharpen edges in final images.*
 
+```rust
 〈GaussianFilter Definition〉 ≡ class GaussianFilter {
-
 public: 〈GaussianFilter Public Methods 522〉 private: 〈GaussianFilter Private Members 522〉 };
+```
 
 The Gaussian function is parameterized by the position of the peak μ and the standard deviation σ:
 
-Larger values of σ cause a slower falloff, which leads to a blurrier image when the Gaussian is used as a filter. The GaussianFilter is centered at the origin, so μ = 0. Further, the filter function subtracts the value of the Gaussian at the end of its extent r from the filter value in order to make the filter go to 0 at its limit:
+Larger values of σ cause a slower falloff, which leads to a blurrier image when the Gaussian is used as a filter. The `GaussianFilter` is centered at the origin, so μ = 0. Further, the filter function subtracts the value of the Gaussian at the end of its extent r from the filter value in order to make the filter go to 0 at its limit:
 
 For efficiency, the constructor precomputes the constant term for g(r, 0, σ) in each direction. 〈GaussianFilter Public Methods〉 ≡ 522
 
@@ -2094,16 +2136,15 @@ Vector2f radius; Float sigma, expX, expY; FilterSampler sampler;
 
 The product of the two 1D Gaussian functions gives the overall filter value according to Equation (8.26). The calls to std::max() ensure that the value of 0 is returned for points outside of the filter’s extent. 〈GaussianFilter Public Methods〉 +≡ 522
 
-Float Evaluate(Point2f p) const { return (std::max<Float>(0, Gaussian(p.x, 0, sigma) - expX) *
-
 ```rust
+Float Evaluate(Point2f p) const { return (std::max<Float>(0, Gaussian(p.x, 0, sigma) - expX) *
                      std::max<Float>(0, Gaussian(p.y, 0, sigma) - expY));
    }
 ```
 
 The integral of the Gaussian is
 
-where erf is the error function. GaussianIntegral() evaluates its value over a given range. The filter function’s integral can be computed by evaluating the Gaussian’s integral over the filter’s range and subtracting the integral of the offset that takes the filter to zero at the end of its extent.
+where erf is the error function. `GaussianIntegral()` evaluates its value over a given range. The filter function’s integral can be computed by evaluating the Gaussian’s integral over the filter’s range and subtracting the integral of the offset that takes the filter to zero at the end of its extent.
 
 ```text
    Allocator 40
@@ -2123,7 +2164,7 @@ where erf is the error function. GaussianIntegral() evaluates its value over a g
 
 Float Integral() const { return ((GaussianIntegral(-radius.x, radius.x, 0, sigma) -2 * radius.x * expX) * (GaussianIntegral(-radius.y, radius.y, 0, sigma) -2 * radius.y * expY)); }
 
-It is possible to sample from the Gaussian function using a polynomial approximation to the inverse error function, though that is not sufficient in this case, given the presence of the second term of the filter function in Equation (8.26). pbrt’s GaussianFilter implementation therefore uses a FilterSampler for sampling.
+It is possible to sample from the Gaussian function using a polynomial approximation to the inverse error function, though that is not sufficient in this case, given the presence of the second term of the filter function in Equation (8.26). pbrt’s `GaussianFilter` implementation therefore uses a `FilterSampler` for sampling.
 
 〈GaussianFilter Public Methods〉 +≡ 522
 
@@ -2139,9 +2180,9 @@ Vector2f radius;
 
 Float b, c; FilterSampler sampler;
 
-FilterSample 516 FilterSampler 517 FilterSampler::Sample() 518 Float 23 GaussianFilter::expX 522 GaussianFilter::expY 522 GaussianFilter::radius 522 GaussianFilter::sampler 522 GaussianFilter::sigma 522 GaussianIntegral() 1038 Point2f 92 Vector2f 86
 
 ![Figure 8.54](images/img-816-145.png)
+
 
 *Figure 8.54: The Mitchell–Netravali Filter Used to Reconstruct the Example Functions. It does a good job with both of these functions, (a) introducing minimal ringing with the step function and (b) accurately representing the sinusoid until aliasing from undersampling starts to dominate.*
 
@@ -2153,7 +2194,7 @@ The 1D function used in the Mitchell filter is an even function defined over the
 
 parameters and are chosen carefully to guarantee C0 and C1 continuity at x = 0, x = 1, and x = 2. The polynomials are
 
-Mitchell1D() evaluates this function. Its implementation is straightforward and is not included here.
+`Mitchell1D()` evaluates this function. Its implementation is straightforward and is not included here.
 
 ```text
    Float 23
@@ -2164,9 +2205,10 @@ Mitchell1D() evaluates this function. Its implementation is straightforward and 
 
 ![Figure 8.55](images/img-817-146.png)
 
+
 *Figure 8.55: Graphs of the Sinc Filter. (a) The sinc function, truncated after three cycles (blue line) and the Lanczos windowing function (red line). (b) The product of these two functions, as implemented in the LanczosSincFilter.*
 
-As a cubic polynomial, sampling this filter function directly would require inverting a quartic. Therefore, the MitchellFilter uses the FilterSampler for sampling.
+As a cubic polynomial, sampling this filter function directly would require inverting a quartic. Therefore, the `MitchellFilter` uses the `FilterSampler` for sampling.
 
 〈MitchellFilter Public Methods〉 +≡ 523
 
@@ -2180,7 +2222,7 @@ Float Integral() const { return radius.x * radius.y / 4; }
 
 ### 8.8.7 WINDOWED SINC FILTER
 
-Finally, the LanczosSincFilter class implements a filter based on the sinc function. In practice, the sinc filter is often multiplied by another function that goes to 0 after some distance. This gives a filter function with finite extent. An additional parameter τ controls how many cycles the sinc function passes through before it is clamped to a value of 0. Figure 8.55 shows a graph of three cycles of the sinc function, along with a graph of the windowing function we use, which was developed by Lanczos. The Lanczos window is just the central lobe of the sinc function, scaled to cover
+Finally, the `LanczosSincFilter` class implements a filter based on the sinc function. In practice, the sinc filter is often multiplied by another function that goes to 0 after some distance. This gives a filter function with finite extent. An additional parameter τ controls how many cycles the sinc function passes through before it is clamped to a value of 0. Figure 8.55 shows a graph of three cycles of the sinc function, along with a graph of the windowing function we use, which was developed by Lanczos. The Lanczos window is just the central lobe of the sinc function, scaled to cover
 
 the τ cycles: Figure 8.55 also shows the filter that we will implement here, which is the product of the sinc function and the windowing function. It is evaluated by the WindowedSinc() utility function. 〈Math Inline Functions〉 +≡ Float WindowedSinc(Float x, Float radius, Float tau) { if (std::abs(x) > radius) return 0; return Sinc(x) * Sinc(x / tau); }
 
@@ -2205,6 +2247,7 @@ Its implementation uses the Sinc() function, which in turn is implemented using 
 
 ![Figure 8.56](images/img-819-148.png)
 
+
 *Figure 8.56: Results of Using the Windowed Sinc Filter to Reconstruct the Example Functions. Here, τ = 3. (a) Like the infinite sinc, it suffers from ringing with the step function, although there is much less ringing in the windowed version. (b) The filter does quite well with the sinusoid, however.*
 
 *Figure 8.56 shows the windowed sinc’s reconstruction results for uniform 1D samples. Thanks to the windowing, the reconstructed step function exhibits far less ringing than the reconstruction using the infinite-extent sinc function (compare to Figure 8.11). The windowed sinc filter also does extremely well at reconstructing the sinusoidal function until prealiasing begins. 〈LanczosSincFilter Definition〉 ≡*
@@ -2221,7 +2264,7 @@ Vector2f radius; Float tau; FilterSampler sampler;
    Vector2f 86
 ```
 
-The evaluation method is easily implemented in terms of the WindowedSinc() function.
+The evaluation method is easily implemented in terms of the `WindowedSinc()` function.
 
 〈LanczosSincFilter Public Methods〉 ≡ 526
 
@@ -2264,7 +2307,7 @@ Analysis of Monte Carlo Integration Starting with Ramamoorthi and Hanrahan’s (
 
 Sample Generation Algorithms After the introduction of jittered sampling, Mitchell (1987) introduced an approach to generate sampling patterns with good blue noise characteristics using error diffusion and later developed an algorithm for generating sampling patterns that were also optimized for sampling motion blur and depth of field (Mitchell 1991). A key observation in the second paper was that a d-dimensional Poisson disk distribution is not the ideal one for general integration problems in graphics; while it is useful for the projection of the first two dimensions on the image plane to have the Poisson-disk property, it is important that the other dimensions be more widely distributed than the Poisson-disk quality alone guarantees. The utility of such approaches was recently understood more widely after work by Georgiev and Fajardo (2016), who also described a method to generate tables of samples where nearby points are decorrelated for such applications. Heitz and Belcour (2019) developed a technique that permutes random seeds across nearby pixels in order to decorrelate the error in the image, rather than just the sample values themselves.
 
-The blue noise points provided via the BlueNoise() function are thanks to Peters (2016) and were generated using Ulichney’s “void and cluster” algorithm (1993). Chiu, Shirley, and Wang (1994) suggested a multi-jittered 2D sampling technique based on randomly shuffling the x and y coordinates of a canonical jittered pattern that combines the properties of stratified and Latin hypercube sampling patterns. More recently, Kensler (2013) showed that using the same permutation for both dimensions with their method gives much better results than independent permutations; he showed that this approach gives lower discrepancy than the Sobol′ pattern while also maintaining the perceptual advantages of turning aliasing into noise due to using jittered samples. Christensen et al. further improved this approach (2018), generating point sets that were also stratified with respect to the elementary intervals and had good blue noise properties. Pharr (2019) proposed a more efficient algorithm to generate these points, though Grünschloß et al. (2008) had earlier developed an efficient elementary interval test that is similar to the one described there. Lagae and Dutré (2008c) surveyed the state of the art in generating Poisson disk sample patterns and compared the quality of the point sets that various algorithms generated. Reinert et al. (2015) proposed a construction for d-dimensional Poisson disk samples that retain their characteristic sample separation under projection onto lower-dimensional subsets, which ensures good performance if the variation in the function is focused along only some of the dimensions. Jarosz et al. (2019) applied orthogonal array sampling to generating multidimensional sample points that retain good distribution across lower-dimensional projections and showed that this approach gives much better results than randomly padding lower-dimensional samples as pbrt does in the PaddedSobolSampler, for example.
+The blue noise points provided via the `BlueNoise()` function are thanks to Peters (2016) and were generated using Ulichney’s “void and cluster” algorithm (1993). Chiu, Shirley, and Wang (1994) suggested a multi-jittered 2D sampling technique based on randomly shuffling the x and y coordinates of a canonical jittered pattern that combines the properties of stratified and Latin hypercube sampling patterns. More recently, Kensler (2013) showed that using the same permutation for both dimensions with their method gives much better results than independent permutations; he showed that this approach gives lower discrepancy than the Sobol′ pattern while also maintaining the perceptual advantages of turning aliasing into noise due to using jittered samples. Christensen et al. further improved this approach (2018), generating point sets that were also stratified with respect to the elementary intervals and had good blue noise properties. Pharr (2019) proposed a more efficient algorithm to generate these points, though Grünschloß et al. (2008) had earlier developed an efficient elementary interval test that is similar to the one described there. Lagae and Dutré (2008c) surveyed the state of the art in generating Poisson disk sample patterns and compared the quality of the point sets that various algorithms generated. Reinert et al. (2015) proposed a construction for d-dimensional Poisson disk samples that retain their characteristic sample separation under projection onto lower-dimensional subsets, which ensures good performance if the variation in the function is focused along only some of the dimensions. Jarosz et al. (2019) applied orthogonal array sampling to generating multidimensional sample points that retain good distribution across lower-dimensional projections and showed that this approach gives much better results than randomly padding lower-dimensional samples as pbrt does in the `PaddedSobolSampler`, for example.
 
 The error analysis framework derived in Öztireli’s paper (2020) further makes it possible to express the desired properties of a point set in a form that is suitable to solve as an optimization problem. This made it possible to generate point sets with superior antialiasing capabilities to previous
 
@@ -2277,11 +2320,11 @@ Low-Discrepancy Sampling and QMC Shirley (1991) first introduced the use of disc
    PaddedSobolSampler 503
 ```
 
-Keller and collaborators have investigated quasi-random sampling patterns for a variety of applications in graphics (Keller 1996, 1997, 2001, Kollig and Keller 2000). Keller’s “Quasi-Monte Carlo image synthesis in a nutshell” (2012) is a good introduction to quasi–Monte Carlo for rendering. Friedel and Keller (2002) described an approach for efficient evaluation of the radical inverse based on reusing some values across multiple sample points. Both the sampling approach based on (0, 2)-sequences that is used in the PaddedSobolSampler and the algorithm implemented in the BinaryPermuteScrambler are described in a paper by Kollig and Keller (2002). Basu and Owen (2016) analyzed the effect of the distortion from warping uniform samples in the context of quasi–Monte Carlo. The discrepancy bounds for jittered sampling in Equation (8.17) are due to Pausinger and Steinerberger (2016).
+Keller and collaborators have investigated quasi-random sampling patterns for a variety of applications in graphics (Keller 1996, 1997, 2001, Kollig and Keller 2000). Keller’s “Quasi-Monte Carlo image synthesis in a nutshell” (2012) is a good introduction to quasi–Monte Carlo for rendering. Friedel and Keller (2002) described an approach for efficient evaluation of the radical inverse based on reusing some values across multiple sample points. Both the sampling approach based on (0, 2)-sequences that is used in the `PaddedSobolSampler` and the algorithm implemented in the `BinaryPermuteScrambler` are described in a paper by Kollig and Keller (2002). Basu and Owen (2016) analyzed the effect of the distortion from warping uniform samples in the context of quasi–Monte Carlo. The discrepancy bounds for jittered sampling in Equation (8.17) are due to Pausinger and Steinerberger (2016).
 
 (0, 2)-sequences are one instance of a general type of low-discrepancy sequence known as (t, s)-sequences and (t, m, s)-nets. These were discussed further by Niederreiter (1992) and Dick and Pillichshammer (2010).
 
-Sobol′ (1967) introduced the family of generator matrices used in Section 8.7. Antonov and Saleev (1979) showed that enumerating Sobol′ sample points in Gray code order leads to a highly efficient implementation; see also Bratley and Fox (1988) and Wächter’s Ph.D. dissertation (2008) for further discussion of high-performance implementation of base-2 generator matrix operations. The Sobol′ generator matrices our implementation uses are enhanced versions derived by Joe and Kuo (2008) that improve the 2D projections of sample points. Grünschloß and collaborators found generator matrices for 2D sampling that satisfy the base-2 elementary intervals and are also optimized to improve the sampling pattern’s blue noise properties (Grünschloß et al. 2008, Grünschloß and Keller 2009). Braaten and Weller introduced the idea of using digit permutations to improve Halton sample points (1979); they used a single permutation for all the digits in a given base, but determined permutations incrementally in order to optimize the d-dimensional distribution of points. Better results can be had by using per-digit permutations (as is done in the DigitPermutation class) and by using carefully constructed deterministic permutations (as is not). Faure (1992) described a deterministic approach for computing permutations for scrambled radical inverses; more recently, Faure and Lemieux (2009) surveyed a variety of approaches for doing so and proposed a new approach that ensures that the 1- and 2-dimensional projections of scrambled sample points are well distributed. The nested uniform digit scrambling that has become known as Owen scrambling was introduced by Owen (1995), though in its original form it had high storage requirements for the permutations. Tan and Boyle (2000) proposed switching to a fixed permutation after some number of digits, and Friedel and Keller (2002) cached lazily generated permutations. Owen (2003) proposed the hash-based permutation approach that is implemented in both OwenScrambledRadicalInverse() and the OwenScrambler class. Laine and Karras (2011) noted that in base 2, nested uniform digit scrambling could be implemented in parallel across all the digits. The specific function used to do so in the FastOwenScrambler is due to
+Sobol′ (1967) introduced the family of generator matrices used in Section 8.7. Antonov and Saleev (1979) showed that enumerating Sobol′ sample points in Gray code order leads to a highly efficient implementation; see also Bratley and Fox (1988) and Wächter’s Ph.D. dissertation (2008) for further discussion of high-performance implementation of base-2 generator matrix operations. The Sobol′ generator matrices our implementation uses are enhanced versions derived by Joe and Kuo (2008) that improve the 2D projections of sample points. Grünschloß and collaborators found generator matrices for 2D sampling that satisfy the base-2 elementary intervals and are also optimized to improve the sampling pattern’s blue noise properties (Grünschloß et al. 2008, Grünschloß and Keller 2009). Braaten and Weller introduced the idea of using digit permutations to improve Halton sample points (1979); they used a single permutation for all the digits in a given base, but determined permutations incrementally in order to optimize the d-dimensional distribution of points. Better results can be had by using per-digit permutations (as is done in the `DigitPermutation` class) and by using carefully constructed deterministic permutations (as is not). Faure (1992) described a deterministic approach for computing permutations for scrambled radical inverses; more recently, Faure and Lemieux (2009) surveyed a variety of approaches for doing so and proposed a new approach that ensures that the 1- and 2-dimensional projections of scrambled sample points are well distributed. The nested uniform digit scrambling that has become known as Owen scrambling was introduced by Owen (1995), though in its original form it had high storage requirements for the permutations. Tan and Boyle (2000) proposed switching to a fixed permutation after some number of digits, and Friedel and Keller (2002) cached lazily generated permutations. Owen (2003) proposed the hash-based permutation approach that is implemented in both `OwenScrambledRadicalInverse()` and the `OwenScrambler` class. Laine and Karras (2011) noted that in base 2, nested uniform digit scrambling could be implemented in parallel across all the digits. The specific function used to do so in the `FastOwenScrambler` is due to
 
 Vegdahl (2021). See also Burley (2020) for further discussion of this approach. The algorithms used for computing sample indices within given pixels in Sections 8.6.3 and 8.7.4 were introduced by Grünschloß et al. (2012). Rank-1 lattices are a deterministic approach for constructing well-distributed point sets. They were introduced to graphics by Keller (2004) and Dammertz and Keller (2008b). More recently, Liu et al. (2021) extended them to high-dimensional integration problems in rendering.
 
@@ -2294,11 +2337,11 @@ Vegdahl (2021). See also Burley (2020) for further discussion of this approach. 
    PaddedSobolSampler 503
 ```
 
-As the effectiveness of both low-discrepancy sampling and blue noise has become better understood, a number of researchers have developed sampling techniques that target both metrics. Examples include Ahmed et al. (2016), who rearranged low-discrepancy sample points to improve blue noise properties, and Perrier et al. (2018), who found Owen scrambling permutations that led to good blue noise characteristics. Heitz et al. (2019) started with an Owen-scrambled point set and then improved its blue noise characteristics by solving an optimization problem that sets per-pixel seeds for randomization of the points in a way that decorrelates the error in integrating a set of test functions at nearby pixels. The approach implemented in the ZSobolSampler based on permuted Morton indices to achieve blue noise was introduced by Ahmed and Wonka (2020). An exciting recent development in this area is the recent paper by Ahmed and Wonka (2021) that presents algorithms to directly enumerate all the valid digital (0, m, 2)-nets. In turn, it is possible to apply various optimization algorithms to the generated point sets (e.g., to improve their blue noise characteristics). See also recent work by Helmer et al. (2021) for algorithms that incrementally generate sequences of Owen-scrambled Halton, Sobol′, and Faure points, allowing both optimization of the distribution of the points and highly efficient point generation.
+As the effectiveness of both low-discrepancy sampling and blue noise has become better understood, a number of researchers have developed sampling techniques that target both metrics. Examples include Ahmed et al. (2016), who rearranged low-discrepancy sample points to improve blue noise properties, and Perrier et al. (2018), who found Owen scrambling permutations that led to good blue noise characteristics. Heitz et al. (2019) started with an Owen-scrambled point set and then improved its blue noise characteristics by solving an optimization problem that sets per-pixel seeds for randomization of the points in a way that decorrelates the error in integrating a set of test functions at nearby pixels. The approach implemented in the `ZSobolSampler` based on permuted Morton indices to achieve blue noise was introduced by Ahmed and Wonka (2020). An exciting recent development in this area is the recent paper by Ahmed and Wonka (2021) that presents algorithms to directly enumerate all the valid digital (0, m, 2)-nets. In turn, it is possible to apply various optimization algorithms to the generated point sets (e.g., to improve their blue noise characteristics). See also recent work by Helmer et al. (2021) for algorithms that incrementally generate sequences of Owen-scrambled Halton, Sobol′, and Faure points, allowing both optimization of the distribution of the points and highly efficient point generation.
 
-Filtering and Reconstruction Cook (1986) first introduced the Gaussian filter to graphics. Mitchell and Netravali (1988) investigated a family of filters using experiments with human observers to find the most effective ones; the MitchellFilter in this chapter is the one they chose as the best. Kajiya and Ullner (1981) investigated image filtering methods that account for the effect of the reconstruction characteristics of Gaussian falloff from pixels in CRTs. Betrisey et al. (2000) described Microsoft’s ClearType technology for display of text on LCDs. Alim (2013) applied reconstruction techniques that attempt to minimize the error between the reconstructed image and the original continuous image, even in the presence of discontinuities. There has been quite a bit of research into reconstruction filters for image resampling applications. Although this application is not the same as reconstructing nonuniform samples for image synthesis, much of this experience is applicable. Turkowski (1990a) reported that the Lanczos windowed sinc filter gives the best results among a number of filters for image resampling. Meijering et al. (1999) tested a variety of filters for image resampling by applying a series of transformations to images such that if perfect resampling had been done, the final image would be the same as the original. They also found that the Lanczos window performed well (as did a few others) and that truncating the sinc without a window gave some of the worst results. Other work in this area includes papers by Möller et al. (1997) and Machiraju and Yagel (1996).
+Filtering and Reconstruction Cook (1986) first introduced the Gaussian filter to graphics. Mitchell and Netravali (1988) investigated a family of filters using experiments with human observers to find the most effective ones; the `MitchellFilter` in this chapter is the one they chose as the best. Kajiya and Ullner (1981) investigated image filtering methods that account for the effect of the reconstruction characteristics of Gaussian falloff from pixels in CRTs. Betrisey et al. (2000) described Microsoft’s ClearType technology for display of text on LCDs. Alim (2013) applied reconstruction techniques that attempt to minimize the error between the reconstructed image and the original continuous image, even in the presence of discontinuities. There has been quite a bit of research into reconstruction filters for image resampling applications. Although this application is not the same as reconstructing nonuniform samples for image synthesis, much of this experience is applicable. Turkowski (1990a) reported that the Lanczos windowed sinc filter gives the best results among a number of filters for image resampling. Meijering et al. (1999) tested a variety of filters for image resampling by applying a series of transformations to images such that if perfect resampling had been done, the final image would be the same as the original. They also found that the Lanczos window performed well (as did a few others) and that truncating the sinc without a window gave some of the worst results. Other work in this area includes papers by Möller et al. (1997) and Machiraju and Yagel (1996).
 
-Adaptive Sampling and Reconstruction pbrt does not include samplers that perform adaptive sampling. Though adaptive sampling has been an active area of research, our own experience with the resulting algorithms has been that while most work well in some cases, few are robust across a wide range of scenes. (Adaptive sampling further introduces a coupling between the Sampler and the Film that we prefer to avoid.) Early work on adaptive sampling includes that of Lee, Redner, and Uselton (1985), who developed a technique for adaptive sampling based on statistical tests that made it possible to compute images to a given error tolerance; Mitchell (1987), who investigated the use of contrast differences for adaptive sampling; and Purgathofer (1987), who
+Adaptive Sampling and Reconstruction pbrt does not include samplers that perform adaptive sampling. Though adaptive sampling has been an active area of research, our own experience with the resulting algorithms has been that while most work well in some cases, few are robust across a wide range of scenes. (Adaptive sampling further introduces a coupling between the `Sampler` and the `Film` that we prefer to avoid.) Early work on adaptive sampling includes that of Lee, Redner, and Uselton (1985), who developed a technique for adaptive sampling based on statistical tests that made it possible to compute images to a given error tolerance; Mitchell (1987), who investigated the use of contrast differences for adaptive sampling; and Purgathofer (1987), who
 
 applied statistical tests. Kajiya applied adaptive sampling to the Monte Carlo light transport integral (1986).
 
@@ -2321,7 +2364,7 @@ Mitchell (1987) observed that standard image reconstruction techniques fail in t
 
 ➋ 8.1 The third through fifth dimensions of every sample are currently consumed for time and lens samples in pbrt, even though not all scenes need these sample values. For some sample generation algorithms, lower dimensions in the sample are better distributed than higher ones and so this can cause an unnecessary reduction in image quality.
 
-Modify pbrt so that the camera can report its sample requirements and then use this information when samples are requested to initialize CameraSamples. Render images and compare results to the current implementation. Do you see an improvement? How do results differ with different samplers? How do you explain any differences you see across samplers? ➋ 8.2 Keller (2004) and Dammertz and Keller (2008b) described the application of rank-1 lattices to image synthesis. Rank-1 lattices are another way of efficiently generating high-quality low-discrepancy sets of sample points. Read their papers and implement a Sampler based on this approach. Compare results to the other samplers in pbrt. ➋ 8.3 Implement a Sampler based on orthogonal array sampling, as described by Jarosz et al. (2019). Compare both MSE and Monte Carlo efficiency of this sampler to pbrt’s current samplers. ➌ 8.4 Mitchell and Netravali (1988) noted that there is a family of reconstruction filters that use both the value of a function and its derivative at the point to do substantially better reconstruction than if just the value of the function is known. Furthermore, they report that they have derived closed-form expressions for the screen space derivatives of Lambertian and Phong reflection models, although they do not include these expressions in their paper. Investigate derivative-based reconstruction, and extend pbrt to support this technique. If you decide to shy away from deriving expressions for the screen space derivatives for general shapes and BSDF models, you may want to investigate approximations based on finite differencing and the ideas behind the ray differentials of Section 10.1. ➌ 8.5 Read some of the papers on adaptive sampling and reconstruction techniques from the “Further Reading” section and implement one of these techniques in pbrt. Note that you will likely need to both write a new Sampler and add additional Film functionality. Measure the effectiveness of the approach you have implemented using Monte Carlo efficiency in order to account for any increased computational cost. How well does your implementation perform compared to non-adaptive samplers?
+Modify pbrt so that the camera can report its sample requirements and then use this information when samples are requested to initialize CameraSamples. Render images and compare results to the current implementation. Do you see an improvement? How do results differ with different samplers? How do you explain any differences you see across samplers? ➋ 8.2 Keller (2004) and Dammertz and Keller (2008b) described the application of rank-1 lattices to image synthesis. Rank-1 lattices are another way of efficiently generating high-quality low-discrepancy sets of sample points. Read their papers and implement a `Sampler` based on this approach. Compare results to the other samplers in pbrt. ➋ 8.3 Implement a `Sampler` based on orthogonal array sampling, as described by Jarosz et al. (2019). Compare both MSE and Monte Carlo efficiency of this sampler to pbrt’s current samplers. ➌ 8.4 Mitchell and Netravali (1988) noted that there is a family of reconstruction filters that use both the value of a function and its derivative at the point to do substantially better reconstruction than if just the value of the function is known. Furthermore, they report that they have derived closed-form expressions for the screen space derivatives of Lambertian and Phong reflection models, although they do not include these expressions in their paper. Investigate derivative-based reconstruction, and extend pbrt to support this technique. If you decide to shy away from deriving expressions for the screen space derivatives for general shapes and BSDF models, you may want to investigate approximations based on finite differencing and the ideas behind the ray differentials of Section 10.1. ➌ 8.5 Read some of the papers on adaptive sampling and reconstruction techniques from the “Further Reading” section and implement one of these techniques in pbrt. Note that you will likely need to both write a new `Sampler` and add additional `Film` functionality. Measure the effectiveness of the approach you have implemented using Monte Carlo efficiency in order to account for any increased computational cost. How well does your implementation perform compared to non-adaptive samplers?
 
 ```text
      Film 244
@@ -2330,4 +2373,4 @@ Modify pbrt so that the camera can report its sample requirements and then use t
 
 _________________ 1 In this book, we will ignore issues related to the characteristics of physical display pixels and will work under the assumption that the display performs the ideal reconstruction process described later in this section. This assumption is patently at odds with how actual displays work, but it avoids unnecessary complication of the analysis here. Chapter 3 of Glassner (1995) has a good treatment of nonidealized display devices and their impact on the image sampling and reconstruction process. 2 The reader should be warned that the constants in front of these integrals are not always the same in different fields. For example, some authors (including many in the physics community) prefer to multiply both integrals by . 3 In this chapter, we will use the ω symbol to denote frequency. Throughout the rest of the book, ω denotes normalized direction vectors. This overloading of notation should never be confusing, given the contexts where these symbols are used. Similarly, when we refer to a function’s “spectrum” in this chapter, we are referring to its distribution of frequencies in its frequency space representation.
 
-4 The pspec program, found in the file cmd/pspec.rs in the pbrt distribution, efficiently computes high-quality visualizations of various sampling patterns’ power spectra, using the GPU when one is available. 5 In the following, when we speak of the PSD of a stochastic sampling method, we mean the expectation of its PSD, but we will often omit that qualifier. 6 We will continue to stick with 1D for Fourier analysis, though as before, all concepts extend naturally to multiple dimensions. 7 Some of the sampling patterns that we will see later in the chapter have anisotropic PSDs, in which case a radial average loses some information about their behavior, though these two patterns are both isotropic and thus radially symmetric. 8 The sup operator, also referred to as the least upper bound, gives the tightest-possible upper bound of the value of the function over its domain. 9 Randomly permuting the current digit based on either the previous digits or their permuted values is equivalent in terms of Owen scrambling. 10 The following implementation scales by no more than 128, so multiple instances are usually required to cover the full image. Some of the samples may fall outside the image; they are simply not considered. 11 The data for these plots was gathered using pbrt’s FunctionIntegrator, which is not discussed further in the text. It is a simple Integrator that can evaluate integrals of a handful of simple 2D functions with the specified sampler.
+4 The pspec program, found in the file cmd/pspec.rs in the pbrt distribution, efficiently computes high-quality visualizations of various sampling patterns’ power spectra, using the GPU when one is available. 5 In the following, when we speak of the PSD of a stochastic sampling method, we mean the expectation of its PSD, but we will often omit that qualifier. 6 We will continue to stick with 1D for Fourier analysis, though as before, all concepts extend naturally to multiple dimensions. 7 Some of the sampling patterns that we will see later in the chapter have anisotropic PSDs, in which case a radial average loses some information about their behavior, though these two patterns are both isotropic and thus radially symmetric. 8 The sup operator, also referred to as the least upper bound, gives the tightest-possible upper bound of the value of the function over its domain. 9 Randomly permuting the current digit based on either the previous digits or their permuted values is equivalent in terms of Owen scrambling. 10 The following implementation scales by no more than 128, so multiple instances are usually required to cover the full image. Some of the samples may fall outside the image; they are simply not considered. 11 The data for these plots was gathered using pbrt’s `FunctionIntegrator`, which is not discussed further in the text. It is a simple `Integrator` that can evaluate integrals of a handful of simple 2D functions with the specified sampler.

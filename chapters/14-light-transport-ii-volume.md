@@ -12,17 +12,23 @@ flowchart TD
 
 
 
-The abstractions for representing participating media that were introduced in Chapter 11 describe how media scatter light but they do not provide the capability of simulating the global effects of light transport in a scene. The situation is similar to that with BSDFs: they describe local effects, but it was necessary to start to introduce integrators in Chapter 13 that accounted for direct lighting and interreflection in order to render images. This chapter does the same for volumetric scattering.
+The abstractions for representing participating media that were introduced in Chapter 11 describe how media scatter light but they do not provide the capability of simulating the global effects of light transport in a scene. The situation is similar to that with `BSDFs`: they describe local effects, but it was necessary to start to introduce integrators in Chapter 13 that accounted for direct lighting and interreflection in order to render images. This chapter does the same for volumetric scattering.
 
 We begin with the introduction of the equation of transfer, which generalizes the light transport equation to describe the equilibrium distribution of radiance in scenes with participating media. Like the transmittance equations in Section 11.2, the equation of transfer has a null-scattering generalization that allows sampling of heterogeneous media for unbiased integration. We will also introduce a path integral formulation of it that generalizes the surface path integral from Section 13.1.4.
 
-Following sections discuss implementations of solutions to the equation of transfer. Section 14.2 introduces two Integrators that use Monte Carlo integration to solve the full equation of transfer, making it possible to render scenes with complex volumetric effects. Section 14.3 then describes the implementation of LayeredBxDF, which solves a 1D specialization of the equation of transfer to model scattering from layered materials at surfaces.
+Following sections discuss implementations of solutions to the equation of transfer. Section 14.2 introduces two `Integrators` that use Monte Carlo integration to solve the full equation of transfer, making it possible to render scenes with complex volumetric effects. Section 14.3 then describes the implementation of `LayeredBxDF`, which solves a 1D specialization of the equation of transfer to model scattering from layered materials at surfaces.
 
 ## 14.1 THE EQUATION OF TRANSFER
 
-The equation of transfer is the fundamental equation that governs the behavior of light in a medium that absorbs, emits, and scatters radiation. It accounts for all the volume scattering processes described in Chapter 11—absorption, emission, in scattering, and out scattering—to give an equation that describes the equilibrium distribution of radiance. The light transport equation is in fact a special case of it, simplified by the lack of participating media and specialized for scattering from surfaces. (We will equivalently refer to the equation of transfer as the volumetric light transport equation.) Integrator 22 LayeredBxDF 895
+The equation of transfer is the fundamental equation that governs the behavior of light in a medium that absorbs, emits, and scatters radiation. It accounts for all the volume scattering processes described in Chapter 11—absorption, emission, in scattering, and out scattering—to give an equation that describes the equilibrium distribution of radiance. The light transport equation is in fact a special case of it, simplified by the lack of participating media and specialized for scattering from surfaces. (We will equivalently refer to the equation of transfer as the volumetric light transport equation.)
+
+```text
+    Integrator 22
+    LayeredBxDF 895
+```
 
 ![Figure 14.1](images/img-1351-314.png)
+
 
 *Figure 14.1: The equation of transfer gives the incident radiance at point Li(p, ω) accounting for the effect of participating media. At each point p′ along the ray, the source function Ls(p′, −ω) gives the differential radiance added at the point due to scattering and emission. This radiance is then attenuated by the beam transmittance Tr(p′ → p) from the point p′ to the ray’s origin.*
 
@@ -37,6 +43,7 @@ With suitable boundary conditions, this equation can be transformed to a pure in
 (See Figure 14.1.) The meaning of this equation is reasonably intuitive: it just says that the radiance arriving at a point from a given direction is determined by accumulating the radiance added at all points along the ray. The amount of added radiance at each point along the ray that reaches the ray’s origin is reduced by the beam transmittance to the point.
 
 ![Figure 14.2](images/img-1352-315.png)
+
 
 *Figure 14.2: For a finite ray that intersects a surface, the incident radiance, Li(p, ω), is equal to the outgoing radiance from the surface, Lo(ps, −ω), times the beam transmittance to the surface plus the added radiance from all points along the ray from p to ps.*
 
@@ -78,7 +85,7 @@ From this point, outgoing radiance from a surface can be estimated using techniq
 
 ### 14.1.3 SAMPLING THE MAJORANT TRANSMITTANCE
 
-We have so far presented volumetric path tracing with the assumption that σmaj is constant along the ray and thus that Tmaj is a single exponential function. However, those assumptions are not compatible with the segments of piecewise-constant majorants that Medium implementations provide with their RayMajorantIterators. We will now resolve this incompatibility.
+We have so far presented volumetric path tracing with the assumption that σmaj is constant along the ray and thus that Tmaj is a single exponential function. However, those assumptions are not compatible with the segments of piecewise-constant majorants that `Medium` implementations provide with their RayMajorantIterators. We will now resolve this incompatibility.
 
 *Figure 14.3 shows example majorants along a ray, the optical thickness that they integrate to, and the resulting majorant transmittance function. The transmittance function is continuous and strictly decreasing, though at a rate that depends on the majorant at each point along the ray. If integration starts from t = 0, and we denote the ith segment’s majorant as and its endpoint as pi, the transmittance can be written as*
 
@@ -90,6 +97,7 @@ where is the transmittance function for the ith segment and the point p′ is th
 
 ![Figure 14.3](images/img-1357-317.png)
 
+
 *Figure 14.3: (a) Given piecewise-constant majorants defined over segments along a ray, the corresponding optical thickness τ is a piecewise-linear function. (b) Exponentiating the negative optical thickness gives the transmittance at each point along the ray. The transmittance function is continuous and decreasing, but has a first derivative discontinuity at transitions between segments.*
 
 with p′ = p + t′ω and , it is useful to rewrite the integral to be over the individual majorant segments, which gives
@@ -100,25 +108,38 @@ Applying the same ideas that led to Equation (14.7), we otherwise continue and c
 
 starting at t1. If the sampled point is before the segment’s endpoint, ,
 
-then we have the estimator Because the probability that is equal to , the estimator for the second term again simplifies to f (p′). Otherwise, following this sampling strategy for subsequent segments similarly leads to the same simplified estimator in the end. It can furthermore be shown that the probability that no sample is generated in any of the segments is equal to the full majorant transmittance from 0 to t, which is exactly the probability required for the surface/volume estimator of Equation (14.7). The SampleT_maj() function implements this sampling strategy, handling the details of iterating over RayMajorantSegments and sampling them. Its functionality will be used repeatedly in the following volumetric integrators. 〈Medium Sampling Functions〉 ≡ template <typename F> SampledSpectrum SampleT_maj(Ray ray, Float tMax, Float u, RNG &rng, const SampledWavelengths &lambda, F callback);
+then we have the estimator Because the probability that is equal to , the estimator for the second term again simplifies to f (p′). Otherwise, following this sampling strategy for subsequent segments similarly leads to the same simplified estimator in the end. It can furthermore be shown that the probability that no sample is generated in any of the segments is equal to the full majorant transmittance from 0 to t, which is exactly the probability required for the surface/volume estimator of Equation (14.7). The `SampleT_maj()` function implements this sampling strategy, handling the details of iterating over `RayMajorantSegments` and sampling them. Its functionality will be used repeatedly in the following volumetric integrators. 〈Medium Sampling Functions〉 ≡ template <typename F> SampledSpectrum SampleT_maj(Ray ray, Float tMax, Float u, RNG &rng, const SampledWavelengths &lambda, F callback);
 
-In addition to a ray and an endpoint along it specified by tMax, SampleT_maj() takes a single uniform sample and an RNG to use for generating any necessary additional samples. This allows it to use a well-distributed value from a Sampler for the first sampling decision along the ray while it avoids consuming a variable and unbounded number of sample dimensions if more are needed (recall the discussion of the importance of consistency in sample dimension consumption in Section 8.3). The provided SampledWavelengths play their usual role, though the first of them has additional meaning: for media with scattering properties that vary with wavelength, the majorant at the first wavelength is used for sampling. The alternative would be to sample each wavelength independently, though that would cause an explosion in samples to be evaluated in the context of algorithms like path tracing. Sampling a single wavelength can work well
+In addition to a ray and an endpoint along it specified by `tMax`, `SampleT_maj()` takes a single uniform sample and an `RNG` to use for generating any necessary additional samples. This allows it to use a well-distributed value from a `Sampler` for the first sampling decision along the ray while it avoids consuming a variable and unbounded number of sample dimensions if more are needed (recall the discussion of the importance of consistency in sample dimension consumption in Section 8.3). The provided `SampledWavelengths` play their usual role, though the first of them has additional meaning: for media with scattering properties that vary with wavelength, the majorant at the first wavelength is used for sampling. The alternative would be to sample each wavelength independently, though that would cause an explosion in samples to be evaluated in the context of algorithms like path tracing. Sampling a single wavelength can work well
 
-for evaluating all wavelengths’ contributions if multiple importance sampling (MIS) is used; this topic is discussed further in Section 14.2.2. A callback function is the last parameter passed to SampleT_maj(). This is a significant difference from pbrt’s other sampling methods, which all generate a single sample (or sometimes, no sample) each time they are called. When sampling media that has null scattering, however, often a succession of samples are needed along the same ray. (Delta tracking, described in Section 11.2.1, is an example of such an algorithm.) The provided callback function is therefore invoked by SampleT_maj() each time a sample is taken. After the callback processes the sample, it should return a Boolean value that indicates whether sampling should recommence starting from the provided sample. With this implementation approach, SampleT_maj() can maintain state like the RayMajorantIterator between samples along a ray, which improves efficiency. The signature of the callback function should be the following: bool callback(Point3f p, MediumProperties mp, SampledSpectrum sigma_maj, SampledSpectrum T_maj)
+for evaluating all wavelengths’ contributions if multiple importance sampling (MIS) is used; this topic is discussed further in Section 14.2.2. A callback function is the last parameter passed to `SampleT_maj()`. This is a significant difference from pbrt’s other sampling methods, which all generate a single sample (or sometimes, no sample) each time they are called. When sampling media that has null scattering, however, often a succession of samples are needed along the same ray. (Delta tracking, described in Section 11.2.1, is an example of such an algorithm.) The provided callback function is therefore invoked by `SampleT_maj()` each time a sample is taken. After the callback processes the sample, it should return a Boolean value that indicates whether sampling should recommence starting from the provided sample. With this implementation approach, `SampleT_maj()` can maintain state like the `RayMajorantIterator` between samples along a ray, which improves efficiency. The signature of the callback function should be the following: bool callback(Point3f p, MediumProperties mp, SampledSpectrum sigma_maj, SampledSpectrum T_maj)
 
-Each invocation of the callback is passed a sampled point along the ray, the associated MediumProperties and σmaj for the medium at that point, and the majorant transmittance Tmaj. The first time callback is invoked, the majorant transmittance will be from the ray origin to the sample; any subsequent invocations give the transmittance from the previous sample to the current one. After sampling concludes, SampleT_maj() returns the majorant transmittance Tmaj from the last sampled point in the medium (or the ray origin, if no samples were generated) to the ray’s endpoint (see Figure 14.4). As if all of this was not sufficiently complex, the implementation of SampleT_maj() starts out with some tricky C++ code. There is a second variant of SampleT_maj() we will introduce shortly that is templated based on the concrete type of Medium being sampled. In order to call the
+Each invocation of the callback is passed a sampled point along the ray, the associated `MediumProperties` and σmaj for the medium at that point, and the majorant transmittance Tmaj. The first time callback is invoked, the majorant transmittance will be from the ray origin to the sample; any subsequent invocations give the transmittance from the previous sample to the current one. After sampling concludes, `SampleT_maj()` returns the majorant transmittance Tmaj from the last sampled point in the medium (or the ray origin, if no samples were generated) to the ray’s endpoint (see Figure 14.4). As if all of this was not sufficiently complex, the implementation of `SampleT_maj()` starts out with some tricky C++ code. There is a second variant of `SampleT_maj()` we will introduce shortly that is templated based on the concrete type of `Medium` being sampled. In order to call the
 
-appropriate template specialization, we must determine which type of Medium the ray is passing through. Conceptually, we would like to do something like the following, using the TaggedPointer::Is() method: Float 23 Medium 714 MediumProperties 718 Ray 95 RayMajorantSegment 718 RNG 1054 SampledSpectrum 171 SampledWavelengths 173 Sampler 469
+appropriate template specialization, we must determine which type of `Medium` the ray is passing through. Conceptually, we would like to do something like the following, using the `TaggedPointer::Is()` method:
+
+```text
+    Float 23
+    Medium 714
+    MediumProperties 718
+    Ray 95
+    RayMajorantSegment 718
+    RNG 1054
+    SampledSpectrum 171
+    SampledWavelengths 173
+    Sampler 469
+```
 
 ![Figure 14.4](images/img-1360-319.png)
 
-*Figure 14.4: In addition to calling a provided callback function at sampled points in the medium, shown here as filled circles, the SampleT_maj() function returns the majorant transmittance Tmaj from the last sampled point to the provided tmax value.*
+
+*Figure 14.4: In addition to calling a provided callback function at sampled points in the medium, shown here as filled circles, the `SampleT_maj()` function returns the majorant transmittance Tmaj from the last sampled point to the provided tmax value.*
 
 if (ray.medium.Is<HomogeneousMedium>()) SampleT_maj<HomogeneousMedium>(ray, tMax, u,rng, lambda, func); else if (ray.medium.Is<UniformGridMedium>()) . . .
 
-However, enumerating all the media that are implemented in pbrt in the SampleT_maj() function is undesirable: that would add an unexpected and puzzling additional step for users who wanted to extend the system with a new Medium. Therefore, the first SampleT_maj() function uses the dynamic dispatch capability of the Medium’s TaggedPointer along with a generic lambda function, sample, to determine the Medium’s type. TaggedPointer::Dispatch() ends up passing the Medium pointer back to sample; because the parameter is declared as auto, it then takes on the actual type of the medium when it is invoked. Thus, the following function has equivalent functionality to the code above but naturally handles all the media that are listed in the Medium class declaration without further modification. 〈Medium Sampling Function Definitions〉 +≡ template <typename F> SampledSpectrum SampleT_maj(Ray ray, Float tMax, Float u, RNG &rng, const SampledWavelengths &lambda, F callback) { auto sample = [&](auto medium) { using M = typename std::remove_reference_t<decltype(*medium)>; return SampleT_maj<M>(ray, tMax, u, rng, lambda, callback); }; return ray.medium.Dispatch(sample); }
+However, enumerating all the media that are implemented in pbrt in the `SampleT_maj()` function is undesirable: that would add an unexpected and puzzling additional step for users who wanted to extend the system with a new `Medium`. Therefore, the first `SampleT_maj()` function uses the dynamic dispatch capability of the `Medium`’s `TaggedPointer` along with a generic lambda function, sample, to determine the `Medium`’s type. `TaggedPointer::Dispatch()` ends up passing the `Medium` pointer back to sample; because the parameter is declared as auto, it then takes on the actual type of the medium when it is invoked. Thus, the following function has equivalent functionality to the code above but naturally handles all the media that are listed in the `Medium` class declaration without further modification. 〈Medium Sampling Function Definitions〉 +≡ template <typename F> SampledSpectrum SampleT_maj(Ray ray, Float tMax, Float u, RNG &rng, const SampledWavelengths &lambda, F callback) { auto sample = [&](auto medium) { using M = typename std::remove_reference_t<decltype(*medium)>; return SampleT_maj<M>(ray, tMax, u, rng, lambda, callback); }; return ray.medium.Dispatch(sample); }
 
-With the concrete type of the medium available, we can proceed with the second instance of SampleTmaj(), which can now be specialized based on that type. 〈Medium Sampling Function Definitions〉 +≡ template <typename ConcreteMedium, typename F> SampledSpectrum SampleT_maj(Ray ray, Float tMax, Float u, RNG &rng,
+With the concrete type of the medium available, we can proceed with the second instance of `SampleTmaj()`, which can now be specialized based on that type. 〈Medium Sampling Function Definitions〉 +≡ template <typename ConcreteMedium, typename F> SampledSpectrum SampleT_maj(Ray ray, Float tMax, Float u, RNG &rng,
 
 const SampledWavelengths &lambda, F callback) { 〈Normalize ray direction and update tMax accordingly 861〉 〈Initialize MajorantIterator for ray majorant sampling 861〉 〈Generate ray majorant samples until termination 861〉 }
 
@@ -136,13 +157,13 @@ const SampledWavelengths &lambda, F callback) { 〈Normalize ray direction and u
    TaggedPointer::Is() 1074
 ```
 
-The function starts by normalizing the ray’s direction so that parametric distance along the ray directly corresponds to distance from the ray’s origin. This simplifies subsequent transmittance computations in the remainder of the function. Since normalization scales the direction’s length, the tMax endpoint must also be updated so that it corresponds to the same point along the ray. 〈Normalize ray direction and update tMax accordingly〉 ≡ 860
+The function starts by normalizing the ray’s direction so that parametric distance along the ray directly corresponds to distance from the ray’s origin. This simplifies subsequent transmittance computations in the remainder of the function. Since normalization scales the direction’s length, the `tMax` endpoint must also be updated so that it corresponds to the same point along the ray. 〈Normalize ray direction and update tMax accordingly〉 ≡ 860
 
 tMax *= Length(ray.d); ray.d = Normalize(ray.d);
 
-Since the actual type of the medium is known and because all Medium implementations must define a MajorantIterator type (recall Section 11.4.1), the medium’s iterator type can be directly declared as a stack-allocated variable. This gives a number of benefits: not only is the expense of dynamic allocation avoided, but subsequent calls to the iterator’s Next() method in this function are regular method calls that can even be expanded inline by the compiler; no dynamic dispatch is necessary for them. An additional benefit of knowing the medium’s type is that the appropriate
+Since the actual type of the medium is known and because all `Medium` implementations must define a MajorantIterator type (recall Section 11.4.1), the medium’s iterator type can be directly declared as a stack-allocated variable. This gives a number of benefits: not only is the expense of dynamic allocation avoided, but subsequent calls to the iterator’s `Next()` method in this function are regular method calls that can even be expanded inline by the compiler; no dynamic dispatch is necessary for them. An additional benefit of knowing the medium’s type is that the appropriate
 
-SampleRay() method can be called directly without incurring the cost of dynamic dispatch here. 〈Initialize MajorantIterator for ray majorant sampling〉 ≡ 860
+`SampleRay()` method can be called directly without incurring the cost of dynamic dispatch here. 〈Initialize MajorantIterator for ray majorant sampling〉 ≡ 860
 
 ```rust
    ConcreteMedium *medium = ray.medium.Cast<ConcreteMedium>();
@@ -150,15 +171,15 @@ SampleRay() method can be called directly without incurring the cost of dynamic 
          medium->SampleRay(ray, tMax, lambda);
 ```
 
-With an iterator initialized, sampling along the ray can proceed. The T_maj variable declared here tracks the accumulated majorant transmittance from the ray origin or the previous sample along the ray (depending on whether a sample has yet been generated). 〈Generate ray majorant samples until termination〉 ≡ 860
+With an iterator initialized, sampling along the ray can proceed. The `T_maj` variable declared here tracks the accumulated majorant transmittance from the ray origin or the previous sample along the ray (depending on whether a sample has yet been generated). 〈Generate ray majorant samples until termination〉 ≡ 860
 
 SampledSpectrum T_maj(1.f); bool done = false; while (!done) { 〈Get next majorant segment from iterator and sample it 861〉 } return SampledSpectrum(1.f);
 
-If the iterator has no further majorant segments to provide, then sampling is complete. In this case, it is important to return any majorant transmittance that has accumulated in T_maj; that represents the remaining transmittance to the ray’s endpoint. Otherwise, a few details are attended to before sampling proceeds along the segment. 〈Get next majorant segment from iterator and sample it〉 ≡ 861
+If the iterator has no further majorant segments to provide, then sampling is complete. In this case, it is important to return any majorant transmittance that has accumulated in `T_maj`; that represents the remaining transmittance to the ray’s endpoint. Otherwise, a few details are attended to before sampling proceeds along the segment. 〈Get next majorant segment from iterator and sample it〉 ≡ 861
 
 pstd::optional<RayMajorantSegment> seg = iter.Next(); if (!seg) return T_maj; 〈Handle zero-valued majorant for current segment 862〉 〈Generate samples along current majorant segment 862〉
 
-If the majorant has the value 0 in the first wavelength, then there is nothing to sample along the segment. It is important to handle this case, since otherwise the subsequent call to SampleExponential() in this function would return an infinite value that would subsequently lead to not-a-number values. Because the other wavelengths may not themselves have zero-valued majorants, we must still update T_maj for the segment’s majorant
+If the majorant has the value 0 in the first wavelength, then there is nothing to sample along the segment. It is important to handle this case, since otherwise the subsequent call to `SampleExponential()` in this function would return an infinite value that would subsequently lead to not-a-number values. Because the other wavelengths may not themselves have zero-valued majorants, we must still update `T_maj` for the segment’s majorant
 
 transmittance even though the transmittance for the first wavelength is unchanged.
 
@@ -177,7 +198,7 @@ transmittance even though the transmittance for the first wavelength is unchange
 
 if (seg->sigma_maj[0] == 0) { Float dt = seg->tMax - seg->tMin; 〈Handle infinite dt for ray majorant segment 862〉 T_maj *= FastExp(-dt * seg->sigma_maj); continue; }
 
-One edge case must be attended to before the exponential function is called. If tMax holds the IEEE floating-point infinity value, then dt will as well; it then must be bumped down to the largest finite Float. This is necessary because with floating-point arithmetic, zero times infinity gives a not-a-number value (whereas any nonzero value times infinity gives infinity). Otherwise, for any wavelengths with zero-valued sigma_maj, not-a-number values would be passed to FastExp(). 〈Handle infinite dt for ray majorant segment〉 ≡ 862
+One edge case must be attended to before the exponential function is called. If `tMax` holds the IEEE floating-point infinity value, then dt will as well; it then must be bumped down to the largest finite `Float`. This is necessary because with floating-point arithmetic, zero times infinity gives a not-a-number value (whereas any nonzero value times infinity gives infinity). Otherwise, for any wavelengths with zero-valued `sigma_maj`, not-a-number values would be passed to `FastExp()`. 〈Handle infinite dt for ray majorant segment〉 ≡ 862
 
 if (IsInf(dt)) dt = std::numeric_limits<Float>::max();
 
@@ -185,11 +206,11 @@ The implementation otherwise tries to generate a sample along the current segmen
 
 Float tMin = seg->tMin; while (true) { 〈Try to generate sample along current majorant segment 862〉 }
 
-In the usual case, a distance is sampled according to the PDF . Separate cases handle a sample that is within the current majorant segment and one that is past it. One detail to note in this fragment is that as soon as the uniform sample u has been used, a replacement is immediately generated using the provided RNG. In this way, the method maintains the invariant that u is always a valid independent sample value. While this can lead to a single excess call to RNG::Uniform() each time SampleT_maj() is called, it ensures the initial u value provided to the method is used only once. 〈Try to generate sample along current majorant segment〉 ≡ 862
+In the usual case, a distance is sampled according to the PDF . Separate cases handle a sample that is within the current majorant segment and one that is past it. One detail to note in this fragment is that as soon as the uniform sample u has been used, a replacement is immediately generated using the provided `RNG`. In this way, the method maintains the invariant that u is always a valid independent sample value. While this can lead to a single excess call to `RNG::Uniform()` each time `SampleT_maj()` is called, it ensures the initial u value provided to the method is used only once. 〈Try to generate sample along current majorant segment〉 ≡ 862
 
 Float t = tMin + SampleExponential(u, seg->sigma_maj[0]); u = rng.Uniform<Float>(); if (t < seg->tMax) { 〈Call callback function for sample within segment 863〉 } else { 〈Handle sample past end of majorant segment 863〉 }
 
-For a sample within the segment’s extent, the final majorant transmittance to be passed to the callback is found by accumulating the transmittance from tMin to the sample point. The rest of the necessary medium properties can be found using SamplePoint(). If the callback function returns false to indicate that sampling should conclude, then we have a doubly nested while loop to break out of; a break statement takes care of the inner one, and setting done to true causes the outer one to terminate.
+For a sample within the segment’s extent, the final majorant transmittance to be passed to the callback is found by accumulating the transmittance from `tMin` to the sample point. The rest of the necessary medium properties can be found using `SamplePoint()`. If the callback function returns false to indicate that sampling should conclude, then we have a doubly nested while loop to break out of; a break statement takes care of the inner one, and setting done to true causes the outer one to terminate.
 
 ```text
    FastExp() 1036
@@ -202,13 +223,13 @@ For a sample within the segment’s extent, the final majorant transmittance to 
    SampleExponential() 1003
 ```
 
-If true is returned by the callback, indicating that sampling should restart at the sample that was just generated, then the accumulated transmittance is reset to 1 and tMin is updated to be at the just-taken sample’s position.
+If true is returned by the callback, indicating that sampling should restart at the sample that was just generated, then the accumulated transmittance is reset to 1 and `tMin` is updated to be at the just-taken sample’s position.
 
 〈Call callback function for sample within segment〉 ≡ 862
 
 T_maj *= FastExp(-(t - tMin) * seg->sigma_maj); MediumProperties mp = medium->SamplePoint(ray(t), lambda); if (!callback(ray(t), mp, seg->sigma_maj, T_maj)) { done = true; break; } T_maj = SampledSpectrum(1.f); tMin = t;
 
-If the sampled distance t is past the end of the segment, then there is no medium interaction along it and it is on to the next segment, if any. In this case, majorant transmittance up to the end of the segment must be accumulated into T_maj so that the complete majorant transmittance along the ray is provided with the next valid sample (if any). 〈Handle sample past end of majorant segment〉 ≡ 862
+If the sampled distance t is past the end of the segment, then there is no medium interaction along it and it is on to the next segment, if any. In this case, majorant transmittance up to the end of the segment must be accumulated into `T_maj` so that the complete majorant transmittance along the ray is provided with the next valid sample (if any). 〈Handle sample past end of majorant segment〉 ≡ 862
 
 Float dt = seg->tMax - tMin; T_maj *= FastExp(-dt * seg->sigma_maj); break;
 
@@ -218,7 +239,19 @@ Just as it was helpful to express the light transport equation (LTE) as a sum ov
 
 where the throughput T(pn) was defined as
 
-This previous definition only works for surfaces, but using a similar approach of substituting the integral equation of transfer, a medium-aware path integral can be derived. The derivation is laborious and we will just present the final result here. (The “Further Reading” section has a pointer to the full derivation.) FastExp() 1036 Float 23 Medium::SamplePoint() 717 MediumProperties 718 RayMajorantSegment::sigma_maj 718 RayMajorantSegment::tMax 718 SampledSpectrum 171 Previously, integration occurred over a Cartesian product of surface locations An. Now, we will need a formal way of writing down an integral over an arbitrary sequence of each of 2D surface locations A, 3D positions in a participating medium V where actual scattering occurs, and 3D positions in a participating medium V∅ where null scattering occurs. (The two media V and V∅ represent the same volume of space with the same scattering properties, but we will find it handy to distinguish between them in the following.) First, we will focus only on a specific arrangement of n surface and medium vertices encoded in a configuration vector c. The associated set of paths is given by a Cartesian product of surface locations and medium locations,
+This previous definition only works for surfaces, but using a similar approach of substituting the integral equation of transfer, a medium-aware path integral can be derived. The derivation is laborious and we will just present the final result here. (The “Further Reading” section has a pointer to the full derivation.)
+
+```text
+    FastExp() 1036
+    Float 23
+    Medium::SamplePoint() 717
+    MediumProperties 718
+    RayMajorantSegment::sigma_maj 718
+    RayMajorantSegment::tMax 718
+    SampledSpectrum 171
+```
+
+Previously, integration occurred over a Cartesian product of surface locations An. Now, we will need a formal way of writing down an integral over an arbitrary sequence of each of 2D surface locations A, 3D positions in a participating medium V where actual scattering occurs, and 3D positions in a participating medium V∅ where null scattering occurs. (The two media V and V∅ represent the same volume of space with the same scattering properties, but we will find it handy to distinguish between them in the following.) First, we will focus only on a specific arrangement of n surface and medium vertices encoded in a configuration vector c. The associated set of paths is given by a Cartesian product of surface locations and medium locations,
 
 The set of all paths of length n is the union of the above sets over all possible configuration vectors:
 
@@ -234,9 +267,10 @@ Due to the measure defined earlier, the generalized path contribution is a sum o
 
 The path throughput function can then be defined as:
 
-It now refers to a generalized scattering distribution function and generalized geometric term Ĝ. The former simply falls back to the BSDF, phase function (multiplied by σs), or a factor that enforces the ordering of null-scattering vertices, depending on the type of the vertex pi. Note that the first two products in Equation (14.11) are over all vertices but the third is only over real-scattering vertices.
+It now refers to a generalized scattering distribution function and generalized geometric term Ĝ. The former simply falls back to the `BSDF`, phase function (multiplied by σs), or a factor that enforces the ordering of null-scattering vertices, depending on the type of the vertex pi. Note that the first two products in Equation (14.11) are over all vertices but the third is only over real-scattering vertices.
 
 ![Figure 14.5](images/img-1370-321.png)
+
 
 *Figure 14.5: In the path space framework, a path is defined by a set of n vertices pi that have an emitter at one endpoint and a sensor at the other, where intermediate vertices represent scattering events, including null scattering. The subset of m vertices that represent real scattering events are labeled ri.*
 
@@ -280,7 +314,7 @@ The σa factor in the path space emission function, Equation (14.10), cancels th
 
 The path space expression of the null-scattering equation of transfer allows a variety of sampling techniques to be applied to the light transport problem. This section defines two integrators that are based on path tracing starting from the camera.
 
-First is the SimpleVolPathIntegrator, which uses simple sampling techniques, giving an implementation that is short and easily verified. This integrator is particularly useful for computing ground-truth results when debugging more sophisticated volumetric sampling and integration algorithms. The VolPathIntegrator is defined next. This integrator is fairly complex, but it applies state-of-the-art sampling techniques to volume light transport while handling surface scattering similarly to the PathIntegrator. It is pbrt’s default integrator and is also the template for the wavefront integrator in Chapter 15.
+First is the `SimpleVolPathIntegrator`, which uses simple sampling techniques, giving an implementation that is short and easily verified. This integrator is particularly useful for computing ground-truth results when debugging more sophisticated volumetric sampling and integration algorithms. The `VolPathIntegrator` is defined next. This integrator is fairly complex, but it applies state-of-the-art sampling techniques to volume light transport while handling surface scattering similarly to the `PathIntegrator`. It is pbrt’s default integrator and is also the template for the wavefront integrator in Chapter 15.
 
 ```text
     PathIntegrator 833
@@ -290,15 +324,16 @@ First is the SimpleVolPathIntegrator, which uses simple sampling techniques, giv
 
 ### 14.2.1 A SIMPLE VOLUMETRIC INTEGRATOR
 
-The SimpleVolPathIntegrator implements a basic volumetric path tracer, following the sampling approach described in Section 14.1.2. Its Li() method is under 100 lines of code, none of them too tricky. However, with this simplicity comes a number of limitations. First, like the RandomWalkIntegrator, it does not perform any explicit light sampling, so it requires that rays are able to randomly intersect the lights in the scene. Second, it does not handle scattering from surfaces. An error message is therefore issued if it is used with a scene that contains delta distribution light sources or has surfaces with nonzero-valued BSDFs. (These defects are all addressed in the VolPathIntegrator discussed in Section 14.2.2.) Nevertheless, this integrator is capable of rendering complex volumetric effects; see Figure 14.6.
+The `SimpleVolPathIntegrator` implements a basic volumetric path tracer, following the sampling approach described in Section 14.1.2. Its Li() method is under 100 lines of code, none of them too tricky. However, with this simplicity comes a number of limitations. First, like the `RandomWalkIntegrator`, it does not perform any explicit light sampling, so it requires that rays are able to randomly intersect the lights in the scene. Second, it does not handle scattering from surfaces. An error message is therefore issued if it is used with a scene that contains delta distribution light sources or has surfaces with nonzero-valued `BSDFs`. (These defects are all addressed in the `VolPathIntegrator` discussed in Section 14.2.2.) Nevertheless, this integrator is capable of rendering complex volumetric effects; see Figure 14.6.
 
 ![Figure 14.6](images/img-1375-322.png)
 
-*Figure 14.6: Explosion Rendered Using the SimpleVolPathIntegrator. With 256 samples per pixel, this integrator gives a reasonably accurate rendering of the volumetric model, though there are variance spikes in some pixels (especially visible toward the bottom of the volume) due to error from the integrator not directly sampling the scene’s light sources. The VolPathIntegrator, which uses more sophisticated sampling strategies, renders this scene with 1,288 times lower MSE; it is discussed in Section 14.2.2. (Scene courtesy of Jim Price.)*
+
+*Figure 14.6: Explosion Rendered Using the `SimpleVolPathIntegrator`. With 256 samples per pixel, this integrator gives a reasonably accurate rendering of the volumetric model, though there are variance spikes in some pixels (especially visible toward the bottom of the volume) due to error from the integrator not directly sampling the scene’s light sources. The `VolPathIntegrator`, which uses more sophisticated sampling strategies, renders this scene with 1,288 times lower MSE; it is discussed in Section 14.2.2. (Scene courtesy of Jim Price.)*
 
 〈SimpleVolPathIntegrator Definition〉 ≡
 
-class SimpleVolPathIntegrator : public RayIntegrator { public: 〈SimpleVolPathIntegrator Public Methods〉 private: 〈SimpleVolPathIntegrator Private Members 869〉 };
+class `SimpleVolPathIntegrator` : public `RayIntegrator` { public: 〈SimpleVolPathIntegrator Public Methods〉 private: 〈SimpleVolPathIntegrator Private Members 869〉 };
 
 ```text
    RayIntegrator 28
@@ -312,17 +347,17 @@ This integrator’s only parameter is the maximum path length, which is set via 
    int maxDepth;
 ```
 
-The general form of the Li() method follows that of the PathIntegrator.
+The general form of the Li() method follows that of the `PathIntegrator`.
 
 〈SimpleVolPathIntegrator Method Definitions〉 ≡ SampledSpectrum SimpleVolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler, ScratchBuffer &buf, VisibleSurface *) const { 〈Declare local variables for delta tracking integration 869〉 〈Terminate secondary wavelengths before starting random walk 869〉 while (true) { 〈Estimate radiance for ray path using delta tracking 870〉 } return L; }
 
-A few familiar variables track the path state, including L to accumulate the radiance estimate for the path. For this integrator, beta, which tracks the path throughput weight, is just a single Float value, since the product of
+A few familiar variables track the path state, including L to accumulate the radiance estimate for the path. For this integrator, `beta`, which tracks the path throughput weight, is just a single `Float` value, since the product of
 
 ratios of phase function values and sampling PDFs from Equation (14.19) is a scalar value. 〈Declare local variables for delta tracking integration〉 ≡ 869
 
 SampledSpectrum L(0.f); Float beta = 1.f; int depth = 0;
 
-Media with scattering properties that vary according to wavelength introduce a number of complexities in sampling and evaluating Monte Carlo estimators. We will defer addressing them until we cover the VolPathIntegrator. The SimpleVolPathIntegrator instead estimates radiance at a single wavelength by terminating all but the first wavelength sample. Here is a case where we have chosen simplicity over efficiency for this integrator’s implementation: we might instead have accounted for all wavelengths until the point that spectrally varying scattering properties were encountered, enjoying the variance reduction benefits of estimating all of them for scenes where doing so is possible. However, doing this would have led to a more complex integrator implementation.
+Media with scattering properties that vary according to wavelength introduce a number of complexities in sampling and evaluating Monte Carlo estimators. We will defer addressing them until we cover the `VolPathIntegrator`. The `SimpleVolPathIntegrator` instead estimates radiance at a single wavelength by terminating all but the first wavelength sample. Here is a case where we have chosen simplicity over efficiency for this integrator’s implementation: we might instead have accounted for all wavelengths until the point that spectrally varying scattering properties were encountered, enjoying the variance reduction benefits of estimating all of them for scenes where doing so is possible. However, doing this would have led to a more complex integrator implementation.
 
 ```text
    Float 23
@@ -344,11 +379,11 @@ lambda.TerminateSecondary();
 
 The first step in the loop is to find the ray’s intersection with the scene geometry, if any. This gives the parametric distance t beyond which no samples should be taken for the current ray, as the intersection either
 
-represents a transition to a different medium or a surface that occludes farther-away points. The scattered and terminated variables declared here will allow the lambda function that is passed to SampleT_maj() to report back the state of the path after sampling terminates. 〈Estimate radiance for ray path using delta tracking〉 ≡ 869
+represents a transition to a different medium or a surface that occludes farther-away points. The scattered and terminated variables declared here will allow the lambda function that is passed to `SampleT_maj()` to report back the state of the path after sampling terminates. 〈Estimate radiance for ray path using delta tracking〉 ≡ 869
 
 pstd::optional<ShapeIntersection> si = Intersect(ray); bool scattered = false, terminated = false; if (ray.medium) { 〈Initialize RNG for sampling the majorant transmittance 870〉 〈Sample medium using delta tracking 870〉 } 〈Handle terminated and unscattered rays after medium sampling 872〉
 
-An RNG is required for the call to the SampleT_maj() function. We derive seeds for it based on two random values from the sampler, hashing them to convert Floats into integers.
+An `RNG` is required for the call to the `SampleT_maj()` function. We derive seeds for it based on two random values from the sampler, hashing them to convert `Floats` into integers.
 
 〈Initialize RNG for sampling the majorant transmittance〉 ≡ 870, 880
 
@@ -358,18 +393,14 @@ An RNG is required for the call to the SampleT_maj() function. We derive seeds f
    RNG rng(hash0, hash1);
 ```
 
-With that, a call to SampleT_maj() starts the generation of samples according to σmajTmaj. The Sampler is used to generate the first uniform sample u that is passed to the method; recall from Section 14.1.3 that subsequent ones will be generated using the provided RNG. In a similar fashion, the Sampler is used for the initial value of uMode here. It will be used to choose among the three types of scattering event at the first sampled point. For uMode as well, the RNG will provide subsequent values. In this case, the transmittance that SampleT_maj() returns for the final segment is unneeded, so it is ignored. 〈Sample medium using delta tracking〉 ≡ 870
-
-Float tMax = si ? si->tHit : Infinity; Float u = sampler.Get1D(); Float uMode = sampler.Get1D(); SampleT_maj(ray, tMax, u, rng, lambda,
+With that, a call to `SampleT_maj()` starts the generation of samples according to σmajTmaj. The `Sampler` is used to generate the first uniform sample u that is passed to the method; recall from Section 14.1.3 that subsequent ones will be generated using the provided `RNG`. In a similar fashion, the `Sampler` is used for the initial value of `uMode` here. It will be used to choose among the three types of scattering event at the first sampled point. For `uMode` as well, the `RNG` will provide subsequent values. In this case, the transmittance that `SampleT_maj()` returns for the final segment is unneeded, so it is ignored. 〈Sample medium using delta tracking〉 ≡ 870
 
 ```rust
+Float tMax = si ? si->tHit : Infinity; Float u = sampler.Get1D(); Float uMode = sampler.Get1D(); SampleT_maj(ray, tMax, u, rng, lambda,
         [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj,
             SampledSpectrum T_maj) {
             〈Compute medium event probabilities for interaction 870〉
       〈Randomly sample medium scattering event for delta tracking 871〉
-```
-
-```rust
         });
 ```
 
@@ -398,7 +429,7 @@ For each sample returned by SampleT_maj(), it is necessary to select which type 
 
 Float pAbsorb = mp.sigma_a[0] / sigma_maj[0]; Float pScatter = mp.sigma_s[0] / sigma_maj[0]; Float pNull = std::max<Float>(0, 1 - pAbsorb - pScatter);
 
-A call to SampleDiscrete() then selects one of the three terms of Ln using the specified probabilities. 〈Randomly sample medium scattering event for delta tracking〉 ≡ 870
+A call to `SampleDiscrete()` then selects one of the three terms of Ln using the specified probabilities. 〈Randomly sample medium scattering event for delta tracking〉 ≡ 870
 
 ```rust
    int mode = SampleDiscrete({pAbsorb, pScatter, pNull}, uMode);
@@ -415,7 +446,7 @@ If absorption is chosen, the path terminates. Any emission is added to the radia
 
 L += beta * mp.Le; terminated = true; return false;
 
-For a scattering event, beta is updated according to the ratio of phase function and its directional sampling probability from Equation (14.19). 〈Handle regular scattering event for medium sample〉 ≡ 871
+For a scattering event, `beta` is updated according to the ratio of phase function and its directional sampling probability from Equation (14.19). 〈Handle regular scattering event for medium sample〉 ≡ 871
 
 〈Stop path sampling if maximum depth has been reached 871〉 〈Sample phase function for medium scattering event 871〉 〈Update state for recursive evaluation of Li 872〉
 
@@ -447,9 +478,9 @@ Point2f u{rng.Uniform<Float>(), rng.Uniform<Float>()}; pstd::optional<PhaseFunct
    SimpleVolPathIntegrator::maxDepth 869
 ```
 
-Given a sampled direction, the beta factor must be updated. Volumetric path-tracing implementations often assume that the phase function sampling distribution matches the phase function’s actual distribution and dispense with beta entirely since it is always equal to 1. This variation is worth pausing to consider: in that case, emitted radiance at the end of the path is always returned, unscaled. All of the effect of transmittance, phase functions, and so forth is entirely encapsulated in the distribution of how often various terms are evaluated and in the distribution of scattered ray directions. pbrt does not impose the requirement on phase functions that their importance sampling technique be perfect, though this is the case for the Henyey–Greenstein phase function in pbrt.
+Given a sampled direction, the `beta` factor must be updated. Volumetric path-tracing implementations often assume that the phase function sampling distribution matches the phase function’s actual distribution and dispense with `beta` entirely since it is always equal to 1. This variation is worth pausing to consider: in that case, emitted radiance at the end of the path is always returned, unscaled. All of the effect of transmittance, phase functions, and so forth is entirely encapsulated in the distribution of how often various terms are evaluated and in the distribution of scattered ray directions. pbrt does not impose the requirement on phase functions that their importance sampling technique be perfect, though this is the case for the Henyey–Greenstein phase function in pbrt.
 
-Be it with beta or without, there is no need to do any further work along the current ray after a scattering event, so after the following code updates the path state to account for scattering, it too returns false to direct that no further samples should be taken along the ray. 〈Update state for recursive evaluation of Li〉 ≡ 871
+Be it with `beta` or without, there is no need to do any further work along the current ray after a scattering event, so after the following code updates the path state to account for scattering, it too returns false to direct that no further samples should be taken along the ray. 〈Update state for recursive evaluation of Li〉 ≡ 871
 
 ```rust
    beta *= ps->p / ps->pdf;
@@ -462,7 +493,7 @@ Be it with beta or without, there is no need to do any further work along the cu
    return false;
 ```
 
-Null-scattering events are ignored, so there is nothing to do but to return true to indicate that additional samples along the current ray should be taken. Similar to the real-scattering case, this can be interpreted as starting a recursive evaluation of Equation (14.3) from the current sampled position without incurring the overhead of actually doing so. Since this is the only case that may lead to another invocation of the lambda function, uMode must be refreshed with a new uniform sample value in case another sample is generated. 〈Handle null-scattering event for medium sample〉 ≡ 871
+Null-scattering events are ignored, so there is nothing to do but to return true to indicate that additional samples along the current ray should be taken. Similar to the real-scattering case, this can be interpreted as starting a recursive evaluation of Equation (14.3) from the current sampled position without incurring the overhead of actually doing so. Since this is the only case that may lead to another invocation of the lambda function, `uMode` must be refreshed with a new uniform sample value in case another sample is generated. 〈Handle null-scattering event for medium sample〉 ≡ 871
 
 uMode = rng.Uniform<Float>(); return true;
 
@@ -472,10 +503,8 @@ if (terminated) return L; if (scattered) continue; 〈Add emission to surviving 
 
 If the ray is unscattered and unabsorbed, then any emitters it interacts with contribute radiance to the path. Either surface emission or emission from infinite light sources is accounted for, depending on whether an intersection with a surface was found. Further, if the ray did not intersect a surface, then the path is finished and the radiance estimate can be returned. 〈Add emission to surviving ray〉 ≡ 872
 
-if (si) L += beta * si->intr.Le(-ray.d, lambda); else { for (const auto &light : infiniteLights) L += beta * light.Le(ray, lambda); return L;
-
 ```rust
-   }
+if (si) L += beta * si->intr.Le(-ray.d, lambda); else { for (const auto &light : infiniteLights) L += beta * light.Le(ray, lambda); return L; }
 ```
 
 ```text
@@ -492,17 +521,17 @@ if (si) L += beta * si->intr.Le(-ray.d, lambda); else { for (const auto &light :
     SurfaceInteraction::Le() 762
 ```
 
-It is still necessary to consider surface intersections, even if scattering from them is not handled by this integrator. There are three cases to consider: If the surface has no BSDF, it represents a transition between different types of participating media. A call to SkipIntersection() moves the ray past the intersection and updates its medium appropriately. If there is a valid BSDF and that BDSF also returns a valid sample from Sample_f(), then we have a BSDF that scatters; an error is issued and rendering stops. A valid but zero-valued BSDF is allowed; such a BSDF should be assigned to area light sources in scenes to be rendered using this integrator. 〈Handle surface intersection along ray path〉 ≡ 872
+It is still necessary to consider surface intersections, even if scattering from them is not handled by this integrator. There are three cases to consider: If the surface has no `BSDF`, it represents a transition between different types of participating media. A call to `SkipIntersection()` moves the ray past the intersection and updates its medium appropriately. If there is a valid `BSDF` and that BDSF also returns a valid sample from `Sample_f()`, then we have a `BSDF` that scatters; an error is issued and rendering stops. A valid but zero-valued `BSDF` is allowed; such a `BSDF` should be assigned to area light sources in scenes to be rendered using this integrator. 〈Handle surface intersection along ray path〉 ≡ 872
 
 BSDF bsdf = si->intr.GetBSDF(ray, lambda, camera, buf, sampler); if (!bsdf) si->intr.SkipIntersection(&ray, si->tHit); else { 〈Report error if BSDF returns a valid sample〉 }
 
 ⋆ 14.2.2 IMPROVING THE SAMPLING TECHNIQUES
 
-The VolPathIntegrator adds three significant improvements to the approach implemented in SimpleVolPathIntegrator: it supports
+The `VolPathIntegrator` adds three significant improvements to the approach implemented in `SimpleVolPathIntegrator`: it supports
 
 scattering from surfaces as well as from volumes; it handles spectrally varying medium scattering properties without falling back to sampling a single wavelength; and it samples lights directly, using multiple importance sampling to reduce variance when doing so. The first improvement— including surface scattering—is mostly a matter of applying the ideas of Equation (14.7), sampling distances in volumes but then choosing surface scattering if the sampled distance is past the closest intersection. For the other two, we will here discuss the underlying foundations before turning to their implementation.
 
-Chromatic Media We have thus far glossed over some of the implications of spectrally varying medium properties. Because pbrt uses point-sampled spectra, they introduce no complications in terms of evaluating things like the modified path throughput or the path throughput weight β(pn): given a set of path vertices, such quantities can be evaluated for all the wavelength samples simultaneously using the SampledSpectrum class.
+Chromatic Media We have thus far glossed over some of the implications of spectrally varying medium properties. Because pbrt uses point-sampled spectra, they introduce no complications in terms of evaluating things like the modified path throughput or the path throughput weight β(pn): given a set of path vertices, such quantities can be evaluated for all the wavelength samples simultaneously using the `SampledSpectrum` class.
 
 The problem with spectrally varying medium properties comes from sampling. Consider a wavelength-dependent function fλ(x) that we would like to integrate at n wavelengths λi. If we draw samples from a wavelength-dependent PDF based on the first wavelength and then evaluate
 
@@ -518,7 +547,7 @@ f at all the wavelengths, we have the estimators Even if the PDF that was used f
    SurfaceInteraction::SkipIntersection() 643
 ```
 
-This problem of a single sampling PDF possibly mismatched with a wavelength-dependent function comes up repeatedly in volumetric path tracing. For example, sampling the majorant transmittance at one wavelength may be a poor approach for sampling it at others. That could be handled by selecting a majorant that bounds all wavelengths’ extinction coefficients, but such a majorant would lead to many null-scattering events at wavelengths that could have used a much lower majorant, which would harm performance. The path tracer’s choice among absorption, real scattering, and null scattering at a sampled point cannot be sidestepped in a similar way: different wavelengths may have quite different probabilities for each of these types of medium interaction, yet with path tracing the integrator must choose only one of them. Splitting up the computation to let each wavelength choose individually would be nearly as inefficient as only considering a single wavelength at a time. However, if a single type of interaction is chosen based on a single wavelength and we evaluate the modified path contribution function for all wavelengths, we could have arbitrarily high variance in the other wavelengths. To see why, note how all the σ{s,n} factors that came from the pe(pi) factors in Equation (14.18) canceled out to give the delta-tracking estimator, Equation (14.19). In the spectral case, if, for example, real scattering is chosen based on a wavelength λ’s scattering coefficient σs and if a wavelength λ′ has scattering coefficient , then the final estimator for λ′ will include a factor of that can be arbitrarily large. The fact that SampleT_maj() nevertheless samples according to a single wavelength’s majorant transmittance suggests that there is a solution to this problem. That solution, yet again, is multiple importance sampling. In this case, we are using a single sampling technique rather than MIS-weighting multiple techniques, so we use the single-sample MIS estimator from
+This problem of a single sampling PDF possibly mismatched with a wavelength-dependent function comes up repeatedly in volumetric path tracing. For example, sampling the majorant transmittance at one wavelength may be a poor approach for sampling it at others. That could be handled by selecting a majorant that bounds all wavelengths’ extinction coefficients, but such a majorant would lead to many null-scattering events at wavelengths that could have used a much lower majorant, which would harm performance. The path tracer’s choice among absorption, real scattering, and null scattering at a sampled point cannot be sidestepped in a similar way: different wavelengths may have quite different probabilities for each of these types of medium interaction, yet with path tracing the integrator must choose only one of them. Splitting up the computation to let each wavelength choose individually would be nearly as inefficient as only considering a single wavelength at a time. However, if a single type of interaction is chosen based on a single wavelength and we evaluate the modified path contribution function for all wavelengths, we could have arbitrarily high variance in the other wavelengths. To see why, note how all the σ{s,n} factors that came from the pe(pi) factors in Equation (14.18) canceled out to give the delta-tracking estimator, Equation (14.19). In the spectral case, if, for example, real scattering is chosen based on a wavelength λ’s scattering coefficient σs and if a wavelength λ′ has scattering coefficient , then the final estimator for λ′ will include a factor of that can be arbitrarily large. The fact that `SampleT_maj()` nevertheless samples according to a single wavelength’s majorant transmittance suggests that there is a solution to this problem. That solution, yet again, is multiple importance sampling. In this case, we are using a single sampling technique rather than MIS-weighting multiple techniques, so we use the single-sample MIS estimator from
 
 Equation (2.16), which here gives where q is the discrete probability of sampling using the wavelength λ1, here uniform at 1/n with n the number of spectral samples.
 
@@ -528,7 +557,7 @@ which gives the estimator
 
 See Figure 14.7 for an example that shows the benefits of MIS for chromatic media.
 
-Direct Lighting Multiple importance sampling is also at the heart of how the VolPathIntegrator samples direct illumination. As with the PathIntegrator, we would like to combine the strategies of sampling the light sources with sampling the BSDF or phase function to find light-carrying paths and then to weight the contributions of each sampling technique using MIS. Doing so is more complex than it is in the absence of volumetric scattering, however, because not only does the sampling distribution used at the last path vertex differ (as before) but the VolPathIntegrator also uses ratio tracking to estimate the transmittance along the shadow ray. That is a different distance sampling technique than the delta-tracking approach used when sampling ray paths, and so it leads to a different path PDF.
+Direct Lighting Multiple importance sampling is also at the heart of how the `VolPathIntegrator` samples direct illumination. As with the `PathIntegrator`, we would like to combine the strategies of sampling the light sources with sampling the `BSDF` or phase function to find light-carrying paths and then to weight the contributions of each sampling technique using MIS. Doing so is more complex than it is in the absence of volumetric scattering, however, because not only does the sampling distribution used at the last path vertex differ (as before) but the `VolPathIntegrator` also uses ratio tracking to estimate the transmittance along the shadow ray. That is a different distance sampling technique than the delta-tracking approach used when sampling ray paths, and so it leads to a different path PDF.
 
 ```text
    PathIntegrator 833
@@ -536,23 +565,25 @@ Direct Lighting Multiple importance sampling is also at the heart of how the Vol
    VolPathIntegrator 877
 ```
 
-In the following, we will say that the two path-sampling techniques used in the VolPath Integrator are unidirectional path sampling and light path sampling; we will write their respective path PDFs as pu and pl. The first corresponds to the sampling approach from Section 14.1.5, with delta tracking used to find real-scattering vertices and with the phase function or BSDF sampled to find the new direction at each vertex. Light path sampling follows the same approach up to the last real-scattering vertex before the light vertex; there, the light selects the direction and then ratio tracking gives the transmittance along the last path segment. (See Figure 14.8.)
+In the following, we will say that the two path-sampling techniques used in the VolPath `Integrator` are unidirectional path sampling and light path sampling; we will write their respective path PDFs as pu and pl. The first corresponds to the sampling approach from Section 14.1.5, with delta tracking used to find real-scattering vertices and with the phase function or `BSDF` sampled to find the new direction at each vertex. `Light` path sampling follows the same approach up to the last real-scattering vertex before the light vertex; there, the light selects the direction and then ratio tracking gives the transmittance along the last path segment. (See Figure 14.8.)
 
 Given a path pn−1, both approaches share the same path throughput weight β up to the vertex pn−1 and the same path PDF up to that vertex, pu(pn−1).2
 
 ![Figure 14.7](images/img-1388-323.png)
 
-*Figure 14.7: Chromatic Volumetric Media. (a) When rendered without spectral MIS, variance is high. (b) Results are much better with spectral MIS, as implemented in the VolPathIntegrator. For this scene, MSE is reduced by a factor of 149. (Scene courtesty of Jim Price.)*
+
+*Figure 14.7: Chromatic Volumetric Media. (a) When rendered without spectral MIS, variance is high. (b) Results are much better with spectral MIS, as implemented in the `VolPathIntegrator`. For this scene, MSE is reduced by a factor of 149. (Scene courtesty of Jim Price.)*
 
 ![Figure 14.8](images/img-1389-324.png)
 
-*Figure 14.8: In the direct lighting calculation, at each path vertex a point is sampled on a light source and a shadow ray (dotted line) is traced. The VolPathIntegrator uses ratio tracking to compute the transmittance along the ray by accumulating the product σn/σmaj at sampled points along the ray (open circles). For the MIS weight, it is necessary to be able not only to compute the PDF for sampling the corresponding direction at the last path vertex but also to compute the probability of generating these samples using delta tracking, since that is how the path would be sampled with unidirectional path sampling.*
+
+*Figure 14.8: In the direct lighting calculation, at each path vertex a point is sampled on a light source and a shadow ray (dotted line) is traced. The `VolPathIntegrator` uses ratio tracking to compute the transmittance along the ray by accumulating the product σn/σmaj at sampled points along the ray (open circles). For the MIS weight, it is necessary to be able not only to compute the PDF for sampling the corresponding direction at the last path vertex but also to compute the probability of generating these samples using delta tracking, since that is how the path would be sampled with unidirectional path sampling.*
 
 ```text
    VolPathIntegrator 877
 ```
 
-For the full PDF for unidirectional path sampling, at the last scattering vertex we have the probability of scattering, σs(pn−1)/σmaj times the directional probability for sampling the new direction pω(ωn), which is given by the sampling strategy used for the BSDF or phase function. Then, for the path to find an emitter at the vertex pn, it must have only sampled null-scattering vertices between pn−1 and pn; absorption or a real-scattering vertex preclude making it to pn. Using the results from Section 14.1.5, we can find that the path PDF between two points pi and pj with m intermediate null-scattering vertices
+For the full PDF for unidirectional path sampling, at the last scattering vertex we have the probability of scattering, σs(pn−1)/σmaj times the directional probability for sampling the new direction pω(ωn), which is given by the sampling strategy used for the `BSDF` or phase function. Then, for the path to find an emitter at the vertex pn, it must have only sampled null-scattering vertices between pn−1 and pn; absorption or a real-scattering vertex preclude making it to pn. Using the results from Section 14.1.5, we can find that the path PDF between two points pi and pj with m intermediate null-scattering vertices
 
 indexed by k is given by the product of for all null-scattering vertices. The σmaj factors cancel and the null-scattering path probability is
 
@@ -562,7 +593,7 @@ For light sampling, we again have the discrete probability σs(pn−1)/σmaj for
 
 and the full light sampling path PDF is given by
 
-The VolPathIntegrator samples both types of paths according to the first wavelength λ1 but evaluates these PDFs at all wavelengths so that MIS over wavelengths can be used. Given the path pn sampled using unidirectional path sampling and then the path sampled using light path sampling, the two-sample MIS estimator is
+The `VolPathIntegrator` samples both types of paths according to the first wavelength λ1 but evaluates these PDFs at all wavelengths so that MIS over wavelengths can be used. Given the path pn sampled using unidirectional path sampling and then the path sampled using light path sampling, the two-sample MIS estimator is
 
 Note that because the paths share the same vertices for all of pn−1, not only do the two factors share common factors, but and do as well, following Equations (14.21) and (14.23).
 
@@ -578,23 +609,30 @@ with m the number of spectral samples. The MIS weight for light sampling is equi
 
 ⋆ 14.2.3 IMPROVED VOLUMETRIC INTEGRATOR
 
-The VolPathIntegrator pulls together all of these ideas to robustly handle both surface and volume transport. See Figures 14.9 and 14.10 for images rendered with this integrator that show off the visual complexity that comes from volumetric emission, chromatic media, and multiple scattering in participating media. 〈VolPathIntegrator Definition〉 ≡ class VolPathIntegrator : public RayIntegrator { public: 〈VolPathIntegrator Public Methods〉 private: 〈VolPathIntegrator Private Methods〉 〈VolPathIntegrator Private Members 877〉 };
+The `VolPathIntegrator` pulls together all of these ideas to robustly handle both surface and volume transport. See Figures 14.9 and 14.10 for images rendered with this integrator that show off the visual complexity that comes from volumetric emission, chromatic media, and multiple scattering in participating media. 〈VolPathIntegrator Definition〉 ≡ class VolPathIntegrator : public RayIntegrator { public: 〈VolPathIntegrator Public Methods〉 private: 〈VolPathIntegrator Private Methods〉 〈VolPathIntegrator Private Members 877〉 };
 
-As with the other Integrator constructors that we have seen so far, the VolPathIntegrator constructor does not perform any meaningful computation, but just initializes member variables with provided values. These three are all equivalent to their parallels in the Path Integrator.
+As with the other `Integrator` constructors that we have seen so far, the `VolPathIntegrator` constructor does not perform any meaningful computation, but just initializes member variables with provided values. These three are all equivalent to their parallels in the Path `Integrator`.
 
 〈VolPathIntegrator Private Members〉 ≡ 877
 
 int maxDepth; LightSampler lightSampler; bool regularize;
 
-LightSampler 781 PathIntegrator 833 RayIntegrator 28 VolPathIntegrator 877
+```text
+    LightSampler 781
+    PathIntegrator 833
+    RayIntegrator 28
+    VolPathIntegrator 877
+```
 
 ![Figure 14.9](images/img-1392-325.png)
 
-*Figure 14.9: Volumetric Emission inside Lightbulbs. The flames in each lightbulb are modeled with participating media and rendered with the VolPathIntegrator. (Scene courtesy of Jim Price.)*
+
+*Figure 14.9: Volumetric Emission inside Lightbulbs. The flames in each lightbulb are modeled with participating media and rendered with the `VolPathIntegrator`. (Scene courtesy of Jim Price.)*
 
 ![Figure 14.10](images/img-1393-326.png)
 
-*Figure 14.10: Volumetric Scattering in Liquid. Scattering in the paint-infused water is modeled with participating media and rendered with the VolPathIntegrator. (Scene courtesy of Angelo Ferretti.)*
+
+*Figure 14.10: Volumetric Scattering in Liquid. Scattering in the paint-infused water is modeled with participating media and rendered with the `VolPathIntegrator`. (Scene courtesy of Angelo Ferretti.)*
 
 〈VolPathIntegrator Method Definitions〉 ≡ SampledSpectrum VolPathIntegrator::Li(RayDifferential ray, SampledWavelengths &lambda, Sampler sampler, ScratchBuffer &scratchBuffer, VisibleSurface *visibleSurf) const { 〈Declare state variables for volumetric path sampling 879〉 while (true) { 〈Sample segment of volumetric scattering path 879〉
 
@@ -610,7 +648,7 @@ LightSampler 781 PathIntegrator 833 RayIntegrator 28 VolPathIntegrator 877
    VolPathIntegrator 877
 ```
 
-There is a common factor of in the denominator of the first term of the two-sample MIS estimator, Equation (14.24), and the numerator of the MIS weights, Equation (14.25). There is a corresponding factor in the second term of the estimator and in the wl weight. It is tempting to cancel these out; in that case, the path state to be tracked by the integrator would consist of and the wavelength-dependent probabilities pu(pn) and pl(pn). Doing so is mathematically valid and would provide all the quantities necessary to evaluate Equation (14.24), but suffers from the problem that the quantities involved may overflow or underflow the range of representable floating-point values. To understand the problem, consider a highly specular surface—the BSDF will have a large value for directions around its peak, but the PDF for sampling those directions will also be large. That causes no problems in the PathIntegrator, since its beta variable tracks their ratio, which ends up being close to 1. However, with maintained independently, a series of specular bounces could lead to overflow. (Many null-scattering events along a path can cause similar problems.) Therefore, the VolPathIntegrator tracks the path throughput weight for the sampled path
+There is a common factor of in the denominator of the first term of the two-sample MIS estimator, Equation (14.24), and the numerator of the MIS weights, Equation (14.25). There is a corresponding factor in the second term of the estimator and in the wl weight. It is tempting to cancel these out; in that case, the path state to be tracked by the integrator would consist of and the wavelength-dependent probabilities pu(pn) and pl(pn). Doing so is mathematically valid and would provide all the quantities necessary to evaluate Equation (14.24), but suffers from the problem that the quantities involved may overflow or underflow the range of representable floating-point values. To understand the problem, consider a highly specular surface—the `BSDF` will have a large value for directions around its peak, but the PDF for sampling those directions will also be large. That causes no problems in the `PathIntegrator`, since its `beta` variable tracks their ratio, which ends up being close to 1. However, with maintained independently, a series of specular bounces could lead to overflow. (Many null-scattering events along a path can cause similar problems.) Therefore, the `VolPathIntegrator` tracks the path throughput weight for the sampled path
 
 which is numerically well behaved. Directly tracking the probabilities pu(pn) and pl(pn) would also stress the range of floating-point numbers, so instead it tracks the rescaled path probabilities
 
@@ -618,13 +656,13 @@ where ppath(pn) is the probability for sampling the current path. It is equal to
 
 and similarly for wl when .
 
-The remaining variables in the following fragment have the same function as the variables of the same names in the PathIntegrator.
+The remaining variables in the following fragment have the same function as the variables of the same names in the `PathIntegrator`.
 
 〈Declare state variables for volumetric path sampling〉 ≡ 878
 
 SampledSpectrum L(0.f), beta(1.f), r_u(1.f), r_l(1.f); bool specularBounce = false, anyNonSpecularBounces = false; int depth = 0; Float etaScale = 1;
 
-The while loop for each ray segment starts out similarly to the corresponding loop in the SimpleVolPathIntegrator: the integrator traces a ray to find a tmax value at the closest surface intersection before sampling the medium, if any, between the ray origin and the intersection point.
+The while loop for each ray segment starts out similarly to the corresponding loop in the `SimpleVolPathIntegrator`: the integrator traces a ray to find a tmax value at the closest surface intersection before sampling the medium, if any, between the ray origin and the intersection point.
 
 ```text
    Float 23
@@ -643,7 +681,7 @@ The while loop for each ray segment starts out similarly to the corresponding lo
 
 pstd::optional<ShapeIntersection> si = Intersect(ray); if (ray.medium) { 〈Sample the participating medium 880〉 } 〈Handle surviving unscattered rays 884〉
 
-The form of the fragment for sampling the medium is similar as well: tMax is set using the ray intersection t, if available, and an RNG is prepared before medium sampling proceeds. If the path is terminated or undergoes real scattering in the medium, then no further work is done to sample surface scattering at a ray intersection point. 〈Sample the participating medium〉 ≡ 879
+The form of the fragment for sampling the medium is similar as well: `tMax` is set using the ray intersection t, if available, and an `RNG` is prepared before medium sampling proceeds. If the path is terminated or undergoes real scattering in the medium, then no further work is done to sample surface scattering at a ray intersection point. 〈Sample the participating medium〉 ≡ 879
 
 bool scattered = false, terminated = false; Float tMax = si ? si->tHit : Infinity; 〈Initialize RNG for sampling the majorant transmittance 870〉 SampledSpectrum T_maj = SampleT_maj(ray, tMax, sampler.Get1D(), rng, lambda, [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj, SampledSpectrum T_maj) { 〈Handle medium scattering event for ray 880〉 }); 〈Handle terminated, scattered, and unscattered medium rays 883〉
 
@@ -653,7 +691,7 @@ Given a sampled point p′ in the medium, the lambda function’s task is to eva
 
 A small difference from the SimpleVolPathIntegrator is that volumetric emission is added at every point that is sampled in the medium rather than only when the absorption case is sampled. There is no reason not to do so,
 
-since emission is already available via the MediumProperties passed to the lambda function. 〈Add emission from medium scattering event〉 ≡ 880
+since emission is already available via the `MediumProperties` passed to the lambda function. 〈Add emission from medium scattering event〉 ≡ 880
 
 if (depth < maxDepth && mp.Le) { 〈Compute β′ at new path vertex 880〉 〈Compute rescaled path probability for absorption at path vertex 881〉 〈Update L for medium emission 881〉 }
 
@@ -674,7 +712,7 @@ In the following, we will sometimes use the notation [pn + p′] to denote the p
    VolPathIntegrator::maxDepth 877
 ```
 
-beta holds β(pn), so we can incrementally compute β([pn + p′]) by
+`beta` holds β(pn), so we can incrementally compute β([pn + p′]) by
 
 From Section 14.1.5, we know that . Because we are always sampling absorption (at least as far as including emission goes), pe is 1 here.
 
@@ -682,17 +720,17 @@ From Section 14.1.5, we know that . Because we are always sampling absorption (a
 
 Float pdf = sigma_maj[0] * T_maj[0]; SampledSpectrum betap = beta * T_maj / pdf;
 
-Even though this is the only sampling technique for volumetric emission, different wavelengths may sample this vertex with different probabilities, so it is worthwhile to apply MIS over the wavelengths’ probabilities. With r_u storing the rescaled unidirectional probabilities up to the previous path vertex, the rescaled path probabilities for sampling the emissive vertex, r_e, can be found by multiplying r_u by the per-wavelength pmaj probabilities and dividing by the probability for the wavelength that was used for sampling p′, which is already available in pdf. (Note that in monochromatic media, these ratios are all 1.) 〈Compute rescaled path probability for absorption at path vertex〉 ≡ 880
+Even though this is the only sampling technique for volumetric emission, different wavelengths may sample this vertex with different probabilities, so it is worthwhile to apply MIS over the wavelengths’ probabilities. With `r_u` storing the rescaled unidirectional probabilities up to the previous path vertex, the rescaled path probabilities for sampling the emissive vertex, `r_e`, can be found by multiplying `r_u` by the per-wavelength pmaj probabilities and dividing by the probability for the wavelength that was used for sampling p′, which is already available in pdf. (Note that in monochromatic media, these ratios are all 1.) 〈Compute rescaled path probability for absorption at path vertex〉 ≡ 880
 
 SampledSpectrum r_e = r_u * sigma_maj * T_maj / pdf;
 
 Here we have a single-sample MIS estimator with balance heuristic weights given by
 
-The absorption coefficient and emitted radiance for evaluating Equation (14.28) are available in MediumProperties and the SampledSpectrum::Average() method conveniently computes the average of rescaled probabilities in the denominator of Equation (14.29). 〈Update L for medium emission〉 ≡ 880
+The absorption coefficient and emitted radiance for evaluating Equation (14.28) are available in `MediumProperties` and the `SampledSpectrum::Average()` method conveniently computes the average of rescaled probabilities in the denominator of Equation (14.29). 〈Update L for medium emission〉 ≡ 880
 
 if (r_e) L += betap * mp.sigma_a * mp.Le / r_e.Average();
 
-Briefly returning to the initialization of betap and r_e in the previous fragments: it may seem tempting to cancel out the T_maj factors from them, but note how the final estimator does not perform a component-wise division of these two quantities but instead divides by the average of the rescaled probabilities when computing the MIS weight. Thus, performing such cancellations would lead to incorrect results.3 After emission is handled, the next step is to determine which term of Ln to evaluate; this follows the same approach as in the SimpleVolPathIntegrator.
+Briefly returning to the initialization of betap and `r_e` in the previous fragments: it may seem tempting to cancel out the `T_maj` factors from them, but note how the final estimator does not perform a component-wise division of these two quantities but instead divides by the average of the rescaled probabilities when computing the MIS weight. Thus, performing such cancellations would lead to incorrect results.3 After emission is handled, the next step is to determine which term of Ln to evaluate; this follows the same approach as in the `SimpleVolPathIntegrator`.
 
 〈Sample medium scattering event type and update path〉 ≡ 880
 
@@ -721,11 +759,11 @@ For a real-scattering event, a shadow ray is traced to a light to sample direct 
 
 The PDF for real scattering at this vertex is the product of the PDF for sampling its distance along the ray, , and the probability for sampling real scattering, σs(p′)/σmaj. The σmaj values cancel.
 
-Given the PDF value, beta can be updated to include Tmaj along the segment up to the new vertex divided by the PDF. The rescaled probabilities are computed in the same way as the path sampling PDF before being divided by it, following Equation (14.26). The rescaled light path probabilities will be set shortly, after a new ray direction is sampled. 〈Update beta and r_u for real-scattering event〉 ≡ 882
+Given the PDF value, `beta` can be updated to include Tmaj along the segment up to the new vertex divided by the PDF. The rescaled probabilities are computed in the same way as the path sampling PDF before being divided by it, following Equation (14.26). The rescaled light path probabilities will be set shortly, after a new ray direction is sampled. 〈Update beta and r_u for real-scattering event〉 ≡ 882
 
 Float pdf = T_maj[0] * mp.sigma_s[0]; beta *= T_maj * mp.sigma_s / pdf; r_u *= T_maj * mp.sigma_s / pdf;
 
-Direct lighting is handled by the SampleLd() method, which we will defer until later in this section. 〈Sample direct lighting at volume-scattering event〉 ≡ 882
+Direct lighting is handled by the `SampleLd()` method, which we will defer until later in this section. 〈Sample direct lighting at volume-scattering event〉 ≡ 882
 
 MediumInteraction intr(p, -ray.d, ray.time, ray.medium, mp.phase); L += SampleLd(intr, nullptr, lambda, sampler, beta, r_u);
 
@@ -753,25 +791,25 @@ Point2f u = sampler.Get2D(); pstd::optional<PhaseFunctionSample> ps = intr.phase
    VolPathIntegrator::SampleLd() 886
 ```
 
-There is a bit of bookkeeping to take care of after a real-scattering event. We can now incorporate the phase function value into beta, which completes the contribution of from Equation (14.12). Because both unidirectional path sampling and light path sampling use the same set of sampling operations up to a real-scattering vertex, an initial value for the rescaled light path sampling probabilities r_l comes from the value of the rescaled unidirectional probabilities before scattering. It is divided by the directional PDF from for this vertex here. The associated directional PDF for light sampling at this vertex will be incorporated into r_l later. There is no need to update r_u here, since the scattering direction’s probability is the same for all wavelengths and so the update factor would always be 1. At this point, the integrator also updates various variables that record the scattering history and updates the current ray. 〈Update ray path state for indirect volume scattering〉 ≡ 882
+There is a bit of bookkeeping to take care of after a real-scattering event. We can now incorporate the phase function value into `beta`, which completes the contribution of from Equation (14.12). Because both unidirectional path sampling and light path sampling use the same set of sampling operations up to a real-scattering vertex, an initial value for the rescaled light path sampling probabilities `r_l` comes from the value of the rescaled unidirectional probabilities before scattering. It is divided by the directional PDF from for this vertex here. The associated directional PDF for light sampling at this vertex will be incorporated into `r_l` later. There is no need to update `r_u` here, since the scattering direction’s probability is the same for all wavelengths and so the update factor would always be 1. At this point, the integrator also updates various variables that record the scattering history and updates the current ray. 〈Update ray path state for indirect volume scattering〉 ≡ 882
 
 beta *= ps->p / ps->pdf; r_l = r_u / ps->pdf; prevIntrContext = LightSampleContext(intr); scattered = true; ray.o = p; ray.d = ps->wi; specularBounce = false; anyNonSpecularBounces = true;
 
-If the ray intersects a light source, the LightSampleContext from the previous path vertex will be needed to compute MIS weights; prevIntrContext is updated to store it after each scattering event, whether in a medium or on a surface. 〈Declare state variables for volumetric path sampling〉 +≡ 878
+If the ray intersects a light source, the `LightSampleContext` from the previous path vertex will be needed to compute MIS weights; `prevIntrContext` is updated to store it after each scattering event, whether in a medium or on a surface. 〈Declare state variables for volumetric path sampling〉 +≡ 878
 
 LightSampleContext prevIntrContext;
 
-If null scattering is selected, the updates to beta and the rescaled path sampling probabilities follow the same form as we have seen previously: the former is given by Equation (14.11) and the latter with a pe = σn/σmaj factor where, as with real scattering, the σmaj cancels with a corresponding factor from the pmaj probability (Section 14.1.5).
+If null scattering is selected, the updates to `beta` and the rescaled path sampling probabilities follow the same form as we have seen previously: the former is given by Equation (14.11) and the latter with a pe = σn/σmaj factor where, as with real scattering, the σmaj cancels with a corresponding factor from the pmaj probability (Section 14.1.5).
 
 In this case, we also must update the rescaled path probabilities for sampling this path vertex via light path sampling, which samples path vertices according to pmaj.
 
-This fragment concludes the implementation of the lambda function that is passed to the SampleT_maj() function.
+This fragment concludes the implementation of the lambda function that is passed to the `SampleT_maj()` function.
 
 〈Handle null scattering along ray path〉 ≡ 881
 
 SampledSpectrum sigma_n = ClampZero(sigma_maj - mp.sigma_a -mp.sigma_s); Float pdf = T_maj[0] * sigma_n[0]; beta *= T_maj * sigma_n / pdf; if (pdf == 0) beta = SampledSpectrum(0.f); r_u *= T_maj * sigma_n / pdf; r_l *= T_maj * sigma_maj / pdf; return beta && r_u;
 
-Returning to the Li() method immediately after the SampleT_maj() call, if the path terminated due to absorption, it is only here that we can break out and return the radiance estimate to the caller of the Li() method. Further, it is only here that we can jump back to the start of the while loop for rays that were scattered in the medium.
+Returning to the Li() method immediately after the `SampleT_maj()` call, if the path terminated due to absorption, it is only here that we can break out and return the radiance estimate to the caller of the Li() method. Further, it is only here that we can jump back to the start of the while loop for rays that were scattered in the medium.
 
 ```text
    Float 23
@@ -803,14 +841,14 @@ There is much more to do for rays that have either escaped the scene or have int
 
 〈Add emitted light at volume path vertex or from the environment 890〉 〈Get BSDF and skip over medium boundaries 828〉 〈Initialize visibleSurf at first intersection 834〉 〈Terminate path if maximum depth reached 884〉 〈Possibly regularize the BSDF 842〉 〈Sample illumination from lights to find attenuated path contribution 884〉 〈Sample BSDF to get new volumetric path direction 884〉 〈Account for attenuated subsurface scattering, if applicable〉 〈Possibly terminate volumetric path with Russian roulette 885〉
 
-As with the PathIntegrator, path termination due to reaching the maximum depth only occurs after accounting for illumination from any emissive surfaces that are intersected. 〈Terminate path if maximum depth reached〉 ≡ 884
+As with the `PathIntegrator`, path termination due to reaching the maximum depth only occurs after accounting for illumination from any emissive surfaces that are intersected. 〈Terminate path if maximum depth reached〉 ≡ 884
 
 ```rust
    if (depth++ >= maxDepth)
        return L;
 ```
 
-Sampling the light source at a surface intersection is handled by the same SampleLd() method that is called for real-scattering vertices in the medium. As with medium scattering, the LightSampleContext corresponding to this scattering event is recorded for possible later use in MIS weight calculations. 〈Sample illumination from lights to find attenuated path contribution〉 ≡ 884
+Sampling the light source at a surface intersection is handled by the same `SampleLd()` method that is called for real-scattering vertices in the medium. As with medium scattering, the `LightSampleContext` corresponding to this scattering event is recorded for possible later use in MIS weight calculations. 〈Sample illumination from lights to find attenuated path contribution〉 ≡ 884
 
 if (IsNonSpecular(bsdf.Flags())) L += SampleLd(isect, &bsdf, lambda, sampler, beta, r_u); prevIntrContext = LightSampleContext(isect);
 
@@ -830,19 +868,18 @@ if (IsNonSpecular(bsdf.Flags())) L += SampleLd(isect, &bsdf, lambda, sampler, be
    VolPathIntegrator::SampleLd() 886
 ```
 
-The logic for sampling scattering at a surface is very similar to the corresponding logic in the PathIntegrator. 〈Sample BSDF to get new volumetric path direction〉 ≡ 884
+The logic for sampling scattering at a surface is very similar to the corresponding logic in the `PathIntegrator`. 〈Sample BSDF to get new volumetric path direction〉 ≡ 884
 
 Vector3f wo = isect.wo; Float u = sampler.Get1D(); pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D()); if (!bs) break; 〈Update beta and rescaled path probabilities for BSDF scattering 885〉 〈Update volumetric integrator path state after surface scattering 885〉
 
-Given a BSDF sample, β is first multiplied by the value of the BSDF, which takes care of from Equation (14.12). This is also a good time to
+Given a `BSDF` sample, β is first multiplied by the value of the `BSDF`, which takes care of from Equation (14.12). This is also a good time to
 
-incorporate the cosine factor from the Cp factor of the generalized geometric term, Equation (14.13). Updates to the rescaled path probabilities follow how they were done for medium scattering: first, there is no need to update r_u since the probabilities are the same over all wavelengths. The rescaled light path sampling probabilities are also initialized from r_u, here also with only the factor included. The other factors in r_l will only be computed and included if the ray intersects an emitter; otherwise r_l is unused. One nit in updating r_l is that the BSDF and PDF value returned in the BSDFSample may only be correct up to a (common) scale factor. This case comes up with sampling techniques like the random walk used by the LayeredBxDF that is described in Section 14.3.2. In that case, a call to BSDF::PDF() gives an independent value for the PDF that can be used.
+incorporate the cosine factor from the Cp factor of the generalized geometric term, Equation (14.13). Updates to the rescaled path probabilities follow how they were done for medium scattering: first, there is no need to update `r_u` since the probabilities are the same over all wavelengths. The rescaled light path sampling probabilities are also initialized from `r_u`, here also with only the factor included. The other factors in `r_l` will only be computed and included if the ray intersects an emitter; otherwise `r_l` is unused. One nit in updating `r_l` is that the `BSDF` and PDF value returned in the `BSDFSample` may only be correct up to a (common) scale factor. This case comes up with sampling techniques like the random walk used by the `LayeredBxDF` that is described in Section 14.3.2. In that case, a call to `BSDF::PDF()` gives an independent value for the PDF that can be used.
 
 〈Update beta and rescaled path probabilities for BSDF scattering〉 ≡ 884
 
-beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf; if (bs->pdfIsProportional) r_l = r_u / bsdf.PDF(wo, bs->wi);
-
 ```rust
+beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf; if (bs->pdfIsProportional) r_l = r_u / bsdf.PDF(wo, bs->wi);
    else
           r_l = r_u / bs->pdf;
 ```
@@ -875,13 +912,12 @@ specularBounce = bs->IsSpecular(); anyNonSpecularBounces |= !bs->IsSpecular(); i
    VolPathIntegrator 877
 ```
 
-Russian roulette follows the same general approach as before, though we scale beta by the accumulated effect of radiance scaling for transmission that is encoded in etaScale and use the balance heuristic over wavelengths. If the Russian roulette test passes, beta is updated with a factor that accounts for the survival probability, 1 - q.
+Russian roulette follows the same general approach as before, though we scale `beta` by the accumulated effect of radiance scaling for transmission that is encoded in etaScale and use the balance heuristic over wavelengths. If the Russian roulette test passes, `beta` is updated with a factor that accounts for the survival probability, 1 - q.
 
 〈Possibly terminate volumetric path with Russian roulette〉 ≡ 884
 
-SampledSpectrum rrBeta = beta * etaScale / r_u.Average();
-
 ```rust
+SampledSpectrum rrBeta = beta * etaScale / r_u.Average();
    Float uRR = sampler.Get1D();
    if (rrBeta.MaxComponentValue() < 1 && depth > 1) {
        Float q = std::max<Float>(0, 1 - rrBeta.MaxComponentValue());
@@ -890,9 +926,9 @@ SampledSpectrum rrBeta = beta * etaScale / r_u.Average();
    }
 ```
 
-Estimating Direct Illumination All that remains in the VolPathIntegrator’s implementation is direct illumination. We will start with the SampleLd() method, which is called to estimate scattered radiance due to direct illumination by sampling a light source, both at scattering points in media and on surfaces. (It is responsible for computing the second term of Equation (14.24).) The purpose of most of its parameters should be evident. The last, r_p, gives the rescaled path probabilities up to the vertex intr. (A separate variable named r_u will be used in the function’s implementation, so a new name is needed here.) 〈VolPathIntegrator Method Definitions〉 +≡ SampledSpectrum VolPathIntegrator::SampleLd(const Interaction &intr, const BSDF *bsdf, SampledWavelengths &lambda, Sampler sampler, SampledSpectrum beta, SampledSpectrum r_p) const { 〈Estimate light-sampled direct illumination at intr 886〉 }
+Estimating Direct Illumination All that remains in the `VolPathIntegrator`’s implementation is direct illumination. We will start with the `SampleLd()` method, which is called to estimate scattered radiance due to direct illumination by sampling a light source, both at scattering points in media and on surfaces. (It is responsible for computing the second term of Equation (14.24).) The purpose of most of its parameters should be evident. The last, `r_p`, gives the rescaled path probabilities up to the vertex intr. (A separate variable named `r_u` will be used in the function’s implementation, so a new name is needed here.) 〈VolPathIntegrator Method Definitions〉 +≡ SampledSpectrum VolPathIntegrator::SampleLd(const Interaction &intr, const BSDF *bsdf, SampledWavelengths &lambda, Sampler sampler, SampledSpectrum beta, SampledSpectrum r_p) const { 〈Estimate light-sampled direct illumination at intr 886〉 }
 
-The overall structure of this method’s implementation is similar to the PathIntegrator’s SampleLd() method: a light source and a point on it are sampled, the vertex’s scattering function is evaluated, and then the light’s visibility is determined. Here we have the added complexity of needing to compute the transmittance between the scattering point and the point on the light rather than finding a binary visibility factor, as well as the need to compute spectral path sampling weights for MIS. 〈Estimate light-sampled direct illumination at intr〉 ≡ 886
+The overall structure of this method’s implementation is similar to the `PathIntegrator`’s `SampleLd()` method: a light source and a point on it are sampled, the vertex’s scattering function is evaluated, and then the light’s visibility is determined. Here we have the added complexity of needing to compute the transmittance between the scattering point and the point on the light rather than finding a binary visibility factor, as well as the need to compute spectral path sampling weights for MIS. 〈Estimate light-sampled direct illumination at intr〉 ≡ 886
 
 〈Initialize LightSampleContext for volumetric light sampling 886〉 〈Sample a light source using lightSampler 886〉 〈Sample a point on the light source 887〉
 
@@ -905,7 +941,7 @@ The overall structure of this method’s implementation is similar to the PathIn
    〈Return path contribution function estimate for direct lighting 890〉
 ```
 
-Because it is called for both surface and volumetric scattering path vertices, SampleLd() takes a plain Interaction to represent the scattering point. Some extra care is therefore needed when initializing the LightSampleContext: if scattering is from a surface, it is important to interpret that interaction as the SurfaceInteraction that it is so that the shading normal is included in the LightSampleContext. This case also presents an opportunity, as was done in the PathIntegrator, to shift the light sampling point to avoid incorrectly sampling self-illumination from area lights.
+Because it is called for both surface and volumetric scattering path vertices, `SampleLd()` takes a plain `Interaction` to represent the scattering point. Some extra care is therefore needed when initializing the `LightSampleContext`: if scattering is from a surface, it is important to interpret that interaction as the `SurfaceInteraction` that it is so that the shading normal is included in the `LightSampleContext`. This case also presents an opportunity, as was done in the `PathIntegrator`, to shift the light sampling point to avoid incorrectly sampling self-illumination from area lights.
 
 ```text
    BSDF 544
@@ -948,26 +984,22 @@ Because it is called for both surface and volumetric scattering path vertices, S
    else ctx = LightSampleContext(intr);
 ```
 
-Sampling a point on the light follows in the usual way. Note that the implementation is careful to consume the two sample dimensions from the Sampler regardless of whether sampling a light was successful, in order to keep the association of sampler dimensions with integration dimensions fixed across pixel samples. 〈Sample a light source using lightSampler〉 ≡ 886
+Sampling a point on the light follows in the usual way. Note that the implementation is careful to consume the two sample dimensions from the `Sampler` regardless of whether sampling a light was successful, in order to keep the association of sampler dimensions with integration dimensions fixed across pixel samples. 〈Sample a light source using lightSampler〉 ≡ 886
 
 Float u = sampler.Get1D(); pstd::optional<SampledLight> sampledLight = lightSampler.Sample(ctx, u); Point2f uLight = sampler.Get2D(); if (!sampledLight) return SampledSpectrum(0.f); Light light = sampledLight->light;
 
-The light samples a direction from the reference point in the usual manner. The true value passed for the allowIncompletePDF parameter of Light::SampleLi() indicates the use of MIS here.
+The light samples a direction from the reference point in the usual manner. The true value passed for the allowIncompletePDF parameter of `Light::SampleLi()` indicates the use of MIS here.
 
 〈Sample a point on the light source〉 ≡ 886
 
 pstd::optional<LightLiSample> ls = light.SampleLi(ctx, uLight, lambda, true); if (!ls || !ls->L || ls->pdf == 0) return SampledSpectrum(0.f); Float lightPDF = sampledLight->p * ls->pdf;
 
-As in PathIntegrator::SampleLd(), it is worthwhile to evaluate the BSDF or phase function before tracing the shadow ray: if it turns out to be zero-valued for the direction to the light source, then it is possible to exit early and perform no further work. 〈Evaluate BSDF or phase function for light sample direction〉 ≡ 886
-
-Float scatterPDF; SampledSpectrum f_hat; Vector3f wo = intr.wo, wi = ls->wi; if (bsdf) { 〈Update f_hat and scatterPDF accounting for the BSDF 887〉
+As in `PathIntegrator::SampleLd()`, it is worthwhile to evaluate the `BSDF` or phase function before tracing the shadow ray: if it turns out to be zero-valued for the direction to the light source, then it is possible to exit early and perform no further work. 〈Evaluate BSDF or phase function for light sample direction〉 ≡ 886
 
 ```rust
+Float scatterPDF; SampledSpectrum f_hat; Vector3f wo = intr.wo, wi = ls->wi; if (bsdf) { 〈Update f_hat and scatterPDF accounting for the BSDF 887〉
    } else {
     〈Update f_hat and scatterPDF accounting for the phase function 887〉
-```
-
-```rust
    }
    if (!f_hat) return SampledSpectrum(0.f);
 ```
@@ -1004,7 +1036,7 @@ Float scatterPDF; SampledSpectrum f_hat; Vector3f wo = intr.wo, wi = ls->wi; if 
    Vector3f 86
 ```
 
-The f_hat variable that holds the value of the scattering function is slightly misnamed: it also includes the cosine factor for scattering from surfaces and does not include the σs for scattering from participating media, as that has already been included in the provided value of beta. 〈Update f_hat and scatterPDF accounting for the BSDF〉 ≡ 887
+The `f_hat` variable that holds the value of the scattering function is slightly misnamed: it also includes the cosine factor for scattering from surfaces and does not include the σs for scattering from participating media, as that has already been included in the provided value of `beta`. 〈Update f_hat and scatterPDF accounting for the BSDF〉 ≡ 887
 
 f_hat = bsdf->f(wo, wi) * AbsDot(wi, intr.AsSurface().shading.n);
 
@@ -1012,11 +1044,11 @@ scatterPDF = bsdf->PDF(wo, wi); 〈Update f_hat and scatterPDF accounting for th
 
 PhaseFunction phase = intr.AsMedium().phase; f_hat = SampledSpectrum(phase.p(wo, wi)); scatterPDF = phase.PDF(wo, wi);
 
-A handful of variables keep track of some useful quantities for the ray-tracing and medium sampling operations that are performed to compute transmittance. T_ray holds the transmittance along the ray and r_u and r_l respectively hold the rescaled path probabilities for unidirectional sampling and light sampling, though only along the ray. Maintaining these values independently of the full path contribution and PDFs facilitates the use of Russian roulette in the transmittance computation. 〈Declare path state variables for ray to light source〉 ≡ 886
+A handful of variables keep track of some useful quantities for the ray-tracing and medium sampling operations that are performed to compute transmittance. `T_ray` holds the transmittance along the ray and `r_u` and `r_l` respectively hold the rescaled path probabilities for unidirectional sampling and light sampling, though only along the ray. Maintaining these values independently of the full path contribution and PDFs facilitates the use of Russian roulette in the transmittance computation. 〈Declare path state variables for ray to light source〉 ≡ 886
 
 Ray lightRay = intr.SpawnRayTo(ls->pLight); SampledSpectrum T_ray(1.f), r_l(1.f), r_u(1.f); RNG rng(Hash(lightRay.o), Hash(lightRay.d));
 
-SampleLd() successively intersects the shadow ray with the scene geometry, returning zero contribution if an opaque surface is found and otherwise sampling the medium to estimate the transmittance up to the intersection. For intersections that represent transitions between different media, this process repeats until the ray reaches the light source. For some scenes, it could be more efficient to instead first check that there are no intersections with opaque surfaces before sampling the media to compute the transmittance. With the current implementation, it is possible to do wasted work estimating transmittance before finding an opaque surface farther along the ray. 〈Trace ray through media to estimate transmittance〉 ≡ 886
+`SampleLd()` successively intersects the shadow ray with the scene geometry, returning zero contribution if an opaque surface is found and otherwise sampling the medium to estimate the transmittance up to the intersection. For intersections that represent transitions between different media, this process repeats until the ray reaches the light source. For some scenes, it could be more efficient to instead first check that there are no intersections with opaque surfaces before sampling the media to compute the transmittance. With the current implementation, it is possible to do wasted work estimating transmittance before finding an opaque surface farther along the ray. 〈Trace ray through media to estimate transmittance〉 ≡ 886
 
 pstd::optional<ShapeIntersection> si = Intersect(lightRay, 1-ShadowEpsilon); 〈Handle opaque surface along ray’s path 888〉 〈Update transmittance for current ray segment 888〉 〈Generate next ray segment or return final transmittance 889〉
 
@@ -1026,7 +1058,7 @@ If an intersection is found with a surface that has a non-nullptr Material, the 
 
 if (si && si->intr.material) return SampledSpectrum(0.f);
 
-Otherwise, if participating media is present, SampleT_maj() is called to sample it along the ray up to whichever is closer—the surface intersection or the sampled point on the light. 〈Update transmittance for current ray segment〉 ≡ 888
+Otherwise, if participating media is present, `SampleT_maj()` is called to sample it along the ray up to whichever is closer—the surface intersection or the sampled point on the light. 〈Update transmittance for current ray segment〉 ≡ 888
 
 if (lightRay.medium) { Float tMax = si ? si->tHit : (1 - ShadowEpsilon); Float u = rng.Uniform<Float>(); SampledSpectrum T_maj = SampleT_maj(lightRay, tMax, u, rng, lambda, [&](Point3f p, MediumProperties mp, SampledSpectrum sigma_maj, SampledSpectrum T_maj) { 〈Update ray transmittance estimate at sampled point 888〉
 
@@ -1065,15 +1097,14 @@ SampledSpectrum sigma_n = ClampZero(sigma_maj - mp.sigma_a -mp.sigma_s); Float p
 
 Russian roulette is used to randomly terminate rays with low transmittance. A natural choice might seem to be setting the survival probability equal to the transmittance—along the lines of how Russian roulette is used for terminating ray paths from the camera according to β. However, doing so would effectively transform ratio tracking to delta tracking, with the transmittance always equal to zero or one. The implementation therefore applies a less aggressive termination probability, only to highly attenuated rays. In the computation of the transmittance value used for the Russian roulette test, note that an MIS weight that accounts for both the unidirectional and light sampling strategies is used, along the lines of Equation (14.27). 〈Possibly terminate transmittance computation using Russian roulette〉 ≡ 888
 
-SampledSpectrum Tr = T_ray / (r_l + r_u).Average(); if (Tr.MaxComponentValue() < 0.05f) { Float q = 0.75f; if (rng.Uniform<Float>() < q) T_ray = SampledSpectrum(0.);
-
 ```rust
+SampledSpectrum Tr = T_ray / (r_l + r_u).Average(); if (Tr.MaxComponentValue() < 0.05f) { Float q = 0.75f; if (rng.Uniform<Float>() < q) T_ray = SampledSpectrum(0.);
         else
             T_ray /= 1 - q;
    }
 ```
 
-After the SampleT_maj() call returns, the transmittance and rescaled path probabilities all must be multiplied by the T_maj returned from SampleT_maj() for the final ray segment. (See the discussion for the earlier 〈Handle terminated, scattered, and unscattered medium rays〉 fragment for why each is updated as it is.) 〈Update transmittance estimate for final segment〉 ≡ 888
+After the `SampleT_maj()` call returns, the transmittance and rescaled path probabilities all must be multiplied by the `T_maj` returned from `SampleT_maj()` for the final ray segment. (See the discussion for the earlier 〈Handle terminated, scattered, and unscattered medium rays〉 fragment for why each is updated as it is.) 〈Update transmittance estimate for final segment〉 ≡ 888
 
 T_ray *= T_maj / T_maj[0]; r_l *= T_maj / T_maj[0]; r_u *= T_maj / T_maj[0];
 
@@ -1091,24 +1122,23 @@ T_ray *= T_maj / T_maj[0]; r_l *= T_maj / T_maj[0]; r_u *= T_maj / T_maj[0];
    ShapeIntersection::intr 266
 ```
 
-If the transmittance is zero (e.g., due to Russian roulette termination), it is possible to return immediately. Furthermore, if there is no surface intersection, then there is no further medium sampling to be done and we can move on to computing the scattered radiance from the light. Alternatively, if there is an intersection, it must be with a surface that represents the boundary between two media; the SpawnRayTo() method call returns the continuation ray on the other side of the surface, with its medium member variable set appropriately. 〈Generate next ray segment or return final transmittance〉 ≡ 888
+If the transmittance is zero (e.g., due to Russian roulette termination), it is possible to return immediately. Furthermore, if there is no surface intersection, then there is no further medium sampling to be done and we can move on to computing the scattered radiance from the light. Alternatively, if there is an intersection, it must be with a surface that represents the boundary between two media; the `SpawnRayTo()` method call returns the continuation ray on the other side of the surface, with its medium member variable set appropriately. 〈Generate next ray segment or return final transmittance〉 ≡ 888
 
 if (!T_ray) return SampledSpectrum(0.f); if (!si) break; lightRay = si->intr.SpawnRayTo(ls->pLight);
 
-After the while loop terminates, we can compute the final rescaled path probabilities, compute MIS weights, and return the final estimate of the path contribution function for the light sample. The r_p variable passed in to SampleLd() stores the rescaled path probabilities for unidirectional sampling of the path up to the vertex where direct lighting is being computed—though here, r_u and r_l have been rescaled using the light path sampling probability, since that is how the vertices were sampled along the shadow ray. However, recall from Equations (14.21) and (14.23) that for the path up to the scattering vertex. Thus, r_p can be interpreted as being rescaled using . This allows multiplying r_l and r_u by r_p to compute final rescaled path probabilities. If the light source is described by a delta distribution, only the light sampling technique is applicable; there is no chance of intersecting such a light via sampling the BSDF or phase function. In that case, we still apply MIS using all the wavelengths’ individual path PDFs in order to reduce variance in chromatic media. For area lights, we are able to use both light source and the scattering function samples, giving two primary sampling strategies, each of which has a separate weight for each wavelength. 〈Return path contribution function estimate for direct lighting〉 ≡ 886
-
-r_l *= r_p * lightPDF; r_u *= r_p * scatterPDF; if (IsDeltaLight(light.Type())) return beta * f_hat * T_ray * ls->L / r_l.Average();
+After the while loop terminates, we can compute the final rescaled path probabilities, compute MIS weights, and return the final estimate of the path contribution function for the light sample. The `r_p` variable passed in to `SampleLd()` stores the rescaled path probabilities for unidirectional sampling of the path up to the vertex where direct lighting is being computed—though here, `r_u` and `r_l` have been rescaled using the light path sampling probability, since that is how the vertices were sampled along the shadow ray. However, recall from Equations (14.21) and (14.23) that for the path up to the scattering vertex. Thus, `r_p` can be interpreted as being rescaled using . This allows multiplying `r_l` and `r_u` by `r_p` to compute final rescaled path probabilities. If the light source is described by a delta distribution, only the light sampling technique is applicable; there is no chance of intersecting such a light via sampling the `BSDF` or phase function. In that case, we still apply MIS using all the wavelengths’ individual path PDFs in order to reduce variance in chromatic media. For area lights, we are able to use both light source and the scattering function samples, giving two primary sampling strategies, each of which has a separate weight for each wavelength. 〈Return path contribution function estimate for direct lighting〉 ≡ 886
 
 ```rust
+r_l *= r_p * lightPDF; r_u *= r_p * scatterPDF; if (IsDeltaLight(light.Type())) return beta * f_hat * T_ray * ls->L / r_l.Average();
    else
           return beta * f_hat * T_ray * ls->L / (r_l + r_u).Average();
 ```
 
-With SampleLd() implemented, we will return to the fragments in the Li() method that handle the cases where a ray escapes from the scene and possibly finds illumination from infinite area lights, as well as where a ray intersects an emissive surface. These handle the first term in the direct lighting MIS estimator, Equation (14.24). 〈Add emitted light at volume path vertex or from the environment〉 ≡ 884
+With `SampleLd()` implemented, we will return to the fragments in the Li() method that handle the cases where a ray escapes from the scene and possibly finds illumination from infinite area lights, as well as where a ray intersects an emissive surface. These handle the first term in the direct lighting MIS estimator, Equation (14.24). 〈Add emitted light at volume path vertex or from the environment〉 ≡ 884
 
 if (!si) { 〈Accumulate contributions from infinite light sources 890〉 break; } SurfaceInteraction &isect = si->intr; if (SampledSpectrum Le = isect.Le(-ray.d, lambda); Le) { 〈Add contribution of emission from intersected surface〉 }
 
-As with the PathIntegrator, if the previous scattering event was due to a delta-distribution scattering function, then sampling the light is not a useful strategy. In that case, the MIS weight is only based on the per-wavelength PDFs for the unidirectional sampling strategy.
+As with the `PathIntegrator`, if the previous scattering event was due to a delta-distribution scattering function, then sampling the light is not a useful strategy. In that case, the MIS weight is only based on the per-wavelength PDFs for the unidirectional sampling strategy.
 
 ```text
    Integrator::infiniteLights 23
@@ -1126,20 +1156,16 @@ As with the PathIntegrator, if the previous scattering event was due to a delta-
 
 〈Accumulate contributions from infinite light sources〉 ≡ 890
 
-for (const auto &light : infiniteLights) { if (SampledSpectrum Le = light.Le(ray, lambda); Le) { if (depth == 0 || specularBounce) L += beta * Le / r_u.Average();
-
 ```rust
+for (const auto &light : infiniteLights) { if (SampledSpectrum Le = light.Le(ray, lambda); Le) { if (depth == 0 || specularBounce) L += beta * Le / r_u.Average();
             else {
          〈Add infinite light contribution using both PDFs with MIS 891〉
-```
-
-```rust
             }
        }
    }
 ```
 
-Otherwise, the MIS weight should account for both sampling techniques. At this point, r_l has everything but the probabilities for sampling the light itself. (Recall that we deferred that when initializing r_l at the real-scattering vertex earlier.) After incorporating that factor, all that is left is to compute the final weight, accounting for both sampling strategies. 〈Add infinite light contribution using both PDFs with MIS〉 ≡ 890
+Otherwise, the MIS weight should account for both sampling techniques. At this point, `r_l` has everything but the probabilities for sampling the light itself. (Recall that we deferred that when initializing `r_l` at the real-scattering vertex earlier.) After incorporating that factor, all that is left is to compute the final weight, accounting for both sampling strategies. 〈Add infinite light contribution using both PDFs with MIS〉 ≡ 890
 
 Float lightPDF = lightSampler.PMF(prevIntrContext, light) * light.PDF_Li(prevIntrContext, ray.d, true); r_l *= lightPDF; L += beta * Le / (r_u + r_l).Average();
 
@@ -1147,13 +1173,14 @@ The work done in the 〈Add contribution of emission from intersected surface〉
 
 ## 14.3 SCATTERING FROM LAYERED MATERIALS
 
-In addition to describing scattering from larger-scale volumetric media like clouds or smoke, the equation of transfer can be used to model scattering at much smaller scales. The Layered BxDF applies it to this task, implementing a reflection model that accounts for scattering from two interfaces that are represented by surfaces with independent BSDFs and with a medium between them. Monte Carlo can be applied to estimating the integrals that describe the aggregate scattering behavior, in a way similar to what is done in light transport algorithms. This approach is effectively the generalization of the technique used to sum up aggregate scattering from a pair of perfectly smooth dielectric interfaces in the ThinDielectricBxDF in Section 9.5.1.
+In addition to describing scattering from larger-scale volumetric media like clouds or smoke, the equation of transfer can be used to model scattering at much smaller scales. The Layered `BxDF` applies it to this task, implementing a reflection model that accounts for scattering from two interfaces that are represented by surfaces with independent `BSDFs` and with a medium between them. Monte Carlo can be applied to estimating the integrals that describe the aggregate scattering behavior, in a way similar to what is done in light transport algorithms. This approach is effectively the generalization of the technique used to sum up aggregate scattering from a pair of perfectly smooth dielectric interfaces in the `ThinDielectricBxDF` in Section 9.5.1.
 
-Modeling surface reflectance as a composition of layers makes it possible to describe a variety of surfaces that are not well modeled by the BSDFs presented in Chapter 9. For example, automobile paint generally has a smooth reflective “clear coat” layer applied on top of it; the overall appearance of the paint is determined by the combination of light scattering from the layer’s interface as well as light scattering from the paint. (See Figure 14.11.) Tarnished metal can be modeled by an underlying metal BRDF with a thin scattering medium on top of it; it is again the aggregate result of a variety of light scattering paths that determines the overall appearance of the surface.
+Modeling surface reflectance as a composition of layers makes it possible to describe a variety of surfaces that are not well modeled by the `BSDFs` presented in Chapter 9. For example, automobile paint generally has a smooth reflective “clear coat” layer applied on top of it; the overall appearance of the paint is determined by the combination of light scattering from the layer’s interface as well as light scattering from the paint. (See Figure 14.11.) Tarnished metal can be modeled by an underlying metal `BRDF` with a thin scattering medium on top of it; it is again the aggregate result of a variety of light scattering paths that determines the overall appearance of the surface.
 
 ![Figure 14.11](images/img-1418-327.png)
 
-*Figure 14.11: Scattering from Layered Surfaces. Surface reflection can be modeled with a series of layers, where each interface between media is represented with a BSDF and where the media between layers may itself both absorb and scatter light. The aggregate scattering from such a configuration can be determined by finding solutions to the equation of transfer.*
+
+*Figure 14.11: Scattering from Layered Surfaces. Surface reflection can be modeled with a series of layers, where each interface between media is represented with a `BSDF` and where the media between layers may itself both absorb and scatter light. The aggregate scattering from such a configuration can be determined by finding solutions to the equation of transfer.*
 
 ```text
     Float 23
@@ -1170,13 +1197,15 @@ Modeling surface reflectance as a composition of layers makes it possible to des
 
 ![Figure 14.12](images/img-1419-328.png)
 
+
 *Figure 14.12: Setting for the One-Dimensional Equation of Transfer. If the properties of the medium only vary in one dimension and if the incident illumination is uniform over its boundary, then the equilibrium radiance distribution varies only with depth z and direction ω and a 1D specialization of the equation of transfer can be used.*
 
 ![Figure 14.13](images/img-1419-329.png)
 
+
 *Figure 14.13: Transmittance in 1D. The distance between two depths d is given by the z distance between them divided by the cosine of the ray’s angle with respect to the z axis, θ. The transmittance follows.*
 
-With general layered media, light may exit the surface at a different point than that at which it entered it. The LayeredBxDF does not model this effect but instead assumes that light enters and exits at the same point on the surface. (As a BxDF, it is unable to express any other sort of scattering, anyway.) This is a reasonable approximation if the distance between the two interfaces is relatively small. This approximation makes it possible to use a simplified 1D version of the equation of transfer. After deriving this variant, we will show its application to evaluating and sampling such BSDFs.
+With general layered media, light may exit the surface at a different point than that at which it entered it. The `LayeredBxDF` does not model this effect but instead assumes that light enters and exits at the same point on the surface. (As a `BxDF`, it is unable to express any other sort of scattering, anyway.) This is a reasonable approximation if the distance between the two interfaces is relatively small. This approximation makes it possible to use a simplified 1D version of the equation of transfer. After deriving this variant, we will show its application to evaluating and sampling such `BSDFs`.
 
 ### 14.3.1 THE ONE-DIMENSIONAL EQUATION OF TRANSFER
 
@@ -1192,6 +1221,7 @@ See Figure 14.13. This definition uses the fact that if a ray with direction ω 
 
 ![Figure 14.14](images/img-1420-330.png)
 
+
 *Figure 14.14: The 1D specialization of the equation of transfer from Equation (14.31) expresses the incident radiance Li at a depth z as the sum of attenuated radiance Lo from the interface that is visible along the ray and the transmission-modulated source function Ls integrated over z.*
 
 In the case of a homogeneous medium,
@@ -1202,9 +1232,9 @@ where zi is the depth of the medium interface that the ray from z in direction �
 
 The scattering from an interface at a boundary of the medium is given by the incident radiance modulated by the boundary’s BSDF,
 
-If we also assume there is no volumetric emission (as we will do in the LayeredBxDF), the source function in Equation (14.31) simplifies to
+If we also assume there is no volumetric emission (as we will do in the `LayeredBxDF`), the source function in Equation (14.31) simplifies to
 
-The LayeredBxDF further assumes that σt is constant over all wavelengths in the medium, which means that null scattering is not necessary for sampling distances in the medium. Null scattering is easily included in the 1D simplification of the equation of transfer if necessary, though we will not do so here. For similar reasons, we will also not derive its path integral form in 1D, though it too can be found with suitable simplifications to the approach that was used in Section 14.1.4. The “Further Reading” section has pointers to more details.
+The `LayeredBxDF` further assumes that σt is constant over all wavelengths in the medium, which means that null scattering is not necessary for sampling distances in the medium. Null scattering is easily included in the 1D simplification of the equation of transfer if necessary, though we will not do so here. For similar reasons, we will also not derive its path integral form in 1D, though it too can be found with suitable simplifications to the approach that was used in Section 14.1.4. The “Further Reading” section has pointers to more details.
 
 ```text
     LayeredBxDF 895
@@ -1212,29 +1242,38 @@ The LayeredBxDF further assumes that σt is constant over all wavelengths in the
 
 ### 14.3.2 LAYERED BxDF
 
-The equation of transfer describes the equilibrium distribution of radiance, though our interest here is in evaluating and sampling the BSDF that represents all the scattering from the layered medium. Fortunately, these two things can be connected. If we would like to evaluate the BSDF for a pair of directions ωo and ωi, then we can define an incident radiance function from a virtual light source from ωi as
+The equation of transfer describes the equilibrium distribution of radiance, though our interest here is in evaluating and sampling the `BSDF` that represents all the scattering from the layered medium. Fortunately, these two things can be connected. If we would like to evaluate the `BSDF` for a pair of directions ωo and ωi, then we can define an incident radiance function from a virtual light source from ωi as
 
 ![Figure 14.15](images/img-1421-331.png)
 
-*Figure 14.15: If a medium is illuminated with a virtual light source of the form of Equation (14.34), then the radiance leaving the surface in the direction ωo is equivalent to the layered surface’s BSDF, f (ωo, ωi).*
 
-If a 1D medium is illuminated by such a light, then the outgoing radiance Lo(ωo) at the medium’s interface is equivalent to the value of the BSDF, f (ωo, ωi) (see Figure 14.15). One way to understand why this is so is to consider using such a light with the surface reflection equation:
+*Figure 14.15: If a medium is illuminated with a virtual light source of the form of Equation (14.34), then the radiance leaving the surface in the direction ωo is equivalent to the layered surface’s `BSDF`, f (ωo, ωi).*
 
-Thus, integrating the equation of transfer with such a light allows us to evaluate and sample the corresponding BSDF. However, this means that unlike all the BxDF implementations from Chapter 9, the values that LayeredBxDF returns from methods like f() and PDF() are stochastic. This is perfectly fine in the context of all of pbrt’s Monte Carlo–based techniques and does not affect the correctness of other estimators that use these values; it is purely one more source of error that can be controlled in a predictable way by increasing the number of samples. The LayeredBxDF allows the specification of only two interfaces and a homogeneous participating medium between them. Figure 14.16 illustrates the geometric setting. Surfaces with more layers can be modeled using a LayeredBxDF where one or both of its layers are themselves LayeredBxDFs. (An exercise at the end of the chapter discusses a more efficient approach for supporting additional layers.) The types of BxDFs at both interfaces can be provided as template parameters. While the user of a LayeredBxDF is free to provide a BxDF for both of these types (in which case pbrt’s regular dynamic dispatch mechanism will be used), performance is better if they are specific BxDFs and the compiler can generate a specialized implementation. This approach is used for the CoatedDiffuseBxDF and the CoatedConductorBxDF that are defined in Section 14.3.3. (The meaning of the twoSided template parameter will be explained in a few pages, where it is used.) BxDF 538 CoatedConductorBxDF 909 CoatedDiffuseBxDF 909
+If a 1D medium is illuminated by such a light, then the outgoing radiance Lo(ωo) at the medium’s interface is equivalent to the value of the `BSDF`, f (ωo, ωi) (see Figure 14.15). One way to understand why this is so is to consider using such a light with the surface reflection equation:
+
+Thus, integrating the equation of transfer with such a light allows us to evaluate and sample the corresponding `BSDF`. However, this means that unlike all the `BxDF` implementations from Chapter 9, the values that `LayeredBxDF` returns from methods like `f()` and `PDF()` are stochastic. This is perfectly fine in the context of all of pbrt’s Monte Carlo–based techniques and does not affect the correctness of other estimators that use these values; it is purely one more source of error that can be controlled in a predictable way by increasing the number of samples. The `LayeredBxDF` allows the specification of only two interfaces and a homogeneous participating medium between them. Figure 14.16 illustrates the geometric setting. Surfaces with more layers can be modeled using a `LayeredBxDF` where one or both of its layers are themselves `LayeredBxDFs`. (An exercise at the end of the chapter discusses a more efficient approach for supporting additional layers.) The types of `BxDFs` at both interfaces can be provided as template parameters. While the user of a `LayeredBxDF` is free to provide a `BxDF` for both of these types (in which case pbrt’s regular dynamic dispatch mechanism will be used), performance is better if they are specific `BxDFs` and the compiler can generate a specialized implementation. This approach is used for the `CoatedDiffuseBxDF` and the `CoatedConductorBxDF` that are defined in Section 14.3.3. (The meaning of the `twoSided` template parameter will be explained in a few pages, where it is used.)
+
+```text
+    BxDF 538
+    CoatedConductorBxDF 909
+    CoatedDiffuseBxDF 909
+```
 
 ![Figure 14.16](images/img-1423-332.png)
 
-*Figure 14.16: Geometric Setting for the LayeredBxDF. Scattering is specified by two interfaces with associated BSDFs where the bottom one is at z = 0 and there is a medium of user-specified thickness between the two interfaces.*
+
+*Figure 14.16: Geometric Setting for the `LayeredBxDF`. Scattering is specified by two interfaces with associated `BSDFs` where the bottom one is at z = 0 and there is a medium of user-specified thickness between the two interfaces.*
 
 ![Figure 14.17](images/img-1423-333.png)
 
-*Figure 14.17: Effect of Varying Medium Thickness with the LayeredBxDF. (a) Dragon with surface reflectance modeled by a smooth conductor base layer and a dielectric interface above it. (b) With a scattering layer with albedo 0.7 and thickness 0.15 between the interface and the conductor, the reflection of the conductor is slightly dimmed. (c) With a thicker scattering layer of thickness 0.5, the conductor is much more attenuated and the overall reflection is more diffuse. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
+
+*Figure 14.17: Effect of Varying `Medium` Thickness with the `LayeredBxDF`. (a) Dragon with surface reflectance modeled by a smooth conductor base layer and a dielectric interface above it. (b) With a scattering layer with albedo 0.7 and thickness 0.15 between the interface and the conductor, the reflection of the conductor is slightly dimmed. (c) With a thicker scattering layer of thickness 0.5, the conductor is much more attenuated and the overall reflection is more diffuse. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 〈LayeredBxDF Definition〉 ≡ template <typename TopBxDF, typename BottomBxDF, bool twoSided> class LayeredBxDF { public: 〈LayeredBxDF Public Methods 897〉 private: 〈LayeredBxDF Private Methods 896〉
 
 〈LayeredBxDF Private Members 895〉 };
 
-In addition to BxDFs for the two interfaces, the LayeredBxDF maintains member variables that describe the medium between them. Rather than have the user specify scattering coefficients, which can be unintuitive to set manually, it assumes a medium with σt = 1 and leaves it to the user to specify both the thickness of the medium and its scattering albedo. Figure 14.17 shows the effect of varying the thickness of the medium between a conductor base layer and a dielectric interface.
+In addition to `BxDFs` for the two interfaces, the `LayeredBxDF` maintains member variables that describe the medium between them. Rather than have the user specify scattering coefficients, which can be unintuitive to set manually, it assumes a medium with σt = 1 and leaves it to the user to specify both the thickness of the medium and its scattering albedo. Figure 14.17 shows the effect of varying the thickness of the medium between a conductor base layer and a dielectric interface.
 
 ```text
    BottomBxDF 895
@@ -1250,21 +1289,22 @@ TopBxDF top; BottomBxDF bottom; Float thickness, g; SampledSpectrum albedo;
 
 ![Figure 14.18](images/img-1424-334.png)
 
-*Figure 14.18: If the incident ray intersects the layer at z = thickness, then the top layer is the same as is specified in the LayeredBxDF::top member variable. However, if it intersects the surface from the other direction at z = 0, we will find it useful to treat the z = 0 layer as the top one and the other as the bottom. The TopOrBottomBxDF class helps with related bookkeeping.*
 
-Two parameters control the Monte Carlo estimates. maxDepth has its usual role in setting a maximum number of scattering events along a path and
+*Figure 14.18: If the incident ray intersects the layer at z = thickness, then the top layer is the same as is specified in the `LayeredBxDF::top` member variable. However, if it intersects the surface from the other direction at z = 0, we will find it useful to treat the z = 0 layer as the top one and the other as the bottom. The `TopOrBottomBxDF` class helps with related bookkeeping.*
 
-nSamples controls the number of independent samples of the estimators that are averaged. Because additional samples in this context do not require tracing more rays or evaluating textures, it is more efficient to reduce any noise due to the stochastic BSDF by increasing this sampling rate rather than increasing the pixel sampling rate if a higher pixel sampling rate is not otherwise useful. 〈LayeredBxDF Private Members〉 +≡ 895
+Two parameters control the Monte Carlo estimates. `maxDepth` has its usual role in setting a maximum number of scattering events along a path and
+
+`nSamples` controls the number of independent samples of the estimators that are averaged. Because additional samples in this context do not require tracing more rays or evaluating textures, it is more efficient to reduce any noise due to the stochastic `BSDF` by increasing this sampling rate rather than increasing the pixel sampling rate if a higher pixel sampling rate is not otherwise useful. 〈LayeredBxDF Private Members〉 +≡ 895
 
 int maxDepth, nSamples;
 
-We will find it useful to have a helper function Tr() that returns the transmittance for a ray segment in the medium with given direction w that passes through a distance dz in z, following Equation (14.30) with σt = 1.
+We will find it useful to have a helper function `Tr()` that returns the transmittance for a ray segment in the medium with given direction w that passes through a distance dz in z, following Equation (14.30) with σt = 1.
 
 〈LayeredBxDF Private Methods〉 ≡ 895
 
 static Float Tr(Float dz, Vector3f w) { return FastExp(-std::abs(dz / w.z)); }
 
-Although the LayeredBxDF is specified in terms of top and bottom interfaces, we will find it useful to exchange the “top” and “bottom” as necessary to have the convention that the interface that the incident ray intersects is defined to be the top one. (See Figure 14.18.) A helper class, TopOrBottomBxDF, manages the logic related to these possibilities. As its name suggests, it stores a pointer to one (and only one) of two BxDF types that are provided as template parameters. 〈TopOrBottomBxDF Definition〉 ≡ template <typename TopBxDF, typename BottomBxDF> class TopOrBottomBxDF { public: 〈TopOrBottomBxDF Public Methods 897〉 private: const TopBxDF *top = nullptr; const BottomBxDF *bottom = nullptr; };
+Although the `LayeredBxDF` is specified in terms of top and bottom interfaces, we will find it useful to exchange the “top” and “bottom” as necessary to have the convention that the interface that the incident ray intersects is defined to be the top one. (See Figure 14.18.) A helper class, `TopOrBottomBxDF`, manages the logic related to these possibilities. As its name suggests, it stores a pointer to one (and only one) of two `BxDF` types that are provided as template parameters. 〈TopOrBottomBxDF Definition〉 ≡ template <typename TopBxDF, typename BottomBxDF> class TopOrBottomBxDF { public: 〈TopOrBottomBxDF Public Methods 897〉 private: const TopBxDF *top = nullptr; const BottomBxDF *bottom = nullptr; };
 
 ```text
    BottomBxDF 895
@@ -1279,19 +1319,19 @@ Although the LayeredBxDF is specified in terms of top and bottom interfaces, we 
    Vector3f 86
 ```
 
-TopOrBottomBxDF provides the implementation of a number of BxDF methods like f(), where it calls the corresponding method of whichever of the two BxDF types has been provided.
+`TopOrBottomBxDF` provides the implementation of a number of `BxDF` methods like `f()`, where it calls the corresponding method of whichever of the two `BxDF` types has been provided.
 
-In addition to f(), it has similar straightforward Sample_f(), PDF(), and Flags() methods, which we will not include here.
+In addition to `f()`, it has similar straightforward `Sample_f()`, `PDF()`, and `Flags()` methods, which we will not include here.
 
 〈TopOrBottomBxDF Public Methods〉 ≡ 896
 
 SampledSpectrum f(Vector3f wo, Vector3f wi, TransportMode mode) const { return top ? top->f(wo, wi, mode) : bottom->f(wo, wi, mode); }
 
-BSDF Evaluation The BSDF evaluation method f() can now be implemented; it returns an average of the specified number of independent samples. 〈LayeredBxDF Public Methods〉 ≡ 895
+`BSDF` Evaluation The `BSDF` evaluation method `f()` can now be implemented; it returns an average of the specified number of independent samples. 〈LayeredBxDF Public Methods〉 ≡ 895
 
 SampledSpectrum f(Vector3f wo, Vector3f wi, TransportMode mode) const { SampledSpectrum f(0.); 〈Estimate LayeredBxDF value f using random sampling 897〉 return f / nSamples; }
 
-There is some preliminary computation that is independent of each sample taken to estimate the BSDF’s value. A few fragments take care of it before the random estimation begins. 〈Estimate LayeredBxDF value f using random sampling〉 ≡ 897
+There is some preliminary computation that is independent of each sample taken to estimate the `BSDF`’s value. A few fragments take care of it before the random estimation begins. 〈Estimate LayeredBxDF value f using random sampling〉 ≡ 897
 
 〈Set wi and wi for layered BSDF evaluation 898〉 〈Determine entrance interface for layered BSDF 898〉 〈Determine exit interface and exit z for layered BSDF 898〉 〈Account for reflection at the entrance interface 898〉
 
@@ -1302,7 +1342,7 @@ There is some preliminary computation that is independent of each sample taken t
    }
 ```
 
-With this BSDF, layered materials can be specified as either one- or two-sided via the twoSided template parameter. If a material is one-sided, then the shape’s surface normal is used to determine which interface an incident ray enters. If it is in the same hemisphere as the surface normal, it enters the top interface and otherwise it enters the bottom. This configuration is especially useful when both interfaces are transmissive and have different BSDFs. For two-sided materials, the ray always enters the top interface. This option is useful when the bottom interface is opaque as is the case with the CoatedDiffuseBxDF, for example. In this case, it is usually desirable for scattering from both layers to be included, no matter which side the ray intersects.
+With this `BSDF`, layered materials can be specified as either one- or two-sided via the `twoSided` template parameter. If a material is one-sided, then the shape’s surface normal is used to determine which interface an incident ray enters. If it is in the same hemisphere as the surface normal, it enters the top interface and otherwise it enters the bottom. This configuration is especially useful when both interfaces are transmissive and have different `BSDFs`. For two-sided materials, the ray always enters the top interface. This option is useful when the bottom interface is opaque as is the case with the `CoatedDiffuseBxDF`, for example. In this case, it is usually desirable for scattering from both layers to be included, no matter which side the ray intersects.
 
 ```text
    BxDF::f() 539
@@ -1315,15 +1355,13 @@ With this BSDF, layered materials can be specified as either one- or two-sided v
    Vector3f 86
 ```
 
-One way to handle these options in the f() method would be to negate both directions and make a recursive call to f() if ωo points below the surface and the material is two-sided. However, that solution is not a good one for the GPU, where it is likely to introduce thread divergence. (This topic is discussed in more detail in Section 15.1.1.) Therefore, both directions are negated at the start of the method and no recursive call is made in this case, which gives an equivalent result. 〈Set wi and wi for layered BSDF evaluation〉 ≡ 897
-
-if (twoSided && wo.z < 0) { wo = -wo; wi = -wi;
+One way to handle these options in the `f()` method would be to negate both directions and make a recursive call to `f()` if ωo points below the surface and the material is two-sided. However, that solution is not a good one for the GPU, where it is likely to introduce thread divergence. (This topic is discussed in more detail in Section 15.1.1.) Therefore, both directions are negated at the start of the method and no recursive call is made in this case, which gives an equivalent result. 〈Set wi and wi for layered BSDF evaluation〉 ≡ 897
 
 ```rust
-   }
+if (twoSided && wo.z < 0) { wo = -wo; wi = -wi; }
 ```
 
-The next step is to determine which of the two BxDFs is the one that is encountered first by the incident ray. The sign of ωo’s z component in the reflection coordinate system gives the answer. 〈Determine entrance interface for layered BSDF〉 ≡ 897
+The next step is to determine which of the two `BxDFs` is the one that is encountered first by the incident ray. The sign of ωo’s z component in the reflection coordinate system gives the answer. 〈Determine entrance interface for layered BSDF〉 ≡ 897
 
 TopOrBottomBxDF<TopBxDF, BottomBxDF> enterInterface; bool enteredTop = twoSided || wo.z > 0; if (enteredTop) enterInterface = &top; else enterInterface = &bottom;
 
@@ -1331,9 +1369,9 @@ It is also necessary to determine which interface ωi exits. This is determined 
 
 TopOrBottomBxDF<TopBxDF, BottomBxDF> exitInterface, nonExitInterface; if (SameHemisphere(wo, wi) ^ enteredTop) { exitInterface = &bottom; nonExitInterface = &top; } else { exitInterface = &top; nonExitInterface = &bottom; } Float exitZ = (SameHemisphere(wo, wi) ^ enteredTop) ? 0 : thickness;
 
-If both directions are on the same side of the surface, then part of the BSDF’s value is given by reflection at the entrance interface. This can be evaluated directly by calling the interface’s BSDF’s f() method. The resulting value must be scaled by the total number of samples taken to
+If both directions are on the same side of the surface, then part of the `BSDF`’s value is given by reflection at the entrance interface. This can be evaluated directly by calling the interface’s `BSDF`’s `f()` method. The resulting value must be scaled by the total number of samples taken to
 
-estimate the BSDF in this method, since the final returned value is divided by nSamples.
+estimate the `BSDF` in this method, since the final returned value is divided by `nSamples`.
 
 〈Account for reflection at the entrance interface〉 ≡ 897
 
@@ -1354,11 +1392,12 @@ if (SameHemisphere(wo, wi)) f = nSamples * enterInterface.f(wo, wi, mode);
    TopOrBottomBxDF 896
 ```
 
-pbrt’s BxDF interface does not include any uniform sample values as parameters to the f() method; there is no need for them for any of the other BxDFs in the system. In any case, an unbounded number of uniform random numbers are required for sampling operations when evaluating layered BSDFs. Therefore, f() initializes an RNG and defines a convenience lambda function that returns uniform random sample values. This does mean that the benefits of sampling with well-distributed point sets are not present here; an exercise at the end of the chapter returns to this issue. The RNG is seeded carefully: it is important that calls to f() with different directions have different seeds so that there is no risk of errors due to correlation between the RNGs used for multiple samples in a pixel or across nearby pixels. However, we would also like the samples to be deterministic so that any call to f() with the same two directions always has the same set of random samples. This sort of reproducibility is important for debugging so that errors appear consistently across multiple runs of the program. Hashing the two provided directions along with the system-wide seed addresses all of these concerns.
+pbrt’s `BxDF` interface does not include any uniform sample values as parameters to the `f()` method; there is no need for them for any of the other `BxDFs` in the system. In any case, an unbounded number of uniform random numbers are required for sampling operations when evaluating layered `BSDFs`. Therefore, `f()` initializes an `RNG` and defines a convenience lambda function that returns uniform random sample values. This does mean that the benefits of sampling with well-distributed point sets are not present here; an exercise at the end of the chapter returns to this issue. The `RNG` is seeded carefully: it is important that calls to `f()` with different directions have different seeds so that there is no risk of errors due to correlation between the `RNGs` used for multiple samples in a pixel or across nearby pixels. However, we would also like the samples to be deterministic so that any call to `f()` with the same two directions always has the same set of random samples. This sort of reproducibility is important for debugging so that errors appear consistently across multiple runs of the program. Hashing the two provided directions along with the system-wide seed addresses all of these concerns.
 
 ![Figure 14.19](images/img-1430-335.png)
 
-*Figure 14.19: The effect of light that scatters between the interface layers is found by integrating the product of the cosine-weighted BTDF at the entrance interface with the incident radiance from the medium, Equation (14.35).*
+
+*Figure 14.19: The effect of light that scatters between the interface layers is found by integrating the product of the cosine-weighted `BTDF` at the entrance interface with the incident radiance from the medium, Equation (14.35).*
 
 〈Declare RNG for layered BSDF evaluation〉 ≡ 897
 
@@ -1366,7 +1405,7 @@ RNG rng(Hash(GetOptions().seed, wo), Hash(wi)); auto r = [&rng]() { return std::
 
 In order to find the radiance leaving the interface in the direction ωo, we need to integrate the product of the cosine-weighted BTDF at the interface with the incident radiance from inside the medium,
 
-where is the hemisphere inside the medium (see Figure 14.19). The implementation uses the standard Monte Carlo estimator, taking a sample ω′ from the BTDF and then proceeding to estimate Li.
+where is the hemisphere inside the medium (see Figure 14.19). The implementation uses the standard Monte Carlo estimator, taking a sample ω′ from the `BTDF` and then proceeding to estimate Li.
 
 〈Sample random walk through layers to estimate BSDF value〉 ≡ 897
 
@@ -1386,11 +1425,12 @@ where is the hemisphere inside the medium (see Figure 14.19). The implementation
    RNG::Uniform<Float>() 1056
 ```
 
-Sampling the direction ω′ is a case where it is useful to be able to specify to Sample_f() that only transmission should be sampled.
+Sampling the direction ω′ is a case where it is useful to be able to specify to `Sample_f()` that only transmission should be sampled.
 
 ![Figure 14.20](images/img-1431-336.png)
 
-*Figure 14.20: Illumination Contribution from the Virtual Light Source. At a path vertex, the contribution of the virtual light source is given by the product of the path throughput weight β that accounts for previous scattering along the path, the scattering at the vertex, the transmittance Tr to the exit interface, and the effect of the BTDF at the interface.*
+
+*Figure 14.20: Illumination Contribution from the Virtual `Light` Source. At a path vertex, the contribution of the virtual light source is given by the product of the path throughput weight β that accounts for previous scattering along the path, the scattering at the vertex, the transmittance Tr to the exit interface, and the effect of the `BTDF` at the interface.*
 
 〈Sample transmission direction through entrance interface〉 ≡ 899
 
@@ -1398,9 +1438,9 @@ Float uc = r(); pstd::optional<BSDFSample> wos = enterInterface.Sample_f(wo, uc,
 
 The task now is to compute a Monte Carlo estimate of the 1D equation of transfer, Equation (14.31). Before discussing how it is sampled, however, we will first consider some details related to the lighting calculation with the virtual light source. At each vertex of the path, we will want to compute the incident illumination due to the light. As shown in Figure 14.20, there
 
-are three factors in the light’s contribution: the value of the phase function or interface BSDF for a direction ω, the transmittance between the vertex and the exit interface, and the value of the interface’s BTDF for the direction from −ω to ωi.
+are three factors in the light’s contribution: the value of the phase function or interface `BSDF` for a direction ω, the transmittance between the vertex and the exit interface, and the value of the interface’s `BTDF` for the direction from −ω to ωi.
 
-Each of these three factors could be used for sampling; as before, one may sometimes be much more effective than the others. The LayeredBxDF implementation uses two of the three—sampling the phase function or BRDF at the current path vertex (as appropriate) and sampling the BTDF at the exit interface—and then weights the results using MIS. There is no reason to repeatedly sample the exit interface BTDF at each path vertex since the direction ωi is fixed. Therefore, the following fragment samples it once and holds on to the resulting BSDFSample. Note that the negation of the TransportMode parameter value mode is taken for the call to Sample_f(), which is important to reflect the fact that this sampling operation is following the reverse path with respect to sampling in terms of ωo. This is an important detail so that the underlying BxDF can correctly account for non-symmetric scattering; see Section 9.5.2.
+Each of these three factors could be used for sampling; as before, one may sometimes be much more effective than the others. The `LayeredBxDF` implementation uses two of the three—sampling the phase function or `BRDF` at the current path vertex (as appropriate) and sampling the `BTDF` at the exit interface—and then weights the results using MIS. There is no reason to repeatedly sample the exit interface `BTDF` at each path vertex since the direction ωi is fixed. Therefore, the following fragment samples it once and holds on to the resulting `BSDFSample`. Note that the negation of the `TransportMode` parameter value mode is taken for the call to `Sample_f()`, which is important to reflect the fact that this sampling operation is following the reverse path with respect to sampling in terms of ωo. This is an important detail so that the underlying `BxDF` can correctly account for non-symmetric scattering; see Section 9.5.2.
 
 ```text
    BSDFSample 541
@@ -1418,7 +1458,7 @@ Each of these three factors could be used for sampling; as before, one may somet
 
 uc = r(); pstd::optional<BSDFSample> wis = exitInterface.Sample_f(wi, uc, Point2f(r(), r()), !mode, BxDFReflTransFlags::Transmission); if (!wis || !wis->f || wis->pdf == 0 || wis->wi.z == 0) continue;
 
-Moving forward to the random walk estimation of the equation of transfer, the implementation maintains the current path throughput weight beta, the
+Moving forward to the random walk estimation of the equation of transfer, the implementation maintains the current path throughput weight `beta`, the
 
 depth z of the last scattering event, and the ray direction w. 〈Declare state for random walk through BSDF layers〉 ≡ 899
 
@@ -1428,17 +1468,16 @@ We can now move to the body of the inner loop over scattering events along the p
 
 〈Possibly terminate layered BSDF random walk with Russian roulette 901〉 〈Account for media between layers and possibly scatter 901〉 〈Account for scattering at appropriate interface 903〉
 
-It is worth considering terminating the path as the path throughput weight becomes low, though here the termination probability is set less aggressively than it was in the Path Integrator and VolPathIntegrator. This reflects the fact that each bounce here is relatively inexpensive, so doing more work to improve the accuracy of the estimate is worthwhile. 〈Possibly terminate layered BSDF random walk with Russian roulette〉 ≡ 901
+It is worth considering terminating the path as the path throughput weight becomes low, though here the termination probability is set less aggressively than it was in the Path `Integrator` and `VolPathIntegrator`. This reflects the fact that each bounce here is relatively inexpensive, so doing more work to improve the accuracy of the estimate is worthwhile. 〈Possibly terminate layered BSDF random walk with Russian roulette〉 ≡ 901
 
 if (depth > 3 && beta.MaxComponentValue() < 0.25f) { Float q = std::max<Float>(0, 1 -beta.MaxComponentValue()); if (r() < q) break; beta /= 1 - q; }
 
 The common case of no scattering in the medium is handled separately since it is much simpler than the case where volumetric scattering must be considered. 〈Account for media between layers and possibly scatter〉 ≡ 901
 
+```rust
 if (!albedo) { 〈Advance to next layer boundary and update beta for transmittance 901〉
 
 } else {
-
-```rust
         〈Sample medium scattering for layered BSDF evaluation 902〉
    }
 ```
@@ -1460,7 +1499,7 @@ if (!albedo) { 〈Advance to next layer boundary and update beta for transmittan
    VolPathIntegrator 877
 ```
 
-If there is no medium scattering, then only the first term of Equation (14.31) needs to be evaluated. The path vertices alternate between the two interfaces. Here beta is multiplied by the transmittance for the ray segment through the medium; the Lo factor is found by estimating Equation (14.32), which will be handled shortly. 〈Advance to next layer boundary and update beta for transmittance〉 ≡ 901
+If there is no medium scattering, then only the first term of Equation (14.31) needs to be evaluated. The path vertices alternate between the two interfaces. Here `beta` is multiplied by the transmittance for the ray segment through the medium; the Lo factor is found by estimating Equation (14.32), which will be handled shortly. 〈Advance to next layer boundary and update beta for transmittance〉 ≡ 901
 
 z = (z == thickness) ? 0 : thickness; beta *= Tr(thickness, w);
 
@@ -1468,7 +1507,7 @@ If the medium is scattering, we only sample one of the two terms of the 1D equat
 
 the PDF is Given a depth z′ found by adding or subtracting Δz from the current depth z according to the ray’s direction, medium scattering is chosen if z′ is inside the medium and surface scattering is chosen otherwise. (The sampling scheme is thus similar to how the VolPathIntegrator chooses between medium and surface scattering.) In the case of scattering from an interface,
 
-the Clamp() call effectively forces z to lie on whichever of the two interfaces the ray intersects next. 〈Sample medium scattering for layered BSDF evaluation〉 ≡ 901
+the `Clamp()` call effectively forces z to lie on whichever of the two interfaces the ray intersects next. 〈Sample medium scattering for layered BSDF evaluation〉 ≡ 901
 
 Float sigma_t = 1; Float dz = SampleExponential(r(), sigma_t / std::abs(w.z)); Float zp = w.z > 0 ? (z + dz) : (z - dz); if (0 < zp && zp < thickness) { 〈Handle scattering event in layered BSDF medium 902〉 continue; } z = Clamp(zp, 0, thickness);
 
@@ -1480,7 +1519,7 @@ Both the exponential factors and |ωz| factors in Tr and p(Δz) cancel, and we a
 
 〈Account for scattering through exitInterface using wis 902〉 〈Sample phase function and update layered path state 903〉 〈Possibly account for scattering through exitInterface 903〉
 
-For a scattering event inside the medium, it is necessary to add the contribution of the virtual light source to the path radiance estimate and to sample a new direction to continue the path. For the MIS lighting sample based on sampling the interface’s BTDF, the outgoing direction from the path vertex is predetermined by the BTDF sample wis; all the factors of the path contribution are easily evaluated and the MIS weight is found using the PDF for the other sampling technique, sampling the phase function.
+For a scattering event inside the medium, it is necessary to add the contribution of the virtual light source to the path radiance estimate and to sample a new direction to continue the path. For the MIS lighting sample based on sampling the interface’s `BTDF`, the outgoing direction from the path vertex is predetermined by the `BTDF` sample wis; all the factors of the path contribution are easily evaluated and the MIS weight is found using the PDF for the other sampling technique, sampling the phase function.
 
 ```text
    BSDFSample::f 541
@@ -1511,11 +1550,11 @@ The second sampling strategy for the virtual light is based on sampling the phas
 
 Point2f u{r(), r()}; pstd::optional<PhaseFunctionSample> ps = phase.Sample_p(-w, u); if (!ps || ps->pdf == 0 || ps->wi.z == 0) continue; beta *= albedo * ps->p / ps->pdf; w = ps->wi; z = zp;
 
-There is no reason to try connecting through the exit interface if the current ray direction is pointing away from it or if its BSDF is perfect specular. 〈Possibly account for scattering through exitInterface〉 ≡ 902
+There is no reason to try connecting through the exit interface if the current ray direction is pointing away from it or if its `BSDF` is perfect specular. 〈Possibly account for scattering through exitInterface〉 ≡ 902
 
 if (((z < exitZ && w.z > 0) || (z > exitZ && w.z < 0)) && !IsSpecular(exitInterface.Flags())) { 〈Account for scattering through exitInterface 903〉 }
 
-If there is transmission through the interface, then because beta has already been updated to include the effect of scattering at z′, only the transmittance to the exit, MIS weight, and BTDF value need to be evaluated to compute the light’s contribution. One important detail in the following code is the ordering of arguments to the call to f() in the first line: due to the non-reciprocity of BTDFs, swapping these would lead to incorrect results.4 〈Account for scattering through exitInterface〉 ≡ 903
+If there is transmission through the interface, then because `beta` has already been updated to include the effect of scattering at z′, only the transmittance to the exit, MIS weight, and `BTDF` value need to be evaluated to compute the light’s contribution. One important detail in the following code is the ordering of arguments to the call to `f()` in the first line: due to the non-reciprocity of BTDFs, swapping these would lead to incorrect results.4 〈Account for scattering through exitInterface〉 ≡ 903
 
 SampledSpectrum fExit = exitInterface.f(-w, wi, mode); if (fExit) { Float exitPDF = exitInterface.PDF(-w, wi, mode, BxDFReflTransFlags::Transmission); Float wt = PowerHeuristic(1, ps->pdf, 1, exitPDF); f += beta * Tr(zp - exitZ, ps->wi) * fExit * wt; }
 
@@ -1556,17 +1595,32 @@ Float uc = r(); pstd::optional<BSDFSample> bs = exitInterface.Sample_f( -w, uc, 
 
 The 〈Account for scattering at nonExitInterface〉 fragment handles scattering from the other interface. It applies MIS to compute the contribution of the virtual light and samples a new direction with a form very similar to the case of scattering within the medium, just with the phase function replaced by the BRDF for evaluation and sampling. Therefore, we have not included its implementation here.
 
-BSDF Sampling The implementation of Sample_f() is generally similar to f(), so we will not include its implementation here, either. Its task is actually simpler: given the initial direction ωo at one of the layer’s boundaries, it follows a random walk of scattering events through the layers and the medium, maintaining both the path throughput and the product of PDFs for each of the sampling decisions. When the random walk exits the medium, the outgoing direction is the sampled direction that is returned in the BSDFSample.
+`BSDF` Sampling The implementation of `Sample_f()` is generally similar to `f()`, so we will not include its implementation here, either. Its task is actually simpler: given the initial direction ωo at one of the layer’s boundaries, it follows a random walk of scattering events through the layers and the medium, maintaining both the path throughput and the product of PDFs for each of the sampling decisions. When the random walk exits the medium, the outgoing direction is the sampled direction that is returned in the `BSDFSample`.
 
-With this approach, it can be shown that the ratio of the path throughput to the PDF is equal to the ratio of the actual value of the BSDF and its PDF for the sampled direction (see the “Further Reading” section for details). Therefore, when the weighted path throughput is multiplied by the ratio of BSDFSample::f and BSDFSample::pdf, the correct weighting term is applied. (Review, for example, the fragment 〈Update path state variables after surface scattering〉 in the PathIntegrator.) However, an implication of this is that the PDF value returned by Sample_f() cannot be used to compute the multiple importance sampling weight if the sampled ray hits an emissive surface; in that case, an independent estimate of the PDF must be computed via a call to the PDF() method. The BSDFSample::pdfIsProportional member variable flags this case and is set by Sample_f() here.
+With this approach, it can be shown that the ratio of the path throughput to the PDF is equal to the ratio of the actual value of the `BSDF` and its PDF for the sampled direction (see the “Further Reading” section for details). Therefore, when the weighted path throughput is multiplied by the ratio of `BSDFSample::f` and `BSDFSample::pdf`, the correct weighting term is applied. (Review, for example, the fragment 〈Update path state variables after surface scattering〉 in the PathIntegrator.) However, an implication of this is that the PDF value returned by Sample_f() cannot be used to compute the multiple importance sampling weight if the sampled ray hits an emissive surface; in that case, an independent estimate of the PDF must be computed via a call to the PDF() method. The BSDFSample::pdfIsProportional member variable flags this case and is set by Sample_f() here.
 
-PDF Evaluation The PDF p(ωo, ωi) that corresponds to a LayeredBxDF’s BSDF can be expressed as an infinite sum. For example, consider the case of having a bottom layer that reflects light with BRDF and a top layer that both reflects light with BRDF and transmits it with BTDF , with an overall BSDF . If those BSDFs have associated PDFs p and if scattering in the medium is neglected, then the overall PDF is AbsCosTheta() 107 BSDFSample 541 BSDFSample::f 541 BSDFSample::pdf 541 BSDFSample::pdfIsProportional 541 BSDFSample::wi 541 BxDF::Sample_f() 540 BxDFReflTransFlags::Reflection 540 Float 23 PathIntegrator 833 Point2f 92
+PDF Evaluation The PDF p(ωo, ωi) that corresponds to a `LayeredBxDF`’s `BSDF` can be expressed as an infinite sum. For example, consider the case of having a bottom layer that reflects light with `BRDF` and a top layer that both reflects light with `BRDF` and transmits it with `BTDF` , with an overall `BSDF` . If those `BSDFs` have associated PDFs p and if scattering in the medium is neglected, then the overall PDF is
+
+```text
+    AbsCosTheta() 107
+    BSDFSample 541
+    BSDFSample::f 541
+    BSDFSample::pdf 541
+    BSDFSample::pdfIsProportional 541
+    BSDFSample::wi 541
+    BxDF::Sample_f() 540
+    BxDFReflTransFlags::Reflection 540
+    Float 23
+    PathIntegrator 833
+    Point2f 92
+```
 
 The first term gives the contribution for the PDF at the top interface and the second is the PDF for directions ωi that were sampled via transmission through the top interface, scattering at the bottom, and then transmission back out in direction ωi. Note the coupling of directions between the PDF factors in the integrand: the negation of the initial transmitted direction ω′ gives the first direction for evaluation of the base PDF , and so forth (see Figure 14.21). Subsequent terms of this sum account for light that is reflected back downward at the top interface instead of exiting the layers, and expressions of a similar form can be found for the PDF if the base layer is also transmissive.
 
 ![Figure 14.21](images/img-1440-337.png)
 
-*Figure 14.21: The First Two Terms of the Infinite Sum that Give a Layered BSDF’s PDF. (a) The PDF of the reflection component of the interface’s BSDF accounts for light that scatters without entering the layers. (b) The second term is given by a double integral over directions. A direction ω′ pointing into the medium is sampled; it gives the second direction for the interface’s BTDF PDF and its negation gives one of the two directions for . A second direction ω″ is used for as well as for a second evaluation of .*
+
+*Figure 14.21: The First Two Terms of the Infinite Sum that Give a Layered `BSDF`’s PDF. (a) The PDF of the reflection component of the interface’s `BSDF` accounts for light that scatters without entering the layers. (b) The second term is given by a double integral over directions. A direction ω′ pointing into the medium is sampled; it gives the second direction for the interface’s `BTDF` PDF and its negation gives one of the two directions for . A second direction ω″ is used for as well as for a second evaluation of .*
 
 It is possible to compute a stochastic estimate of the PDF by applying Monte Carlo to the integrals and by terminating the infinite sum using
 
@@ -1574,15 +1628,15 @@ Russian roulette. For example, for the integral in Equation (14.36), we have
 
 the estimator where ω′ is sampled from some distribution p1 and ω″ from a distribution p2. There is great freedom in choosing the distributions p1 and p2. However, as with algorithms like path tracing, care must be taken if some of the PDFs are Dirac delta distributions. For example, if the bottom layer is perfect specular, then will always be zero unless ω″ was sampled according to its PDF.
 
-Consider what happens if ω′ is sampled using ’s sampling method, conditioned on ωo, and if ω″ is sampled using ’s sampling method, conditioned on ωi: the first and last probabilities in the numerator cancel with the probabilities in the denominator, and we are left simply with as the estimate; the effect of in the PDF is fully encapsulated by the distribution of directions used to evaluate . A stochastic estimate of the PDF can be computed by following a random walk in a manner similar to the f() method, just with phase function and BSDF evaluation replaced with evaluations of the corresponding PDFs. However, because the PDF() method is only called to compute PDF values that are used for computing MIS weights, the implementation here will return an approximate PDF; doing so does not invalidate the MIS estimator.5 〈LayeredBxDF Public Methods〉 +≡ 895
+Consider what happens if ω′ is sampled using ’s sampling method, conditioned on ωo, and if ω″ is sampled using ’s sampling method, conditioned on ωi: the first and last probabilities in the numerator cancel with the probabilities in the denominator, and we are left simply with as the estimate; the effect of in the PDF is fully encapsulated by the distribution of directions used to evaluate . A stochastic estimate of the PDF can be computed by following a random walk in a manner similar to the `f()` method, just with phase function and `BSDF` evaluation replaced with evaluations of the corresponding PDFs. However, because the `PDF()` method is only called to compute PDF values that are used for computing MIS weights, the implementation here will return an approximate PDF; doing so does not invalidate the MIS estimator.5 〈LayeredBxDF Public Methods〉 +≡ 895
 
 Float PDF(Vector3f wo, Vector3f wi, TransportMode mode, BxDFReflTransFlags sampleFlags = BxDFReflTransFlags::All) const { 〈Set wo and wi for layered BSDF evaluation〉 〈Declare RNG for layered PDF evaluation 906〉 〈Update pdfSum for reflection at the entrance layer 906〉 for (int s = 0; s < nSamples; ++s) { 〈Evaluate layered BSDF PDF sample 906〉 } 〈Return mixture of PDF estimate and constant PDF 908〉 }
 
-It is important that the RNG for the PDF() method is seeded differently than it is for the f() method, since it will often be called with the same pair of directions as are passed to f(), and we would like to be certain that there is no correlation between the results returned by the two of them. 〈Declare RNG for layered PDF evaluation〉 ≡ 906
+It is important that the `RNG` for the `PDF()` method is seeded differently than it is for the `f()` method, since it will often be called with the same pair of directions as are passed to `f()`, and we would like to be certain that there is no correlation between the results returned by the two of them. 〈Declare RNG for layered PDF evaluation〉 ≡ 906
 
 RNG rng(Hash(GetOptions().seed, wi), Hash(wo)); auto r = [&rng]() { return std::min<Float>(rng.Uniform<Float>(), OneMinusEpsilon); };
 
-If both directions are on the same side of the surface, then part of the full PDF is given by the PDF for reflection at the interface (this was the first term of Equation (14.36)). This component can be evaluated non-stochastically, assuming that the underlying PDF() methods are not themselves stochastic. 〈Update pdfSum for reflection at the entrance layer〉 ≡ 906
+If both directions are on the same side of the surface, then part of the full PDF is given by the PDF for reflection at the interface (this was the first term of Equation (14.36)). This component can be evaluated non-stochastically, assuming that the underlying `PDF()` methods are not themselves stochastic. 〈Update pdfSum for reflection at the entrance layer〉 ≡ 906
 
 bool enteredTop = twoSided || wo.z > 0; Float pdfSum = 0; if (SameHemisphere(wo, wi)) { auto reflFlag = BxDFReflTransFlags::Reflection; pdfSum += enteredTop ? nSamples * top.PDF(wo, wi, mode, reflFlag) : nSamples * bottom.PDF(wo, wi, mode, reflFlag); }
 
@@ -1649,9 +1703,8 @@ Otherwise, we sample from as well. If that sample is from a perfect specular com
 
 〈Use multiple importance sampling to estimate PDF product〉 ≡ 907
 
-pstd::optional<BSDFSample> rs = rInterface.Sample_f(-wos->wi, r(), {r(), r()}, mode); if (rs && rs->f && rs->pdf > 0) { if (!IsNonSpecular(rInterface.Flags()))
-
 ```rust
+pstd::optional<BSDFSample> rs = rInterface.Sample_f(-wos->wi, r(), {r(), r()}, mode); if (rs && rs->f && rs->pdf > 0) { if (!IsNonSpecular(rInterface.Flags()))
             pdfSum += tInterface.PDF(-rs->wi, wi, mode);
         else {
             〈Compute MIS-weighted estimate of Equation (14.38) 908〉
@@ -1675,7 +1728,7 @@ return Lerp(0.9f, 1 / (4 * Pi), pdfSum / nSamples);
 
 Adding a dielectric interface on top of both diffuse materials and conductors is often useful to model surface reflection. For example, plastic can be modeled by putting such an interface above a diffuse material, and coated metals can be modeled by adding such an interface as well. In both cases, introducing a scattering layer can model effects like tarnish or weathering. Figure 14.22 shows the dragon model with a few variations of these.
 
-pbrt provides both the CoatedDiffuseBxDF and the CoatedConductorBxDF for such uses. There is almost nothing to their implementations other than a public inheritance from LayeredBxDF with the appropriate types for the two interfaces. 〈CoatedDiffuseBxDF Definition〉 ≡ class CoatedDiffuseBxDF : public LayeredBxDF<DielectricBxDF, DiffuseBxDF, true> { public: 〈CoatedDiffuseBxDF Public Methods〉 };
+pbrt provides both the `CoatedDiffuseBxDF` and the `CoatedConductorBxDF` for such uses. There is almost nothing to their implementations other than a public inheritance from `LayeredBxDF` with the appropriate types for the two interfaces. 〈CoatedDiffuseBxDF Definition〉 ≡ class CoatedDiffuseBxDF : public LayeredBxDF<DielectricBxDF, DiffuseBxDF, true> { public: 〈CoatedDiffuseBxDF Public Methods〉 };
 
 〈CoatedConductorBxDF Definition〉 ≡ class CoatedConductorBxDF : public LayeredBxDF<DielectricBxDF, ConductorBxDF, true> { public: 〈CoatedConductorBxDF Public Methods〉 };
 
@@ -1691,11 +1744,12 @@ pbrt provides both the CoatedDiffuseBxDF and the CoatedConductorBxDF for such us
    PowerHeuristic() 66
 ```
 
-There are also corresponding Material implementations, CoatedDiffuseMaterial and CoatedConductorMaterial. Their implementations follow the familiar pattern of evaluating textures and then initializing the corresponding BxDF, and they are therefore not included here.
+There are also corresponding `Material` implementations, `CoatedDiffuseMaterial` and `CoatedConductorMaterial`. Their implementations follow the familiar pattern of evaluating textures and then initializing the corresponding `BxDF`, and they are therefore not included here.
 
 ![Figure 14.22](images/img-1447-338.png)
 
-*Figure 14.22: A Variety of Effects That Can Be Achieved Using Layered Materials. (a) Dragon model with a blue diffuse BRDF. (b) The effect of adding a smooth dielectric interface on top of the diffuse BRDF. In addition to the specular highlights, note how the color has become more saturated, which is due to multiple scattering from paths that reflected back into the medium from the exit interface. (c) The effect of roughening the interface. The surface appears less shiny, but the blue remains more saturated. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
+
+*Figure 14.22: A Variety of Effects That Can Be Achieved Using Layered `Materials`. (a) Dragon model with a blue diffuse `BRDF`. (b) The effect of adding a smooth dielectric interface on top of the diffuse `BRDF`. In addition to the specular highlights, note how the color has become more saturated, which is due to multiple scattering from paths that reflected back into the medium from the exit interface. (c) The effect of roughening the interface. The surface appears less shiny, but the blue remains more saturated. (Dragon model courtesy of the Stanford Computer Graphics Laboratory.)*
 
 ## FURTHER READING
 
@@ -1713,7 +1767,7 @@ Finally, King (1913) completed the rediscovery of the equation of transfer by ex
 
 The integral null-scattering volume light transport equation was derived by Galtier et al. (2013) in the field of radiative transfer; Eymet et al. (2013) described the generalization to include scattering from surfaces. This approach was introduced to graphics by Novák et al. (2014). Miller et al. (2019) derived its path integral form, which made it possible to apply powerful variance reduction techniques based on multiple importance sampling.
 
-Volumetric Path Tracing von Neumann’s original description of the Monte Carlo algorithm was in the context of neutron transport problems (Ulam et al. 1947); his technique included the algorithm for sampling distances from an exponential distribution (our Equation (A.2)), uniformly sampling 3D directions via uniform sampling of cos θ (as implemented in SampleUniformSphere()), and randomly choosing among scattering events as described in Section 14.1.2.
+Volumetric Path Tracing von Neumann’s original description of the Monte Carlo algorithm was in the context of neutron transport problems (Ulam et al. 1947); his technique included the algorithm for sampling distances from an exponential distribution (our Equation (A.2)), uniformly sampling 3D directions via uniform sampling of cos θ (as implemented in `SampleUniformSphere()`), and randomly choosing among scattering events as described in Section 14.1.2.
 
 Rushmeier (1988) was the first to use Monte Carlo to solve the volumetric light transport equation in a general setting. Szirmay-Kalos et al. (2005) precomputed interactions between sample points in the medium in order to more quickly compute multiple scattering. Kulla and Fajardo (2012) proposed a specialized sampling technique that is effective for light sources inside participating media. (This technique was first introduced in the field of neutron transport by Kalli and Cashwell (1977).) Georgiev et al. (2013) made the observation that incremental path sampling can generate particularly bad paths in participating media. They proposed new multi-vertex sampling methods that better account for all the relevant terms in the equation of transfer. Sampling direct illumination from lights at points inside media surrounded by an interface is challenging; traditional direct lighting algorithms are not applicable at points inside the medium, as refraction through the interface will divert the shadow ray’s path. Walter et al. (2009) considered this problem and developed algorithms to efficiently find paths to lights accounting for this refraction. More recent work on this topic was done by Holzschuch (2015) and Koerner et al. (2016). Weber et al. (2017) developed an approach for more effectively sampling direct lighting in forward scattering media by allowing multiple scattering events along the path to the light. Szirmay-Kalos et al. (2017) first showed the use of the integral null-scattering volume light transport equation for rendering scattering inhomogeneous media. Kutz et al. (2017) subsequently applied it to efficient rendering of spectral media and Szirmay-Kalos et al. (2018) developed improved algorithms for sampling multiple scattering. After deriving the path integral formulation, Miller et al. (2019) used it to show the effectiveness of combining a variety of sampling techniques using multiple importance scattering, including bidirectional path tracing. The visual appearance of high-albedo objects like clouds is striking, but many bounces may be necessary for good results. Wrenninge et al. (2013) described an approximation where after the first few bounces, the scattering coefficient, the attenuation coefficient for shadow rays, and the eccentricity of the phase function are all progressively reduced. Kallweit et al. (2017)
 
@@ -1723,9 +1777,9 @@ applied neural networks to store precomputed multiple scattering solutions for u
    SampleUniformSphere() 1016
 ```
 
-Pegoraro et al. (2008b) developed a Monte Carlo sampling approach for rendering participating media that used information from previous samples to guide future sampling. More recent work in volumetric path guiding by Herholz et al. applied product sampling based on the phase function and an approximation to the light distribution in the medium (Herholz et al. 2019). Wrenninge and Villemin (2020) developed a volumetric product sampling approach based on adapting the majorant to account for important regions of the integrand and then randomly selecting among candidate samples based on weights that account for factors beyond transmittance. Villeneuve et al. (2021) have also developed algorithms for product sampling in media, accounting for the surface normal at area light sources, transmittance along the ray, and the phase function. Volumetric emission is not handled efficiently by the VolPathIntegrator, as there is no specialized sampling technique to account for it. Villemin and Hery (2013) precomputed tabularized CDFs for sampling volumetric emission, and Simon et al. (2017) developed further improvements, including integrating emission along rays and using the sampled point in the volume solely to determine the initial sampling direction, which gives better results in dense media. The one-dimensional volumetric light transport algorithms implemented in LayeredBxDF are based on Guo et al.’s approach (2018).
+Pegoraro et al. (2008b) developed a Monte Carlo sampling approach for rendering participating media that used information from previous samples to guide future sampling. More recent work in volumetric path guiding by Herholz et al. applied product sampling based on the phase function and an approximation to the light distribution in the medium (Herholz et al. 2019). Wrenninge and Villemin (2020) developed a volumetric product sampling approach based on adapting the majorant to account for important regions of the integrand and then randomly selecting among candidate samples based on weights that account for factors beyond transmittance. Villeneuve et al. (2021) have also developed algorithms for product sampling in media, accounting for the surface normal at area light sources, transmittance along the ray, and the phase function. Volumetric emission is not handled efficiently by the `VolPathIntegrator`, as there is no specialized sampling technique to account for it. Villemin and Hery (2013) precomputed tabularized CDFs for sampling volumetric emission, and Simon et al. (2017) developed further improvements, including integrating emission along rays and using the sampled point in the volume solely to determine the initial sampling direction, which gives better results in dense media. The one-dimensional volumetric light transport algorithms implemented in `LayeredBxDF` are based on Guo et al.’s approach (2018).
 
-Other Light Transport Algorithms Blinn (1982b) first used basic volume scattering algorithms for computer graphics. Rushmeier and Torrance (1987) used finite-element methods for rendering participating media. Other early work in volume scattering for computer graphics includes work by Max (1986); Nishita, Miyawaki, and Nakamae (1987); Bhate and Tokuta’s approach based on spherical harmonics (Bhate and Tokuta 1992), and Blasi et al.’s two-pass Monte Carlo algorithm, where the first pass shoots energy from the lights and stores it in a grid and the second pass does final rendering using the grid to
+Other `Light` Transport Algorithms Blinn (1982b) first used basic volume scattering algorithms for computer graphics. Rushmeier and Torrance (1987) used finite-element methods for rendering participating media. Other early work in volume scattering for computer graphics includes work by Max (1986); Nishita, Miyawaki, and Nakamae (1987); Bhate and Tokuta’s approach based on spherical harmonics (Bhate and Tokuta 1992), and Blasi et al.’s two-pass Monte Carlo algorithm, where the first pass shoots energy from the lights and stores it in a grid and the second pass does final rendering using the grid to
 
 estimate illumination at points in the scene (Blasi, Saëc, and Schlick 1993). Glassner (1995) provided a thorough overview of this topic and early applications of it in graphics, and Max’s survey article (Max 1995) also covers early work well. See Cerezo et al. (2005) for an extensive survey of approaches to rendering participating media up through 2005. One important application of volume scattering algorithms in computer graphics has been simulating atmospheric scattering. Work in this area includes early papers by Klassen (1987) and Preetham et al. (1999), who introduced a physically rigorous and computationally efficient atmospheric and sky-lighting model. Haber et al. (2005) described a model for twilight, and Hošek and Wilkie (2012, 2013) developed a comprehensive model for sky- and sunlight. Bruneton evaluated the accuracy and efficiency of a number of models for atmospheric scattering (Bruneton 2017). A sophisticated model that accurately accounts for polarization, observers at arbitrary altitudes, and the effect of atmospheric scattering for objects at finite distances was recently introduced by Wilkie et al. (2021). Jarosz et al. (2008a) first extended the principles of irradiance caching to participating media. Marco et al. (2018) described a state-of-the-art algorithm for volumetric radiance caching based on Schwarzhaupt et al.’s surface-based second-order derivatives (Schwarzhaupt et al. 2012). Jensen and Christensen (1998) were the first to generalize the photon-mapping algorithm to participating media. Knaus and Zwicker (2011) showed how to render participating media using stochastic progressive photon mapping (SPPM). Jarosz et al. (2008b) had the important insight that expressing the scattering integral over a beam through the medium as the measurement to be evaluated could make photon mapping’s rate of convergence much higher than if a series of point photon estimates was instead taken along each ray. Section 5.6 of Hachisuka’s thesis (2011) and Jarosz et al. (2011a, 2011b) showed how to apply this approach progressively. For another representation, see Jakob et al. (2011), who fit a sum of anisotropic Gaussians to the equilibrium radiance distribution in participating media.
 
@@ -1750,7 +1804,7 @@ The equation of transfer assumes that the index of refraction of a medium will o
 
 ➋ 14.1 Replace ratio tracking in the VolPathIntegrator::SampleLd() method with delta tracking. After you confirm that your changes converge to the correct result, measure the difference in performance and MSE in order to compare the Monte Carlo efficiency of the two approaches for a variety of volumetric data sets. Do you find any cases where delta tracking is more efficient? If so, can you explain why? ➋ 14.2 Residual ratio tracking can compute transmittance more efficiently than ratio tracking in dense media; it is based on finding lower bounds of σt in regions of space, analytically computing that portion of the transmittance, and then using ratio tracking for the remaining variation (Novák et al. 2014). Implement this approach in pbrt and measure its effectiveness. Note that you will need to make modifications to both the Medium’s RayMajorantSegment representation and the implementation of the VolPathIntegrator in order to do so. ➋ 14.3 The current implementation of SampleT_maj() consumes a new uniform random value for each RayMajorantSegment returned by the medium’s iterator. Its sampling operation can alternatively be implemented using a single uniform value to sample a total optical thickness and then finding the point along the ray where that optical thickness has been accumulated. Modify SampleT_maj() to implement that approach and measure rendering performance. Is there a benefit compared to the current implementation? ➌ 14.4 It is not possible to directly sample emission in volumes with the current Medium interface. Thus, integrators are left to include emission only when their random walk through a medium happens to find a part of it that is emissive. This approach can be quite inefficient, especially for localized bright emission. Add methods to the Medium interface that allow for sampling emission and modify the direct lighting calculation in the VolPathIntegrator to use them. For inspiration, it may be worthwhile to read the papers by Villemin and Hery (2013) and Simon et al. (2017) on Monte Carlo sampling of 3D emissive volumes. Measure the improvement in efficiency with your approach. Are there any cases where it hurts performance? ➌ 14.5 While sampling distances in participating media according to the majorant is much more effective than sampling uniformly, it does not account for other factors that vary along the ray, such as the scattering coefficient and phase function or variation
 
-in illumination from light sources. Implement the approach described by Wrenninge and Villemin (2020) on product sampling based on adapting the majorant to account for multiple factors in the integrand and then randomly selecting among weighted sample points. (You may find weighted reservoir sampling (Section A.2) a useful technique to apply in order to avoid the storage costs of maintaining the candidate samples.) Measure the performance of your implementation as well as how much it improves image quality for tricky volumetric scenes. ➋ 14.6 Add the capability to specify a bump or normal map for the bottom interface in the LayeredBxDF. (The current implementation applies bump mapping at the top interface only.) Render images that show the difference between perturbing the normal at the top interface and having a smooth bottom interface and vice versa. ➋ 14.7 Investigate the effect of improving the sampling patterns used in the LayeredBxDF— for example, by replacing the uniform random numbers used with low-discrepancy points. You may need to pass further information through the BSDF evaluation routines to do so, such as the current pixel, pixel sample, and current ray depth. Measure how much error is reduced by your changes as well as their performance impact.
+in illumination from light sources. Implement the approach described by Wrenninge and Villemin (2020) on product sampling based on adapting the majorant to account for multiple factors in the integrand and then randomly selecting among weighted sample points. (You may find weighted reservoir sampling (Section A.2) a useful technique to apply in order to avoid the storage costs of maintaining the candidate samples.) Measure the performance of your implementation as well as how much it improves image quality for tricky volumetric scenes. ➋ 14.6 Add the capability to specify a bump or normal map for the bottom interface in the `LayeredBxDF`. (The current implementation applies bump mapping at the top interface only.) Render images that show the difference between perturbing the normal at the top interface and having a smooth bottom interface and vice versa. ➋ 14.7 Investigate the effect of improving the sampling patterns used in the `LayeredBxDF`— for example, by replacing the uniform random numbers used with low-discrepancy points. You may need to pass further information through the `BSDF` evaluation routines to do so, such as the current pixel, pixel sample, and current ray depth. Measure how much error is reduced by your changes as well as their performance impact.
 
 ```text
                           LayeredBxDF 895

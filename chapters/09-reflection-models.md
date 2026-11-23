@@ -27,6 +27,7 @@ Geometric optics: As with simulation approaches, if the surface’s low-level sc
 
 ![Figure 9.1](images/img-835-150.png)
 
+
 *Figure 9.1: Reflection from a surface can be generally categorized by the distribution of reflected light from an incident direction (heavy lines): (a) diffuse, (b) glossy specular, (c) nearly perfect specular, and (d) retroreflective distributions.*
 
 This chapter discusses the implementation of a number of such models along with the associated theory. See also Section 14.3, which introduces a reflection model based on the simulation of light scattering in layered materials. The “Further Reading” section at the end of this chapter gives pointers to a wide variety of additional reflection models.
@@ -51,9 +52,10 @@ Reflection computations in pbrt are performed in a reflection coordinate system 
 
 Section 3.8 introduced a range of utility functions—like SinTheta(), CosPhi(), etc.—that efficiently evaluate trigonometric functions of unit vectors expressed in Cartesian coordinates matching the convention used here. They will be used extensively in this chapter, as quantities like the cosine of the elevation angle play a central role in most reflectance models.
 
-We will frequently find it useful to check whether two direction vectors lie in the same hemisphere with respect to the surface normal in the BSDF coordinate system; the Same Hemisphere() function performs this check.
+We will frequently find it useful to check whether two direction vectors lie in the same hemisphere with respect to the surface normal in the BSDF coordinate system; the `SameHemisphere()` function performs this check.
 
 ![Figure 9.2](images/img-837-151.png)
+
 
 *Figure 9.2: The Basic BSDF Coordinate Setting. The shading coordinate system is defined by the orthonormal basis vectors (s, t, n). We will orient these vectors such that they lie along the x, y, and z axes in this coordinate system. Direction vectors ω in rendering space are transformed into the shading coordinate system before any of the BRDF or BTDF methods are called.*
 
@@ -71,11 +73,11 @@ The incident light direction ωi and the outgoing viewing direction ωo will bot
 
 In pbrt, the surface normal n always points to the “outside” of the object, which makes it easy to determine if light is entering or exiting transmissive objects: if the incident light direction ωi is in the same hemisphere as n, then light is entering; otherwise, it is exiting. Therefore, the normal may be on the opposite side of the surface than one or both of the ωi and ωo direction vectors. Unlike many other renderers, pbrt does not flip the normal to lie on the same side as ωo.
 
-The local coordinate system used for shading may not be exactly the same as the coordinate system returned by the Shape::Intersect() routines from Chapter 6; it may have been modified between intersection and shading to achieve effects like bump mapping. See Chapter 10 for examples of this kind of modification.
+The local coordinate system used for shading may not be exactly the same as the coordinate system returned by the `Shape::Intersect()` routines from Chapter 6; it may have been modified between intersection and shading to achieve effects like bump mapping. See Chapter 10 for examples of this kind of modification.
 
 ### 9.1.2 BxDF INTERFACE
 
-The interface for the individual BRDF and BTDF functions is defined by BxDF, which is in the file base/bxdf.h.
+The interface for the individual BRDF and BTDF functions is defined by `BxDF`, which is in the file `base/bxdf.h`.
 
 〈BxDF Definition〉 ≡
 
@@ -90,7 +92,7 @@ The interface for the individual BRDF and BTDF functions is defined by BxDF, whi
    };
 ```
 
-The BxDF interface provides a method to query the material type following the earlier categorization, which some light transport algorithms in Chapters 13 through 15 use to specialize their behavior.
+The `BxDF` interface provides a method to query the material type following the earlier categorization, which some light transport algorithms in Chapters 13 through 15 use to specialize their behavior.
 
 〈BxDF Interface〉 ≡ 538
 
@@ -114,7 +116,7 @@ The BxDF interface provides a method to query the material type following the ea
     Vector3f 86
 ```
 
-The BxDFFlags enumeration lists the previously mentioned categories and also distinguishes reflection from transmission. Note that retroreflection is treated as glossy reflection in this list.
+The `BxDFFlags` enumeration lists the previously mentioned categories and also distinguishes reflection from transmission. Note that retroreflection is treated as glossy reflection in this list.
 
 〈BxDFFlags Definition〉 ≡ enum BxDFFlags { Unset = 0, Reflection = 1 << 0, Transmission = 1 << 1, Diffuse = 1 << 2, Glossy = 1 << 3, Specular = 1 << 4, 〈Composite BxDFFlags definitions 539〉 };
 
@@ -136,9 +138,9 @@ A few utility functions encapsulate the logic for testing various flag character
 
 〈BxDFFlags Inline Functions〉 ≡ bool IsReflective(BxDFFlags f) { return f & BxDFFlags::Reflection; } bool IsTransmissive(BxDFFlags f) { return f & BxDFFlags::Transmission; } bool IsDiffuse(BxDFFlags f) { return f & BxDFFlags::Diffuse; } bool IsGlossy(BxDFFlags f) { return f & BxDFFlags::Glossy; } bool IsSpecular(BxDFFlags f) { return f & BxDFFlags::Specular; } bool IsNonSpecular(BxDFFlags f) { return f & (BxDFFlags::Diffuse | BxDFFlags::Glossy); }
 
-The key method that BxDFs provide is f(), which returns the value of the distribution function for the given pair of directions. The provided directions must be expressed in the local reflection coordinate system introduced in the previous section.
+The key method that `BxDF`s provide is `f()`, which returns the value of the distribution function for the given pair of directions. The provided directions must be expressed in the local reflection coordinate system introduced in the previous section.
 
-This interface implicitly assumes that light in different wavelengths is decoupled—energy at one wavelength will not be reflected at a different wavelength. In this case, the effect of reflection can be described by a per-wavelength factor returned in the form of a SampledSpectrum. Fluorescent materials that redistribute energy between wavelengths would require that this method return an n × n matrix to encode the transfer between the n spectral samples of SampledSpectrum.
+This interface implicitly assumes that light in different wavelengths is decoupled—energy at one wavelength will not be reflected at a different wavelength. In this case, the effect of reflection can be described by a per-wavelength factor returned in the form of a `SampledSpectrum`. Fluorescent materials that redistribute energy between wavelengths would require that this method return an n × n matrix to encode the transfer between the n spectral samples of `SampledSpectrum`.
 
 ```text
     BxDF 538
@@ -153,7 +155,7 @@ This interface implicitly assumes that light in different wavelengths is decoupl
     Vector3f 86
 ```
 
-Neither constructors nor methods of BxDF implementations will generally be informed about the specific wavelengths associated with SampledSpectrum entries, since they do not require this information.
+Neither constructors nor methods of `BxDF` implementations will generally be informed about the specific wavelengths associated with `SampledSpectrum` entries, since they do not require this information.
 
 〈BxDF Interface〉 +≡ 538
 
@@ -164,9 +166,9 @@ Neither constructors nor methods of BxDF implementations will generally be infor
 
 The function also takes a TransportMode enumerator that indicates whether the outgoing direction is toward the camera or toward a light source (and the corresponding opposite for the incident direction). This is necessary to handle cases where scattering is non-symmetric; this subtle aspect is discussed further in Section 9.5.2.
 
-BxDFs must also provide a method that uses importance sampling to draw a direction from a distribution that approximately matches the scattering function’s shape. Not only is this operation crucial for efficient Monte Carlo integration of the light transport equation (1.1), it is the only way to evaluate some BSDFs. For example, perfect specular objects like a mirror, glass, or water only scatter light from a single incident direction into a single outgoing direction. Such BxDFs are best described with Dirac delta distributions (covered in more detail in Section 9.1.4) that are zero except for the single direction where light is scattered. Their f() and PDF() methods always return zero.
+BxDFs must also provide a method that uses importance sampling to draw a direction from a distribution that approximately matches the scattering function’s shape. Not only is this operation crucial for efficient Monte Carlo integration of the light transport equation (1.1), it is the only way to evaluate some BSDFs. For example, perfect specular objects like a mirror, glass, or water only scatter light from a single incident direction into a single outgoing direction. Such BxDFs are best described with Dirac delta distributions (covered in more detail in Section 9.1.4) that are zero except for the single direction where light is scattered. Their `f()` and `PDF()` methods always return zero.
 
-Implementations of the Sample_f() method should determine the direction of incident light ωi given an outgoing direction ωo and return the value of the BxDF for the pair of directions. They take three uniform samples in the range [0, 1)2 via the uc and u parameters. Implementations can use these however they wish, though it is generally best if they use the 1D sample uc to choose between different types of scattering (e.g., reflection or transmission) and the 2D sample to choose a specific direction. Using uc and u[0] to choose a direction, for example, would likely give inferior results to using u[0] and u[1], since uc and u[0] are not necessarily jointly well distributed. Not all the sample values need be used, and BxDFs that need additional sample values must generate them themselves. (The LayeredBxDF described in Section 14.3 is one such example.) Note the potentially counterintuitive direction convention: the outgoing direction ωo is given, and the implementation then samples an incident direction ωi. The Monte Carlo methods in this book construct light paths in reverse order—that is, counter to the propagation direction of the transported quantity (radiance or importance)—motivating this choice.
+Implementations of the `Sample_f()` method should determine the direction of incident light ωi given an outgoing direction ωo and return the value of the BxDF for the pair of directions. They take three uniform samples in the range [0, 1)2 via the `uc` and `u` parameters. Implementations can use these however they wish, though it is generally best if they use the 1D sample `uc` to choose between different types of scattering (e.g., reflection or transmission) and the 2D sample to choose a specific direction. Using `uc` and `u[0]` to choose a direction, for example, would likely give inferior results to using `u[0]` and `u[1]`, since `uc` and `u[0]` are not necessarily jointly well distributed. Not all the sample values need be used, and BxDFs that need additional sample values must generate them themselves. (The `LayeredBxDF` described in Section 14.3 is one such example.) Note the potentially counterintuitive direction convention: the outgoing direction ωo is given, and the implementation then samples an incident direction ωi. The Monte Carlo methods in this book construct light paths in reverse order—that is, counter to the propagation direction of the transported quantity (radiance or importance)—motivating this choice.
 
 Callers of this method must be prepared for the possibility that sampling fails, in which case an unset optional value will be returned.
 
@@ -180,7 +182,7 @@ Callers of this method must be prepared for the possibility that sampling fails,
                BxDFReflTransFlags::All);
 ```
 
-The sample generation can optionally be restricted to the reflection or transmission component via the sampleFlags parameter. A sampling failure will occur in invalid cases—for example, if the caller requests a transmission sample on an opaque surface.
+The sample generation can optionally be restricted to the reflection or transmission component via the `sampleFlags` parameter. A sampling failure will occur in invalid cases—for example, if the caller requests a transmission sample on an opaque surface.
 
 〈BxDFReflTransFlags Definition〉 ≡ enum class BxDFReflTransFlags { Unset = 0, Reflection = 1 << 0, Transmission = 1 << 1, All = Reflection | Transmission };
 
@@ -196,9 +198,9 @@ The sample generation can optionally be restricted to the reflection or transmis
     Vector3f 86
 ```
 
-If sampling succeeds, the method returns a BSDFSample that includes the value of the BSDF f, the sampled direction wi, its probability density function (PDF) measured with respect to solid angle, and a BxDFFlags instance that describes the characteristics of the particular sample. BxDFs should specify the direction wi with respect to the local reflection coordinate system, though BSDF::Sample_f() will transform this direction to rendering space before returning it.
+If sampling succeeds, the method returns a `BSDFSample` that includes the value of the BSDF f, the sampled direction `wi`, its probability density function (PDF) measured with respect to solid angle, and a `BxDFFlags` instance that describes the characteristics of the particular sample. `BxDF`s should specify the direction `wi` with respect to the local reflection coordinate system, though `BSDF::Sample_f()` will transform this direction to rendering space before returning it.
 
-Some BxDF implementations (notably, the LayeredBxDF described in Section 14.3) generate samples via simulation, following a random light path. The distribution of paths that escape is the BxDF’s exact (probabilistic) distribution, but the returned f and pdf are only proportional to their true values. (Fortunately, by the same proportion!) This case needs special handling in light transport algorithms, and is indicated by the pdfIsProportional field. For all the BxDFs in this chapter, it can be left set to its default false value.
+Some BxDF implementations (notably, the `LayeredBxDF` described in Section 14.3) generate samples via simulation, following a random light path. The distribution of paths that escape is the BxDF’s exact (probabilistic) distribution, but the returned `f` and `pdf` are only proportional to their true values. (Fortunately, by the same proportion!) This case needs special handling in light transport algorithms, and is indicated by the `pdfIsProportional` field. For all the BxDFs in this chapter, it can be left set to its default false value.
 
 〈BSDFSample Definition〉 ≡ struct BSDFSample { 〈BSDFSample Public Methods 541〉 SampledSpectrum f; Vector3f wi; Float pdf = 0; BxDFFlags flags; Float eta = 1;
 
@@ -212,7 +214,7 @@ bool pdfIsProportional = false; }; 〈BSDFSample Public Methods〉 ≡ 541
          pdfIsProportional(pdfIsProportional) {}
 ```
 
-Several convenience methods can be used to query characteristics of the sample using previously defined functions like BxDFFlags::IsReflective(), etc.
+Several convenience methods can be used to query characteristics of the sample using previously defined functions like `BxDFFlags::IsReflective()`, etc.
 
 〈BSDFSample Public Methods〉 +≡ 541
 
@@ -245,15 +247,15 @@ Several convenience methods can be used to query characteristics of the sample u
     Vector3f 86
 ```
 
-The PDF() method returns the value of the PDF for a given pair of directions, which is useful for techniques like multiple importance sampling that compare probabilities of multiple strategies for obtaining a given sample.
+The `PDF()` method returns the value of the PDF for a given pair of directions, which is useful for techniques like multiple importance sampling that compare probabilities of multiple strategies for obtaining a given sample.
 
 〈BxDF Interface〉 +≡ Float PDF(Vector3f wo, Vector3f wi, TransportMode mode, BxDFReflTransFlags sampleFlags = BxDFReflTransFlags::All) const;
 
 ### 9.1.3 HEMISPHERICAL REFLECTANCE
 
-With the BxDF methods described so far, it is possible to implement methods that compute the reflectance of a BxDF by applying the Monte Carlo estimator to the definitions of reflectance from Equations (4.12) and (4.13).
+With the `BxDF` methods described so far, it is possible to implement methods that compute the reflectance of a BxDF by applying the Monte Carlo estimator to the definitions of reflectance from Equations (4.12) and (4.13).
 
-A first variant of BxDF::rho() computes the reflectance function ρhd. Its caller is responsible for determining how many samples should be taken and for providing the uniform sample values to be used in computing the estimate. Thus, depending on the context, callers have control over sampling and the quality of the returned estimate.
+A first variant of `BxDF::rho()` computes the reflectance function ρhd. Its caller is responsible for determining how many samples should be taken and for providing the uniform sample values to be used in computing the estimate. Thus, depending on the context, callers have control over sampling and the quality of the returned estimate.
 
 〈BxDF Method Definitions〉 ≡ SampledSpectrum BxDF::rho(Vector3f wo, pstd::span<const Float> uc, pstd::span<const Point2f> u2) const { SampledSpectrum r(0.); for (size_t i = 0; i < uc.size(); ++i) { 〈Compute estimate of ρhd 542〉 } return r / uc.size(); }
 
@@ -269,11 +271,11 @@ is easily evaluated.
         r += bs->f * AbsCosTheta(bs->wi) / bs->pdf;
 ```
 
-The hemispherical-hemispherical reflectance is found in the second BxDF::rho() method that evaluates Equation (4.13). As with the first rho() method, the caller is responsible for passing in uniform sample values—in this case, five dimensions’ worth of them.
+The hemispherical-hemispherical reflectance is found in the second `BxDF::rho()` method that evaluates Equation (4.13). As with the first `rho()` method, the caller is responsible for passing in uniform sample values—in this case, five dimensions’ worth of them.
 
 〈BxDF Method Definitions〉 +≡ SampledSpectrum BxDF::rho(pstd::span<const Point2f> u1, pstd::span<const Float> uc, pstd::span<const Point2f> u2) const { SampledSpectrum r(0.f); for (size_t i = 0; i < uc.size(); ++i) { 〈Compute estimate of ρhh 542〉 } return r / (Pi * uc.size()); }
 
-Our implementation samples the first direction wo uniformly over the hemisphere. Given this, the second direction can be sampled using BxDF::Sample_f().1
+Our implementation samples the first direction wo uniformly over the hemisphere. Given this, the second direction can be sampled using `BxDF::Sample_f()`.1
 
 〈Compute estimate of ρhh〉 ≡ 542
 
@@ -320,15 +322,15 @@ Recall from Section 8.1.1 that the Dirac delta distribution is defined such that
 
 and
 
-According to these equations, δ can be interpreted as a normalized density function that is zero for all x ≠ 0. Generating a sample from such a distribution is trivial, since there is only one value that it can take. In this sense, the forthcoming implementations of Sample_f() involving delta functions naturally fit into the Monte Carlo sampling framework.
+According to these equations, δ can be interpreted as a normalized density function that is zero for all x ≠ 0. Generating a sample from such a distribution is trivial, since there is only one value that it can take. In this sense, the forthcoming implementations of `Sample_f()` involving delta functions naturally fit into the Monte Carlo sampling framework.
 
-However, sampling alone is not enough: two methods (Sample_f() and PDF) also provide sampling densities, and it is considerably less clear what values should be returned here. Strictly speaking, the delta distribution is not a true function but constitutes the limit of a sequence of functions—for example, one describing a box of unit area whose width approaches 0; see Chapter 5 of Bracewell (2000) for details. In the limit, the value of δ(0) must then necessarily tend toward infinity. This important theoretical realization does not easily translate into Rust code: certainly, returning an infinite or very large PDF value is not going to lead to correct results from the renderer.
+However, sampling alone is not enough: two methods (`Sample_f()` and `PDF`) also provide sampling densities, and it is considerably less clear what values should be returned here. Strictly speaking, the delta distribution is not a true function but constitutes the limit of a sequence of functions—for example, one describing a box of unit area whose width approaches 0; see Chapter 5 of Bracewell (2000) for details. In the limit, the value of δ(0) must then necessarily tend toward infinity. This important theoretical realization does not easily translate into Rust code: certainly, returning an infinite or very large PDF value is not going to lead to correct results from the renderer.
 
-To resolve this conflict, BSDFs may only contain matched pairs of delta functions in their fr function and PDF. For example, suppose that the PDF factors into a remainder term and a delta function involving a particular direction ω′: p(ωi) = prem(ωi) δ(ω′ − ωi). If the same holds true for fr, then a Monte Carlo estimator that divides fr by the PDF will never require evaluation of the delta function:
+To resolve this conflict, BSDFs may only contain matched pairs of delta functions in their `fr` function and `PDF`. For example, suppose that the PDF factors into a remainder term and a delta function involving a particular direction ω′: p(ωi) = prem(ωi) δ(ω′ − ωi). If the same holds true for fr, then a Monte Carlo estimator that divides fr by the PDF will never require evaluation of the delta function:
 
-Implementations of perfect specular materials will thus return a constant PDF of 1 when Sample_f() generates a direction associated with a delta function, with the understanding that the delta function will cancel in the estimator.
+Implementations of perfect specular materials will thus return a constant PDF of 1 when `Sample_f()` generates a direction associated with a delta function, with the understanding that the delta function will cancel in the estimator.
 
-In contrast, the respective PDF() methods should return 0 for all directions, since there is zero probability that another sampling method will randomly find the direction from a delta distribution.2
+In contrast, the respective `PDF()` methods should return 0 for all directions, since there is zero probability that another sampling method will randomly find the direction from a delta distribution.2
 
 ```text
       BxDF 538
@@ -336,15 +338,16 @@ In contrast, the respective PDF() methods should return 0 for all directions, si
 
 ### 9.1.5 BSDFs
 
-BxDF class implementations perform all computation in a local shading coordinate system that is most appropriate for this task. In contrast, rendering algorithms operate in rendering space (Section 5.1.1); hence a transformation between these two spaces must be performed somewhere. The BSDF is a small wrapper around a BxDF that handles this transformation.
+`BxDF` class implementations perform all computation in a local shading coordinate system that is most appropriate for this task. In contrast, rendering algorithms operate in rendering space (Section 5.1.1); hence a transformation between these two spaces must be performed somewhere. The BSDF is a small wrapper around a `BxDF` that handles this transformation.
 
 ![Figure 9.3](images/img-848-152.png)
+
 
 *Figure 9.3: The geometric normal, ng, defined by the surface geometry, and the shading normal, ns, given by per-vertex normals and/or bump mapping, will generally define different hemispheres for integrating incident illumination to compute surface reflection. It is important to handle this inconsistency carefully since it can otherwise lead to artifacts in images.*
 
 〈BSDF Definition〉 ≡ class BSDF { public: 〈BSDF Public Methods 544〉 private: 〈BSDF Private Members 544〉 };
 
-In addition to an encapsulated BxDF, the BSDF holds a shading frame based on the Frame class.
+In addition to an encapsulated `BxDF`, the `BSDF` holds a shading frame based on the `Frame` class.
 
 〈BSDF Private Members〉 ≡ 544
 
@@ -365,7 +368,7 @@ The constructor initializes the latter from the shading normal ns and ∂p/∂u 
          Vector3f(ns))) {}
 ```
 
-The default constructor creates a BSDF with a None-valued bxdf, which is useful to represent transitions between different media that do not themselves scatter light. An operator bool() method checks whether the BSDF represents a real material interaction, in which case the Flags() method provides further information about its high-level properties.
+The default constructor creates a BSDF with a `None`-valued `bxdf`, which is useful to represent transitions between different media that do not themselves scatter light. An `operator bool()` method checks whether the BSDF represents a real material interaction, in which case the `Flags()` method provides further information about its high-level properties.
 
 〈BSDF Public Methods〉 +≡ 544
 
@@ -386,7 +389,7 @@ The default constructor creates a BSDF with a None-valued bxdf, which is useful 
     Vector3f 86
 ```
 
-The BSDF provides methods that perform transformations to and from the reflection coordinate system used by BxDFs.
+The BSDF provides methods that perform transformations to and from the reflection coordinate system used by `BxDF`s.
 
 〈BSDF Public Methods〉 +≡ 544
 
@@ -398,25 +401,20 @@ The BSDF provides methods that perform transformations to and from the reflectio
    }
 ```
 
-The f() function performs the required coordinate frame conversion and then queries the BxDF. The rare case in which the wo direction lies exactly in the surface’s tangent plane often leads to not-a-number (NaN) values in BxDF implementations that further propagate and may eventually contaminate the rendered image. The BSDF avoids this case by immediately returning a zero-valued SampledSpectrum.
+The `f()` function performs the required coordinate frame conversion and then queries the `BxDF`. The rare case in which the `wo` direction lies exactly in the surface’s tangent plane often leads to not-a-number (NaN) values in BxDF implementations that further propagate and may eventually contaminate the rendered image. The `BSDF` avoids this case by immediately returning a zero-valued `SampledSpectrum`.
 
 〈BSDF Public Methods〉 +≡ 544
 
 ```rust
    SampledSpectrum f(Vector3f woRender, Vector3f wiRender,
-                           TransportMode           mode                        =
-                           TransportMode::Radiance) {
-       Vector3f      wi  =     RenderToLocal(wiRender),   wo                  =
-       RenderToLocal(woRender);
+                     TransportMode mode = TransportMode::Radiance) {
+       Vector3f wi = RenderToLocal(wiRender), wo = RenderToLocal(woRender);
        if (wo.z == 0) return {};
        return bxdf.f(wo, wi, mode);
-```
-
-```rust
    }
 ```
 
-The BSDF also provides a second templated f() method that can be parameterized by the underlying BxDF. If the caller knows the specific type of BSDF::bxdf, it can call this variant directly without involving the dynamic method dispatch used in the method above. This approach is used by pbrt’s wavefront rendering path, which groups evaluations based on the underlying BxDF to benefit from vectorized execution on the GPU. The implementation of this specialized version simply casts the BxDF to the provided type before invoking its f() method.
+The BSDF also provides a second templated `f()` method that can be parameterized by the underlying BxDF. If the caller knows the specific type of `BSDF::bxdf`, it can call this variant directly without involving the dynamic method dispatch used in the method above. This approach is used by pbrt’s wavefront rendering path, which groups evaluations based on the underlying BxDF to benefit from vectorized execution on the GPU. The implementation of this specialized version simply casts the `BxDF` to the provided type before invoking its `f()` method.
 
 〈BSDF Public Methods〉 +≡ 544
 
@@ -455,7 +453,7 @@ The BSDF also provides a second templated f() method that can be parameterized b
     Vector3f 86
 ```
 
-The BSDF::Sample_f() method similarly forwards the sampling request on to the BxDF after transforming the ωo direction to the local coordinate system.
+The `BSDF::Sample_f()` method similarly forwards the sampling request on to the `BxDF` after transforming the ωo direction to the local coordinate system.
 
 〈BSDF Public Methods〉 +≡ 544
 
@@ -471,7 +469,7 @@ The BSDF::Sample_f() method similarly forwards the sampling request on to the Bx
    }
 ```
 
-If the BxDF implementation returns a sample that has a zero-valued BSDF or PDF or an incident direction in the tangent plane, this method nevertheless returns an unset sample value. This allows calling code to proceed without needing to check those cases.
+If the `BxDF` implementation returns a sample that has a zero-valued `BSDF` or `PDF` or an incident direction in the tangent plane, this method nevertheless returns an unset sample value. This allows calling code to proceed without needing to check those cases.
 
 〈Sample bxdf and return BSDFSample〉 ≡ 545
 
@@ -484,7 +482,7 @@ If the BxDF implementation returns a sample that has a zero-valued BSDF or PDF o
    return bs;
 ```
 
-BSDF::PDF() follows the same pattern.
+`BSDF::PDF()` follows the same pattern.
 
 〈BSDF Public Methods〉 +≡ 544
 
@@ -500,9 +498,9 @@ BSDF::PDF() follows the same pattern.
    }
 ```
 
-We have omitted the definitions of additional templated Sample_f() and PDF() variants that are parameterized by the BxDF type.
+We have omitted the definitions of additional templated `Sample_f()` and `PDF()` variants that are parameterized by the `BxDF` type.
 
-Finally, BSDF provides rho() methods to compute the reflectance that forward the call on to its underlying bxdf. They are trivial and therefore not included here.
+Finally, `BSDF` provides `rho()` methods to compute the reflectance that forward the call on to its underlying `bxdf`. They are trivial and therefore not included here.
 
 ## 9.2 DIFFUSE REFLECTION
 
@@ -540,7 +538,7 @@ The constructor takes a reflectance spectrum R with values in the range [0, 1] t
 
 The reflection distribution function is just a constant, though it requires a normalization factor equal to so that the total integrated reflectance equals R.
 
-With this correction, the f() implementation is given by
+With this correction, the `f()` implementation is given by
 
 〈DiffuseBxDF Public Methods〉 +≡ 546
 
@@ -553,7 +551,7 @@ With this correction, the f() implementation is given by
    }
 ```
 
-The sampling function returns an invalid sample if the caller specified that reflection components of the BSDF should not be sampled. Otherwise, it draws a direction from a suitable distribution and returns all the sample-related information via a BSDFSample instance.
+The sampling function returns an invalid sample if the caller specified that reflection components of the BSDF should not be sampled. Otherwise, it draws a direction from a suitable distribution and returns all the sample-related information via a `BSDFSample` instance.
 
 〈DiffuseBxDF Public Methods〉 +≡ 546
 
@@ -570,9 +568,9 @@ The sampling function returns an invalid sample if the caller specified that ref
    }
 ```
 
-Working in a canonical reflection coordinate system greatly simplifies the central sampling step: in particular, a direction generated by SampleCosineHemisphere() can be directly used, and we must only pay attention that wo and wi lie in the same hemisphere, as indicated by wo.z and wi.z.
+Working in a canonical reflection coordinate system greatly simplifies the central sampling step: in particular, a direction generated by `SampleCosineHemisphere()` can be directly used, and we must only pay attention that `wo` and `wi` lie in the same hemisphere, as indicated by `wo.z` and `wi.z`.
 
-Although the Lambertian BRDF is uniform over the hemisphere, BSDFs are sampled in the context of the light transport equation, (1.1), where the BSDF is multiplied by the incident radiance and a cosine factor. It is worthwhile for BxDFs to include the cosine factor in their sampling distribution if possible; see Figure 9.4, which compares uniform and cosine-weighted hemisphere sampling for the DiffuseBxDF.
+Although the Lambertian BRDF is uniform over the hemisphere, BSDFs are sampled in the context of the light transport equation, (1.1), where the BSDF is multiplied by the incident radiance and a cosine factor. It is worthwhile for `BxDF`s to include the cosine factor in their sampling distribution if possible; see Figure 9.4, which compares uniform and cosine-weighted hemisphere sampling for the `DiffuseBxDF`.
 
 〈Sample cosine-weighted hemisphere to compute wi and pdf〉 ≡ Vector3f wi = SampleCosineHemisphere(u); if (wo.z < 0) wi.z *= -1; Float pdf = CosineHemispherePDF(AbsCosTheta(wi));
 
@@ -595,7 +593,7 @@ Although the Lambertian BRDF is uniform over the hemisphere, BSDFs are sampled i
     Vector3f 86
 ```
 
-The PDF() method just needs to ensure that the caller has included reflection in the types of scattering that it is interested in and that the two directions both lie in the same hemisphere.
+The `PDF()` method just needs to ensure that the caller has included reflection in the types of scattering that it is interested in and that the two directions both lie in the same hemisphere.
 
 〈DiffuseBxDF Public Methods〉 +≡ 546
 
@@ -612,11 +610,12 @@ The PDF() method just needs to ensure that the caller has included reflection in
 
 ![Figure 9.4](images/img-855-153.png)
 
+
 *Figure 9.4: Comparison of Sampling Methods for a Lambertian BSDF. Both images are rendered using 4 samples per pixel. (a) Uniform hemisphere sampling. (b) Cosine-weighted hemisphere sampling. By incorporating the cosine factor in the light transport equation’s integrand, cosine-weighted hemisphere sampling improves mean squared error (MSE) by a factor of 2.34 for this test scene, without additional computational cost.*
 
 ## 9.3 SPECULAR REFLECTION AND TRANSMISSION
 
-Following the discussion of diffuse surfaces with their perfectly uniform reflectance, we now turn to the opposite extreme: specular materials that only reflect light into a discrete set of directions. Following a review of the physical principles underlying such materials in this section, we will introduce concrete BxDF implementations in Sections 9.4 and 9.5.
+Following the discussion of diffuse surfaces with their perfectly uniform reflectance, we now turn to the opposite extreme: specular materials that only reflect light into a discrete set of directions. Following a review of the physical principles underlying such materials in this section, we will introduce concrete `BxDF` implementations in Sections 9.4 and 9.5.
 
 Our initial focus is on perfect specular surfaces. However, many real-world materials are fairly rough at a microscopic scale, and this can have a profound influence on their reflection behavior. Sections 9.6 and 9.7 will generalize our understanding of the perfect specular case to such rough surface microstructures.
 
@@ -634,7 +633,7 @@ The large class of dielectrics includes any substance (whether gaseous, liquid, 
 
 The second class of electric conductors includes metals and metal alloys, but also semi-metals like graphite. Some of the electrons can freely move within their atomic lattice; hence an oscillation induced by an incident electromagnetic wave can move electrons over larger distances. At the same time, migration through the lattice dissipates some of the incident energy in the form of heat, causing rapid absorption of the light wave as it travels deeper into the material. Total absorption typically occurs within the top 0.1 μm of the material; hence only extremely thin metal films are capable of transmitting appreciable amounts of light. We ignore this effect in pbrt and treat metallic surfaces as opaque.
 
-A third class of semiconductors, such as silicon or germanium, exhibits properties of both dielectrics and conductors. For example, silicon appears metallic in the visible spectrum. At the same time, its transparency in the infrared range makes it an excellent material for optical elements in IR cameras. We do not explicitly consider semiconductors in pbrt, though adding a suitable BxDF to handle them would be relatively easy.
+A third class of semiconductors, such as silicon or germanium, exhibits properties of both dielectrics and conductors. For example, silicon appears metallic in the visible spectrum. At the same time, its transparency in the infrared range makes it an excellent material for optical elements in IR cameras. We do not explicitly consider semiconductors in pbrt, though adding a suitable `BxDF` to handle them would be relatively easy.
 
 ### 9.3.2 THE INDEX OF REFRACTION
 
@@ -660,6 +659,7 @@ Light waves undergo significant reflection when they encounter boundaries with a
 
 ![Figure 9.5](images/img-857-154.png)
 
+
 *Figure 9.5: Plots of the Wavelength-Dependent Index of Refraction for Various Materials. All have only a few percent variation in index of refraction over the range of visible wavelengths, though even that is sufficient to be visible in rendered images.*
 
 *Table 9.1 provides IOR values for a number of dielectric materials and Figure 9.5 shows plots of the wavelength-dependent IOR for a few materials. pbrt also includes wavelength-dependent IORs for various materials that can be referred to by name in scene description files; see the file format documentation for more information.*
@@ -672,9 +672,11 @@ Given incident light from a direction (θi, ϕi), the single reflected direction
 
 ![Figure 9.6](images/img-858-155.png)
 
+
 *Figure 9.6: The parallel projection of a vector ω on to the normal n is given by ω‖ = (cos θ)n = (n · ω)n. The perpendicular component is given by ω⊥ = (sin θ)n but is more easily computed by ω⊥ = ω − ω‖.*
 
 ![Figure 9.7](images/img-859-156.png)
+
 
 *Figure 9.7: Because the angles θo and θr are equal, the parallel component of the perfect reflection direction ωr‖ is the same as the incident direction’s: ωr‖ = ωo‖. Its perpendicular component is just the incident direction’s perpendicular component, negated.*
 
@@ -682,7 +684,7 @@ This direction can also be computed using vectorial arithmetic instead of angles
 
 We can decompose vectors ω that lie in a plane into a sum of two components: one parallel to n, which we will denote by ω‖, and one perpendicular to it, denoted ω⊥. These vectors are easily computed: if n and ω are normalized, then ω‖ is (cos θ)n = (n · ω)n (Figure 9.6). Because ω‖ + ω⊥ = ω, ω⊥ = ω − ω‖ = ω − (n · ω)n. Figure 9.7 shows the setting for computing the reflected direction ωr. We can see that both vectors have the same ω‖ component, and the value of ωr⊥ is the negation of ωo⊥. Therefore, we have
 
-The Reflect() function implements this computation.
+The `Reflect()` function implements this computation.
 
 〈Scattering Inline Functions〉 ≡ Vector3f Reflect(Vector3f wo, Vector3f n) { return -wo + 2 * Dot(wo, n) * n; }
 
@@ -704,15 +706,18 @@ As with the law of specular reflection, we shall now derive a more convenient ve
 
 ![Figure 9.8](images/img-860-157.png)
 
+
 *Figure 9.8: Dragon model rendered with (a) perfect specular reflection and (b) perfect specular transmission. Image (b) excludes the effects of external and internal reflection; the resulting energy loss produces conspicuous dark regions. (Model courtesy of Christian Schüller.)*
 
 Dot() 89 Vector3f 86
 
 ![Figure 9.9](images/img-861-158.png)
 
+
 *Figure 9.9: The Effect of Dispersion When Rendering Glass. (a) Rendered using a constant index of refraction, and (b) rendered using a wavelength-dependent index of refraction based on measurements of glass, which causes different wavelengths of light to be scattered in different directions. As a result, white colors are separated, making their individual wavelengths of light distinct. (Scene courtesy of Beeple.)*
 
 ![Figure 9.10](images/img-862-159.png)
+
 
 *Figure 9.10: The Geometry of Specular Transmission. Given an incident direction ωi and surface normal n with angle θi between them, the specularly transmitted direction makes an angle θt with the surface normal. This direction, ωt, can be computed by using Snell’s law to find its perpendicular component ωt⊥ and then computing the ωt‖ that gives a normalized result ωt.*
 
@@ -728,13 +733,13 @@ The parallel component points into the direction −n, and its magnitude is give
 
 Putting all the above together, then, the vector ωt equals
 
-The function Refract() computes the refracted direction wt via Equation (9.4) given an incident direction wi, surface normal n in the same hemisphere as wi, and the relative index of refraction eta. An adjusted relative IOR may be returned via *etap—we will discuss this detail shortly. The function returns a Boolean variable to indicate if the refracted direction was computed successfully.
+The function `Refract()` computes the refracted direction wt via Equation (9.4) given an incident direction wi, surface normal n in the same hemisphere as wi, and the relative index of refraction `eta`. An adjusted relative IOR may be returned via `*etap`—we will discuss this detail shortly. The function returns a Boolean variable to indicate if the refracted direction was computed successfully.
 
 〈Scattering Inline Functions〉 +≡ bool Refract(Vector3f wi, Normal3f n, Float eta, Float *etap, Vector3f *wt) { Float cosTheta_i = Dot(n, wi); 〈Potentially flip interface orientation for Snell’s law 555〉 〈Compute cos θt using Snell’s law 555〉 *wt = -wi / eta + (cosTheta_i / eta - cosTheta_t) * Vector3f(n); 〈Provide relative IOR along ray to caller 555〉 return true; }
 
-The function’s convention for the relative index of refraction eta slightly differs from the previous definition: it specifies the IOR ratio of the object interior relative to the outside, as indicated by the surface normal n that anchors the spherical coordinate system of quantities like θi and θt.
+The function’s convention for the relative index of refraction `eta` slightly differs from the previous definition: it specifies the IOR ratio of the object interior relative to the outside, as indicated by the surface normal n that anchors the spherical coordinate system of quantities like θi and θt.
 
-When the incident ray lies within the object, this convention is no longer compatible with our previous use of Snell’s law, assuming positive angle cosines and a relative IOR relating the incident and transmitted rays. We detect this case and, if needed, flip the interface by inverting the sign of n and cosTheta_i and swapping the IOR values, which is equivalent to taking the reciprocal of the relative IOR. Figure 9.11 illustrates this special case. Including this logic directly in Refract() facilitates its usage in rendering algorithms.
+When the incident ray lies within the object, this convention is no longer compatible with our previous use of Snell’s law, assuming positive angle cosines and a relative IOR relating the incident and transmitted rays. We detect this case and, if needed, flip the interface by inverting the sign of n and `cosTheta_i` and swapping the IOR values, which is equivalent to taking the reciprocal of the relative IOR. Figure 9.11 illustrates this special case. Including this logic directly in `Refract()` facilitates its usage in rendering algorithms.
 
 ```text
     Dot() 89
@@ -744,6 +749,7 @@ When the incident ray lies within the object, this convention is no longer compa
 ```
 
 ![Figure 9.11](images/img-864-160.png)
+
 
 *Figure 9.11: The cosine of the angle θ between a direction ω and the geometric surface normal indicates whether the direction is pointing outside the surface (in the same hemisphere as the normal) or inside the surface. In the standard reflection coordinate system, this test just requires checking the z component of the direction vector. Here, ω is in the upper hemisphere, with a positive-valued cosine, while ω′ is in the lower hemisphere.*
 
@@ -757,7 +763,7 @@ When the incident ray lies within the object, this convention is no longer compa
    }
 ```
 
-It is sometimes useful for the caller of Refract() to know the relative IOR along the ray, while handling the case when the ray arrives from the object’s interior. To make this accessible, we store the updated eta value into the etap pointer if provided.
+It is sometimes useful for the caller of `Refract()` to know the relative IOR along the ray, while handling the case when the ray arrives from the object’s interior. To make this accessible, we store the updated `eta` value into the `etap` pointer if provided.
 
 〈Provide relative IOR along ray to caller〉 ≡ 554
 
@@ -815,19 +821,24 @@ Combining this transformation together with the assumption of unpolarized light 
 
 Dielectrics, conductors, and semiconductors are all governed by the same Fresnel equations. In the common dielectric case, there are additional simplification opportunities; hence it makes sense to first define specialized dielectric evaluation routines. We discuss the more general case in Section 9.3.6.
 
-The function FrDielectric() computes the unpolarized Fresnel reflection of a dielectric interface given its relative IOR η and angle cosine cos θi provided via parameters cosTheta_i and eta.
+The function `FrDielectric()` computes the unpolarized Fresnel reflection of a dielectric interface given its relative IOR η and angle cosine cos θi provided via parameters `cosTheta_i` and `eta`.
 
-〈Fresnel Inline Functions〉 ≡ Float FrDielectric(Float cosTheta_i, Float eta) { cosTheta_i = Clamp(cosTheta_i, -1, 1); 〈Potentially flip interface orientation for Fresnel equations 557〉 〈Compute cos θt for Fresnel equations using Snell’s law〉 Float r_parl = (eta * cosTheta_i - cosTheta_t) /
+〈Fresnel Inline Functions〉 ≡
 
 ```rust
-                         (eta * cosTheta_i + cosTheta_t);
-         Float r_perp = (cosTheta_i - eta * cosTheta_t) /
-                         (cosTheta_i + eta * cosTheta_t);
-         return (Sqr(r_parl) + Sqr(r_perp)) / 2;
+   Float FrDielectric(Float cosTheta_i, Float eta) {
+       cosTheta_i = Clamp(cosTheta_i, -1, 1);
+       〈Potentially flip interface orientation for Fresnel equations 557〉
+       〈Compute cos θt for Fresnel equations using Snell’s law〉
+       Float r_parl = (eta * cosTheta_i - cosTheta_t) /
+                      (eta * cosTheta_i + cosTheta_t);
+       Float r_perp = (cosTheta_i - eta * cosTheta_t) /
+                      (cosTheta_i + eta * cosTheta_t);
+       return (Sqr(r_parl) + Sqr(r_perp)) / 2;
    }
 ```
 
-Recall that our numerical implementation of Snell’s law included a fragment 〈Potentially flip interface orientation for Snell’s law〉 to implement the convention that eta always specifies a relative IOR relating the inside to the outside of an object, as determined by the surface normal. We include a similar step in FrDielectric() so that these two functions are consistent with each other.
+Recall that our numerical implementation of Snell’s law included a fragment 〈Potentially flip interface orientation for Snell’s law〉 to implement the convention that `eta` always specifies a relative IOR relating the inside to the outside of an object, as determined by the surface normal. We include a similar step in FrDielectric() so that these two functions are consistent with each other.
 
 〈Potentially flip interface orientation for Fresnel equations〉 ≡ 557
 
@@ -859,21 +870,23 @@ Note, however, what happens when a negative imaginary component is added. By sta
 
 *Figure 9.12 shows a plot of the index of refraction and absorption coefficient for gold; both of these are wavelength-dependent quantities. Figure 9.13 shows a model rendered with a metal material.*
 
-A wondrous aspect of the Fresnel equations is that these two deceptively simple formulae span all major classes of material behavior including dielectrics, conductors, and semiconductors. In the latter two cases, one must simply evaluate these equations using complex arithmetic. The FrComplex() function realizes this change. It takes the angle cosine of the incident direction and a relative index of
+A wondrous aspect of the Fresnel equations is that these two deceptively simple formulae span all major classes of material behavior including dielectrics, conductors, and semiconductors. In the latter two cases, one must simply evaluate these equations using complex arithmetic. The `FrComplex()` function realizes this change. It takes the angle cosine of the incident direction and a relative index of
 
 refraction obtained using complex division.
 
 ![Figure 9.12](images/img-868-162.png)
 
+
 *Figure 9.12: Absorption Coefficient and Index of Refraction of Gold. This plot shows the spectrally varying values of the absorption coefficient k and the index of refraction η for gold, where the horizontal axis is wavelength in nm.*
 
 ![Figure 9.13](images/img-869-163.png)
+
 
 *Figure 9.13: Killeroo with a Gold Surface. The killeroo model is rendered here using the ConductorBxDF. See Figure 9.12 for a plot of the associated absorption coefficient and index of refraction that lead to its appearance. (Killeroo model courtesy of headus/Rezard.)*
 
 〈Fresnel Inline Functions〉 +≡ Float FrComplex(Float cosTheta_i, pstd::complex<Float> eta) { using Complex = pstd::complex<Float>; cosTheta_i = Clamp(cosTheta_i, 0, 1); 〈Compute complex cos θt for Fresnel equations using Snell’s law 559〉 Complex r_parl = (eta * cosTheta_i - cosTheta_t) / (eta * cosTheta_i + cosTheta_t); Complex r_perp = (cosTheta_i - eta * cosTheta_t) / (cosTheta_i + eta * cosTheta_t); return (pstd::norm(r_parl) + pstd::norm(r_perp)) / 2; }
 
-Compared to FrDielectric(), the main change in the implementation is the type replacement of Float by pstd::complex<Float>. The function pstd::norm(x) computes the squared magnitude—
+Compared to `FrDielectric()`, the main change in the implementation is the type replacement of `Float` by `pstd::complex<Float>`. The function `pstd::norm(x)` computes the squared magnitude—
 
 that is, the square of the distance from the origin of the complex plane to the point x.
 
@@ -899,13 +912,17 @@ This is expected in the case of the Fresnel equations—computation of the actua
 
 Complex numbers play a larger role within the Fresnel equations when polarization is modeled: recall how we detected the total internal reflection when a number under a square root became negative, which is nonsensical in real arithmetic. With complex arithmetic, this imaginary square root can be computed successfully. The angles of the resulting complex numbers r‖ and r⊥ relative to the origin of the complex plane encode a delay (also known as the phase) that influences the polarization state of the reflected superposition of parallel and perpendicularly polarized waves. It is also worth noting that a number of different sign conventions exist—for example, depending on the definition of a plane wave, the imaginary IOR component k of conductors is either positive or negative. Some sources also flip the sign of the r‖ component. Such subtle details are a common source of bugs in renderers that account for polarization, but they are of no concern for pbrt since it only requires the amplitude of the reflected wave.
 
-Before turning to BxDFs using the helper functions defined in the last subsections, we define a convenient wrapper around FrComplex() that takes a spectrally varying complex IOR split into the eta and k, evaluating it NSpectrumSamples times.
+Before turning to `BxDF`s using the helper functions defined in the last subsections, we define a convenient wrapper around `FrComplex()` that takes a spectrally varying complex IOR split into the `eta` and `k`, evaluating it `NSpectrumSamples` times.
 
-〈Fresnel Inline Functions〉 +≡ SampledSpectrum FrComplex(Float cosTheta_i, SampledSpectrum eta, SampledSpectrum k) { SampledSpectrum result; for (int i = 0; i < NSpectrumSamples; ++i) result[i] = FrComplex(cosTheta_i,
+〈Fresnel Inline Functions〉 +≡
 
 ```rust
-                                             pcomplex<Float>(eta[i], k[i]));
-         return result;
+   SampledSpectrum FrComplex(Float cosTheta_i, SampledSpectrum eta,
+                             SampledSpectrum k) {
+       SampledSpectrum result;
+       for (int i = 0; i < NSpectrumSamples; ++i)
+           result[i] = FrComplex(cosTheta_i, pcomplex<Float>(eta[i], k[i]));
+       return result;
    }
 ```
 
@@ -915,7 +932,7 @@ Having described the relevant physical principles, we now turn to the implementa
 
 〈ConductorBxDF Definition〉 ≡ class ConductorBxDF { public: 〈ConductorBxDF Public Methods 561〉 private: 〈ConductorBxDF Private Members 561〉 };
 
-The internal state of the ConductorBxDF consists of the real (eta) and imaginary (k) component of the index of refraction. Furthermore, the implementation requires a microfacet distribution that statistically describes its roughness. The TrowbridgeReitzDistribution class handles the details here. The constructor, not included here, takes these fields as input and stores them in the ConductorBxDF instance.
+The internal state of the `ConductorBxDF` consists of the real (`eta`) and imaginary (`k`) component of the index of refraction. Furthermore, the implementation requires a microfacet distribution that statistically describes its roughness. The `TrowbridgeReitzDistribution` class handles the details here. The constructor, not included here, takes these fields as input and stores them in the `ConductorBxDF` instance.
 
 ```text
     BxDF 538
@@ -933,7 +950,7 @@ The internal state of the ConductorBxDF consists of the real (eta) and imaginary
    SampledSpectrum eta, k;
 ```
 
-We will sidestep all discussion of microfacets for the time being and only cover the effectively smooth case in this section, where the surface is either perfectly smooth or so close to it that it can be modeled as such. The TrowbridgeReitzDistribution provides an EffectivelySmooth() method that indicates this case, in which the microfacet distribution plays no further role. The ConductorBxDF::Flags() method returns BxDFFlags accordingly.
+We will sidestep all discussion of microfacets for the time being and only cover the effectively smooth case in this section, where the surface is either perfectly smooth or so close to it that it can be modeled as such. The `TrowbridgeReitzDistribution` provides an `EffectivelySmooth()` method that indicates this case, in which the microfacet distribution plays no further role. The `ConductorBxDF::Flags()` method returns `BxDFFlags` accordingly.
 
 〈ConductorBxDF Public Methods〉 ≡ 560
 
@@ -965,7 +982,7 @@ A first guess might be to use delta functions to restrict the incident direction
 
 This is not correct because it contains an extra factor of cos θr. However, we can divide out this factor to find the correct BRDF for perfect specular reflection:
 
-The Sample_f() method of the ConductorBxDF method implements Equation (9.9).
+The `Sample_f()` method of the `ConductorBxDF` method implements Equation (9.9).
 
 〈ConductorBxDF Public Methods〉 +≡ 560
 
@@ -986,7 +1003,7 @@ The Sample_f() method of the ConductorBxDF method implements Equation (9.9).
 
 Note that Dirac delta distributions require special handling compared to standard functions. In particular, the probability of successfully drawing a point on the peak is zero, unless the sampling probability is also a delta distribution. In other words, the distribution must be used to determine the sample location.
 
-Because the surface normal ng is (0, 0, 1) in the reflection coordinate system, the equation for the perfect specular reflection direction, (9.1), simplifies substantially; the x and y components only need to be negated to compute this direction and there is no need to call Reflect() (the rough case will require this function, however).
+Because the surface normal ng is (0, 0, 1) in the reflection coordinate system, the equation for the perfect specular reflection direction, (9.1), simplifies substantially; the x and y components only need to be negated to compute this direction and there is no need to call `Reflect()` (the rough case will require this function, however).
 
 〈Sample perfect specular conductor BRDF〉 ≡ 562
 
@@ -997,19 +1014,15 @@ Because the surface normal ng is (0, 0, 1) in the reflection coordinate system, 
    return BSDFSample(f, wi, 1, BxDFFlags::SpecularReflection);
 ```
 
-The PDF value in the returned BSDFSample is set to one, as per the discussion of delta distribution BSDFs in Section 9.1.2. Following the other conventions outlined in that section, BRDF evaluation always returns zero in the smooth case, since the specular peak is considered unreachable by other sampling methods.
+The PDF value in the returned `BSDFSample` is set to one, as per the discussion of delta distribution BSDFs in Section 9.1.2. Following the other conventions outlined in that section, BRDF evaluation always returns zero in the smooth case, since the specular peak is considered unreachable by other sampling methods.
 
 〈ConductorBxDF Public Methods〉 +≡ 560
 
 ```rust
-   SampledSpectrum f(Vector3f wo, Vector3f wi, TransportMode
-   mode) {
+   SampledSpectrum f(Vector3f wo, Vector3f wi, TransportMode mode) {
        if (!SameHemisphere(wo, wi)) return {};
        if (mfDistrib.EffectivelySmooth()) return {};
        〈Evaluate rough conductor BRDF 585〉
-```
-
-```rust
    }
 ```
 
@@ -1032,7 +1045,7 @@ The PDF value in the returned BSDFSample is set to one, as per the discussion of
     Vector3f 86
 ```
 
-The same convention also applies to the PDF() method.
+The same convention also applies to the `PDF()` method.
 
 〈ConductorBxDF Public Methods〉 +≡ 560
 
@@ -1051,17 +1064,18 @@ The missing three fragments—〈Sample rough conductor BRDF〉, 〈Evaluate rou
 
 ![Figure 9.14](images/img-875-164.png)
 
+
 *Figure 9.14: When the BRDF for specular reflection and the BTDF for specular transmission are modulated with the Fresnel formula for dielectrics, the realistic angle-dependent variation of the amount of reflection and transmission gives a visually accurate representation of the glass. (Scene courtesy of Beeple.)*
 
 ## 9.5 DIELECTRIC BSDF
 
-In the dielectric case, the relative index of refraction is real-valued, and specular transmission must be considered in addition to reflection. The DielectricBxDF handles this scenario for smooth and rough interfaces.
+In the dielectric case, the relative index of refraction is real-valued, and specular transmission must be considered in addition to reflection. The `DielectricBxDF` handles this scenario for smooth and rough interfaces.
 
 *Figure 9.14 shows an image of an abstract model using this BxDF to model a glass material.*
 
 〈DielectricBxDF Definition〉 ≡ class DielectricBxDF { public: 〈DielectricBxDF Public Methods 563〉 private: 〈DielectricBxDF Private Members 563〉 };
 
-The constructor takes a single Float-valued eta parameter and a microfacet distribution mfDistrib. Spectrally varying IORs that disperse light into different directions are handled by randomly sampling a single wavelength to follow and then instantiating a corresponding DielectricBxDF. Section 10.5.1 discusses this topic in more detail.
+The constructor takes a single `Float`-valued `eta` parameter and a microfacet distribution `mfDistrib`. Spectrally varying IORs that disperse light into different directions are handled by randomly sampling a single wavelength to follow and then instantiating a corresponding `DielectricBxDF`. Section 10.5.1 discusses this topic in more detail.
 
 〈DielectricBxDF Public Methods〉 ≡ 563
 
@@ -1072,7 +1086,7 @@ DielectricBxDF(Float eta, TrowbridgeReitzDistribution mfDistrib) : eta(eta), mfD
    TrowbridgeReitzDistribution mfDistrib;
 ```
 
-The Flags() method handles three different cases. The first is when the dielectric interface is index-matched—that is, with an equal IOR on both sides (in which case η = 1)—and light is only transmitted. Otherwise, in the other two cases, the BSDF has both reflected and transmitted components. In both of these cases, the TrowbridgeReitzDistribution’s EffectivelySmooth() method differentiates between specular and glossy scattering.
+The `Flags()` method handles three different cases. The first is when the dielectric interface is index-matched—that is, with an equal IOR on both sides (in which case η = 1)—and light is only transmitted. Otherwise, in the other two cases, the BSDF has both reflected and transmitted components. In both of these cases, the `TrowbridgeReitzDistribution`’s `EffectivelySmooth()` method differentiates between specular and glossy scattering.
 
 ```text
     DielectricBxDF 563
@@ -1095,7 +1109,7 @@ The Flags() method handles three different cases. The first is when the dielectr
    }
 ```
 
-The Sample_f() method must choose between sampling perfect specular reflection or transmission. As before, we postpone handling of rough surfaces and only discuss the perfect specular case for now.
+The `Sample_f()` method must choose between sampling perfect specular reflection or transmission. As before, we postpone handling of rough surfaces and only discuss the perfect specular case for now.
 
 〈DielectricBxDF Method Definitions〉 ≡ pstd::optional<BSDFSample> DielectricBxDF::Sample_f(Vector3f wo, Float uc, Point2f u, TransportMode mode, BxDFReflTransFlags sampleFlags) const { if (eta == 1 || mfDistrib.EffectivelySmooth()) { 〈Sample perfect specular dielectric BSDF 564〉 } else { 〈Sample rough dielectric BSDF 590〉 } }
 
@@ -1133,25 +1147,22 @@ Since dielectrics are characterized by both reflection and transmission, the sam
     Vector3f 86
 ```
 
-Because BSDF components can be selectively enabled or disabled via the sampleFlags argument, the component choice is based on adjusted probabilities pr and pt that take this into account.
+Because BSDF components can be selectively enabled or disabled via the `sampleFlags` argument, the component choice is based on adjusted probabilities `pr` and `pt` that take this into account.
 
 〈Compute probabilities pr and pt for sampling reflection and transmission〉 ≡ 564, 568, 587, 590
 
 ```rust
    Float pr = R, pt = T;
    if (!(sampleFlags & BxDFReflTransFlags::Reflection)) pr = 0;
-   if (!(sampleFlags & BxDFReflTransFlags::Transmission)) pt =
-   0;
-```
-
-```rust
-    if (pr == 0 && pt == 0)
-        return {};
+   if (!(sampleFlags & BxDFReflTransFlags::Transmission)) pt = 0;
+   if (pr == 0 && pt == 0)
+       return {};
 ```
 
 In the most common case where both reflection and transmission are sampled, the BSDF value and sample probability contain the common factor F or T, which cancels when their ratio is taken. Thus, all sampled rays end up making the same contribution, and the Fresnel factor manifests in the relative proportion of reflected and transmitted rays.
 
 ![Figure 9.15](images/img-878-165.png)
+
 
 *Figure 9.15: Glass Object Rendered Using the DielectricBxDF. (a) Choosing between specular reflection and transmission with equal probability at each scattering event. (b) Choosing with probability based on the value of the Fresnel equations, as is implemented in the Sample_f() method. Choosing between scattering modes with probability proportional to their contribution significantly reduces error by following fewer paths with low contributions.*
 
@@ -1175,7 +1186,7 @@ Putting all of this together, the only change in the following code compared to 
     Vector3f 86
 ```
 
-Specular transmission is handled along similar lines, though using the refracted ray direction for wi. The equation for the corresponding BTDF is similar to the case for perfect specular reflection, Equation (9.9), though there is an additional subtle technical detail: depending on the IOR η, refraction either compresses or expands radiance in the angular domain, and the implementation must scale ft to account for this. This correction does not change the amount of radiant power in the scene—rather, it models how the same power is contained in a different solid angle. The details of this step differ depending on the direction of propagation in bidirectional rendering algorithms, and we therefore defer the corresponding fragment Account for non-symmetry with transmission to different medium to Section 9.5.2.
+Specular transmission is handled along similar lines, though using the refracted ray direction for wi. The equation for the corresponding BTDF is similar to the case for perfect specular reflection, Equation (9.9), though there is an additional subtle technical detail: depending on the IOR η, refraction either compresses or expands radiance in the angular domain, and the implementation must scale `ft` to account for this. This correction does not change the amount of radiant power in the scene—rather, it models how the same power is contained in a different solid angle. The details of this step differ depending on the direction of propagation in bidirectional rendering algorithms, and we therefore defer the corresponding fragment Account for non-symmetry with transmission to different medium to Section 9.5.2.
 
 〈Sample perfect specular dielectric BTDF〉 ≡ 564
 
@@ -1187,7 +1198,7 @@ Specular transmission is handled along similar lines, though using the refracted
                             BxDFFlags::SpecularTransmission, etap);
 ```
 
-The function Refract() computes the refracted direction wi via Snell’s law, which fails in the case of total internal reflection. In principle, this should never happen: the transmission case is sampled with probability T, which is zero in the case of total internal reflection. However, due to floating-point rounding errors, inconsistencies can occasionally arise here. We handle this corner case by returning an invalid sample.
+The function `Refract()` computes the refracted direction `wi` via Snell’s law, which fails in the case of total internal reflection. In principle, this should never happen: the transmission case is sampled with probability T, which is zero in the case of total internal reflection. However, due to floating-point rounding errors, inconsistencies can occasionally arise here. We handle this corner case by returning an invalid sample.
 
 〈Compute ray direction for specular transmission〉 ≡ 566
 
@@ -1198,7 +1209,7 @@ The function Refract() computes the refracted direction wi via Snell’s law, wh
    if (!valid) return {};
 ```
 
-As with the ConductorBxDF, zero is returned from the f() method if the interface is smooth and all scattering is perfect specular.
+As with the `ConductorBxDF`, zero is returned from the `f()` method if the interface is smooth and all scattering is perfect specular.
 
 〈DielectricBxDF Method Definitions〉 +≡ SampledSpectrum DielectricBxDF::f(Vector3f wo, Vector3f wi, TransportMode mode) const { if (eta == 1 || mfDistrib.EffectivelySmooth()) return SampledSpectrum(0.f); 〈Evaluate rough dielectric BSDF 589〉 }
 
@@ -1233,11 +1244,11 @@ with relative IOR η and a corresponding interface with the inverse 1/η. Exampl
 
 This important special case is referred to as a thin dielectric due to the spatial proximity of the two interfaces compared to the larger lateral dimensions. When incident light splits into a reflected and a transmitted component with two separate interfaces, it is scattered in a recursive process that traps some of the light within the two interfaces (though this amount progressively decays as it undergoes an increasing number of reflections).
 
-While the internal scattering process within a general dielectric may be daunting, simple analytic solutions can fully describe what happens inside such a thin dielectric—that is, an interface pair satisfying the above simplifying conditions. pbrt provides a specialized BSDF named ThinDielectricBxDF that exploits these insights to efficiently represent an infinite number of internal interactions. It further allows such surfaces to be represented with a single interface, saving the ray intersection expense of tracing ray paths between the two surfaces.
+While the internal scattering process within a general dielectric may be daunting, simple analytic solutions can fully describe what happens inside such a thin dielectric—that is, an interface pair satisfying the above simplifying conditions. pbrt provides a specialized BSDF named `ThinDielectricBxDF` that exploits these insights to efficiently represent an infinite number of internal interactions. It further allows such surfaces to be represented with a single interface, saving the ray intersection expense of tracing ray paths between the two surfaces.
 
 〈ThinDielectricBxDF Definition〉 ≡ class ThinDielectricBxDF { public: 〈ThinDielectricBxDF Public Methods 567〉 private: Float eta; };
 
-The only parameter to this BxDF is the relative index of refraction of the interior medium.
+The only parameter to this `BxDF` is the relative index of refraction of the interior medium.
 
 〈ThinDielectricBxDF Public Methods〉 ≡ 567
 
@@ -1245,13 +1256,14 @@ The only parameter to this BxDF is the relative index of refraction of the inter
    ThinDielectricBxDF(Float eta) : eta(eta) {}
 ```
 
-Since this BxDF models only perfect specular scattering, both its f() and PDF() methods just return zero and are therefore not included here.
+Since this BxDF models only perfect specular scattering, both its `f()` and `PDF()` methods just return zero and are therefore not included here.
 
 The theory of the thin dielectric BSDF goes back to seminal work by Stokes (1860), who investigated light propagation in stacks of glass plates. Figure 9.16 illustrates the most common case involving only a single glass plate: an incident light ray (red) reflects and transmits in proportions R and T = 1 − R. When the transmitted ray encounters the bottom interface, reciprocity causes it to reflect and transmit according to the same proportions. This process repeats in perpetuity.
 
 Of course, rays beyond the first interaction are displaced relative to the entrance point. Due to the assumption of a thin dielectric, this spatial shift is considered to be negligible; only the total amount of reflected or transmitted light matters. By making this simplification, it is possible to aggregate the effect of the infinite number of scattering events into a simple modification of the reflectance and transmittance factors.
 
 ![Figure 9.16](images/img-882-166.png)
+
 
 *Figure 9.16: Light Paths in a Thin Plane-Parallel Dielectric Medium. An incident light ray (red) gives rise to an infinite internal scattering process that occurs within the glass plate (blue). At each scattering event, some fraction of the light manages to escape, causing a successive decay of the trapped energy.*
 
@@ -1264,11 +1276,12 @@ Consider the paths that are reflected out from the top layer. Their aggregate re
 
 ![Figure 9.17](images/img-882-167.png)
 
+
 *Figure 9.17: Reflectance of a Fresnel Interface and a Thin Dielectric. This plot compares the reflectance of a single dielectric interface with η = 1.5 as determined by the Fresnel equations (9.6) to that of a matching thin dielectric according to Equation (9.10).*
 
 A similar series gives how much light is transmitted, but it can be just as easily computed as T′ = 1 − R′, due to energy conservation. Figure 9.17 plots R′ and R as a function of incident angle θ. The second interface has the effect of increasing the overall amount of reflection compared to a single Fresnel interaction.
 
-The Sample_f() method computes the R′ and T′ coefficients and then computes probabilities for sampling reflection and transmission, just as the DielectricBxDF did, reusing the corresponding code fragment.
+The `Sample_f()` method computes the R′ and T′ coefficients and then computes probabilities for sampling reflection and transmission, just as the `DielectricBxDF` did, reusing the corresponding code fragment.
 
 〈ThinDielectricBxDF Public Methods〉 +≡ 567
 
@@ -1309,14 +1322,11 @@ The updated reflection and transmission coefficients are easily computed using E
 ```rust
    if (R < 1) {
        R += Sqr(T) * R / (1 - Sqr(R));
+       T = 1 - R;
+   }
 ```
 
-```rust
-         T = 1 - R;
-    }
-```
-
-The DielectricBxDF fragment that samples perfect specular reflection is also reused in this method’s implementation, inheriting the computed R value. The transmission case slightly deviates from the DielectricBxDF, as the transmitted direction is simply the negation of wo.
+The `DielectricBxDF` fragment that samples perfect specular reflection is also reused in this method’s implementation, inheriting the computed R value. The transmission case slightly deviates from the DielectricBxDF, as the transmitted direction is simply the negation of wo.
 
 〈Sample perfect specular transmission at thin dielectric interface〉 ≡ 568
 
@@ -1339,11 +1349,13 @@ More formally, consider incident radiance arriving at the boundary between two m
 
 ![Figure 9.18](images/img-885-168.png)
 
+
 *Figure 9.18: Snell’s Window. If one looks upward when underwater in a swimming pool, the sky is only visible through a circular window because no light is refracted beyond the critical angle. Outside of the window, only the reflection of the pool bottom is seen.*
 
 AbsCosTheta() 107 BSDFSample 541 BxDFFlags::SpecularTransmission 539 DielectricBxDF 563 SampledSpectrum 171 Vector3f 86
 
 ![Figure 9.19](images/img-886-169.png)
+
 
 *Figure 9.19: The amount of transmitted radiance at the boundary between media with different indices of refraction is scaled by the squared ratio of the two indices of refraction. Intuitively, this can be understood as the result of the radiance’s differential solid angle being compressed or expanded as a result of transmission.*
 
@@ -1375,7 +1387,7 @@ We thus define the adjoint BSDF f*, whose only role is to evaluate the original 
 
 All sampling steps based on importance transport use the adjoint form of the BSDF rather than its original version. Most BSDFs in pbrt are symmetric so that there is no actual difference between f and f*. However, non-symmetric cases require additional attention.
 
-The TransportMode enumeration is used to inform such non-symmetric BSDFs about the transported quantity so that they can correctly switch between the adjoint and non-adjoint forms.
+The `TransportMode` enumeration is used to inform such non-symmetric BSDFs about the transported quantity so that they can correctly switch between the adjoint and non-adjoint forms.
 
 〈TransportMode Definition〉 ≡ enum class TransportMode { Radiance, Importance };
 
@@ -1383,7 +1395,7 @@ The adjoint BTDF is then
 
 which effectively cancels out the scale factor in Equation (9.12).
 
-With these equations, we can now define the remaining missing piece in the implementation of the DielectricBxDF evaluation and sampling methods. Whenever radiance is transported over a refractive boundary, we apply the scale factor from Equation (9.12). For importance transport, we use the adjoint BTDF, which lacks the scaling factor due to the combination of Equations (9.12) and (9.13).
+With these equations, we can now define the remaining missing piece in the implementation of the `DielectricBxDF` evaluation and sampling methods. Whenever radiance is transported over a refractive boundary, we apply the scale factor from Equation (9.12). For importance transport, we use the adjoint BTDF, which lacks the scaling factor due to the combination of Equations (9.12) and (9.13).
 
 〈Account for non-symmetry with transmission to different medium〉 ≡ 566, 590, 591
 
@@ -1394,9 +1406,9 @@ With these equations, we can now define the remaining missing piece in the imple
 
 ## 9.6 ROUGHNESS USING MICROFACET THEORY
 
-The preceding discussion of the ConductorBxDF and DielectricBxDF only considered the perfect specular case, where the interface between materials was assumed to be ideally smooth and devoid of any roughness or other surface imperfections. However, many real-world materials are rough at a microscopic scale, which affects the way in which they reflect or transmit light.
+The preceding discussion of the `ConductorBxDF` and `DielectricBxDF` only considered the perfect specular case, where the interface between materials was assumed to be ideally smooth and devoid of any roughness or other surface imperfections. However, many real-world materials are rough at a microscopic scale, which affects the way in which they reflect or transmit light.
 
-We will now turn to a generalization of these BxDFs using microfacet theory, which models rough surfaces as a collection of small surface patches denoted as microfacets. These microfacets are assumed to be individually very small so that they cannot be resolved by the camera. Yet, despite their small size, they can have a profound impact on the angular distribution of scattered light. Figure 9.20 shows cross sections of a relatively rough surface and a much smoother microfacet surface. We will use the term macrosurface to describe the original coarse surface (e.g., as represented by a Shape) and microsurface to describe the fine-scale geometry based on microfacets.
+We will now turn to a generalization of these BxDFs using microfacet theory, which models rough surfaces as a collection of small surface patches denoted as microfacets. These microfacets are assumed to be individually very small so that they cannot be resolved by the camera. Yet, despite their small size, they can have a profound impact on the angular distribution of scattered light. Figure 9.20 shows cross sections of a relatively rough surface and a much smoother microfacet surface. We will use the term macrosurface to describe the original coarse surface (e.g., as represented by a `Shape`) and microsurface to describe the fine-scale geometry based on microfacets.
 
 ```text
     ConductorBxDF 560
@@ -1410,13 +1422,15 @@ It is worth noting that pbrt can in principle already render rough surfaces with
 
 Storage and ray tracing efficiency: Representing micro-scale roughness using triangular geometry would require staggeringly large triangle budgets. The overheads to store and ray trace such large scenes are prohibitive.
 
-Monte Carlo sampling efficiency: A fundamental issue with perfect specular scattering distributions is that they contain Dirac delta terms, which preclude BSDF evaluation (their f() method returns zero, making BSDF sampling the only supported operation). This aspect disables light sampling strategies (Section 12.1), which are crucial for efficiency in Monte Carlo rendering.
+Monte Carlo sampling efficiency: A fundamental issue with perfect specular scattering distributions is that they contain Dirac delta terms, which preclude BSDF evaluation (their `f()` method returns zero, making BSDF sampling the only supported operation). This aspect disables light sampling strategies (Section 12.1), which are crucial for efficiency in Monte Carlo rendering.
 
 ![Figure 9.20](images/img-889-170.png)
+
 
 *Figure 9.20: Microfacet surface models are often described by a function that gives the distribution of microfacet normals ωm with respect to the surface normal n. (a) The greater the variation of microfacet normals, the rougher the surface is. (b) Smooth surfaces have relatively little variation of microfacet normals.*
 
 ![Figure 9.21](images/img-889-171.png)
+
 
 *Figure 9.21: Three Important Geometric Effects to Consider with Microfacet Reflection Models. (a) Masking: the microfacet of interest is not visible to the viewer due to occlusion by another microfacet. (b) Shadowing: analogously, light does not reach the microfacet. (c) Interreflection: light bounces among the microfacets before reaching the viewer.*
 
@@ -1444,8 +1458,10 @@ The most common type of microfacet distribution is isotropic, which also leads t
 
 ![Figure 9.22](images/img-891-172.png)
 
+
 *Figure 9.22: Given a differential area on a surface dA, the microfacet normal distribution function D(ωm) must be normalized such that the projected surface area of the microfacets above the area is equal to dA.*
 
+![Figure 9.23](images/pages/page-0891.png)
 *Figure 9.23: Graphs of isotropic Beckmann–Spizzichino and Trowbridge–Reitz microfacet distribution functions as a function of θ for α = 0.5. Note that Trowbridge–Reitz has higher tails at larger values of θ.*
 
 In contrast, an anisotropic microfacet distribution also depends on the azimuth ϕm to capture directional variation in the surface roughness. Many real-world materials are anisotropic: for example, rolled or milled steel surfaces feature grooves that are aligned with the direction of extrusion. Rotating a flat sheet of such material about the surface normal results in noticeable variation—for example, in the reflection profile of indirectly observed light sources. Brushed metal is an extreme case: its microfacet distribution varies from almost a single direction to almost uniform over the hemisphere.
@@ -1458,7 +1474,7 @@ This equation assumes that the semi-axes of the ellipsoid are aligned with the s
 
 A characteristic feature of the Trowbridge–Reitz model compared to other microfacet distributions is its long tails: the density of microfacets decays comparably slowly as ωm approaches grazing configurations (θm → 90°). This matches the properties of many real-world surfaces well. See Figure 9.23 for a graph of it and another commonly used microfacet distribution function.
 
-The TrowbridgeReitzDistribution class encapsulates the state and functionality needed to use this microfacet distribution in a Monte Carlo renderer.
+The `TrowbridgeReitzDistribution` class encapsulates the state and functionality needed to use this microfacet distribution in a Monte Carlo renderer.
 
 〈TrowbridgeReitzDistribution Definition〉 ≡ class TrowbridgeReitzDistribution { public: 〈TrowbridgeReitzDistribution Public Methods 575〉 private: 〈TrowbridgeReitzDistribution Private Members 575〉 }; 〈TrowbridgeReitzDistribution Public Methods〉 ≡ 575
 
@@ -1468,26 +1484,22 @@ TrowbridgeReitzDistribution(Float alpha_x, Float alpha_y) : alpha_x(alpha_x), al
    Float alpha_x, alpha_y;
 ```
 
-The D() method is a fairly direct transcription of Equation (9.16) with some additional handling of numerical edge cases.
+The `D()` method is a fairly direct transcription of Equation (9.16) with some additional handling of numerical edge cases.
 
 〈TrowbridgeReitzDistribution Public Methods〉 +≡ 575
 
 ```rust
    Float D(Vector3f wm) {
-        Float tan2Theta = Tan2Theta(wm);
+       Float tan2Theta = Tan2Theta(wm);
+       if (IsInf(tan2Theta)) return 0;
+       Float cos4Theta = Sqr(Cos2Theta(wm));
+       Float e = tan2Theta * (Sqr(CosPhi(wm) / alpha_x) +
+                              Sqr(SinPhi(wm) / alpha_y));
+       return 1 / (Pi * alpha_x * alpha_y * cos4Theta * Sqr(1 + e));
+   }
 ```
 
-```rust
-         if (IsInf(tan2Theta)) return 0;
-         Float cos4Theta = Sqr(Cos2Theta(wm));
-         Float e = tan2Theta * (Sqr(CosPhi(wm) / alpha_x) +
-                                  Sqr(SinPhi(wm) / alpha_y));
-         return 1 / (Pi * alpha_x * alpha_y * cos4Theta * Sqr(1 +
-         e));
-    }
-```
-
-Even with those precautions, numerical issues involving infinite or not-a-number values tend to arise at very low roughnesses. It is better to treat such surfaces as perfectly smooth and fall back to the previously discussed specialized implementations. The EffectivelySmooth() method tests the α values for this case.
+Even with those precautions, numerical issues involving infinite or not-a-number values tend to arise at very low roughnesses. It is better to treat such surfaces as perfectly smooth and fall back to the previously discussed specialized implementations. The `EffectivelySmooth()` method tests the α values for this case.
 
 〈TrowbridgeReitzDistribution Public Methods〉 +≡ 575
 
@@ -1518,6 +1530,7 @@ Recall Equation (9.15), which stated that the micro- and macrosurfaces occupy th
 
 ![Figure 9.24](images/img-894-173.png)
 
+
 *Figure 9.24: As seen from a viewer or a light source, a differential area on the surface has area dA cos θ, where cos θ is the angle of the incident direction with the surface normal. The projected surface area of visible microfacets (thick lines) must be equal to dA cos θ as well; the masking function G1 gives the fraction of the total microfacet area over dA that is visible in the given direction.*
 
 *Figure 9.24 illustrates the oblique generalization of Equation (9.15), whose left hand side integrates over microfacets and computes the area of their perpendicular projection along ω. A maximum is taken to ignore backfacing microfacets, and G1 accounts for masking by other facets. The right hand side captures the relative size of the macrosurface, which shrinks by a factor of cos θ.*
@@ -1532,7 +1545,7 @@ This is Smith’s approximation. Despite the rather severe simplification, it ha
 
 The integral in Equation (9.18) has analytic solutions for various common choices of micro-facet distributions D(ωm), including the Trowbridge–Reitz model. In practice, the masking function is often expressed in terms of an auxiliary function ∧(ω) that arises naturally when the derivation of masking is conducted in the slope domain. This has some benefits that we shall see shortly, and we therefore adopt the same approach that relates G1 and ∧ as follows:
 
-The Lambda() method computes this function.
+The `Lambda()` method computes this function.
 
 〈TrowbridgeReitzDistribution Public Methods〉 +≡ 575
 
@@ -1544,20 +1557,16 @@ Under the uncorrelated height assumption, ∧(ω) has the following analytic sol
 
 where α denotes the isotropic surface roughness. An anisotropic generalization follows from the observation that anisotropy implies tangential scaling of the microsurface based on 1/αx and 1/αy. A 1-dimensional ray ω that is not aligned with the x- or y-axis will observe a different scaling amount that lies between these extremes. The associated interpolated roughness is given by
 
-Anisotropic masking reuses the isotropic ∧ with this definition of α. The “Further Reading” section at the end of this chapter provides more details on these steps. The Lambda() function implements Equation (9.20) in the general case.
+Anisotropic masking reuses the isotropic ∧ with this definition of α. The “Further Reading” section at the end of this chapter provides more details on these steps. The `Lambda()` function implements Equation (9.20) in the general case.
 
 〈TrowbridgeReitzDistribution Public Methods〉 +≡ 575
 
 ```rust
    Float Lambda(Vector3f w) {
-        Float tan2Theta = Tan2Theta(w);
-        if (IsInf(tan2Theta)) return 0;
-        Float alpha2 = Sqr(CosPhi(w) * alpha_x) + Sqr(SinPhi(w) *
-        alpha_y);
-        return (sqrt(1 + alpha2 * tan2Theta) - 1) / 2;
-```
-
-```rust
+       Float tan2Theta = Tan2Theta(w);
+       if (IsInf(tan2Theta)) return 0;
+       Float alpha2 = Sqr(CosPhi(w) * alpha_x) + Sqr(SinPhi(w) * alpha_y);
+       return (sqrt(1 + alpha2 * tan2Theta) - 1) / 2;
    }
 ```
 
@@ -1578,9 +1587,11 @@ Anisotropic masking reuses the isotropic ∧ with this definition of α. The “
 
 ![Figure 9.25](images/img-896-174.png)
 
+
 *Figure 9.25: Spheres rendered with (left) an anisotropic microfacet distribution and (right) an isotropic distribution. Note the different specular highlight shapes from the anisotropic model. We have used spheres here instead of the dragon, since anisotropic models like these depend on a globally consistent set of tangent vectors over the surface to orient the direction of anisotropy in a reasonable way.*
 
 ![Figure 9.26](images/img-897-175.png)
+
 
 *Figure 9.26: The Masking Function G1(ω) for the Trowbridge–Reitz Distribution. Increasing surface roughness (higher α values) causes the function to fall off to zero more quickly.*
 
@@ -1596,7 +1607,7 @@ We instead rely on an approximation that accounts for the property that a microf
 
 based correlation into account can be derived:
 
-The bidirectional form of G implements this equation based on the previously defined Lambda() function.
+The bidirectional form of G implements this equation based on the previously defined `Lambda()` function.
 
 〈TrowbridgeReitzDistribution Public Methods〉 +≡ 575
 
@@ -1620,7 +1631,7 @@ Recall the normalization criterion from Equation (9.17), which stated that the s
 
 The probability of a ray interacting with a particular microfacet is directly proportional to its visible area; hence this equation can be seen to encapsulate the distribution that should be used. Following division of both sides by cos θ, the integral on the left hand side equals one—in other words, it turns into a normalized density Dω(ωm) that we shall refer to as the distribution of visible normals:
 
-It describes the projected area of forward-facing normals, where the first term involving the masking function specifies an ω-dependent normalization factor. The method D() evaluates this density function.
+It describes the projected area of forward-facing normals, where the first term involving the masking function specifies an ω-dependent normalization factor. The method `D()` evaluates this density function.
 
 〈TrowbridgeReitzDistribution Public Methods〉 +≡ 575
 
@@ -1632,7 +1643,7 @@ It describes the projected area of forward-facing normals, where the first term 
 
 Two upcoming microfacet BSDFs will rely on the ability to sample microfacet normals ωm according to this density. At this point, one would ordinarily apply the inversion method (Section 2.3) to Equation (9.23) to build a sampling algorithm, but this leads to a relatively complex and approximate method: part of the problem is that the central inversion step lacks an analytic solution. We instead follow a simple geometric approach that exploits the definition of the microsurface in terms of an arrangement of many identical truncated spheres or ellipsoids.
 
-Before implementing the sampling routine, we will quickly take care of the method that returns the associated PDF, which is simply another name for the D() method.
+Before implementing the sampling routine, we will quickly take care of the method that returns the associated `PDF`, which is simply another name for the `D()` method.
 
 〈TrowbridgeReitzDistribution Public Methods〉 +≡ 575
 
@@ -1651,13 +1662,15 @@ Before implementing the sampling routine, we will quickly take care of the metho
     Vector3f 86
 ```
 
-An observation illustrated in Figure 9.28 can be used to further simplify this task: by applying the inverse of the ellipsoid’s scaling transformation, the problem reduces to the simpler isotropic case. For this, we must transform the incident direction ω to the hemispherical configuration, perform a hemispherical sampling step, and then re-transform the resulting points back to the ellipsoidal state. The Sample_wm() method realizes this sequence of steps.
+An observation illustrated in Figure 9.28 can be used to further simplify this task: by applying the inverse of the ellipsoid’s scaling transformation, the problem reduces to the simpler isotropic case. For this, we must transform the incident direction ω to the hemispherical configuration, perform a hemispherical sampling step, and then re-transform the resulting points back to the ellipsoidal state. The `Sample_wm()` method realizes this sequence of steps.
 
 ![Figure 9.27](images/img-899-176.png)
+
 
 *Figure 9.27: Sampling the distribution of visible normals Dω(ωm) is equivalent to casting rays against the surface microstructure that is composed of many truncated spherical or ellipsoidal bumps. It suffices to consider a single bump in this process.*
 
 ![Figure 9.28](images/img-900-177.png)
+
 
 *Figure 9.28: Sampling the anisotropic variant of the Trowbridge–Reitz distribution entails perpendicular projection of uniformly distributed points onto a truncated ellipsoid. Applying the inverse of the ellipsoid’s scaling transformation to all parts of this problem (ellipsoid and incident ray) reduces this problem to the easier hemispherical/isotropic case.*
 
@@ -1665,15 +1678,11 @@ An observation illustrated in Figure 9.28 can be used to further simplify this t
 
 ```rust
    Vector3f Sample_wm(Vector3f w, Point2f u) {
-        〈Transform w to hemispherical configuration 580〉
-        〈Find orthonormal basis for visible normal sampling 581〉
-        〈Generate uniformly distributed points on the unit disk 581〉
-        〈Warp hemispherical projection for visible normal sampling 581〉
-        〈Reproject to hemisphere and transform normal to ellipsoid configuration
-        582〉
-```
-
-```rust
+       〈Transform w to hemispherical configuration 580〉
+       〈Find orthonormal basis for visible normal sampling 581〉
+       〈Generate uniformly distributed points on the unit disk 581〉
+       〈Warp hemispherical projection for visible normal sampling 581〉
+       〈Reproject to hemisphere and transform normal to ellipsoid configuration 582〉
    }
 ```
 
@@ -1700,6 +1709,7 @@ Next, we complete the unit vector wh to an orthonormal basis (T1, T2, wh). The p
 
 ![Figure 9.29](images/img-901-178.png)
 
+
 *Figure 9.29: The perpendicular projection of a truncated hemisphere can be decomposed into the projection of two half-disks highlighted in red and blue. The size and shape of the projected tangential half-disk (blue) depends on the incident direction ω and vanishes at grazing incidence.*
 
 〈Find orthonormal basis for visible normal sampling〉 ≡ 580
@@ -1721,7 +1731,7 @@ Next, we complete the unit vector wh to an orthonormal basis (T1, T2, wh). The p
 
 Let p = (x, y) denote a point on the unit disk. For a given x ∈ [−1, 1], the y-component lies on the interval [−h, h], where specifies the maximum height. Due to non-perpendicular projection, this interval must now be reduced to [−h cos θ, h], which requires an affine transformation
 
-with scale and offset . The following fragment efficiently performs this transformation using the Lerp() function.
+with scale and offset . The following fragment efficiently performs this transformation using the `Lerp()` function.
 
 〈Warp hemispherical projection for visible normal sampling〉 ≡ 580
 
@@ -1754,7 +1764,7 @@ Note that it may seem that we should divide instead of multiplying by αx and α
 
 ### 9.6.5 THE TORRANCE–SPARROW MODEL
 
-We can finally explain how the ConductorBxDF handles rough microstructures via a BRDF model due to Torrance and Sparrow (1967). Instead of directly deriving their approach from first principles, we will instead explain how this model is sampled in pbrt, and then reverse-engineer the implied BRDF.
+We can finally explain how the `ConductorBxDF` handles rough microstructures via a BRDF model due to Torrance and Sparrow (1967). Instead of directly deriving their approach from first principles, we will instead explain how this model is sampled in pbrt, and then reverse-engineer the implied BRDF.
 
 Combined with the visible normal sampling approach, the sampling routine of this model consists of three physically intuitive steps:
 
@@ -1786,6 +1796,7 @@ The Half-Direction Transform Transitioning between half- and incident directions
 
 ![Figure 9.30](images/img-904-179.png)
 
+
 *Figure 9.30: Microfacet normals, incident directions, and outgoing directions satisfy an interesting geometric relationship. We hold the outgoing direction ωo fixed and visualize the set of microfacets (shaded in blue) that will yield a valid reflection from an arc/cone of directions around the incident direction (shaded in green). In the flatland setting shown in (a), the set of admissible microfacets is simply a smaller arc. The 3D case is more complex and involves spherical conic sections. In (b), with the center of the ωi cone aligned with ωo, the admissible microfacets form a spherical circle. (c) With a 140° angle between ωo and the central ωi direction, the microfacets form a spherical ellipse. (d) A spherical hyperbola is the result with a 170° angle. The Torrance–Sparrow model depends on the ratio of the surface area of these shaded sets, which has a succinct analytic solution in the infinitesimally small case.*
 
 A slight perturbation of the incident angle θi (shaded green region) while keeping θo fixed requires a corresponding change to the microfacet angle θm (shaded blue region) to ensure that the law of specular reflection continues to hold. However, this perturbation to θm is smaller—half as small, to be precise—which directly follows from Equation (9.26). Indeed, the derivative of Equation (9.26) yields dθm/dθi = 1/2 for the 2D case.
@@ -1798,7 +1809,7 @@ The resulting Jacobian determinant can be thus conveniently expressed in terms o
 
 Torrance–Sparrow PDF With the relationship of Equation (9.27) at hand, we are now able to evaluate the probability per unit solid angle of the sampled incident directions ωi obtained through the combination of visible normal sampling and the reflection mapping:
 
-where ωm depends on ωi via the half-direction transform in Equation (9.25). The following previously undefined fragment incorporates these observations into ConductorBxDF::PDF().
+where ωm depends on ωi via the half-direction transform in Equation (9.25). The following previously undefined fragment incorporates these observations into `ConductorBxDF::PDF()`.
 
 〈Evaluate sampling PDF of rough conductor BRDF〉 ≡ 562
 
@@ -1853,15 +1864,11 @@ Incident and outgoing directions at glancing angles need to be handled explicitl
 〈Compute cosines and ωm for conductor BRDF〉 ≡ 585
 
 ```rust
-   Float    cosTheta_o             =   AbsCosTheta(wo),     cosTheta_i      =
-   AbsCosTheta(wi);
-```
-
-```rust
-    if (cosTheta_i == 0 || cosTheta_o == 0) return {};
-    Vector3f wm = wi + wo;
-    if (LengthSquared(wm) == 0) return {};
-    wm = Normalize(wm);
+   Float cosTheta_o = AbsCosTheta(wo), cosTheta_i = AbsCosTheta(wi);
+   if (cosTheta_i == 0 || cosTheta_o == 0) return {};
+   Vector3f wm = wi + wo;
+   if (LengthSquared(wm) == 0) return {};
+   wm = Normalize(wm);
 ```
 
 Note that the Fresnel term is based on the angle of incidence relative to the microfacet (i.e., ωo · ωm) rather than the macrosurface.
@@ -1872,7 +1879,7 @@ Note that the Fresnel term is based on the angle of incidence relative to the mi
    SampledSpectrum F = FrComplex(AbsDot(wo, wm), eta, k);
 ```
 
-Torrance–Sparrow Sampling The sampling procedure follows the sequence of steps outlined at the beginning of this subsection. It first uses Sample_wm() to find a microfacet orientation and reflects the outgoing direction about the microfacet’s normal to find ωi before evaluating the BRDF and density function.
+Torrance–Sparrow Sampling The sampling procedure follows the sequence of steps outlined at the beginning of this subsection. It first uses `Sample_wm()` to find a microfacet orientation and reflects the outgoing direction about the microfacet’s normal to find ωi before evaluating the BRDF and density function.
 
 〈Sample rough conductor BRDF〉 ≡ 562
 
@@ -1914,17 +1921,19 @@ A curious situation arises when the sampled microfacet normal leads to a compute
     if (!SameHemisphere(wo, wi)) return {};
 ```
 
-We omit the fragment 〈Compute PDF of wi for microfacet reflection〉 that follows Conductor BxDF::PDF().
+We omit the fragment 〈Compute PDF of wi for microfacet reflection〉 that follows `ConductorBxDF::PDF()`.
 
 Visible normal sampling is still a relatively new development: for several decades, microfacet models relied on sampling ωm directly proportional to the microfacet distribution, which tends to produce noisier renderings since some terms of the BRDF are not sampled exactly. Figure 9.31 compares this classical approach to what is now implemented in pbrt.
 
 ![Figure 9.31](images/img-909-181.png)
+
 
 *Figure 9.31: Comparison of Microfacet Sampling Techniques. The ground plane under the spheres has a metal material modeled using the Torrance–Sparrow BRDF with a roughness of α = 0.01. Even with this relatively smooth microsurface, (a) sampling the full microfacet distribution D(ωm) gives visibly higher error from unusable samples taken from backfacing microfacets than (b) directly sampling the visible microfacet distribution .*
 
 ConductorBxDF::mfDistrib 561 ConductorBxDF::PDF() 562 Reflect() 552 SameHemisphere() 538 TrowbridgeReitzDistribution::Sample_wm() 580 Vector3f 86
 
 ![Figure 9.32](images/img-910-182.png)
+
 
 *Figure 9.32: Dragon models rendered with the Torrance–Sparrow microfacet model featuring both reflection (a) and transmission (b). (Model courtesy of Christian Schüller.)*
 
@@ -2204,15 +2213,17 @@ Surfaces with non-standard microstructure. For example, a woven fabric composed 
     Vector3f 86
 ```
 
-Instead of developing numerous additional specialized BxDFs, we will now pursue another way of reproducing such challenging materials in a renderer: by interpolating measurements of real-world material samples to create a data-driven reflectance model. The resulting MeasuredBxDF only models surface reflection, though the approach can in principle generalize to transmission as well.
+Instead of developing numerous additional specialized BxDFs, we will now pursue another way of reproducing such challenging materials in a renderer: by interpolating measurements of real-world material samples to create a data-driven reflectance model. The resulting `MeasuredBxDF` only models surface reflection, though the approach can in principle generalize to transmission as well.
 
-〈MeasuredBxDF Definition〉 ≡ class MeasuredBxDF { public:
+〈MeasuredBxDF Definition〉 ≡
 
 ```rust
-          〈MeasuredBxDF Public Methods〉
-        private:
-          〈MeasuredBxDF Private Methods 601〉
-          〈MeasuredBxDF Private Members 600〉
+   class MeasuredBxDF {
+     public:
+       〈MeasuredBxDF Public Methods〉
+     private:
+       〈MeasuredBxDF Private Methods 601〉
+       〈MeasuredBxDF Private Members 600〉
    };
 ```
 
@@ -2241,13 +2252,16 @@ of specular reflection can drastically reduce the number of sample points that a
 
 ![Figure 9.33](images/img-919-184.png)
 
+
 *Figure 9.33: Specialized Hardware for BSDF Acquisition. The term goniophotometer (or gonioreflectometer) refers to a typically motorized platform that can simultaneously illuminate and observe a material sample from arbitrary pairs of directions. The device on the left (at Cornell University, built by Cyberware Inc., image courtesy of Steve Marschner) rotates camera (2 degrees of freedom) and light arms (1 degree of freedom) around a centered sample pedestal that can also rotate about its vertical axis. The device on the right (at EPFL, built by pab advanced technologies Ltd) instead uses a static light source and a rotating sensor arm (2 degrees of freedom). The vertical material sample holder then provides 2 rotational degrees of freedom to cover the full 4D domain of the BSDF.*
 
 ![Figure 9.34](images/img-920-185.png)
 
+
 *Figure 9.34: Adaptive BRDF Sample Placement. (a) Regular sampling of the incident and outgoing directions is a prohibitively expensive way of measuring and storing BRDFs due to the curse of dimensionality (here, only 2 of the 4 dimensions are shown). (b) A smaller number of samples can yield a more accurate interpolant if their placement is informed by the material’s reflectance behavior.*
 
 ![Figure 9.35](images/img-920-186.png)
+
 
 *Figure 9.35: The Effect of Surface Roughness on Adaptive BRDF Sample Placement. The two plots visualize BRDF values of two materials with different roughnesses for varying directions ωi and fixed ωo. Circles indicate adaptively chosen measurement locations, which are used to create the interpolant implemented in the MeasuredBxDF class. (a) The measurement locations broadly cover the hemisphere given a relatively rough material. (b) For a more specular material the samples are concentrated in the region around the specular peak. Changing the outgoing direction moves the specular peak; hence the sample locations must depend on ωo.*
 
@@ -2260,6 +2274,7 @@ where fr(ωo, ωi) refers to the real-world BRDF of a material sample, as measur
 This procedure raises several questions: first, the non-random use of a method designed for Monte Carlo sampling may be unexpected. To see why this works, remember that the inversion method (Section 2.3) evaluates the inverse of a distribution’s cumulative distribution function (CDF). Besides being convenient for sampling, this inverse CDF can also be interpreted as a parameterization of the target domain from the unit square. This parameterization smoothly warps the domain so that regions with a high contribution occupy a correspondingly large amount of the unit square. The MeasuredBxDF then simply measures and stores BRDF values in these “improved” coordinates. Note that the material does not have to agree with microfacet theory for this warping to be valid, though the sampling pattern is much less efficient and requires a denser discretization when the material’s behavior deviates significantly.
 
 ![Figure 9.36](images/img-922-187.png)
+
 
 *Figure 9.36: Visible Normal Sampling as a Parameterization. The MeasuredBxDF leverages visible normal sampling as a parameterization R of the unit sphere. Here, it is used in a deterministic fashion to transform a set of grid points u(k) with k = 1, … , n into spherical directions to be measured. Evaluating the resulting BRDF representation requires the inverse R−1 followed by linear interpolation within the regular grid of measurements.*
 
@@ -2276,6 +2291,7 @@ In the present context, fr represents real-world data, while p and R encapsulate
 deviations otherwise. This can roughly be interpreted as measuring the difference (in a multiplicative sense) between the real world and the microfacet simplification. Figure 9.37 visualizes the effect of the transformation in Equation (9.42).
 
 ![Figure 9.37](images/img-923-188.png)
+
 
 *Figure 9.37: Reparameterized BRDF Visualization. This figure illustrates the representation of two material samples: a metallic sample swatch from the L3-37 robot in the film Solo: A Star Wars Story (Walt Disney Studios Motion Pictures) and a pearlescent vehicle vinyl wrap (TeckWrap International Inc.). Each column represents a measurement of a separate outgoing direction ωo. For both materials, the first row visualizes the measured directions ωi(k). The subsequent row plots the “raw” reparameterized BRDF of Equation (9.41), where each pixel represents one of the grid points u(k) ∈ [0, 1]2 identified with ωi(k). The final row shows transformed measurements corresponding to Equation (9.42) that are more uniform and easier to interpolate. Note that these samples are both isotropic, which is why a few measurements for different elevation angles suffice. In the anisotropic case, the (θo, ϕo) domain must be covered more densely.*
 
@@ -2315,31 +2331,32 @@ This integral equation can be solved by measuring fr(p, ωj, ωj) for n directio
 
 ### 9.8.1 BASIC DATA STRUCTURES
 
-MeasuredBxDFData holds data pertaining to reflectance measurements and the underlying parameterization. Because the data for an isotropic BRDF is typically a few megabytes and the data for an anisotropic BRDF may be over 100, each measured BRDF that is used in the scene is stored in memory only once. As instances of MeasuredBxDF are created at surface intersections during rendering, they can then store just a pointer to the appropriate MeasuredBxDFData. Code not included here adds the ability to initialize instances of this type from binary .bsdf files containing existing measurements.6
+`MeasuredBxDFData` holds data pertaining to reflectance measurements and the underlying parameterization. Because the data for an isotropic BRDF is typically a few megabytes and the data for an anisotropic BRDF may be over 100, each measured BRDF that is used in the scene is stored in memory only once. As instances of `MeasuredBxDF` are created at surface intersections during rendering, they can then store just a pointer to the appropriate MeasuredBxDFData. Code not included here adds the ability to initialize instances of this type from binary `.bsdf` files containing existing measurements.6
 
 〈MeasuredBxDFData Definition〉 ≡ struct MeasuredBxDFData { 〈MeasuredBxDFData Public Members 598〉 };
 
-Measured BRDFs are represented by spectral measurements at a set of discrete wavelengths that are stored in wavelengths. The actual measurements are stored in spectra.
+Measured BRDFs are represented by spectral measurements at a set of discrete wavelengths that are stored in `wavelengths`. The actual measurements are stored in `spectra`.
 
 〈MeasuredBxDFData Public Members〉 ≡ 598
 
 pstd::vector<float> wavelengths; PiecewiseLinear2D<3> spectra;
 
-The template class PiecewiseLinear2D represents a piecewise-linear interpolant on the 2D unit square with samples arranged on a regular grid. The details of its implementation are relatively technical and reminiscent of other interpolants in this book; hence we only provide an overview of its capabilities and do not include its full implementation here.
+The template class `PiecewiseLinear2D` represents a piecewise-linear interpolant on the 2D unit square with samples arranged on a regular grid. The details of its implementation are relatively technical and reminiscent of other interpolants in this book; hence we only provide an overview of its capabilities and do not include its full implementation here.
 
-The class is parameterized by a Dimension template parameter that extends the 2D interpolant to higher dimensions—for example, PiecewiseLinear2D<1> stores a 3D grid of values, and PiecewiseLinear2D<3> used above for spectra is a 5D quantity. The class provides three key methods: template <size_t Dimension> class PiecewiseLinear2D { public: Float Evaluate(Point2f pos, Float… params); PLSample Sample(Point2f u, Float… params); PLSample Invert(Point2f p, Float… params); };
+The class is parameterized by a `Dimension` template parameter that extends the 2D interpolant to higher dimensions—for example, `PiecewiseLinear2D<1>` stores a 3D grid of values, and `PiecewiseLinear2D<3>` used above for spectra is a 5D quantity. The class provides three key methods: template <size_t Dimension> class PiecewiseLinear2D { public: Float Evaluate(Point2f pos, Float… params); PLSample Sample(Point2f u, Float… params); PLSample Invert(Point2f p, Float… params); };
 
 ![Figure 9.38](images/img-927-189.png)
 
+
 *Figure 9.38: Three Measured BRDFs. (a) TeckWrap Amber Citrine vinyl wrapping film. (b) Purple acrylic felt. (c) Silk from an Indian sari with two colors of yarn.*
 
-where PLSample is defined as struct PLSample { Point2f p; Float pdf; };
+where `PLSample` is defined as struct PLSample { Point2f p; Float pdf; };
 
-Evaluate() takes a position pos ∈ [0, 1]2 and then additional Float parameters to perform a lookup using multidimensional linear interpolation according to the value of Dimension.
+`Evaluate()` takes a position `pos` ∈ [0, 1]2 and then additional `Float` parameters to perform a lookup using multidimensional linear interpolation according to the value of `Dimension`.
 
-Sample() warps u ∈ [0, 1]2 via inverse transform sampling (i.e., proportional to the stored linear interpolant), returning both the sampled position on [0, 1]2 and the associated density as a PLSample. The additional parameters passed via params are used as conditional variables that restrict sampling to a 2D slice of a higher-dimensional function. For example, invoking the method PiecewiseLinear2D<3>::Sample() with a uniform 2D variate and parameters 0.1, 0.2, and 0.3 would importance sample the 2D slice I(0.1, 0.2, 0.3, ., .) of a pentalinear interpolant I. Finally, Invert() implements the exact inverse of Sample(). Invoking it with the position computed by Sample() will recover the input u value up to rounding error. Additional PiecewiseLinear1D instances are used to (redundantly) store the normal distribution D(ωm) in ndf, the visible normal distribution parameterized by ωo = (θo, ϕo) in vndf, and the normalization
+`Sample()` warps `u` ∈ [0, 1]2 via inverse transform sampling (i.e., proportional to the stored linear interpolant), returning both the sampled position on [0, 1]2 and the associated density as a `PLSample`. The additional parameters passed via `params` are used as conditional variables that restrict sampling to a 2D slice of a higher-dimensional function. For example, invoking the method `PiecewiseLinear2D<3>::Sample()` with a uniform 2D variate and parameters 0.1, 0.2, and 0.3 would importance sample the 2D slice I(0.1, 0.2, 0.3, ., .) of a pentalinear interpolant I. Finally, `Invert()` implements the exact inverse of Sample(). Invoking it with the position computed by Sample() will recover the input u value up to rounding error. Additional `PiecewiseLinear1D` instances are used to (redundantly) store the normal distribution D(ωm) in `ndf`, the visible normal distribution parameterized by ωo = (θo, ϕo) in `vndf`, and the normalization
 
-constant σ(ωo) in sigma. The data structure also records whether the material is isotropic, in which case the dimensionality of some of the piecewise-linear interpolants can be reduced. 〈MeasuredBxDFData Public Members〉 +≡ 598
+constant σ(ωo) in `sigma`. The data structure also records whether the material is isotropic, in which case the dimensionality of some of the piecewise-linear interpolants can be reduced. 〈MeasuredBxDFData Public Members〉 +≡ 598
 
 PiecewiseLinear2D<0> ndf; PiecewiseLinear2D<2> vndf; PiecewiseLinear2D<0> sigma; bool isotropic;
 
@@ -2355,9 +2372,19 @@ The only information that must be stored as MeasuredBxDF member variables in ord
 
 const MeasuredBxDFData *brdf; SampledWavelengths lambda;
 
-BRDF evaluation then follows the approach described in Equation (9.45). 〈MeasuredBxDF Method Definitions〉 ≡ SampledSpectrum MeasuredBxDF::f(Vector3f wo, Vector3f wi, TransportMode mode) const { 〈Check for valid reflection configurations 600〉 〈Determine half-direction vector ωm 600〉 〈Map ωo and ωm to the unit square [0, 1]2〉 〈Evaluate inverse parameterization R−1 601〉 〈Evaluate spectral 5D interpolant 601〉 〈Return measured BRDF value 601〉
+BRDF evaluation then follows the approach described in Equation (9.45).
+
+〈MeasuredBxDF Method Definitions〉 ≡
 
 ```rust
+   SampledSpectrum MeasuredBxDF::f(Vector3f wo, Vector3f wi,
+                                   TransportMode mode) const {
+       〈Check for valid reflection configurations 600〉
+       〈Determine half-direction vector ωm 600〉
+       〈Map ωo and ωm to the unit square [0, 1]2〉
+       〈Evaluate inverse parameterization R−1 601〉
+       〈Evaluate spectral 5D interpolant 601〉
+       〈Return measured BRDF value 601〉
    }
 ```
 
@@ -2374,9 +2401,9 @@ The next code fragment determines the associated microfacet normal and handles a
    wm = Normalize(wm);
 ```
 
-A later step requires that ωo and ωm are mapped onto the unit square [0, 1]2, which we do in two steps: first, by converting the directions to spherical coordinates, which are then further transformed by helper methods theta2u() and phi2u().
+A later step requires that ωo and ωm are mapped onto the unit square [0, 1]2, which we do in two steps: first, by converting the directions to spherical coordinates, which are then further transformed by helper methods `theta2u()` and `phi2u()`.
 
-In the isotropic case, the mapping used for ωm subtracts ϕo from ϕm, which allows the stored tables to be invariant to rotation about the surface normal. This may cause the second dimension of u_wm to fall out of the [0, 1] interval; a subsequent correction fixes this using the periodicity of the azimuth parameter.
+In the isotropic case, the mapping used for ωm subtracts ϕo from ϕm, which allows the stored tables to be invariant to rotation about the surface normal. This may cause the second dimension of `u_wm` to fall out of the [0, 1] interval; a subsequent correction fixes this using the periodicity of the azimuth parameter.
 
 ```text
    LengthSquared() 87
@@ -2394,7 +2421,7 @@ In the isotropic case, the mapping used for ωm subtracts ϕo from ϕm, which al
 
 〈Map ωo and ωm to the unit square [0, 1]2〉 ≡ Float theta_o = SphericalTheta(wo), phi_o = std::atan2(wo.y, wo.x); Float theta_m = SphericalTheta(wm), phi_m = std::atan2(wm.y, wm.x); Point2f u_wo(theta2u(theta_o), phi2u(phi_o)); Point2f u_wm(theta2u(theta_m), phi2u(brdf->isotropic ? (phi_m - phi_o) : phi_m)) ; u_wm[1] = u_wm[1] - pstd::floor(u_wm[1]);
 
-The two helper functions encapsulate an implementation detail of the storage representation. The function phi2u() uniformly maps [−π, π] onto [0, 1], while theta2u() uses a nonlinear transformation that places more resolution near θ ≈ 0 to facilitate storing the microfacet distribution of highly specular materials. 〈MeasuredBxDF Private Methods〉 ≡ 592
+The two helper functions encapsulate an implementation detail of the storage representation. The function `phi2u()` uniformly maps [−π, π] onto [0, 1], while `theta2u()` uses a nonlinear transformation that places more resolution near θ ≈ 0 to facilitate storing the microfacet distribution of highly specular materials. 〈MeasuredBxDF Private Methods〉 ≡ 592
 
 static Float theta2u(Float theta) { return std::sqrt(theta * (2 / Pi)); } static Float phi2u(Float phi) { return phi * (1 / (2 * Pi)) + .5f; }
 
@@ -2436,23 +2463,26 @@ Finally, fr must be scaled to undo the transformations that were applied to the 
 
 return fr * brdf->ndf.Evaluate(u_wm) / (4 * brdf->sigma.Evaluate(u_wo) * CosTheta(wi));
 
-In principle, implementing the Sample_f() and PDF() methods required by the BxDF interface is straightforward: the Sample_f() method could evaluate the forward mapping R to perform visible normal sampling based
+In principle, implementing the `Sample_f()` and `PDF()` methods required by the `BxDF` interface is straightforward: the `Sample_f()` method could evaluate the forward mapping R to perform visible normal sampling based
 
-on the measured microfacet distribution using PiecewiseLinear2D::Sample(), and PDF() could evaluate the associated sampling density from Equation (9.44). However, a flaw of such a basic sampling scheme is that the transformed BRDF measurements from Equation (9.42) are generally nonuniform on [0, 1]2, which can inject unwanted variance into the rendering process. The implementation therefore uses yet another reparameterization based on a luminance tensor that stores the product integral of the spectral dimension of MeasuredBxDFData::spectra and the CIE Y color matching curve.
+on the measured microfacet distribution using PiecewiseLinear2D::Sample(), and PDF() could evaluate the associated sampling density from Equation (9.44). However, a flaw of such a basic sampling scheme is that the transformed BRDF measurements from Equation (9.42) are generally nonuniform on [0, 1]2, which can inject unwanted variance into the rendering process. The implementation therefore uses yet another reparameterization based on a luminance tensor that stores the product integral of the spectral dimension of `MeasuredBxDFData::spectra` and the CIE Y color matching curve.
 
 〈MeasuredBxDFData Public Members〉 +≡ 598
 
 PiecewiseLinear2D<2> luminance;
 
-The actual BRDF sampling routine then consists of two steps. First it converts a uniformly distributed sample on [0, 1]2 into another sample u ∈ [0, 1]2 that is distributed according to the luminance of the reparameterized BRDF. Following this, visible normal sampling transforms u into a sampled direction ωi and a sampling weight that will have near-constant luminance. Apart from this step, the implementations of Sample_f() and PDF() are similar to the evaluation method and therefore not included here. ⋆9.9 SCATTERING FROM HAIR
+The actual BRDF sampling routine then consists of two steps. First it converts a uniformly distributed sample on [0, 1]2 into another sample u ∈ [0, 1]2 that is distributed according to the luminance of the reparameterized BRDF. Following this, visible normal sampling transforms u into a sampled direction ωi and a sampling weight that will have near-constant luminance. Apart from this step, the implementations of `Sample_f()` and `PDF()` are similar to the evaluation method and therefore not included here.
 
-Human hair and animal fur can be modeled with a rough dielectric interface surrounding a pigmented translucent core. Reflectance at the interface is generally the same for all wavelengths and it is therefore wavelength-variation in the amount of light that is absorbed inside the hair that determines its color. While these scattering effects could be modeled using a combination of the DielectricBxDF and the volumetric scattering models from Chapters 11 and 14, not only would doing so be computationally expensive, requiring ray tracing within the hair geometry, but importance sampling the resulting model would be difficult. Therefore, this section introduces a specialized BSDF for hair and fur that encapsulates these lower-level scattering processes into a model that can be efficiently evaluated and sampled. See Figure 9.39 for an example of the visual complexity of scattering in hair and a comparison to rendering using a conventional BRDF model with
+⋆9.9 SCATTERING FROM HAIR
+
+Human hair and animal fur can be modeled with a rough dielectric interface surrounding a pigmented translucent core. Reflectance at the interface is generally the same for all wavelengths and it is therefore wavelength-variation in the amount of light that is absorbed inside the hair that determines its color. While these scattering effects could be modeled using a combination of the `DielectricBxDF` and the volumetric scattering models from Chapters 11 and 14, not only would doing so be computationally expensive, requiring ray tracing within the hair geometry, but importance sampling the resulting model would be difficult. Therefore, this section introduces a specialized BSDF for hair and fur that encapsulates these lower-level scattering processes into a model that can be efficiently evaluated and sampled. See Figure 9.39 for an example of the visual complexity of scattering in hair and a comparison to rendering using a conventional BRDF model with
 
 hair geometry.
 
 ![Figure 9.39](images/img-933-190.png)
 
-*Figure 9.39: Comparison of a BSDF that Models Hair to a Coated Diffuse BSDF. (a) Geometric model of hair rendered using a BSDF based on a diffuse base layer with a rough dielectric interface above it (Section 14.3.3). (b) Model rendered using the HairBxDF from this section. Because the HairBxDF is based on an accurate model of the hair microgeometry and also models light transmission through hair, it gives a much more realistic appearance. (Hair geometry courtesy of Cem Yuksel.)*
+
+*Figure 9.39: Comparison of a BSDF that Models Hair to a Coated Diffuse BSDF. (a) Geometric model of hair rendered using a BSDF based on a diffuse base layer with a rough dielectric interface above it (Section 14.3.3). (b) Model rendered using the `HairBxDF` from this section. Because the HairBxDF is based on an accurate model of the hair microgeometry and also models light transmission through hair, it gives a much more realistic appearance. (Hair geometry courtesy of Cem Yuksel.)*
 
 ```text
     Curve 346
@@ -2463,23 +2493,26 @@ hair geometry.
 
 ### 9.9.1 GEOMETRY
 
-Before discussing the mechanisms of light scattering from hair, we will start by defining a few ways of measuring incident and outgoing directions at ray intersection points on hair. In doing so, we will assume that the hair BSDF is used with the Curve shape from Section 6.7, which allows us to make assumptions about the parameterization of the hair geometry. For the geometric discussion in this section, we will assume that the Curve variant corresponding to a flat ribbon that is always facing the incident ray is being used. However, in the BSDF model, we will interpret intersection points as if they were on the surface of the corresponding swept cylinder. If there is no interpenetration between hairs and if the hair’s width is not much larger
+Before discussing the mechanisms of light scattering from hair, we will start by defining a few ways of measuring incident and outgoing directions at ray intersection points on hair. In doing so, we will assume that the hair BSDF is used with the `Curve` shape from Section 6.7, which allows us to make assumptions about the parameterization of the hair geometry. For the geometric discussion in this section, we will assume that the `Curve` variant corresponding to a flat ribbon that is always facing the incident ray is being used. However, in the BSDF model, we will interpret intersection points as if they were on the surface of the corresponding swept cylinder. If there is no interpenetration between hairs and if the hair’s width is not much larger
 
 than a pixel’s width, there is no harm in switching between these interpretations.
 
 ![Figure 9.40](images/img-934-191.png)
 
+
 *Figure 9.40: At any parametric point along a Curve shape, the cross-section of the curve is defined by a circle. All of the circle’s surface normals (arrows) lie in a plane (dashed lines), dubbed the “normal plane.”*
 
 ![Figure 9.41](images/img-934-192.png)
+
 
 *Figure 9.41: (a) Given a direction ω at a point on a curve, the longitudinal angle θ is defined by the angle between ω and the normal plane at the point (thick line). The curve’s tangent vector at the point is aligned with the x axis in the BSDF coordinate system. (b) For a direction ω, the azimuthal angle ϕ is found by projecting the direction into the normal plane and computing its angle with the y axis, which corresponds to the curve’s ∂p/∂v in the BSDF coordinate system.*
 
 Throughout the implementation of this scattering model, we will find it useful to separately consider scattering in the longitudinal plane, effectively using a side view of the curve, and scattering in the azimuthal plane,
 
-considering the curve head-on at a particular point along it. To understand these parameterizations, first recall that Curves are parameterized such that the u direction is along the length of the curve and v spans its width. At a given u, all the possible surface normals of the curve are given by the surface normals of the circular cross-section at that point. All of these normals lie in a plane that is called the normal plane (Figure 9.40). We will find it useful to represent directions at a ray–curve intersection point with respect to coordinates (θ, ϕ) that are defined with respect to the normal plane at the u position where the ray intersected the curve. The angle θ is the longitudinal angle, which is the offset of the ray with respect to the normal plane (Figure 9.41(a)); θ ranges from −π/2 to π/2, where π/2 corresponds to a direction aligned with ∂p/∂u and −π/2 corresponds to −∂p/ ∂u. As explained in Section 9.1.1, in pbrt’s regular BSDF coordinate system, ∂p/∂u is aligned with the +x axis, so given a direction in the BSDF coordinate system, we have sin θ = ωx, since the normal plane is perpendicular to ∂p/∂u.
+considering the curve head-on at a particular point along it. To understand these parameterizations, first recall that `Curve`s are parameterized such that the u direction is along the length of the curve and v spans its width. At a given u, all the possible surface normals of the curve are given by the surface normals of the circular cross-section at that point. All of these normals lie in a plane that is called the normal plane (Figure 9.40). We will find it useful to represent directions at a ray–curve intersection point with respect to coordinates (θ, ϕ) that are defined with respect to the normal plane at the u position where the ray intersected the curve. The angle θ is the longitudinal angle, which is the offset of the ray with respect to the normal plane (Figure 9.41(a)); θ ranges from −π/2 to π/2, where π/2 corresponds to a direction aligned with ∂p/∂u and −π/2 corresponds to −∂p/ ∂u. As explained in Section 9.1.1, in pbrt’s regular BSDF coordinate system, ∂p/∂u is aligned with the +x axis, so given a direction in the BSDF coordinate system, we have sin θ = ωx, since the normal plane is perpendicular to ∂p/∂u.
 
 ![Figure 9.42](images/img-935-193.png)
+
 
 *Figure 9.42: Given an incident direction ω of a ray that intersected a Curve projected to the normal plane, we can parameterize the curve’s width with h ∈ [−1, 1]. Given the h for a ray that has intersected the curve, trigonometry shows how to compute the angle γ between ω and the surface normal on the curve’s surface at the intersection point. The two angles γ are equal, and because the circle’s radius is 1, sin γ = h.*
 
@@ -2497,13 +2530,15 @@ Geometric setting in hand, we will now turn to discuss the general scattering be
 
 Hair and fur have three main components: Cuticle: The outer layer, which forms the boundary with air. The cuticle’s surface is a nested series of scales at a slight angle to the hair surface. Cortex: The next layer inside the cuticle. The cortex generally accounts for around 90% of hair’s volume but less for fur. It is typically colored with pigments that mostly absorb light. Medulla: The center core at the middle of the cortex. It is larger and more significant in thicker hair and fur. The medulla is also
 
-pigmented. Scattering from the medulla is much more significant than scattering from the medium in the cortex. For the following scattering model, we will make a few assumptions. (Approaches for relaxing some of them are discussed in the exercises at the end of this chapter.) First, we assume that the cuticle can be modeled as a rough dielectric cylinder with scales that are all angled at the same angle α (effectively giving a nested series of cones; see Figure 9.43). We also treat the hair interior as a homogeneous medium that only absorbs light— scattering inside the hair is not modeled directly. (Chapters 11 and 14 have detailed discussion of light transport in participating media.) We will also make the assumption that scattering can be modeled accurately by a BSDF —we model light as entering and exiting the hair at the same place. (A BSSRDF could certainly be used instead; the “Further Reading” section has pointers to work that has investigated that alternative.) Note that this assumption requires that the hair’s diameter be fairly small with respect to how quickly illumination changes over the surface; this assumption is generally fine in practice at typical viewing distances.
+pigmented. Scattering from the medulla is much more significant than scattering from the medium in the cortex. For the following scattering model, we will make a few assumptions. (Approaches for relaxing some of them are discussed in the exercises at the end of this chapter.) First, we assume that the cuticle can be modeled as a rough dielectric cylinder with scales that are all angled at the same angle α (effectively giving a nested series of cones; see Figure 9.43). We also treat the hair interior as a homogeneous medium that only absorbs light— scattering inside the hair is not modeled directly. (Chapters 11 and 14 have detailed discussion of light transport in participating media.) We will also make the assumption that scattering can be modeled accurately by a `BSDF` —we model light as entering and exiting the hair at the same place. (A `BSSRDF` could certainly be used instead; the “Further Reading” section has pointers to work that has investigated that alternative.) Note that this assumption requires that the hair’s diameter be fairly small with respect to how quickly illumination changes over the surface; this assumption is generally fine in practice at typical viewing distances.
 
 ![Figure 9.43](images/img-937-194.png)
+
 
 *Figure 9.43: The surface of hair is formed by scales that deviate by a small angle α from the ideal cylinder. (α is generally around 2 − 4°; the angle shown here is larger for illustrative purposes.)*
 
 ![Figure 9.44](images/img-938-195.png)
+
 
 *Figure 9.44: Incident light arriving at a hair can be scattered in a variety of ways. p = 0 corresponds to light reflected from the surface of the cuticle. Light may also be transmitted through the hair and leave the other side: p = 1. It may be transmitted into the hair and reflected back into it again before being transmitted back out: p = 2, and so forth.*
 
@@ -2511,13 +2546,13 @@ Incident light arriving at a hair may be scattered one or more times before leav
 
 To make the scattering model evaluation and sampling easier, many hair scattering models factor f into terms where one depends only on the angles θ and another on ϕ, the difference between ϕo and ϕi. This semi-separable model is given by:
 
-where we have a longitudinal scattering function Mp, an attenuation function Ap, and an azimuthal scattering function Np.7 The division by |cos θi| cancels out the corresponding factor in the reflection equation.
+where we have a longitudinal scattering function `Mp`, an attenuation function `Ap`, and an azimuthal scattering function `Np`.7 The division by |cos θi| cancels out the corresponding factor in the reflection equation.
 
-In the following implementation, we will evaluate the first few terms of the sum in Equation (9.47) and then represent all higher-order terms with a single one. The pMax constant controls how many are evaluated before the switch-over. 〈HairBxDF Constants〉 ≡ 606
+In the following implementation, we will evaluate the first few terms of the sum in Equation (9.47) and then represent all higher-order terms with a single one. The `pMax` constant controls how many are evaluated before the switch-over. 〈HairBxDF Constants〉 ≡ 606
 
 static constexpr int pMax = 3;
 
-The model implemented in the HairBxDF is parameterized by six values:
+The model implemented in the `HairBxDF` is parameterized by six values:
 
 h: the [−1, 1] offset along the curve width where the ray intersected the oriented ribbon. eta: the index of refraction of the interior of the hair (typically, 1.55). sigma_a: the absorption coefficient of the hair interior, where distance is measured with respect to the hair cylinder’s diameter. (The absorption coefficient is introduced in Section 11.1.1.) beta_m: the longitudinal roughness of the hair, mapped to the range [0, 1]. beta_n: the azimuthal roughness, also mapped to [0, 1]. alpha: the angle at which the small scales on the surface of hair are offset from the base cylinder, expressed in degrees (typically, 2). 〈HairBxDF Definition〉 ≡ class HairBxDF { public: 〈HairBxDF Public Methods〉 private: 〈HairBxDF Constants 606〉 〈HairBxDF Private Methods 608〉 〈HairBxDF Private Members 607〉 };
 
@@ -2551,21 +2586,22 @@ Float sinTheta_i = wi.x; Float cosTheta_i = SafeSqrt(1 - Sqr(sinTheta_i)); Float
     Vector3f 86
 ```
 
-With these values available, we will consider in turn the factors of the BSDF model—Mp, Ap, and Np—before returning to the completion of the f() method.
+With these values available, we will consider in turn the factors of the `BSDF` model—`Mp`, `Ap`, and `Np`—before returning to the completion of the `f()` method.
 
 ### 9.9.3 LONGITUDINAL SCATTERING
 
-Mp defines the component of scattering related to the angles θ— longitudinal scattering. Longitudinal scattering is responsible for the specular lobe along the length of hair and the longitudinal roughness βm controls the size of this highlight. Figure 9.45 shows hair geometry rendered with three different longitudinal scattering roughnesses.
+`Mp` defines the component of scattering related to the angles θ— longitudinal scattering. Longitudinal scattering is responsible for the specular lobe along the length of hair and the longitudinal roughness βm controls the size of this highlight. Figure 9.45 shows hair geometry rendered with three different longitudinal scattering roughnesses.
 
 ![Figure 9.45](images/img-942-196.png)
+
 
 *Figure 9.45: The Effect of Varying the Longitudinal Roughness βm. Hair model illuminated by a skylight environment map rendered with varying longitudinal roughness. (a) With a very low roughness, βm = 0.1, the hair appears too shiny—almost metallic. (b) With βm = 0.25, the highlight is similar to typical human hair. (c) At high roughness, βm = 0.7, the hair is unrealistically flat and diffuse. (Hair geometry courtesy of Cem Yuksel.)*
 
 The mathematical details of the derivation of the scattering model are complex, so we will not include them here; as always, the “Further Reading” section has references to the details. The design goals of the model implemented here were that it be normalized (ensuring both energy conservation and no energy loss) and that it could be sampled directly. Although this model is not directly based on a physical model of how hair scatters light, it matches measured data well and has parametric control of roughness v.8 The model is:
 
-where I0 is the modified Bessel function of the first kind and v is the roughness variance. Figure 9.46 shows plots of Mp.
+where `I0` is the modified Bessel function of the first kind and `v` is the roughness variance. Figure 9.46 shows plots of Mp.
 
-This model is not numerically stable for low roughness variance values, so our implementation uses a different approach for that case that operates on the logarithm of I0 before taking an exponent at the end. The v <= .1 test in the implementation below selects between the two formulations.
+This model is not numerically stable for low roughness variance values, so our implementation uses a different approach for that case that operates on the logarithm of I0 before taking an exponent at the end. The `v <= .1` test in the implementation below selects between the two formulations.
 
 〈HairBxDF Private Methods〉 ≡ 606
 
@@ -2580,6 +2616,7 @@ Float Mp(Float cosTheta_i, Float cosTheta_o, Float sinTheta_i, Float sinTheta_o,
 
 ![Figure 9.46](images/img-943-197.png)
 
+
 *Figure 9.46: Plots of the Longitudinal Scattering Function. The shape of Mp as a function of θi for three values of θo. In all cases a roughness variance of v = 0.02 was used. The peaks are slightly shifted from the perfect specular reflection directions (at θi = 1, 1.3, and 1.4, respectively). (After d’Eon et al. (2011), Figure 4.)*
 
 One challenge with this model is choosing a roughness v to achieve a desired look. Here we have implemented a perceptually uniform mapping from roughness βm ∈ [0, 1] to v where a roughness of 0 is nearly perfectly smooth and 1 is extremely rough. Different roughness values are used for
@@ -2590,7 +2627,7 @@ Float v[pMax + 1];
 
 ### 9.9.4 ABSORPTION IN FIBERS
 
-The Ap factor describes how the incident light is affected by each of the scattering modes p. It incorporates two effects: Fresnel reflection and transmission at the hair–air boundary and absorption of light that passes through the hair (for p > 0). Figure 9.47 has rendered images of hair with varying absorption coefficients, showing the effect of absorption. The Ap function that we have implemented models all reflection and transmission at the hair boundary as perfect specular—a very different assumption than Mp and Np (to come), which model glossy reflection and transmission. This assumption simplifies the implementation and gives reasonable results in practice (presumably in that the specular paths are, in a sense, averages over all the possible glossy paths). We will start by finding the fraction of incident light that remains after a path of a single transmitted segment through the hair. To do so, we need to find the distance the ray travels until it exits the cylinder; the easiest way to do this is to compute the distances in the longitudinal and azimuthal projections separately.
+The `Ap` factor describes how the incident light is affected by each of the scattering modes p. It incorporates two effects: Fresnel reflection and transmission at the hair–air boundary and absorption of light that passes through the hair (for p > 0). Figure 9.47 has rendered images of hair with varying absorption coefficients, showing the effect of absorption. The `Ap` function that we have implemented models all reflection and transmission at the hair boundary as perfect specular—a very different assumption than `Mp` and `Np` (to come), which model glossy reflection and transmission. This assumption simplifies the implementation and gives reasonable results in practice (presumably in that the specular paths are, in a sense, averages over all the possible glossy paths). We will start by finding the fraction of incident light that remains after a path of a single transmitted segment through the hair. To do so, we need to find the distance the ray travels until it exits the cylinder; the easiest way to do this is to compute the distances in the longitudinal and azimuthal projections separately.
 
 ```text
     Float 23
@@ -2604,6 +2641,7 @@ The Ap factor describes how the incident light is affected by each of the scatte
 ```
 
 ![Figure 9.47](images/img-945-198.png)
+
 
 *Figure 9.47: Hair Rendered with Various Absorption Coefficients. In all cases, βm = 0.25 and βn = 0.3. (a) σa = (3.35, 5.58, 10.96) (RGB coefficients): in black hair, almost all transmitted light is absorbed. The white specular highlight from the p = 0 term is the main visual feature. (b) σa = (0.84, 1.39, 2.74), giving brown hair, where the p > 1 terms all introduce color to the hair. (c) With a very low absorption coefficient of σa = (0.06, 0.10, 0.20), we have blonde hair. (Hair geometry courtesy of Cem Yuksel.)*
 
@@ -2643,9 +2681,11 @@ If we consider the azimuthal projection of the transmitted ray in the normal pla
 
 ![Figure 9.48](images/img-946-199.png)
 
+
 *Figure 9.48: Computing the Transmitted Segment’s Distance. For a transmitted ray with angle γt with respect to the circle’s surface normal, half of the total distance la is given by cos γ, assuming a unit radius. Because γt is the same at both halves of the segment, la = 2 cos γt.*
 
 ![Figure 9.49](images/img-947-200.png)
+
 
 *Figure 9.49: The Effect of θt on the Transmitted Segment’s Length. The length of the transmitted segment through the cylinder is increased by a factor of 1/ cos θt versus a direct vertical path.*
 
@@ -2657,7 +2697,7 @@ total segment length in terms of the hair diameter is Given the segment length a
 
 SampledSpectrum T = Exp(-sigma_a * (2 * cosGamma_t / cosTheta_t));
 
-Given a single segment’s transmittance, we can now describe the function that evaluates the full Ap function. Ap() returns an array with the values of Ap up to pmax and a final value that is the sum of attenuations for all the higher-order scattering terms.
+Given a single segment’s transmittance, we can now describe the function that evaluates the full `Ap` function. `Ap()` returns an array with the values of Ap up to `pmax` and a final value that is the sum of attenuations for all the higher-order scattering terms.
 
 ```text
    HairBxDF::sigma_a 607
@@ -2697,6 +2737,7 @@ The p = 2 term has one more reflection event, reflecting light back into the hai
 
 ![Figure 9.50](images/img-949-201.png)
 
+
 *Figure 9.50: When a transmitted ray undergoes specular reflection at the interior of the hair cylinder, it makes the same angle γt with the circle’s surface normal as the original transmitted ray did. From this, it follows that the lengths of all ray segments for a path inside the cylinder must be equal.*
 
 〈Compute attenuation terms up to p = pMax〉 ≡ 612
@@ -2715,6 +2756,7 @@ Finally, we will model the component of scattering dependent on the angle ϕ. We
 
 ![Figure 9.51](images/img-950-202.png)
 
+
 *Figure 9.51: For specular reflection, with p = 0, the incident and reflected directions make the same angle γo with the surface normal. The net change in angle is thus −2γo. For p = 1, the ray is deflected from γo to γt when it enters the cylinder and then correspondingly on the way out. We can also see that when the ray is transmitted again out of the circle, it makes an angle γo with the surface normal there. Adding up the angles, the net deflection is 2γt − 2γo + π.*
 
 ```text
@@ -2723,9 +2765,11 @@ Finally, we will model the component of scattering dependent on the angle ϕ. We
 
 ![Figure 9.52](images/img-951-203.png)
 
+
 *Figure 9.52: Plot of Φ(p, h) for p = 1. As h varies from −1 to 1, we can see that the range of orientations ϕ for the specularly transmitted ray varies rapidly. By examining the range of ϕ values, we can see that the possible transmitted directions cover roughly 2/3 of all possible directions on the circle.*
 
 ![Figure 9.53](images/img-951-204.png)
+
 
 *Figure 9.53: Plots of the Trimmed Logistic Function over ±π. The curve for s = 0.5 (blue line) is broad and flat, while at s = 0.1 (red line), the curve is peaked. Because the function is normalized, the peak at 0 generally does not have the value 1, unlike the Gaussian.*
 
@@ -2758,6 +2802,7 @@ Float s;
 
 ![Figure 9.54](images/img-953-205.png)
 
+
 *Figure 9.54: Polar plots of Np for p = 1, θo aligned with the −x axis, and with a low roughness, βn = 0.1, for (blue) h = −0.5 and (red) h = 0.3. We can see that Np varies rapidly over the width of the hair.*
 
 ```text
@@ -2781,7 +2826,7 @@ We now have almost all the pieces we need to be able to evaluate the model. The 
                            cos(θo ± α) = cos θo cos α ∓ sin θo sin α
 ```
 
-to efficiently compute the rotated angles without needing to evaluate any additional trigonometric functions. The HairBxDF constructor therefore precomputes sin(2kα) and cos(2kα) for k = 0, 1, 2. These values can be
+to efficiently compute the rotated angles without needing to evaluate any additional trigonometric functions. The `HairBxDF` constructor therefore precomputes sin(2kα) and cos(2kα) for k = 0, 1, 2. These values can be
 
 computed particularly efficiently using trigonometric double angle identities: cos 2θ = cos2 θ − sin2 θ and sin 2θ = 2 cos θ sin θ. 〈HairBxDF constructor implementation〉 +≡ sin2kAlpha[0] = std::sin(Radians(alpha)); cos2kAlpha[0] = SafeSqrt(1 - Sqr(sin2kAlpha[0])); for (int i = 1; i < pMax; ++i) { sin2kAlpha[i] = 2 * cos2kAlpha[i - 1] * sin2kAlpha[i -1]; cos2kAlpha[i] = Sqr(cos2kAlpha[i - 1]) - Sqr(sin2kAlpha[i - 1]); } 〈HairBxDF Private Members〉 +≡ 606
 
@@ -2808,9 +2853,14 @@ Evaluating the model is now mostly just a matter of calling functions that have 
 
 〈Evaluate hair BSDF〉 ≡ 607
 
-Float phi = phi_i - phi_o; pstd::array<SampledSpectrum, pMax + 1> ap = Ap(cosTheta_o, eta, h, T); SampledSpectrum fsum(0.); for (int p = 0; p < pMax; ++p) { 〈Compute sin θo and cos θo terms accounting for scales 617〉 fsum += Mp(cosTheta_i, cosThetap_o, sinTheta_i, sinThetap_o, v[p]) * ap[p] * Np(phi, p, s, gamma_o, gamma_t);
-
 ```rust
+   Float phi = phi_i - phi_o;
+   pstd::array<SampledSpectrum, pMax + 1> ap = Ap(cosTheta_o, eta, h, T);
+   SampledSpectrum fsum(0.);
+   for (int p = 0; p < pMax; ++p) {
+       〈Compute sin θo and cos θo terms accounting for scales 617〉
+       fsum += Mp(cosTheta_i, cosThetap_o, sinTheta_i, sinThetap_o, v[p]) *
+               ap[p] * Np(phi, p, s, gamma_o, gamma_t);
    }
    〈Compute contribution of remaining terms after pMax 617〉
    if (AbsCosTheta(wi) > 0)
@@ -2861,9 +2911,9 @@ A Note on Reciprocity Although we included reciprocity in the properties of phys
 
 ### 9.9.7 SAMPLING
 
-Being able to generate sampled directions and compute the PDF for sampling a given direction according to a distribution that is similar to the overall BSDF is critical for efficient rendering, especially at low roughnesses, where the hair BSDF varies rapidly as a function of direction. In the approach implemented here, samples are generated with a two-step process: first we choose a p term to sample according to a probability based on each term’s Ap function value, which gives its contribution to the overall scattering function. Then, we find a direction by sampling the corresponding Mp and Np terms.10 Fortunately, both the Mp and Np terms of the hair BSDF can be sampled perfectly, leaving us with a sampling scheme that exactly matches the PDF of the full BSDF.
+Being able to generate sampled directions and compute the PDF for sampling a given direction according to a distribution that is similar to the overall BSDF is critical for efficient rendering, especially at low roughnesses, where the hair BSDF varies rapidly as a function of direction. In the approach implemented here, samples are generated with a two-step process: first we choose a p term to sample according to a probability based on each term’s `Ap` function value, which gives its contribution to the overall scattering function. Then, we find a direction by sampling the corresponding Mp and Np terms.10 Fortunately, both the `Mp` and `Np` terms of the hair `BSDF` can be sampled perfectly, leaving us with a sampling scheme that exactly matches the PDF of the full BSDF.
 
-We will first define the ApPDF() method, which returns a discrete PDF with probabilities for sampling each term Ap according to its contribution relative to all the Ap terms, given θo.
+We will first define the `ApPDF()` method, which returns a discrete PDF with probabilities for sampling each term `Ap` according to its contribution relative to all the Ap terms, given θo.
 
 〈HairBxDF Method Definitions〉 +≡ pstd::array<Float, HairBxDF::pMax + 1> HairBxDF::ApPDF(Float cosTheta_o) const { 〈Initialize array of Ap values for cosTheta_o 618〉 〈Compute Ap PDF from individual Ap terms 618〉 return apPDF; }
 
@@ -2907,15 +2957,15 @@ With these preliminaries out of the way, we can now implement the Sample_f() met
 
 〈HairBxDF Method Definitions〉 +≡ pstd::optional<BSDFSample> HairBxDF::Sample_f(Vector3f wo, Float uc, Point2f u, TransportMode mode, BxDFReflTransFlags sampleFlags) const { 〈Compute hair coordinate system terms related to wo 607〉 〈Determine which term p to sample for hair scattering 619〉 〈Compute sin θo and cos θo terms accounting for scales 617〉 〈Sample Mp to compute θi 619〉 〈Sample Np to compute Δϕ 619〉 〈Compute wi from sampled hair scattering angles 620〉 〈Compute PDF for sampled hair scattering direction wi 620〉 return BSDFSample(f(wo, wi, mode), wi, pdf, Flags()); }
 
-Given the PDF over Ap terms, a call to SampleDiscrete() takes care of choosing one. Because we only need to generate one sample from the PDF’s distribution, the work to compute an explicit CDF array (for example, by using PiecewiseConstant1D) is not worthwhile. Note that we take advantage of SampleDiscrete()’s optional capability of returning a fresh uniform random sample, overwriting the value in uc. This sample value will be used shortly for sampling Np.
+Given the PDF over `Ap` terms, a call to `SampleDiscrete()` takes care of choosing one. Because we only need to generate one sample from the PDF’s distribution, the work to compute an explicit CDF array (for example, by using `PiecewiseConstant1D`) is not worthwhile. Note that we take advantage of `SampleDiscrete()`’s optional capability of returning a fresh uniform random sample, overwriting the value in `uc`. This sample value will be used shortly for sampling Np.
 
 〈Determine which term p to sample for hair scattering〉 ≡ 619
 
 pstd::array<Float, pMax + 1> apPDF = ApPDF(cosTheta_o); int p = SampleDiscrete(apPDF, uc, None, &uc);
 
-We can now sample the corresponding Mp term given θo to find θi. The derivation of this sampling method is fairly involved, so we will include
+We can now sample the corresponding `Mp` term given θo to find θi. The derivation of this sampling method is fairly involved, so we will include
 
-neither the derivation nor the implementation here. This fragment, 〈Sample Mp to compute θi〉, consumes both of the sample values u[0] and u[1] and initializes variables sinTheta_i and cosTheta_i according to the sampled direction. 〈Sample Mp to compute θi〉 ≡ 619
+neither the derivation nor the implementation here. This fragment, 〈Sample Mp to compute θi〉, consumes both of the sample values `u[0]` and `u[1]` and initializes variables `sinTheta_i` and `cosTheta_i` according to the sampled direction. 〈Sample Mp to compute θi〉 ≡ 619
 
 ```rust
    Float cosTheta = 1 + v[p] * log(max<Float>(u[0],
@@ -2952,34 +3002,46 @@ neither the derivation nor the implementation here. This fragment, 〈Sample Mp 
    Vector3f 86
 ```
 
-Next we will sample the azimuthal distribution Np. For terms up to pmax, we take a sample from the logistic distribution centered around the exit direction given by Φ(p, h). For the last term, we sample from a uniform distribution.
+Next we will sample the azimuthal distribution `Np`. For terms up to `pmax`, we take a sample from the logistic distribution centered around the exit direction given by Φ(p, h). For the last term, we sample from a uniform distribution.
 
-〈Sample Np to compute Δϕ〉 ≡ 〈Compute γt for refracted ray 610〉 Float dphi; if (p < pMax) dphi = Phi(p, gamma_o, gamma_t) + SampleTrimmedLogistic(uc, s, -Pi, Pi);
+〈Sample Np to compute Δϕ〉 ≡
 
 ```rust
+   〈Compute γt for refracted ray 610〉
+   Float dphi;
+   if (p < pMax)
+       dphi = Phi(p, gamma_o, gamma_t) + SampleTrimmedLogistic(uc, s, -Pi, Pi);
    else
-          dphi = 2 * Pi * uc;
+       dphi = 2 * Pi * uc;
 ```
 
-Given θi and ϕi, we can compute the sampled direction wi. The math is similar to that used in the SphericalDirection() function, but with two important differences. First, because here θ is measured with respect to the plane perpendicular to the cylinder rather than the cylinder axis, we need to compute cos(π/2 − θ) = sin θ for the coordinate with respect to the cylinder axis instead of cos θ. Second, because the hair shading coordinate system’s (θ, ϕ) coordinates are oriented with respect to the +x axis, the order of dimensions passed to the Vector3f constructor is adjusted correspondingly, since the direction returned from Sample_f() should be in the BSDF coordinate system. 〈Compute wi from sampled hair scattering angles〉 ≡ 619
+Given θi and ϕi, we can compute the sampled direction wi. The math is similar to that used in the `SphericalDirection()` function, but with two important differences. First, because here θ is measured with respect to the plane perpendicular to the cylinder rather than the cylinder axis, we need to compute cos(π/2 − θ) = sin θ for the coordinate with respect to the cylinder axis instead of cos θ. Second, because the hair shading coordinate system’s (θ, ϕ) coordinates are oriented with respect to the +x axis, the order of dimensions passed to the `Vector3f` constructor is adjusted correspondingly, since the direction returned from `Sample_f()` should be in the BSDF coordinate system. 〈Compute wi from sampled hair scattering angles〉 ≡ 619
 
 Float phi_i = phi_o + dphi; Vector3f wi(sinTheta_i, cosTheta_i * std::cos(phi_i), cosTheta_i * std::sin(phi_i));
 
 Because we could sample directly from the Mp and Np distributions, the overall PDF is
 
-where Ãp are the normalized PDF terms. Note that θo must be shifted to account for hair scales when evaluating the PDF; this is done in the same way (and with the same code fragment) as with BSDF evaluation. 〈Compute PDF for sampled hair scattering direction wi〉 ≡ 619
+where Ãp are the normalized PDF terms. Note that θo must be shifted to account for hair scales when evaluating the PDF; this is done in the same way (and with the same code fragment) as with BSDF evaluation.
 
-Float pdf = 0; for (int p = 0; p < pMax; ++p) { 〈Compute sin θo and cos θo terms accounting for scales 617〉 〈Handle out-of-range cos θo from scale adjustment 617〉 pdf += Mp(cosTheta_i, cosThetap_o, sinTheta_i, sinThetap_o, v[p]) * apPDF[p] * Np(dphi, p, s, gamma_o, gamma_t); } pdf += Mp(cosTheta_i, cosTheta_o, sinTheta_i, sinTheta_o, v[pMax]) *
+〈Compute PDF for sampled hair scattering direction wi〉 ≡ 619
 
 ```rust
-               apPDF[pMax] * (1 / (2 * Pi));
+   Float pdf = 0;
+   for (int p = 0; p < pMax; ++p) {
+       〈Compute sin θo and cos θo terms accounting for scales 617〉
+       〈Handle out-of-range cos θo from scale adjustment 617〉
+       pdf += Mp(cosTheta_i, cosThetap_o, sinTheta_i, sinThetap_o, v[p]) *
+              apPDF[p] * Np(dphi, p, s, gamma_o, gamma_t);
+   }
+   pdf += Mp(cosTheta_i, cosTheta_o, sinTheta_i, sinTheta_o, v[pMax]) *
+          apPDF[pMax] * (1 / (2 * Pi));
 ```
 
-The HairBxDF::PDF() method performs the same computation and therefore the implementation is not included here.
+The `HairBxDF::PDF()` method performs the same computation and therefore the implementation is not included here.
 
 ### 9.9.8 HAIR ABSORPTION COEFFICIENTS
 
-The color of hair is determined by how pigments in the cortex absorb light, which in turn is described by the normalized absorption coefficient where distance is measured in terms of the hair diameter. If a specific hair color is desired, there is a non-obvious relationship between the normalized absorption coefficient and the color of hair in a rendered image. Not only does changing the spectral values of the absorption coefficient have an unpredictable connection to the appearance of a single hair, but multiple scattering between collections of many hairs has a significant effect on each one’s apparent color. Therefore, pbrt provides implementations of two more intuitive ways to specify hair color. The first is based on the fact that the color of human hair is determined by the concentration of two pigments. The concentration of eumelanin is the primary factor that causes the difference between black, brown, and blonde hair. (Black hair has the most eumelanin and blonde hair has the least. White hair has none.) The second pigment, pheomelanin, causes hair to be orange or red. The HairBxDF class provides a convenience method that computes an absorption coefficient using the product of user-supplied pigment concentrations and absorption coefficients of the pigments.
+The color of hair is determined by how pigments in the cortex absorb light, which in turn is described by the normalized absorption coefficient where distance is measured in terms of the hair diameter. If a specific hair color is desired, there is a non-obvious relationship between the normalized absorption coefficient and the color of hair in a rendered image. Not only does changing the spectral values of the absorption coefficient have an unpredictable connection to the appearance of a single hair, but multiple scattering between collections of many hairs has a significant effect on each one’s apparent color. Therefore, pbrt provides implementations of two more intuitive ways to specify hair color. The first is based on the fact that the color of human hair is determined by the concentration of two pigments. The concentration of eumelanin is the primary factor that causes the difference between black, brown, and blonde hair. (Black hair has the most eumelanin and blonde hair has the least. White hair has none.) The second pigment, pheomelanin, causes hair to be orange or red. The `HairBxDF` class provides a convenience method that computes an absorption coefficient using the product of user-supplied pigment concentrations and absorption coefficients of the pigments.
 
 ```text
     Float 23
@@ -2993,13 +3055,16 @@ The color of hair is determined by how pigments in the cortex absorb light, whic
 
 ![Figure 9.55](images/img-964-206.png)
 
+
 *Figure 9.55: The Importance of Multiple Scattering in Blonde Hair. (a) Blonde hair rendered with up to three bounces of light inside the hair. (b) Rendered with up to fifty bounces of light. In light-colored hair, light that has been scattered many times makes an important contribution to its visual appearance. Accurately rendering very blonde or white hair is consequently more computationally intensive than rendering dark hair. (Hair geometry courtesy of Cem Yuksel.)*
 
 〈HairBxDF Method Definitions〉 +≡ RGBUnboundedSpectrum HairBxDF::SigmaAFromConcentration(Float ce, Float cp) { RGB eumelaninSigma_a(0.419f, 0.697f, 1.37f); RGB pheomelaninSigma_a(0.187f, 0.4f, 1.05f); RGB sigma_a = ce * eumelaninSigma_a + cp * pheomelaninSigma_a; return RGBUnboundedSpectrum(*RGBColorSpace::sRGB, sigma_a); }
 
 Eumelanin concentrations of roughly 8, 1.3, and 0.3 give reasonable representations of black, brown, and blonde hair, respectively. Accurately rendering light-colored hair requires simulating many interreflections of light, however; see Figure 9.55.
 
-It is also sometimes useful to specify the desired hair color directly; the SigmaAFromReflect ance() method, not included here, is based on a precomputed fit of absorption coefficients to scattered hair color. FURTHER READING
+It is also sometimes useful to specify the desired hair color directly; the `SigmaAFromReflectance()` method, not included here, is based on a precomputed fit of absorption coefficients to scattered hair color.
+
+## FURTHER READING
 
 Hall’s (1989) book collected and described the state of the art in physically based surface reflection models for graphics; it remains a seminal reference. It discusses the physics of surface reflection in detail, with many pointers to the original literature.
 
@@ -3022,7 +3087,7 @@ One issue with the specular term of the Torrance–Sparrow BRDF presented in Sec
 
 that ranges from perfectly transmissive to a perfect specular reflector. Conty Estevez and Kulla (2017) have developed a model for cloth. The halo of a softer and wider secondary highlight is often visible with rough surfaces. Barla et al. (2018) described a model for such surfaces with a focus on perceptually meaningful parameters for it. Weyrich et al. (2009) have developed methods to infer a microfacet distribution that matches a measured or desired reflection distribution. Remarkably, they showed that it is possible to manufacture actual physical surfaces that match a desired reflection distribution fairly accurately.
 
-Layered Materials Many materials are naturally composed of multiple layers—for example, a metal base surface tarnished with patina, or wood with a varnish coating. Using a specialized BRDF to represent such structures can be vastly more efficient than resolving internal reflections using standard light transport methods. Hanrahan and Krueger (1993) modeled the layers of skin, accounting for just a single scattering event in each layer, and Dorsey and Hanrahan (1996) rendered layered materials using the Kubelka–Munk theory, which accounts for multiple scattering within layers but assumes that radiance distribution does not vary as a function of direction. Pharr and Hanrahan (2000) showed that Monte Carlo integration could be used to solve the adding equations to efficiently compute BSDFs for layered materials without needing either of these simplifications. The adding equations are integral equations that accurately describe the effect of multiple scattering in layered media; they were derived by van de Hulst (1980) and Twomey et al. (1966). Weidlich and Wilkie (2007) rendered layered materials more efficiently by making a number of simplifying assumptions. Guo et al. (2018) showed that both unidirectional and bidirectional Monte Carlo random walks through layers led to efficient algorithms for evaluation, sampling, and PDF evaluation. (Their unidirectional approach is implemented in pbrt’s LayeredBxDF in Section 14.3.) Xia et al. (2020a) described an improved importance sampling for this approach and Gamboa et al. (2020) showed
+Layered Materials Many materials are naturally composed of multiple layers—for example, a metal base surface tarnished with patina, or wood with a varnish coating. Using a specialized BRDF to represent such structures can be vastly more efficient than resolving internal reflections using standard light transport methods. Hanrahan and Krueger (1993) modeled the layers of skin, accounting for just a single scattering event in each layer, and Dorsey and Hanrahan (1996) rendered layered materials using the Kubelka–Munk theory, which accounts for multiple scattering within layers but assumes that radiance distribution does not vary as a function of direction. Pharr and Hanrahan (2000) showed that Monte Carlo integration could be used to solve the adding equations to efficiently compute BSDFs for layered materials without needing either of these simplifications. The adding equations are integral equations that accurately describe the effect of multiple scattering in layered media; they were derived by van de Hulst (1980) and Twomey et al. (1966). Weidlich and Wilkie (2007) rendered layered materials more efficiently by making a number of simplifying assumptions. Guo et al. (2018) showed that both unidirectional and bidirectional Monte Carlo random walks through layers led to efficient algorithms for evaluation, sampling, and PDF evaluation. (Their unidirectional approach is implemented in pbrt’s `LayeredBxDF` in Section 14.3.) Xia et al. (2020a) described an improved importance sampling for this approach and Gamboa et al. (2020) showed
 
 that bidirectional sampling was unnecessary and described a more efficient approach for multiple layers.
 
@@ -3034,7 +3099,7 @@ Another approach for layered materials is to represent the aggregate scattering 
 
 BSDF (Re-)Parameterization and Acquisition Improvements in data-acquisition technology have led to increasing amounts of detailed real-world BRDF data, even including BRDFs that are spatially varying (sometimes called “bidirectional texture functions,” BTFs) (Dana et al. 1999). See Müller et al. (2005) for a survey of work in BRDF measurement until the year 2005 and Guarnera et al. (2016) for a survey through the following decade. Fitting measured BRDF data to parametric reflection models is a difficult problem. Rusinkiewicz (1998) made the influential observation that reparameterizing the measured data can make it substantially easier to compress or fit to models. The topic of BRDF parameterizations has also been investigated by Stark et al. (2005) and in Marscher’s Ph.D. dissertation (1998).
 
-Building on Rusinkiewicz’s parameterization, Matusik et al. (2003a, 2003b) designed a BRDF representation and an efficient measurement device that repeatedly photographs a spherical sample to simultaneously acquire BRDF evaluations for many directions. They used this device to assemble a collection of isotropic material measurements that is now known as the MERL BRDF database. Baek et al. (2020) extended this approach with additional optics to capture polarimetric BRDFs, whose evaluation yields 4 × 4 Mueller matrices that characterize how reflection changes the polarization state of light. Nielsen et al. (2015) analyzed the manifold of MERL BRDFs to show that as few as 10–20 carefully chosen measurements can produce high-quality BRDF approximations. Dupuy et al. (2015) developed a simple iterative procedure for fitting standard microfacet distributions to measured BRDFs. Dupuy and Jakob (2018) generalized this procedure to arbitrary data-driven microfacet distributions and used the resulting approximation to perform a measurement in reparameterized coordinates, which is the approach underlying the MeasuredBxDF. They then used a motorized goniophotometer to spectroscopically acquire a collection of isotropic and anisotropic material samples that can be loaded into pbrt. While the high-dimensional nature of reflectance functions can pose a serious impediment in any acquisition procedure, the resulting data can often be approximated much more compactly. Bagher et al. (2016) decomposed the MERL database into a set of 1D factors requiring 3.2 KiB per material. Vávra and Filip (2016) showed how lower-dimensional slices can inform a sparse measurement procedure for anisotropic materials.
+Building on Rusinkiewicz’s parameterization, Matusik et al. (2003a, 2003b) designed a BRDF representation and an efficient measurement device that repeatedly photographs a spherical sample to simultaneously acquire BRDF evaluations for many directions. They used this device to assemble a collection of isotropic material measurements that is now known as the MERL BRDF database. Baek et al. (2020) extended this approach with additional optics to capture polarimetric BRDFs, whose evaluation yields 4 × 4 Mueller matrices that characterize how reflection changes the polarization state of light. Nielsen et al. (2015) analyzed the manifold of MERL BRDFs to show that as few as 10–20 carefully chosen measurements can produce high-quality BRDF approximations. Dupuy et al. (2015) developed a simple iterative procedure for fitting standard microfacet distributions to measured BRDFs. Dupuy and Jakob (2018) generalized this procedure to arbitrary data-driven microfacet distributions and used the resulting approximation to perform a measurement in reparameterized coordinates, which is the approach underlying the `MeasuredBxDF`. They then used a motorized goniophotometer to spectroscopically acquire a collection of isotropic and anisotropic material samples that can be loaded into pbrt. While the high-dimensional nature of reflectance functions can pose a serious impediment in any acquisition procedure, the resulting data can often be approximated much more compactly. Bagher et al. (2016) decomposed the MERL database into a set of 1D factors requiring 3.2 KiB per material. Vávra and Filip (2016) showed how lower-dimensional slices can inform a sparse measurement procedure for anisotropic materials.
 
 ```text
    MeasuredBxDF 592
@@ -3042,9 +3107,9 @@ Building on Rusinkiewicz’s parameterization, Matusik et al. (2003a, 2003b) des
 
 Hair, Fur, and Fibers Kajiya and Kay (1989) were the first to develop a reflectance model for hair fibers, observing the characteristic behavior of the underlying cylindrical reflectance geometry. For example, a thin and ideally specular cylinder under parallel illumination will reflect light into a 1D cone of angles. Reflection from a rough cylinder tends to concentrate around the specular 1D cone and decay with increasing angular distance. Kajiya and Kay
 
-proposed a phenomenological model combining diffuse and specular terms sharing these properties. For related work, see also the paper by Banks (1994), which discusses basic shading models for 1D primitives like hair. Goldman (1997) developed a probabilistic shading model that models reflection from collections of short hairs. Ward et al.’s survey (2007) has extensive coverage of early research in modeling, animating, and rendering hair. Marschner et al. (2003) investigated the processes underlying scattering from hair and performed a variety of measurements of scattering from actual hair. They introduced the longitudinal/azimuthal decomposition and the use of the modified index of refraction to hair rendering. They then developed a scattering model where the longitudinal component was derived by first considering perfect specular paths and then allowing roughness by centering a Gaussian around them, and their azimuthal model assumed perfect specular reflections. They showed that this model agreed reasonably well with their measurements. Hery and Ramamoorthi (2012) showed how to sample the first term of this model and Pekelis et al. (2015) developed a more efficient approach to sampling all of its terms. Zinke and Weber (2007) formalized different ways of modeling scattering from hair and clarified the assumptions underlying each of them. Starting with the bidirectional fiber scattering distribution function (BFSDF), which describes reflected differential radiance at a point on a hair as a fraction of incident differential power at another, they showed how assuming homogeneous scattering properties and a far-away viewer and illumination made it possible to simplify the eight-dimensional BFSDF to a four-dimensional bidirectional curve scattering distribution function (BCSDF). (Our implementation of the HairBxDF has glossed over some of these subtleties and opted for the simplicity of considering the scattering model as a BSDF.) Sadeghi et al. (2010) developed a hair scattering model with artist-friendly controls; Ou et al. (2012) showed how to sample from its distribution. Ogaki et al. (2010) created a tabularized model by explicitly modeling hair microgeometry and following random walks through it. D’Eon et al. (2011, 2013) made a number of improvements to Marschner et al.’s model. They showed that their Mp term was not actually energy conserving and derived a new one that was; this is the model from Equation
+proposed a phenomenological model combining diffuse and specular terms sharing these properties. For related work, see also the paper by Banks (1994), which discusses basic shading models for 1D primitives like hair. Goldman (1997) developed a probabilistic shading model that models reflection from collections of short hairs. Ward et al.’s survey (2007) has extensive coverage of early research in modeling, animating, and rendering hair. Marschner et al. (2003) investigated the processes underlying scattering from hair and performed a variety of measurements of scattering from actual hair. They introduced the longitudinal/azimuthal decomposition and the use of the modified index of refraction to hair rendering. They then developed a scattering model where the longitudinal component was derived by first considering perfect specular paths and then allowing roughness by centering a Gaussian around them, and their azimuthal model assumed perfect specular reflections. They showed that this model agreed reasonably well with their measurements. Hery and Ramamoorthi (2012) showed how to sample the first term of this model and Pekelis et al. (2015) developed a more efficient approach to sampling all of its terms. Zinke and Weber (2007) formalized different ways of modeling scattering from hair and clarified the assumptions underlying each of them. Starting with the bidirectional fiber scattering distribution function (BFSDF), which describes reflected differential radiance at a point on a hair as a fraction of incident differential power at another, they showed how assuming homogeneous scattering properties and a far-away viewer and illumination made it possible to simplify the eight-dimensional BFSDF to a four-dimensional bidirectional curve scattering distribution function (BCSDF). (Our implementation of the `HairBxDF` has glossed over some of these subtleties and opted for the simplicity of considering the scattering model as a BSDF.) Sadeghi et al. (2010) developed a hair scattering model with artist-friendly controls; Ou et al. (2012) showed how to sample from its distribution. Ogaki et al. (2010) created a tabularized model by explicitly modeling hair microgeometry and following random walks through it. D’Eon et al. (2011, 2013) made a number of improvements to Marschner et al.’s model. They showed that their Mp term was not actually energy conserving and derived a new one that was; this is the model from Equation
 
-(9.49) that our implementation uses. (See also d’Eon (2013) for a more numerically stable formulation of Mp for low roughness, as well as Jakob (2012) for notes related to sampling their Mp term in a numerically stable way.) They also introduced a Gaussian to the azimuthal term, allowing for varying azimuthal roughness. A 1D quadrature method was used to integrate the model across the width of the hair h. The RGB values used for the hair pigments in HairBxDF::SigmaAFromConcentration() were computed by d’Eon et al. (2011), based on a model by Donner and Jensen (2006). The function implemented in the HairBxDF::SigmaAFromReflectance() method is due to Chiang et al. (2016a), who created a cube of hair and rendered it with a variety of absorption coefficients and roughnesses while it was illuminated with a uniform white dome. They then fit a function that mapped from the hair’s azimuthal roughness and average color at the center of the front face of the cube to an absorption coefficient.
+(9.49) that our implementation uses. (See also d’Eon (2013) for a more numerically stable formulation of Mp for low roughness, as well as Jakob (2012) for notes related to sampling their `Mp` term in a numerically stable way.) They also introduced a Gaussian to the azimuthal term, allowing for varying azimuthal roughness. A 1D quadrature method was used to integrate the model across the width of the hair h. The RGB values used for the hair pigments in `HairBxDF::SigmaAFromConcentration()` were computed by d’Eon et al. (2011), based on a model by Donner and Jensen (2006). The function implemented in the `HairBxDF::SigmaAFromReflectance()` method is due to Chiang et al. (2016a), who created a cube of hair and rendered it with a variety of absorption coefficients and roughnesses while it was illuminated with a uniform white dome. They then fit a function that mapped from the hair’s azimuthal roughness and average color at the center of the front face of the cube to an absorption coefficient.
 
 ```text
    HairBxDF 606
@@ -3054,7 +3119,7 @@ proposed a phenomenological model combining diffuse and specular terms sharing t
 
 D’Eon et al. (2014) performed extensive Monte Carlo simulations of scattering from dielectric cylinders with explicitly modeled scales and glossy scattering at the boundary based on a Beckmann microfacet distribution. They showed that separable models did not model all the observed effects and that in particular the specular term modeled by Mp varies over the surface of the cylinder and also depends on ϕ. They developed a non-separable scattering model, where both α and βm vary as a function of h, and showed that it fit their simulations very accurately. All the scattering models we have described so far have been BCSDFs— they represent the overall scattering across the entire width of the hair in a single model. Such “far field” models assume both that the viewer is far away and that incident illumination is uniform across the hair’s width. In practice, both of these assumptions are invalid if one is using path tracing to model multiple scattering inside hair. Two recent models have considered
 
-scattering at a single point along the hair’s width, making them more suitable for accurately modeling “near field” scattering. Yan et al. (2015) generalized d’Eon et al.’s model to account for scattering in the medulla, modeling a scattering cylinder in the interior of fur, and validated their model with a variety of measurements of actual animal fur. Subsequent work developed an efficient model that allows both near- and far-field evaluation (Yan et al. 2017a). Chiang et al. (2016a) showed that eliminating the integral over width from d’Eon et al.’s model works well in practice and that the sampling rates necessary for path tracing also worked well to integrate scattering over the curve width, giving a much more efficient implementation. They also developed the perceptually uniform parameterization of βm and βn that we have implemented in the HairBxDF as well as the inverse mapping from reflectance to σa used in our HairBxDF::SigmaAFromReflectance() method. Further recent advances in hair and fur rendering include work by Khungurn and Marschner (2017), who developed a scattering model from elliptical fibers and showed that modeling fibers as elliptical rather than cylindrical gives a closer match to measured data. Benamira and Pattanaik (2021) recently proposed a model that accounts for both elliptical fibers and diffraction effects, which are significant at the scale of human hair. Modeling and rendering the individual fibers of fabric is closely related to doing so for hair and fur. Recent work includes Zhao et al. (2016), who fit a procedural yarn model to CT-scanned yarn, and Aliaga et al. (2017), who demonstrated the complexity of scattering from a variety of cloth fibers and developed tabularized scattering functions for them using a precomputed simulation.
+scattering at a single point along the hair’s width, making them more suitable for accurately modeling “near field” scattering. Yan et al. (2015) generalized d’Eon et al.’s model to account for scattering in the medulla, modeling a scattering cylinder in the interior of fur, and validated their model with a variety of measurements of actual animal fur. Subsequent work developed an efficient model that allows both near- and far-field evaluation (Yan et al. 2017a). Chiang et al. (2016a) showed that eliminating the integral over width from d’Eon et al.’s model works well in practice and that the sampling rates necessary for path tracing also worked well to integrate scattering over the curve width, giving a much more efficient implementation. They also developed the perceptually uniform parameterization of βm and βn that we have implemented in the `HairBxDF` as well as the inverse mapping from reflectance to σa used in our `HairBxDF::SigmaAFromReflectance()` method. Further recent advances in hair and fur rendering include work by Khungurn and Marschner (2017), who developed a scattering model from elliptical fibers and showed that modeling fibers as elliptical rather than cylindrical gives a closer match to measured data. Benamira and Pattanaik (2021) recently proposed a model that accounts for both elliptical fibers and diffraction effects, which are significant at the scale of human hair. Modeling and rendering the individual fibers of fabric is closely related to doing so for hair and fur. Recent work includes Zhao et al. (2016), who fit a procedural yarn model to CT-scanned yarn, and Aliaga et al. (2017), who demonstrated the complexity of scattering from a variety of cloth fibers and developed tabularized scattering functions for them using a precomputed simulation.
 
 Glints and Microstructure The microfacet reflection models in this chapter are all based on the assumption that so many microfacets are visible in a pixel that they can be accurately described by their aggregate statistical behavior. This assumption is not true for many real-world surfaces, where a relatively small number of microfacets may be visible in each pixel; examples of such surfaces include
 
@@ -3079,6 +3144,7 @@ Sampling BSDFs well is a key component of efficient image synthesis. Szécsi et 
 
 ![Figure 9.56](images/img-978-207.png)
 
+
 *Figure 9.56: Derivation of Snell’s Law. Snell’s law can be derived using Fermat’s principle, which says that light will follow the path that takes the least amount of time to pass between two points. The angle of refraction θ at the boundary between two media can thus be shown to be the one that minimizes the time spent going from p1 to a point p on the boundary plus the time spent traveling the distance from that point to p2.*
 
 ## EXERCISES
@@ -3087,9 +3153,9 @@ Sampling BSDFs well is a key component of efficient image synthesis. Szécsi et 
 
 a medium with index of refraction η1 to a point p2 in a medium with index of refraction η2 will follow a path that minimizes the time to get from the first point to the second point. Snell’s law can be shown to follow directly from this fact.
 
-Consider light traveling between two points p1 and p2 separated by a planar boundary. The light could potentially pass through the boundary while traveling from p1 to p2 at any point on the boundary (see Figure 9.56, which shows two such possible points p′ and p″). Recall that the time it takes light to travel between two points in a medium with a constant index of refraction is proportional to the distance between them times the index of refraction in the medium. Using this fact, show that the point p′ on the boundary that minimizes the total time to travel from p1 to p2 is the point where η1 sin θ1 = η2 sin θ2. ➋ 9.2 Read the recent paper by d’Eon (2021) that describes a BRDF based on a model of the aggregate scattering of large collections of spherical particles that are themselves Lambertian. Implement this approach as a new BxDF in pbrt and render images comparing its visual appearance to that of the DiffuseBxDF. ➌ 9.3 Read the paper of Wolff and Kurlander (1990) and the course notes of Wilkie and Weidlich (2012) and apply some of the techniques described to modify pbrt to model the effect of light polarization. (A more in-depth review of the principles of polarization is provided by Collett (1993).) Set up scenes and render images of them that demonstrate a significant difference when polarization is accurately modeled. For this, you will need to implement a polarized version of the Fresnel equations and add BSDFs that model optical elements like linear polarizers and retarders. ➌ 9.4 Construct a scene with an actual geometric model of a rough plane with a large number of mirrored microfacets, and illuminate it with an area light source.11 Place the camera in the scene such that a very large number of microfacets are in each pixel’s area, and render images of this scene using hundreds or thousands of pixel samples. Compare the result to using a flat surface with a microfacet-based BRDF model. How well can you get the two approaches to match if you try to tune the microfacet BRDF parameters? Can you construct examples where images rendered with the true microfacets are actually visibly more realistic due to better modeling the effects of masking, self-shadowing, and interreflection between microfacets? ➌ 9.5 One shortcoming of the microfacet-based BSDFs in this chapter is that they do not account for multiple scattering among microfacets. Investigate previous work in this area, including the stochastic multiple scattering model of Heitz et al. (2016b) and the analytic models of Lee et al. (2018) and Xie and Hanrahan (2018), and implement one of these approaches in pbrt. Then implement an approximate model for multiple scattering, such as the one presented by Kulla and Conty Estevez (2017) or by Turquin (2019). How do rendered images differ from pbrt’s current implementation? How closely do the approximate approaches match the more comprehensive ones? How does execution time compare? ➌ 9.6 Review the algorithms for efficiently finding an approximation of a material’s normal distribution function and using that to measure BRDFs that are outlined in Section 9.8 and explained in more detail in Dupuy and Jakob (2018). Follow this approach to implement a virtual gonioreflectometer, where you provide pbrt with a description of the microgeometry of a complex surface (cloth, velvet, etc.) and its low-level reflection properties and then perform virtual measurements of the BSDF by simulating light paths in the microgeometry.
+Consider light traveling between two points p1 and p2 separated by a planar boundary. The light could potentially pass through the boundary while traveling from p1 to p2 at any point on the boundary (see Figure 9.56, which shows two such possible points p′ and p″). Recall that the time it takes light to travel between two points in a medium with a constant index of refraction is proportional to the distance between them times the index of refraction in the medium. Using this fact, show that the point p′ on the boundary that minimizes the total time to travel from p1 to p2 is the point where η1 sin θ1 = η2 sin θ2. ➋ 9.2 Read the recent paper by d’Eon (2021) that describes a BRDF based on a model of the aggregate scattering of large collections of spherical particles that are themselves Lambertian. Implement this approach as a new `BxDF` in pbrt and render images comparing its visual appearance to that of the `DiffuseBxDF`. ➌ 9.3 Read the paper of Wolff and Kurlander (1990) and the course notes of Wilkie and Weidlich (2012) and apply some of the techniques described to modify pbrt to model the effect of light polarization. (A more in-depth review of the principles of polarization is provided by Collett (1993).) Set up scenes and render images of them that demonstrate a significant difference when polarization is accurately modeled. For this, you will need to implement a polarized version of the Fresnel equations and add BSDFs that model optical elements like linear polarizers and retarders. ➌ 9.4 Construct a scene with an actual geometric model of a rough plane with a large number of mirrored microfacets, and illuminate it with an area light source.11 Place the camera in the scene such that a very large number of microfacets are in each pixel’s area, and render images of this scene using hundreds or thousands of pixel samples. Compare the result to using a flat surface with a microfacet-based BRDF model. How well can you get the two approaches to match if you try to tune the microfacet BRDF parameters? Can you construct examples where images rendered with the true microfacets are actually visibly more realistic due to better modeling the effects of masking, self-shadowing, and interreflection between microfacets? ➌ 9.5 One shortcoming of the microfacet-based BSDFs in this chapter is that they do not account for multiple scattering among microfacets. Investigate previous work in this area, including the stochastic multiple scattering model of Heitz et al. (2016b) and the analytic models of Lee et al. (2018) and Xie and Hanrahan (2018), and implement one of these approaches in pbrt. Then implement an approximate model for multiple scattering, such as the one presented by Kulla and Conty Estevez (2017) or by Turquin (2019). How do rendered images differ from pbrt’s current implementation? How closely do the approximate approaches match the more comprehensive ones? How does execution time compare? ➌ 9.6 Review the algorithms for efficiently finding an approximation of a material’s normal distribution function and using that to measure BRDFs that are outlined in Section 9.8 and explained in more detail in Dupuy and Jakob (2018). Follow this approach to implement a virtual gonioreflectometer, where you provide pbrt with a description of the microgeometry of a complex surface (cloth, velvet, etc.) and its low-level reflection properties and then perform virtual measurements of the BSDF by simulating light paths in the microgeometry.
 
-Store the results of this simulation in the file format used by the MeasuredBxDFData and then render images that compare using the tabularized representation to directly rendering the microgeometry. How do the images compare? How much more computationally efficient is using the MeasuredBxDFData?
+Store the results of this simulation in the file format used by the `MeasuredBxDFData` and then render images that compare using the tabularized representation to directly rendering the microgeometry. How do the images compare? How much more computationally efficient is using the MeasuredBxDFData?
 
 ```text
                    BxDF 538
@@ -3097,17 +3163,17 @@ Store the results of this simulation in the file format used by the MeasuredBxDF
                    MeasuredBxDFData 598
 ```
 
-➋ 9.7 Marschner et al. (2003) note that human hair actually has an elliptical cross section that causes glints in human hair due to caustics; subsequent work by Khungurn and Marschner (2017) proposes a model that accounts for this effect and shows that it matches measurements of scattering from human hair well. Extend the HairBxDF implementation here, following their approach. One issue that you will need to address is that the ∂p/∂v returned by Curve::Intersect() is always perpendicular to the incident ray, which leads to different orientations of the azimuthal coordinate system. This is not an issue for the model we have implemented, since it operates only on the difference between angles ϕ in the hair coordinate system. For elliptical hairs, a consistent azimuthal coordinate system is necessary. ➌ 9.8 Read Yan et al.’s paper on fur scattering (2015) and implement their model, which accounts for scattering in the medulla in fur. Render images that show the difference from accounting for this in comparison to the current implementation. You may want to also see Section 4.3 of Chiang et al. (2016a), which discusses extensions for modeling the undercoat (which is shorter and curlier hair underneath the top level) and a more ad hoc approach to account for the influence of scattering from the medulla. ➌ 9.9 Read one or more papers from the “Further Reading” section of this chapter on efficiently rendering glints, which are evident when the surface microstructure is large enough or viewed closely enough that the assumption of a continuous distribution of microfacet orientations is no longer valid. Then, choose one such approach and implement it in pbrt. Render images that show off the effects it is capable of producing.
+➋ 9.7 Marschner et al. (2003) note that human hair actually has an elliptical cross section that causes glints in human hair due to caustics; subsequent work by Khungurn and Marschner (2017) proposes a model that accounts for this effect and shows that it matches measurements of scattering from human hair well. Extend the `HairBxDF` implementation here, following their approach. One issue that you will need to address is that the ∂p/∂v returned by `Curve::Intersect()` is always perpendicular to the incident ray, which leads to different orientations of the azimuthal coordinate system. This is not an issue for the model we have implemented, since it operates only on the difference between angles ϕ in the hair coordinate system. For elliptical hairs, a consistent azimuthal coordinate system is necessary. ➌ 9.8 Read Yan et al.’s paper on fur scattering (2015) and implement their model, which accounts for scattering in the medulla in fur. Render images that show the difference from accounting for this in comparison to the current implementation. You may want to also see Section 4.3 of Chiang et al. (2016a), which discusses extensions for modeling the undercoat (which is shorter and curlier hair underneath the top level) and a more ad hoc approach to account for the influence of scattering from the medulla. ➌ 9.9 Read one or more papers from the “Further Reading” section of this chapter on efficiently rendering glints, which are evident when the surface microstructure is large enough or viewed closely enough that the assumption of a continuous distribution of microfacet orientations is no longer valid. Then, choose one such approach and implement it in pbrt. Render images that show off the effects it is capable of producing.
 
 ```text
                    Curve::Intersect() 349
                    HairBxDF 606
 ```
 
-_________________ 1 It could be argued that a shortcoming of the BxDF sampling interface is that there are not entry points to sample from the 4D distribution of f(ω, ω′). This is a reasonably esoteric case for the applications envisioned for pbrt, however. 2 Strictly speaking, this is not always true: for example, the other method might also involve a delta distribution with matching direction ω′. pbrt does not consider this case, which may lead to a small loss of sampling efficiency in this rare corner case. 3 See the online edition of the book for an additional chapter devoted to bidirectional light transport algorithms. 4 The same model was also independently derived by Walter et al. (2007), who dubbed it “GGX.” 5 Both steps use ωi instead of ωi(k) to improve the smoothness of the interpolation. 6 A repository of compatible files that cover the 360–1000 nm interval at roughly 4 nm resolution is available at http://rgl.epfl.ch/materials.
+_________________ 1 It could be argued that a shortcoming of the `BxDF` sampling interface is that there are not entry points to sample from the 4D distribution of f(ω, ω′). This is a reasonably esoteric case for the applications envisioned for pbrt, however. 2 Strictly speaking, this is not always true: for example, the other method might also involve a delta distribution with matching direction ω′. pbrt does not consider this case, which may lead to a small loss of sampling efficiency in this rare corner case. 3 See the online edition of the book for an additional chapter devoted to bidirectional light transport algorithms. 4 The same model was also independently derived by Walter et al. (2007), who dubbed it “GGX.” 5 Both steps use ωi instead of ωi(k) to improve the smoothness of the interpolation. 6 A repository of compatible files that cover the 360–1000 nm interval at roughly 4 nm resolution is available at http://rgl.epfl.ch/materials.
 
 ```text
      PiecewiseLinear2D 598
 ```
 
-7 Other authors generally include Ap in the Np term, though we find it more clear to keep them separate for the following exposition. Here we also use f for the BSDF, which most hair scattering papers denote by S. 8 Note that this is a different usage of v than in earlier chapters when it was used for the parametric coordinate along the width of a curve. 9 This is due to the Bravais properties of cylindrical scattering. See Appendix B of Marschner et al. (2003) for a derivation and further explanation. 10 This approach is applicable since the BSDF’s definition includes the product of Mp and Np and so their joint PDF is separable. 11 An area light and not a point or directional light is necessary due to subtleties in how lights are seen in specular surfaces. With the light transport algorithms used in pbrt, infinitesimal point sources are never visible in mirrored surfaces. This is a typical limitation of ray-tracing renderers and usually not bothersome in practice.
+7 Other authors generally include `Ap` in the `Np` term, though we find it more clear to keep them separate for the following exposition. Here we also use `f` for the `BSDF`, which most hair scattering papers denote by S. 8 Note that this is a different usage of v than in earlier chapters when it was used for the parametric coordinate along the width of a curve. 9 This is due to the Bravais properties of cylindrical scattering. See Appendix B of Marschner et al. (2003) for a derivation and further explanation. 10 This approach is applicable since the BSDF’s definition includes the product of `Mp` and `Np` and so their joint PDF is separable. 11 An area light and not a point or directional light is necessary due to subtleties in how lights are seen in specular surfaces. With the light transport algorithms used in pbrt, infinitesimal point sources are never visible in mirrored surfaces. This is a typical limitation of ray-tracing renderers and usually not bothersome in practice.

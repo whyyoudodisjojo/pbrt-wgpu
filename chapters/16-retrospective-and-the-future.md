@@ -15,7 +15,7 @@ In this concluding chapter, we begin with a review of how pbrt has changed over 
 
 Over four editions of this book and the four versions of pbrt that have accompanied them, much has changed: while path tracing has been present since the start, it was not the default integration technique until the third edition. Furthermore, the first two editions devoted many pages to techniques like irradiance caching that reuse indirect lighting computation across nearby points in order to reduce rendering time. All of those techniques but for photon mapping are gone now, as sampling algorithms have improved and computers have become much faster, making path tracing and related approaches the most appropriate focus today.
 
-There have been numerous improvements throughout the system over time—we have adopted more effective algorithms as they have been developed and as we ourselves have learned more about how to write a good renderer; notably, the techniques used for generating sampling patterns and for importance sampling BSDFs and light sources are substantially better now than they were at the start. Those improvements have brought added complexity: pbrt-v1, the first version of the system, was roughly 20,000 lines of code, excluding tabularized data and automatically generated source files for parsing. This version is just over 60,000 lines of code measured the same way, though some of the increase is due to the addition of a variety of new features, like subsurface scattering, volumetric light transport, the RealisticCamera, and the Curve and BilinearPatch shapes.
+There have been numerous improvements throughout the system over time—we have adopted more effective algorithms as they have been developed and as we ourselves have learned more about how to write a good renderer; notably, the techniques used for generating sampling patterns and for importance sampling `BSDFs` and light sources are substantially better now than they were at the start. Those improvements have brought added complexity: pbrt-v1, the first version of the system, was roughly 20,000 lines of code, excluding tabularized data and automatically generated source files for parsing. This version is just over 60,000 lines of code measured the same way, though some of the increase is due to the addition of a variety of new features, like subsurface scattering, volumetric light transport, the `RealisticCamera`, and the `Curve` and `BilinearPatch` shapes.
 
 ```text
     BilinearPatch 328
@@ -26,6 +26,7 @@ There have been numerous improvements throughout the system over time—we have 
 Through all the improvements to the underlying algorithms, the bones of the system have not changed very much—Integrators have always been at the core of solving the light transport equation, and many of the core interface types like Shapes, Lights, Cameras, Filters, and Samplers have all been there throughout with the same responsibilities, though there have been changes to their interfaces and operation along the way. Looking back at pbrt-v1 now, we can find plenty of snippets of code that are still present, unchanged since the start.
 
 ![Figure 16.1](images/img-1561-346.png)
+
 
 *Figure 16.1: Audi TT Car Model Lit by an Environment Map. (a) Reference image, rendered with pbrt-v1 with 64k samples per pixel. (b) Rendered with pbrt-v1 with 16 samples per pixel. (c) Reference image, rendered with pbrt-v4 with 64k samples per pixel. (d) Rendered with pbrt-v4 with 16 samples per pixel. (Some image differences due to changes in material models since pbrt-v1 are expected.) The reduction in noise from (b) to (d) is notable; all of it is due to improvements in sampling and Monte Carlo integration algorithms over pbrt’s lifetime. (Car model courtesy of Marko Dabrovic and Mihovil Odak.)*
 
@@ -55,7 +56,7 @@ Throughout the book, we have tried to always add an exercise at the end of the c
 
 Given well-built acceleration structures, a strength of ray tracing is that the time spent on ray– primitive intersections grows slowly with added scene complexity. As such, the maximum complexity that a ray tracer can handle may be limited more by memory than by computation. Because rays may pass through many different regions of the scene over a short period of time, virtual memory often performs poorly when ray tracing complex scenes due to the resulting incoherent memory access patterns.
 
-One way to increase the potential complexity that a renderer is capable of handling is to reduce the memory used to store the scene. For example, pbrt currently uses approximately 3.3 GB of memory to store the 24 million triangles and the BVHs in the landscape scene in Figure 7.2. This works out to an average of 148 bytes per triangle. We have previously written ray tracers that managed an average of 40 bytes per triangle for scenes like these, which represents a 3.7× reduction. Reducing memory overhead requires careful attention to memory use throughout the system. For example, in the aforementioned system, we had three different Triangle implementations, one using 8-bit uint8_ts to store vertex indices, one using 16-bit uint16_ts, and one using 32-bit uint32_ts. The smallest index size that was sufficient for the range of vertex indices in the mesh was chosen at run time. Deering’s paper on geometry compression (Deering 1995) and Ward’s packed color format (Ward 1992) are both good inspirations for thinking along these lines. See the “Further Reading” section in Chapter 7 for information about more memory-efficient representations of acceleration structures.
+One way to increase the potential complexity that a renderer is capable of handling is to reduce the memory used to store the scene. For example, pbrt currently uses approximately 3.3 GB of memory to store the 24 million triangles and the `BVHs` in the landscape scene in Figure 7.2. This works out to an average of 148 bytes per triangle. We have previously written ray tracers that managed an average of 40 bytes per triangle for scenes like these, which represents a 3.7× reduction. Reducing memory overhead requires careful attention to memory use throughout the system. For example, in the aforementioned system, we had three different `Triangle` implementations, one using 8-bit `uint8_t`s to store vertex indices, one using 16-bit `uint16_t`s, and one using 32-bit `uint32_t`s. The smallest index size that was sufficient for the range of vertex indices in the mesh was chosen at run time. Deering’s paper on geometry compression (Deering 1995) and Ward’s packed color format (Ward 1992) are both good inspirations for thinking along these lines. See the “Further Reading” section in Chapter 7 for information about more memory-efficient representations of acceleration structures.
 
 On-demand loading of geometry and textures can also reduce memory requirements if some parts of the scene are never needed when rendering from a particular viewpoint. An additional advantage of this approach is that rendering can often start more quickly than it would otherwise. Taking that a step further, one might cache textures (Peachey 1990) or geometry (Pharr and Hanrahan 1996), holding a fixed amount of it in memory and discarding that which has not been accessed recently when the cache is full. This approach is especially useful for scenes with much tessellated geometry, where a compact higher-level shape representation like a subdivision surface can explode into a large number of triangles: when available memory is low, some of this geometry can be discarded and regenerated later if needed. With the advent of economical flash memory storage offering gigabytes per second of read bandwidth, this approach is even more attractive.
 
@@ -145,7 +146,7 @@ where g : Y → ℝ refers to a loss function that quantifies the quality of a r
 
 Irrespective of such extensions, the nonlinear optimization problem in Equation (16.1) remains too challenging to solve in one step and must be handled using iterative methods. The usual caveats about their use apply here: iterative methods require a starting guess and may not converge to the optimal solution. This means that selecting an initial configuration and incorporating prior information (valid parameter ranges, expected smoothness of the solution, etc.) are both important steps in any inverse rendering task. The choice of loss g : Y → ℝ and parameterization of the scene can also have a striking impact on the convexity of the optimization task (for example, direct optimization of triangle meshes tends to be particularly fragile, while implicit surface representations are better behaved).
 
-Realistic scene descriptions are composed of millions of floating-point values that together specify the shapes, BSDFs, textures, volumes, light sources, and cameras. Each value contributes a degree of freedom to an extremely high-dimensional optimization domain (for example, a quadrilateral with a 768 × 768 RGB image map texture adds roughly 1.7 million dimensions to X). Systematic exploration of a space with that many dimensions is not possible, making gradient-based optimization the
+Realistic scene descriptions are composed of millions of floating-point values that together specify the shapes, `BSDFs`, textures, volumes, light sources, and cameras. Each value contributes a degree of freedom to an extremely high-dimensional optimization domain (for example, a quadrilateral with a 768 × 768 `RGB` image map texture adds roughly 1.7 million dimensions to X). Systematic exploration of a space with that many dimensions is not possible, making gradient-based optimization the
 
 method of choice for this problem. The gradient is invaluable here because it provides a direction of steepest descent that can guide the optimization toward higher-quality regions of the scene parameter space.
 
@@ -238,6 +239,7 @@ using conventional rendering algorithms at all, but solely from characteristics 
 
 ![Figure 16.2](images/img-1575-348.png)
 
+
 *Figure 16.2: Effectiveness of Modern Neural Denoising Algorithms for Rendering. (a) Noisy image rendered with 32 samples per pixel. (b) Feature buffer with the average surface albedo at each pixel. (c) Feature buffer with the surface normal at each pixel. (d) Denoised image. (Image denoised with the NVIDIA OptiX 7.3 denoiser.)*
 
 ## 16.4 THE FUTURE
@@ -256,13 +258,13 @@ More recently, we have been delighted again to see the rapid adoption of path tr
 
 We would like to sincerely thank everyone who has built upon this work for their own research, to build a new curriculum, to create amazing movies or games, or just to learn more about rendering. We hope that this new edition continues to serve the graphics community in the same way that its predecessors have. _________________
 
-1 This is an inexact comparison for many reasons. Among them: pbrt is now a spectral renderer, while before it used RGB for lighting calculations; materials like CoatedDiffuseMaterial now require stochastic evaluation; its sampling algorithms are much better, but more computationally intensive; and improvements to the geometric robustness of ray intersection computations have imposed some performance cost (Section 6.8.8). Nevertheless, we believe that the results are directionally valid.
+1 This is an inexact comparison for many reasons. Among them: pbrt is now a spectral renderer, while before it used `RGB` for lighting calculations; materials like `CoatedDiffuseMaterial` now require stochastic evaluation; its sampling algorithms are much better, but more computationally intensive; and improvements to the geometric robustness of ray intersection computations have imposed some performance cost (Section 6.8.8). Nevertheless, we believe that the results are directionally valid.
 
 ## A SAMPLING ALGORITHMS
 
 Chapter 2 provided an introduction to the principles of sampling and Monte Carlo integration that are most widely used in pbrt. However, a number of additional sampling techniques—the alias method, reservoir sampling, and rejection sampling—that are used only occasionally were not described there. This appendix introduces each of those techniques and then concludes with two sections that further apply the inversion method to derive sampling techniques for a variety of useful distributions.
 
-A.1 THE ALIAS METHOD If many samples need to be generated from a discrete distribution, using the approach implemented in the SampleDiscrete() function would be wasteful: each generated sample would require O(n) computation. That approach could be improved to O(log n) time by computing a cumulative distribution function (CDF) table once and then using binary search to generate each sample, but there is another option that is even more efficient, requiring just O(1) time for each sample; that approach is the alias method.1
+A.1 THE ALIAS METHOD If many samples need to be generated from a discrete distribution, using the approach implemented in the `SampleDiscrete()` function would be wasteful: each generated sample would require O(n) computation. That approach could be improved to O(log n) time by computing a cumulative distribution function (CDF) table once and then using binary search to generate each sample, but there is another option that is even more efficient, requiring just O(1) time for each sample; that approach is the alias method.1
 
 To understand how the alias method works, first consider the task of sampling from n discrete outcomes, each with equal probability. In that case, computing the value ⌊nξ⌋ gives a uniformly distributed index between 0 and n − 1 and the corresponding outcome can be selected—no further work is necessary. The alias method allows a similar searchless sampling method if the outcomes have arbitrary probabilities pi.
 
@@ -290,7 +292,7 @@ For a specific example, consider the probabilities pi = {1/2, 1/4, 1/8, 1/8}. A 
 
 One way to interpret an alias table is that each bin represents 1/n of the total probability mass function. If outcomes are first allocated to their corresponding bins, then the probability mass of outcomes that are greater than 1/n must be distributed to other bins that have associated probabilities less than 1/n. This idea is illustrated in Figure A.1, which corresponds to the example of Table A.1.
 
-The AliasTable class implements algorithms for generating and sampling from alias tables. As with the other sampling code, its implementation is found in util/sampling.rs and util/sampling.rs.
+The `AliasTable` class implements algorithms for generating and sampling from alias tables. As with the other sampling code, its implementation is found in util/sampling.rs and util/sampling.rs.
 
 〈AliasTable Definition〉 ≡ class AliasTable { public: 〈AliasTable Public Methods 997〉 private:
 
@@ -332,9 +334,6 @@ The first stage of the alias table initialization algorithm is to split the outc
 
 ```rust
    struct Outcome {
-```
-
-```rust
          Float pHat;
          size_t index;
     };
@@ -360,9 +359,6 @@ Here and in the remainder of the initialization phase, we will scale the individ
    Float pHat = bins[i].p * bins.size();
    if (pHat < 1)
         under.push_back(Outcome{pHat, i});
-```
-
-```rust
     else
            over.push_back(Outcome{pHat, i});
 ```
@@ -398,9 +394,6 @@ In initializing bins[un.index], we have consumed worth of the scaled probability
    Float pExcess = un.pHat + ov.pHat - 1;
    if (pExcess < 1)
         under.push_back(Outcome{pExcess, ov.index});
-```
-
-```rust
     else
            over.push_back(Outcome{pExcess, ov.index});
 ```
@@ -415,7 +408,7 @@ In initializing bins[un.index], we have consumed worth of the scaled probability
 
 Due to floating-point round-off error, there may be work items remaining on either of the two work lists with the other one empty. These items have probabilities slightly less than or slightly greater than one and should be given probability q = 1 in the alias table. The fragment that handles this, 〈Handle remaining alias table work items〉, is not included in the book.
 
-Given an initialized alias table, sampling is easy. As described before, an entry is chosen with uniform probability and then either the corresponding sample or its alias is returned. As with the SampleDiscrete() function, a new uniform random sample derived from the original one is optionally returned.
+Given an initialized alias table, sampling is easy. As described before, an entry is chosen with uniform probability and then either the corresponding sample or its alias is returned. As with the `SampleDiscrete()` function, a new uniform random sample derived from the original one is optionally returned.
 
 〈AliasTable Method Definitions〉 +≡ int AliasTable::Sample(Float u, Float *pmf, Float *uRemapped) const { 〈Compute alias table offset and remapped random sample up 997〉 if (up < bins[offset].q) { 〈Return sample for alias table at offset 997〉 } else { 〈Return sample for alias table at alias[offset] 997〉 } }
 
@@ -435,9 +428,6 @@ If the initial entry is selected, the various return values are easily computed.
 
 ```rust
    if (pmf)
-```
-
-```rust
         *pmf = bins[offset].p;
     if (uRemapped)
         *uRemapped   =    std::min<Float>(up              /    bins[offset].q,
@@ -483,11 +473,11 @@ Beyond sampling, it is useful to be able to query the size of the table and the 
 
 A.2 RESERVOIR SAMPLING
 
-To perform the sampling operation, both SampleDiscrete() and alias tables require the number of outcomes being sampled from as well as all their probabilities to be stored in memory. Often this is not a problem, but for cases where we would like to draw a sample from a large number of events, or cases where each event requires a large amount of memory, it is useful to be able to generate samples without storing all of them at once.
+To perform the sampling operation, both `SampleDiscrete()` and alias tables require the number of outcomes being sampled from as well as all their probabilities to be stored in memory. Often this is not a problem, but for cases where we would like to draw a sample from a large number of events, or cases where each event requires a large amount of memory, it is useful to be able to generate samples without storing all of them at once.
 
 A family of algorithms based on a technique called reservoir sampling makes this possible, by taking a stream of candidate samples one at a time and randomly keeping just one of them in a way that ensures that the sample that is kept is from the distribution defined by the samples that have been seen so far. Reservoir sampling algorithms date to the early days of computer tape drives, where data could only be accessed sequentially and there was often more of it than could be stored in main memory. Reservoir sampling made it possible to draw random samples from data stored on tape while only reading the tape once.
 
-The basic reservoir sampling algorithm is easily expressed. Each candidate sample is stored in the reservoir with probability equal to one over the number of candidates that have been considered: reservoir ← ∅, n ← 0 while sample ← GetSample(): n←n+1 if ξ < 1/n reservoir ← sample The correctness of this algorithm can be shown using induction. For the base case, it is clear that if there is a single sample, it will be stored in the reservoir, and the reservoir has successfully drawn a sample with the appropriate probability from the sample distribution. Now consider the case where n samples have been considered and assume that the sample stored in the reservoir has been kept with probability 1/n. When a new sample is considered, it will be kept with probability 1/(n + 1), which is clearly the correct probability for it. The existing sample is kept with probability n/(n + 1); the product of the probability of keeping the existing sample and its probability of being stored in the reservoir gives the correct probability, 1/(n + 1), as well. Weighted reservoir sampling algorithms generalize the basic algorithm by making it possible to associate a nonnegative weight with each sample. Samples are then kept with probability given by the ratio of their weight to the sum of weights of all of the candidate samples that have been seen so far. The WeightedReservoirSampler class implements this algorithm. It is parameterized by the type of object being sampled T.
+The basic reservoir sampling algorithm is easily expressed. Each candidate sample is stored in the reservoir with probability equal to one over the number of candidates that have been considered: reservoir ← ∅, n ← 0 while sample ← `GetSample()`: n←n+1 if ξ < 1/n reservoir ← sample The correctness of this algorithm can be shown using induction. For the base case, it is clear that if there is a single sample, it will be stored in the reservoir, and the reservoir has successfully drawn a sample with the appropriate probability from the sample distribution. Now consider the case where n samples have been considered and assume that the sample stored in the reservoir has been kept with probability 1/n. When a new sample is considered, it will be kept with probability 1/(n + 1), which is clearly the correct probability for it. The existing sample is kept with probability n/(n + 1); the product of the probability of keeping the existing sample and its probability of being stored in the reservoir gives the correct probability, 1/(n + 1), as well. Weighted reservoir sampling algorithms generalize the basic algorithm by making it possible to associate a nonnegative weight with each sample. Samples are then kept with probability given by the ratio of their weight to the sum of weights of all of the candidate samples that have been seen so far. The `WeightedReservoirSampler` class implements this algorithm. It is parameterized by the type of object being sampled T.
 
 〈WeightedReservoirSampler Definition〉 ≡ template <typename T> class WeightedReservoirSampler { public: 〈WeightedReservoirSampler Public Methods 999〉
 
@@ -498,7 +488,7 @@ private: 〈WeightedReservoirSampler Private Members 999〉 };
    SampleDiscrete() 70
 ```
 
-WeightedReservoirSampler stores an RNG object that provides the random numbers that are used in deciding whether to add each sample to the reservoir. The constructor correspondingly takes a seed value that is passed on to the RNG.
+`WeightedReservoirSampler` stores an `RNG` object that provides the random numbers that are used in deciding whether to add each sample to the reservoir. The constructor correspondingly takes a seed value that is passed on to the `RNG`.
 
 〈WeightedReservoirSampler Public Methods〉 ≡ 998
 
@@ -506,7 +496,7 @@ WeightedReservoirSampler() = default; WeightedReservoirSampler(uint64_t rngSeed)
 
 RNG rng;
 
-If an array of WeightedReservoirSamplers is allocated, then the default constructor runs instead. In that case, the RNGs in individual samplers can be seeded via the Seed() method.
+If an array of `WeightedReservoirSampler`s is allocated, then the default constructor runs instead. In that case, the `RNG`s in individual samplers can be seeded via the `Seed()` method.
 
 〈WeightedReservoirSampler Public Methods〉 +≡ 998
 
@@ -575,7 +565,7 @@ sample X ~ p if ξ < f (X)/(c p(X)) then return X
    WeightedReservoirSampler::weightSum 999
 ```
 
-This procedure repeatedly chooses a pair of random variables (X, ξ). If the point (X, ξ c p(X)) lies under f (X), then the sample X is accepted. Otherwise, it is rejected and a new sample pair is chosen. This idea is illustrated in Figure A.2; it works in any number of dimensions. It should be evident that the efficiency of this scheme depends on how tightly c p(x) bounds f (x). For example, suppose we want to select a uniformly distributed point inside a unit disk. Using the rejection method, we simply select a random (x, y) position inside the circumscribed square and return it if it falls inside the disk. This process is shown in Figure A.3. The function RejectionSampleDisk() implements this algorithm. A similar approach will work to generate uniformly distributed samples on the inside of any complex shape as long as it has an inside–outside test.
+This procedure repeatedly chooses a pair of random variables (X, ξ). If the point (X, ξ c p(X)) lies under f (X), then the sample X is accepted. Otherwise, it is rejected and a new sample pair is chosen. This idea is illustrated in Figure A.2; it works in any number of dimensions. It should be evident that the efficiency of this scheme depends on how tightly c p(x) bounds f (x). For example, suppose we want to select a uniformly distributed point inside a unit disk. Using the rejection method, we simply select a random (x, y) position inside the circumscribed square and return it if it falls inside the disk. This process is shown in Figure A.3. The function `RejectionSampleDisk()` implements this algorithm. A similar approach will work to generate uniformly distributed samples on the inside of any complex shape as long as it has an inside–outside test.
 
 *Figure A.2: Rejection sampling generates samples according to the distribution of a function f (x) even if f’s PDF is unknown or its CDF cannot be inverted. If some distribution p(x) and a scalar constant c are known such that f (x) < c p(x), then samples can be drawn from p(x) and randomly accepted in a way that causes the accepted samples to be from f’s distribution. The closer the fit of c p(x) to f (x), the more efficient this process is.*
 
@@ -585,7 +575,7 @@ This procedure repeatedly chooses a pair of random variables (X, ξ). If the poi
 
 return p; }
 
-In general, the efficiency of rejection sampling depends on the percentage of samples that are expected to be rejected. For RejectionSampleDisk(), this is easy to compute. It is the area of the disk divided by the area of the square: . If the method is applied to generate samples in hyperspheres in the general n-dimensional case, however, the volume of an ndimensional hypersphere goes to 0 as n increases, and this approach becomes increasingly inefficient.
+In general, the efficiency of rejection sampling depends on the percentage of samples that are expected to be rejected. For `RejectionSampleDisk()`, this is easy to compute. It is the area of the disk divided by the area of the square: . If the method is applied to generate samples in hyperspheres in the general n-dimensional case, however, the volume of an ndimensional hypersphere goes to 0 as n increases, and this approach becomes increasingly inefficient.
 
 ```rust
    Float 23
@@ -604,7 +594,7 @@ introduce useful tricks for sampling that are helpful to know when deriving new 
 
 A.4.1 SAMPLING THE TENT FUNCTION
 
-SampleTent() uses SampleLinear() to sample the “tent” function with
+`SampleTent()` uses `SampleLinear()` to sample the “tent” function with
 
 radius r, The sampling algorithm first uses the provided uniform sample u with the SampleDiscrete() function to choose whether to sample a value greater than or less than zero, with each possibility having equal probability. Note the use of SampleDiscrete()’s capability of returning a new uniform random sample here, overwriting u’s original value. In turn, one of the two linear functions is sampled, with the result scaled so that the interval [−r, r]is sampled. One thing to note in this function is that the cases and expressions have been carefully crafted so that u==0 maps to -r and then as u increases, the sampled value increases monotonically until u==1 maps to r, without any jumps or reversals. This property is helpful for preserving well-distributed sample points (e.g., if they have low discrepancy). 〈Sampling Inline Functions〉 +≡ Float SampleTent(Float u, Float r) { if (SampleDiscrete({0.5f, 0.5f}, u, nullptr, &u) == 0) return -r + r * SampleLinear(u, 0, 1);
 
@@ -612,7 +602,7 @@ else return r * SampleLinear(u, 1, 0); }
 
 The tent function is easily normalized to find its PDF. 〈Sampling Inline Functions〉 +≡ Float TentPDF(Float x, Float r) { if (std::abs(x) >= r) return 0; return 1 / r - std::abs(x) / Sqr(r); }
 
-The inversion function is based on InvertLinearSample().
+The inversion function is based on `InvertLinearSample()`.
 
 ```rust
    Float 23
@@ -667,7 +657,7 @@ However, the Gaussian’s CDF cannot be expressed with elementary functions. It 
 
 where erf(x) is the error function. If we equate ξ = P(x) and solve, we find that: The inverse error function erf−1 can be well approximated with a polynomial, which in turn gives a sampling technique. 〈Sampling Inline Functions〉 +≡ Float SampleNormal(Float u, Float mu = 0, Float sigma = 1) { return mu + Sqrt2 * sigma * ErfInv(2 * u - 1); }
 
-InvertNormalSample(), not included here, evaluates P(x).
+`InvertNormalSample()`, not included here, evaluates P(x).
 
 The Box-Muller transform is an alternative sampling technique for the normal distribution; it takes a pair of random samples and returns a pair of normally distributed samples. It makes use of the fact that if two normally distributed variables are considered as a 2D point and transformed to 2D polar coordinates (r, θ), then r2 = −2 ln ξ1 and θ = 2πξ2.
 
@@ -795,13 +785,13 @@ The PiecewiseConstant1D constructor takes n values of a piecewise-constant funct
 
 PiecewiseConstant1D(pstd::span<const Float> f, Float min, Float max, Allocator alloc = {}) : func(f.begin(), f.end(), alloc), cdf(f.size() + 1, alloc), min(min), max(max) { 〈Take absolute value of func 1009〉 〈Compute integral of step function at xi 1010〉 〈Transform step function integral into CDF 1010〉 }
 
-The constructor makes its own copy of the function values and computes the function’s CDF. Note that the constructor allocates n+1 Floats for the cdf array because if f (x) has n step values, then there are n + 1 values P(xi)
+The constructor makes its own copy of the function values and computes the function’s CDF. Note that the constructor allocates n+1 `Float`s for the cdf array because if f (x) has n step values, then there are n + 1 values P(xi)
 
 that define the CDF. Storing the final CDF value of 1 is redundant but simplifies the sampling code later. 〈PiecewiseConstant1D Public Members〉 ≡ 1009
 
 pstd::vector<Float> func, cdf; Float min, max;
 
-Because the specified function may be negative, the absolute value of it is taken here first. (There is no further need for the original function in the PiecewiseConstant1D implementation.)
+Because the specified function may be negative, the absolute value of it is taken here first. (There is no further need for the original function in the `PiecewiseConstant1D` implementation.)
 
 〈Take absolute value of func〉 ≡ 1009
 
@@ -838,13 +828,13 @@ else for (size_t i = 1; i < n + 1; ++i) cdf[i] /= funcInt; 〈PiecewiseConstant1
 
 Float funcInt = 0;
 
-The integral of the absolute value of the function is made available via a method and the size() method returns the number of tabularized values.
+The integral of the absolute value of the function is made available via a method and the `size()` method returns the number of tabularized values.
 
 〈PiecewiseConstant1D Public Methods〉 +≡ 1009
 
 Float Integral() const { return funcInt; } size_t size() const { return func.size(); }
 
-The PiecewiseConstant1D::Sample() method uses the given random sample u to sample from its distribution. It returns the corresponding value x and the value of the PDF p(x). If the optional offset parameter is not nullptr, it returns the offset into the array of function values of the largest index where the CDF was less than or equal to u. (In other words, cdf[*offset] <= u < cdf[*offset+1].)
+The `PiecewiseConstant1D::Sample()` method uses the given random sample u to sample from its distribution. It returns the corresponding value x and the value of the PDF p(x). If the optional offset parameter is not nullptr, it returns the offset into the array of function values of the largest index where the CDF was less than or equal to u. (In other words, cdf[*offset] <= u < cdf[*offset+1].)
 
 〈PiecewiseConstant1D Public Methods〉 +≡ 1009
 
@@ -924,13 +914,13 @@ The fact that p(θ|r) is a constant should make sense because of the symmetry of
 
 distributed samples on a disk is Taking the square root of ξ1 effectively pushes the samples back toward the edge of the disk, counteracting the clumping referred to earlier.
 
-*Figure A.7: The mapping from 2D random samples to points on the disk implemented in SampleUniform DiskPolar() distorts areas substantially. Each section of the disk here has equal area and represents of the unit square of uniform random samples in each direction. In general, we would prefer a mapping that did a better job at mapping nearby (ξ1, ξ2) values to nearby points on the disk.*
+*Figure A.7: The mapping from 2D random samples to points on the disk implemented in `SampleUniformDiskPolar()` distorts areas substantially. Each section of the disk here has equal area and represents of the unit square of uniform random samples in each direction. In general, we would prefer a mapping that did a better job at mapping nearby (ξ1, ξ2) values to nearby points on the disk.*
 
 *Figure A.8: The concentric mapping maps squares to circles, giving a less distorted mapping than the first method shown for uniformly sampling points on the unit disk. It is based on mapping triangular wedges of the unit square to pie-shaped wedges of the disk, as shown here.*
 
 〈Sampling Inline Functions〉 +≡ Point2f SampleUniformDiskPolar(Point2f u) { Float r = std::sqrt(u[0]); Float theta = 2 * Pi * u[1]; return {r * std::cos(theta), r * std::sin(theta)}; }
 
-The inversion method, InvertUniformDiskPolarSample(), is straightforward and is not included here. Although this mapping solves the problem at hand, it distorts areas on the disk; areas on the unit square are elongated or compressed when mapped to the disk (Figure A.7). This distortion can reduce the effectiveness of stratified sampling patterns by making the strata less compact. A better approach that avoids this problem is a “concentric” mapping from the unit square to the unit disk. The concentric mapping takes points in the square [−1, 1]2 to the unit disk by uniformly mapping concentric squares to concentric circles (Figure A.8).
+The inversion method, `InvertUniformDiskPolarSample()`, is straightforward and is not included here. Although this mapping solves the problem at hand, it distorts areas on the disk; areas on the unit square are elongated or compressed when mapped to the disk (Figure A.7). This distortion can reduce the effectiveness of stratified sampling patterns by making the strata less compact. A better approach that avoids this problem is a “concentric” mapping from the unit square to the unit disk. The concentric mapping takes points in the square [−1, 1]2 to the unit disk by uniformly mapping concentric squares to concentric circles (Figure A.8).
 
 ```rust
    Float 23
@@ -941,7 +931,7 @@ The inversion method, InvertUniformDiskPolarSample(), is straightforward and is 
 
 The mapping turns wedges of the square into slices of the disk. For example, points in the shaded area in Figure A.8 are mapped to (r, θ) by
 
-*Figure A.9: Triangular wedges of the square are mapped into (r, θ) pairs in pie-shaped slices of the disk in the SampleUniformDiskConcentric() function.*
+*Figure A.9: Triangular wedges of the square are mapped into (r, θ) pairs in pie-shaped slices of the disk in the `SampleUniformDiskConcentric()` function.*
 
 See Figure A.9. The other seven wedges are handled analogously. 〈Sampling Inline Functions〉 +≡ Point2f SampleUniformDiskConcentric(Point2f u) { 〈Map u to [−1, 1]2 and handle degeneracy at the origin 1014〉 〈Apply concentric mapping to point 1014〉 }
 
@@ -957,7 +947,7 @@ All the other points are transformed using the mapping from square wedges to dis
 
 Float theta, r; if (std::abs(uOffset.x) > std::abs(uOffset.y)) { r = uOffset.x; theta = PiOver4 * (uOffset.y / uOffset.x); } else { r = uOffset.y; theta = PiOver2 - PiOver4 * (uOffset.x / uOffset.y); } return r * Point2f(std::cos(theta), std::sin(theta));
 
-The corresponding inversion function, InvertUniformDiskConcentricSample(), is not included in the text here.
+The corresponding inversion function, `InvertUniformDiskConcentricSample()`, is not included in the text here.
 
 ```text
     Float 23
@@ -1064,7 +1054,7 @@ The PDF can be integrated to find the CDF and the sampling technique for θ foll
 
 The following code samples a canonical cone around the (0, 0, 1) axis; the sample can be transformed to cones with other orientations using the Frame class. 〈Sampling Inline Functions〉 +≡ Vector3f SampleUniformCone(Point2f u, Float cosThetaMax) { Float cosTheta = (1 - u[0]) + u[0] * cosThetaMax; Float sinTheta = SafeSqrt(1 - Sqr(cosTheta)); Float phi = u[1] * 2 * Pi; return SphericalDirection(sinTheta, cosTheta, phi); }
 
-The inversion function, InvertUniformConeSample(), is not included here.
+The inversion function, `InvertUniformConeSample()`, is not included here.
 
 A.5.5 PIECEWISE-CONSTANT 2D DISTRIBUTIONS
 
@@ -1092,7 +1082,7 @@ Because this function only depends on ṽ, it is thus itself a piecewise-constan
 
 Note that, given a particular value of ṽ, p[ũ|ṽ] is a piecewise-constant 1D function of ũ that can be sampled with the usual 1D approach. There are nv such distinct 1D conditional densities, one for each possible value of ṽ. Putting this all together, the PiecewiseConstant2D class provides functionality similar to PiecewiseConstant1D, except that it generates samples from piecewise-constant 2D distributions. 〈PiecewiseConstant2D Definition〉 ≡ class PiecewiseConstant2D { public: 〈PiecewiseConstant2D Public Methods 1019〉 private: 〈PiecewiseConstant2D Private Members 1019〉 };
 
-Its constructor has two tasks. First, it computes a 1D conditional sampling density p[ũ|ṽ] for each of the nv individual ṽ values using Equation (A.10). It then computes the marginal sampling density p[ṽ] with Equation (A.9). (PiecewiseConstant2D provides a variety of additional constructors, not included here, including ones that take an Array2D to specify the values. See the pbrt source code for details.)
+Its constructor has two tasks. First, it computes a 1D conditional sampling density p[ũ|ṽ] for each of the nv individual ṽ values using Equation (A.10). It then computes the marginal sampling density p[ṽ] with Equation (A.9). (`PiecewiseConstant2D` provides a variety of additional constructors, not included here, including ones that take an `Array2D` to specify the values. See the pbrt source code for details.)
 
 〈PiecewiseConstant2D Public Methods〉 ≡ 1019
 
@@ -1112,7 +1102,7 @@ Bounds2f domain;
    PiecewiseConstant2D::pMarginal 1020
 ```
 
-PiecewiseConstant1D can directly compute the p[ũ|ṽ] distributions from each of the nv rows of nu function values, since they are laid out linearly in memory. The If and p[ṽ] terms from Equation (A.10) do not need to be included in the values passed to PiecewiseConstant1D since they have the same value for all the nu values and are thus just a constant scale that does not affect the normalized distribution that PiecewiseConstant1D computes.
+`PiecewiseConstant1D` can directly compute the p[ũ|ṽ] distributions from each of the nv rows of nu function values, since they are laid out linearly in memory. The If and p[ṽ] terms from Equation (A.10) do not need to be included in the values passed to `PiecewiseConstant1D` since they have the same value for all the nu values and are thus just a constant scale that does not affect the normalized distribution that `PiecewiseConstant1D` computes.
 
 〈Compute conditional sampling distribution for ṽ〉 ≡ 1019
 
@@ -1120,9 +1110,9 @@ pConditionalV.emplace_back(func.subspan(v * nu, nu), domain.pMin[0], domain.pMax
 
 pstd::vector<PiecewiseConstant1D> pConditionalV;
 
-Given the conditional densities for each ṽ value, we can find the 1D marginal density for sampling each one, p[ṽ]. Because the PiecewiseConstant1D class has a method that provides the integral of its function, it is just necessary to copy these values to the marginalFunc
+Given the conditional densities for each ṽ value, we can find the 1D marginal density for sampling each one, p[ṽ]. Because the `PiecewiseConstant1D` class has a method that provides the integral of its function, it is just necessary to copy these values to the marginalFunc
 
-buffer so they are stored linearly in memory for the PiecewiseConstant1D constructor.
+buffer so they are stored linearly in memory for the `PiecewiseConstant1D` constructor.
 
 〈Compute marginal sampling distribution p[ṽ]〉 ≡ 1019
 
@@ -1157,7 +1147,7 @@ The value of the PDF for a given sample value is computed as the product of the 
 
 Float PDF(Point2f pr) const { Point2f p = Point2f(domain.Offset(pr)); int iu = Clamp(int(p[0] * pConditionalV[0].size()), 0, pConditionalV[0].size() - 1); int iv = Clamp(int(p[1] * pMarginal.size()), 0, pMarginal.size() - 1); return pConditionalV[iv].func[iu] / pMarginal.Integral(); }
 
-The Invert() method, not included here, inverts the provided sample by inverting the v sample using the marginal distribution and then inverting u via the appropriate conditional distribution.
+The `Invert()` method, not included here, inverts the provided sample by inverting the v sample using the marginal distribution and then inverting u via the appropriate conditional distribution.
 
 ```rust
     Bounds2::Offset() 102
@@ -1176,7 +1166,7 @@ The Invert() method, not included here, inverts the provided sample by inverting
 
 A.5.6 WINDOWED PIECEWISE-CONSTANT 2D DISTRIBUTIONS
 
-WindowedPiecewiseConstant2D generalizes the PiecewiseConstant2D class to allow the caller to specify a window that limits the sampling domain to a given rectangular subset of it. (This capability was key for the implementation of the PortalImageInfiniteLight in Section 12.5.3.) Before going into its implementation, we will start with the SummedAreaTable class, which provides some capabilities that make it easier to implement. We have encapsulated them in a stand-alone class, as they can be useful in other settings as well. In 2D, a summed-area table is a 2D array where each element (x, y) stores a sum of values from another array a:
+`WindowedPiecewiseConstant2D` generalizes the `PiecewiseConstant2D` class to allow the caller to specify a window that limits the sampling domain to a given rectangular subset of it. (This capability was key for the implementation of the `PortalImageInfiniteLight` in Section 12.5.3.) Before going into its implementation, we will start with the `SummedAreaTable` class, which provides some capabilities that make it easier to implement. We have encapsulated them in a stand-alone class, as they can be useful in other settings as well. In 2D, a summed-area table is a 2D array where each element (x, y) stores a sum of values from another array a:
 
 where here we have used C++’s zero-based array indexing convention. Summed-area tables can be used to compute the sum of array values over rectangular regions of the original array in constant time. If the array a is interpreted as samples of a function, a summed-area table can efficiently compute integrals over arbitrary rectangular regions in a similar fashion. (Summed-area tables are therefore sometimes referred to as integral
 
@@ -1209,11 +1199,7 @@ This Lookup() method returns the interpolated sum at the given continuous coordi
 Float Lookup(Float x, Float y) const {
 
 ```rust
-        〈Rescale (x, y) to table resolution and compute integer coordinates
-        1023〉
-```
-
-```rust
+        〈Rescale (x, y) to table resolution and compute integer coordinates 1023〉
         〈Bilinearly interpolate between surrounding table values 1024〉
    }
 ```
@@ -1250,7 +1236,7 @@ x = std::min(x - 1, sum.XSize() - 1); y = std::min(y - 1, sum.YSize() - 1); retu
 
 Summed-area tables compute sums and integrals over arbitrary rectangular regions in a similar way to how the interior sum values were originally initialized. Here it is also possible to verify this computation algebraically, but the geometric interpretation may be more intuitive; see Figure A.14. The SummedAreaTable class provides this capability through its Integral() method, which returns the integral of the piecewise-constant function over a 2D bounding box. Here, the sum of function values over the region is converted to an integral by dividing by the size of the function strata over the domain. We have used double precision here to compute the final sum in order to improve its accuracy: especially if there are thousands of values in each dimension, the sums may have large magnitudes and thus taking their differences can lead to catastrophic cancellation. 〈SummedAreaTable Public Methods〉 +≡ 1022
 
-Float Integral(Bounds2f extent) const { double s = (((double)Lookup(extent.pMax.x, extent.pMax.y) -(double)Lookup(extent.pMin.x, extent.pMax.y)) + ((double)Lookup(extent.pMin.x, extent.pMin.y) -
+`Float` Integral(Bounds2f extent) const { double s = (((double)Lookup(extent.pMax.x, extent.pMax.y) -(double)Lookup(extent.pMin.x, extent.pMax.y)) + ((double)Lookup(extent.pMin.x, extent.pMin.y) -
 
 (double)Lookup(extent.pMax.x, extent.pMin.y))); return std::max<Float>(s / (sum.XSize() * sum.YSize()), 0); }
 
@@ -1268,7 +1254,7 @@ Array2D::operator() 1070 Array2D::XSize() 1070 Array2D::YSize() 1070 Bounds2::pM
    WindowedPiecewiseConstant2D::sat 1026
 ```
 
-Given SummedAreaTable’s capability of efficiently evaluating integrals over rectangular regions of a piecewise-constant function’s domain, the WindowedPiecewiseConstant2D class is able to provide sampling and
+Given `SummedAreaTable`’s capability of efficiently evaluating integrals over rectangular regions of a piecewise-constant function’s domain, the `WindowedPiecewiseConstant2D` class is able to provide sampling and
 
 PDF evaluation functions that operate over arbitrary caller-specified regions. 〈WindowedPiecewiseConstant2D Definition〉 ≡ class WindowedPiecewiseConstant2D { public: 〈WindowedPiecewiseConstant2D Public Methods 1025〉 private: 〈WindowedPiecewiseConstant2D Private Methods 1027〉 〈WindowedPiecewiseConstant2D Private Members 1026〉 };
 
@@ -1288,7 +1274,7 @@ The first step is to check whether the function’s integral is zero over the sp
 
 if (sat.Integral(b) == 0) return {};
 
-As discussed in Section 2.4.2, multidimensional distributions can be sampled by first integrating out all of the dimensions but one, sampling the resulting function, and then using that sample value in sampling the corresponding conditional distribution. Windowed PiecewiseConstant2D applies that very same idea, taking advantage of the fact that the summed-area table can efficiently evaluate the necessary integrals as needed. For a 2D continuous function f (x, y) defined over a rectangular domain from (x0, y0) to (x1, y1), the marginal distribution in x is defined by
+As discussed in Section 2.4.2, multidimensional distributions can be sampled by first integrating out all of the dimensions but one, sampling the resulting function, and then using that sample value in sampling the corresponding conditional distribution. Windowed `PiecewiseConstant2D` applies that very same idea, taking advantage of the fact that the summed-area table can efficiently evaluate the necessary integrals as needed. For a 2D continuous function f (x, y) defined over a rectangular domain from (x0, y0) to (x1, y1), the marginal distribution in x is defined by
 
 and the marginal’s cumulative distribution is
 
@@ -1393,7 +1379,7 @@ Float PDF(Point2f p, const Bounds2f &b) const { Float funcInt = sat.Integral(b);
 
 ## FURTHER READING
 
-Rejection sampling was developed by von Neumann (1951) shortly after the Monte Carlo method was invented. The alias method was introduced by Walker (1974, 1977). The algorithm that we have implemented to generate alias tables in the AliasTable class is due to Vose (1991). See Schwarz’s article (2011) for extensive information about implementing alias tables and related techniques. A number of algorithms for reservoir sampling were described by Vitter (1985), though he credits the basic algorithm we outlined at the start of Section A.2 to Alan Waterman. The weighted reservoir sampling algorithm in pbrt’s WeightedReservoirSampler class is due to Chao (1982).
+Rejection sampling was developed by von Neumann (1951) shortly after the Monte Carlo method was invented. The alias method was introduced by Walker (1974, 1977). The algorithm that we have implemented to generate alias tables in the `AliasTable` class is due to Vose (1991). See Schwarz’s article (2011) for extensive information about implementing alias tables and related techniques. A number of algorithms for reservoir sampling were described by Vitter (1985), though he credits the basic algorithm we outlined at the start of Section A.2 to Alan Waterman. The weighted reservoir sampling algorithm in pbrt’s `WeightedReservoirSampler` class is due to Chao (1982).
 
 The square to disk mapping in Section A.5.1 was described by Shirley and Chiu (1997). The implementation here benefits by observations in Shirley’s 2011 blog by Dave Cline and the commenter “franz” that the logic could be simplified considerably from the original algorithm (Shirley 2011). Articles by Shirley and collaborators describe a number of useful recipes for warping uniform random numbers to useful distributions for rendering (Shirley 1992; Shirley et al. 2019).
 
@@ -1409,7 +1395,7 @@ The summed-area table data structure was introduced by Crow (1984). Its use for 
 
 Arithmetic coding offers another interesting way to approach sampling from distributions (MacKay 2003, p. 118; Piponi 2012). If we have a discrete set of probabilities from which we would like to generate samples, one way to approach the problem is to encode the CDF as a binary tree where each node splits the [0, 1) interval at some point and where, given a random sample ξ, we determine which sample value it corresponds to by traversing the tree until we reach the leaf node for its sample value. Ideally, we would like leaf nodes that represent higher probabilities to be higher up in the tree, so that it takes fewer traversal steps to find them (and thus those more frequently generated samples can be found more quickly). Looking at the problem from this perspective, it can be shown that the optimal structure of such a tree is given by Huffman coding, which is normally used for compression. EXERCISES
 
-➊ A.1 Show that the WeightedReservoirSampler::Merge() method leaves the resulting reservoir with a sample that indeed is stored with probability equal to its weight divided by the sums of weights for all the samples in the two reservoirs. ➋ A.2 Modify the PiecewiseConstant1D implementation to use the adaptive CDF representation described by Lawrence et al. (2005), and experiment with how much more compact the CDF representation can be made without causing image artifacts. (Good test scenes include those that use ImageInfiniteLights, which use the PiecewiseConstant2D and, thus, PiecewiseConstant1D for sampling.) Can you measure an improvement in rendering speed due to more efficient searches through the approximated CDF? ➋ A.3 Extend SummedAreaTable to provide methods that efficiently compute 1D integrals along each dimension and then modify the WindowedPiecewiseConstant2D class’s Sample() method to use this capability for sampling the conditional CDF P(y|x). How is overall rendering performance affected by your change when rendering a scene that uses the PortalImageInfiniteLight? Profile pbrt and measure the change in performance of the Sample() method with your changes. What conclusions can you draw from your results?
+➊ A.1 Show that the `WeightedReservoirSampler::Merge()` method leaves the resulting reservoir with a sample that indeed is stored with probability equal to its weight divided by the sums of weights for all the samples in the two reservoirs. ➋ A.2 Modify the `PiecewiseConstant1D` implementation to use the adaptive CDF representation described by Lawrence et al. (2005), and experiment with how much more compact the CDF representation can be made without causing image artifacts. (Good test scenes include those that use `ImageInfiniteLight`s, which use the `PiecewiseConstant2D` and, thus, `PiecewiseConstant1D` for sampling.) Can you measure an improvement in rendering speed due to more efficient searches through the approximated CDF? ➋ A.3 Extend `SummedAreaTable` to provide methods that efficiently compute 1D integrals along each dimension and then modify the `WindowedPiecewiseConstant2D` class’s `Sample()` method to use this capability for sampling the conditional CDF P(y|x). How is overall rendering performance affected by your change when rendering a scene that uses the `PortalImageInfiniteLight`? Profile pbrt and measure the change in performance of the `Sample()` method with your changes. What conclusions can you draw from your results?
 
 ```rust
    ImageInfiniteLight 767
@@ -1429,9 +1415,9 @@ In addition to all the graphics-related code presented thus far, pbrt makes use 
 
 B.1 SYSTEM STARTUP, CLEANUP, AND OPTIONS
 
-Two structures that are defined in the options.rs header represent various user-specified options that are generally not part of the scene description file but are instead specified using command-line arguments to pbrt. pbrt’s main() function allocates the structure and then overrides its default values as appropriate.
+Two structures that are defined in the options.rs header represent various user-specified options that are generally not part of the scene description file but are instead specified using command-line arguments to pbrt. pbrt’s `main()` function allocates the structure and then overrides its default values as appropriate.
 
-BasicPBRTOptions stores the options that are used in both the CPU and GPU rendering pipelines. How most of them are used should be self-evident, though seed deserves note: any time an RNG is initialized in pbrt, the seed value in the options should be incorporated in the seed passed to its constructor. In this way, the renderer will generate independent images if the user specifies different --seed values using command-line arguments.
+`BasicPBRTOptions` stores the options that are used in both the CPU and GPU rendering pipelines. How most of them are used should be self-evident, though seed deserves note: any time an `RNG` is initialized in pbrt, the seed value in the options should be incorporated in the seed passed to its constructor. In this way, the renderer will generate independent images if the user specifies different --seed values using command-line arguments.
 
 〈BasicPBRTOptions Definition〉 ≡ struct BasicPBRTOptions { int seed = 0; bool quiet = false; bool disablePixelJitter = false, disableWavelengthJitter = false; bool disableTextureFiltering = false; bool forceDiffuse = false; bool useGPU = false; bool wavefront = false; RenderingCoordinateSystem renderingSpace = RenderingCoordinateSystem::CameraWorld; };
 
@@ -1445,9 +1431,9 @@ BasicPBRTOptions stores the options that are used in both the CPU and GPU render
 
 〈RenderingCoordinateSystem Definition〉 ≡ enum class RenderingCoordinateSystem { Camera, CameraWorld, World };
 
-The PBRTOptions structure, not included here, inherits from BasicPBRTOptions and adds a number of additional options that are mostly used when processing the scene description and not during rendering. A number of these options are std::strings that are not accessible in GPU code. Splitting the options in this way allows GPU code to access a BasicPBRTOptions instance to get the particular option values that are relevant to it.
+The `PBRTOptions` structure, not included here, inherits from `BasicPBRTOptions` and adds a number of additional options that are mostly used when processing the scene description and not during rendering. A number of these options are std::strings that are not accessible in GPU code. Splitting the options in this way allows GPU code to access a `BasicPBRTOptions` instance to get the particular option values that are relevant to it.
 
-The options are passed to InitPBRT(), which should be called before any of pbrt’s other classes or interfaces are used. It handles system-wide initialization and configuration. When rendering completes, CleanupPBRT() should be called so that the system can gracefully shut down. Both of these functions are defined in the file pbrt.rs.
+The options are passed to `InitPBRT()`, which should be called before any of pbrt’s other classes or interfaces are used. It handles system-wide initialization and configuration. When rendering completes, `CleanupPBRT()` should be called so that the system can gracefully shut down. Both of these functions are defined in the file pbrt.rs.
 
 〈Initialization and Cleanup Function Declarations〉 ≡ void InitPBRT(const PBRTOptions &opt); void CleanupPBRT();
 
@@ -1455,7 +1441,7 @@ In code that only runs on the CPU, the options can be accessed via a global vari
 
 〈Options Global Variable Declaration〉 ≡ extern PBRTOptions *Options;
 
-For code that runs on both the CPU and GPU, options must be accessed through the GetOptions() function, which returns a copy of the options that is either stored in CPU or GPU memory, depending on which type of processor the code is executing.
+For code that runs on both the CPU and GPU, options must be accessed through the `GetOptions()` function, which returns a copy of the options that is either stored in CPU or GPU memory, depending on which type of processor the code is executing.
 
 〈Options Inline Functions〉 ≡ const BasicPBRTOptions &GetOptions();
 
@@ -1465,11 +1451,11 @@ A table of the first 1,000 prime numbers is provided via a global variable. Its 
 
 〈Prime Table Declarations〉 ≡ static constexpr int PrimeTableSize = 1000; extern PBRT_CONST int Primes[PrimeTableSize];
 
-NextPrime() returns the next prime number after the provided one.
+`NextPrime()` returns the next prime number after the provided one.
 
 〈Math Function Declarations〉 ≡ int NextPrime(int x);
 
-B.2.1 BASIC ALGEBRAIC FUNCTIONS Clamp() clamps the given value to lie between the values low and high. For convenience, it allows the types of the values giving the extent to be different than the type being clamped (but its implementation requires that implicit conversion among the types involved is legal). By being implemented this way rather than requiring all to have the same type, the implementation allows calls like Clamp(floatValue, 0, 1) that would otherwise be disallowed by C++’s template type resolution rules.
+B.2.1 BASIC ALGEBRAIC FUNCTIONS `Clamp()` clamps the given value to lie between the values low and high. For convenience, it allows the types of the values giving the extent to be different than the type being clamped (but its implementation requires that implicit conversion among the types involved is legal). By being implemented this way rather than requiring all to have the same type, the implementation allows calls like Clamp(floatValue, 0, 1) that would otherwise be disallowed by C++’s template type resolution rules.
 
 ```rust
     BasicPBRTOptions 1031
@@ -1481,11 +1467,11 @@ B.2.1 BASIC ALGEBRAIC FUNCTIONS Clamp() clamps the given value to lie between th
 
 〈Math Inline Functions〉 +≡ template <typename T, typename U, typename V> constexpr T Clamp(T val, U low, V high) { if (val < low) return T(low); else if (val > high) return T(high); else return val; }
 
-Mod() computes the remainder of a/b. pbrt has its own version of this (rather than using %) in order to provide the behavior that the modulus of a negative number is always positive or zero. Starting with C++11, the behavior of % has been specified to return a negative value or zero in this case, so that the identity (a/b)*b + a%b == a holds.
+`Mod()` computes the remainder of a/b. pbrt has its own version of this (rather than using %) in order to provide the behavior that the modulus of a negative number is always positive or zero. Starting with C++11, the behavior of % has been specified to return a negative value or zero in this case, so that the identity (a/b)*b + a%b == a holds.
 
 〈Math Inline Functions〉 +≡ template <typename T> T Mod(T a, T b) { T result = a - (a / b) * b; return (T)((result < 0) ? result + b : result); }
 
-A specialization for Floats calls the corresponding standard library function.
+A specialization for `Float`s calls the corresponding standard library function.
 
 〈Math Inline Functions〉 +≡ template <> Float Mod(Float a, Float b) { return std::fmod(a, b); }
 
@@ -1508,19 +1494,19 @@ Two simple functions convert from angles expressed in degrees to radians, and vi
     Point2f 92
 ```
 
-It is often useful to blend between two values using a smooth curve that does not have the first derivative discontinuities that a linear interpolant would. SmoothStep() takes a range [a, b] and a value x, returning 0 if x ≤ a, 1 if x ≥ b, and smoothly blends between 0 and 1 for intermediate values of x using a cubic polynomial. Among other uses in the system, the SpotLight uses SmoothStep() to model the falloff to its edge.
+It is often useful to blend between two values using a smooth curve that does not have the first derivative discontinuities that a linear interpolant would. `SmoothStep()` takes a range [a, b] and a value x, returning 0 if x ≤ a, 1 if x ≥ b, and smoothly blends between 0 and 1 for intermediate values of x using a cubic polynomial. Among other uses in the system, the `SpotLight` uses `SmoothStep()` to model the falloff to its edge.
 
 〈Math Inline Functions〉 +≡ Float SmoothStep(Float x, Float a, Float b) { if (a == b) return (x < a) ? 0 : 1; Float t = Clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
 
-Finally, SafeSqrt() returns the square root of the given value, clamping it to zero in case of rounding errors being the cause of a slightly negative value. A second variant for doubles is effectively the same and is therefore not included here.
+Finally, `SafeSqrt()` returns the square root of the given value, clamping it to zero in case of rounding errors being the cause of a slightly negative value. A second variant for doubles is effectively the same and is therefore not included here.
 
 〈Math Inline Functions〉 +≡ float SafeSqrt(float x) { return std::sqrt(std::max(0.f, x)); }
 
-B.2.2 INTEGER POWERS AND POLYNOMIALS Sqr() squares the provided value. Though it is not much work to write this operation out directly, we have often found this function to be helpful in making the implementations of formulae more succinct.
+B.2.2 INTEGER POWERS AND POLYNOMIALS `Sqr()` squares the provided value. Though it is not much work to write this operation out directly, we have often found this function to be helpful in making the implementations of formulae more succinct.
 
 〈Math Inline Functions〉 +≡ template <typename T> constexpr T Sqr(T v) { return v * v; }
 
-Pow() efficiently raises a value to a power if the power is a compile-time constant. Note that the total number of multiply operations works out to be logarithmic in the power n.
+`Pow()` efficiently raises a value to a power if the power is a compile-time constant. Note that the total number of multiply operations works out to be logarithmic in the power n.
 
 〈Math Inline Functions〉 +≡ template <int n> constexpr float Pow(float v) { if constexpr (n < 0) return 1 / Pow<-n>(v); float n2 = Pow<n / 2>(v); return n2 * n2 * Pow<n & 1>(v); }
 
@@ -1528,7 +1514,7 @@ Specializations for n = 1 and n = 0 terminate the template function recursion.
 
 〈Math Inline Functions〉 +≡ template <> constexpr float Pow<1>(float v) { return v; } template <> constexpr float Pow<0>(float v) { return 1; }
 
-EvaluatePolynomial() evaluates a provided polynomial using Horner’s method, which is based on the equivalence
+`EvaluatePolynomial()` evaluates a provided polynomial using Horner’s method, which is based on the equivalence
 
 This formulation both gives good numerical accuracy and is amenable to use of fused multiply add operations.
 
@@ -1548,13 +1534,13 @@ This formulation both gives good numerical accuracy and is amenable to use of fu
 
 〈Math Inline Functions〉 +≡ template <typename Float, typename C, typename… Args> constexpr Float EvaluatePolynomial(Float t, C c, Args… cRemaining) { return FMA(t, EvaluatePolynomial(t, cRemaining…), c); }
 
-B.2.3 TRIGONOMETRIC FUNCTIONS The function sin(x)/x is used in multiple places in pbrt, including in the implementation of the LanczosSincFilter. It is undefined at x = 0 and suffers from poor numerical accuracy if directly evaluated at nearby values. A robust computation of its value is possible by considering the power
+B.2.3 TRIGONOMETRIC FUNCTIONS The function sin(x)/x is used in multiple places in pbrt, including in the implementation of the `LanczosSincFilter`. It is undefined at x = 0 and suffers from poor numerical accuracy if directly evaluated at nearby values. A robust computation of its value is possible by considering the power
 
 series expansion If x is small and 1 − x2/3! rounds to 1, then sin(x)/x also rounds to 1. The following function uses a slightly more conservative variant of that test, which is close enough for our purposes.
 
 〈Math Inline Functions〉 +≡ Float SinXOverX(Float x) { if (1 - x * x == 1) return 1; return std::sin(x) / x; }
 
-Similar to SafeSqrt(), pbrt also provides “safe” versions of the inverse sine and cosine functions so that if the provided value is slightly outside of the legal range [−1, 1], a reasonable result is returned rather than a not-a-number value. In debug builds, an additional check is performed to make sure that the provided value is not too far outside the valid range.
+Similar to `SafeSqrt()`, pbrt also provides “safe” versions of the inverse sine and cosine functions so that if the provided value is slightly outside of the legal range [−1, 1], a reasonable result is returned rather than a not-a-number value. In debug builds, an additional check is performed to make sure that the provided value is not too far outside the valid range.
 
 〈Math Inline Functions〉 +≡ float SafeASin(float x) { return std::asin(Clamp(x, -1, 1)); } float SafeACos(float x) { return std::acos(Clamp(x, -1, 1)); }
 
@@ -1596,9 +1582,9 @@ It is occasionally useful to compute the base-4 logarithm of an integer value. T
 
 〈Math Inline Functions〉 +≡ template <typename T> int Log4Int(T v) { return Log2Int(v) / 2; }
 
-An efficient approximation to the exponential function ex comes in handy, especially for volumetric light transport algorithms where such values need to be computed frequently. Like Log2Int(), this value can be computed efficiently by taking advantage of the floating-point representation.
+An efficient approximation to the exponential function ex comes in handy, especially for volumetric light transport algorithms where such values need to be computed frequently. Like `Log2Int()`, this value can be computed efficiently by taking advantage of the floating-point representation.
 
-〈Math Inline Functions〉 +≡ float FastExp(float x) { 〈Compute x′ such that ex = 2x′ 1037 〈Find integer and fractional components of x′ 1037〉 〈Evaluate polynomial approximation of 2f 1037〉 〈Scale 2f by 2i and return final result 1037〉 }
+〈Math Inline Functions〉 +≡ float FastExp(float x) { 〈Compute x′ such that ex = 2x′ 1037〉 〈Find integer and fractional components of x′ 1037〉 〈Evaluate polynomial approximation of 2f 1037〉 〈Scale 2f by 2i and return final result 1037〉 }
 
 ```rust
     Exponent() 365
@@ -1646,7 +1632,7 @@ The last task is to apply the 2i scale. This can be done by directly operating o
    return BitsToFloat(bits);
 ```
 
-B.2.5 TRANSCENDENTAL AND SPECIAL FUNCTIONS Gaussian() evaluates the Gaussian function
+B.2.5 TRANSCENDENTAL AND SPECIAL FUNCTIONS `Gaussian()` evaluates the Gaussian function
 
 〈Math Inline Functions〉 +≡ Float Gaussian(Float x, Float mu = 0, Float sigma = 1) { return 1 / std::sqrt(2 * Pi * sigma * sigma) * FastExp(-Sqr(x - mu) / (2 * sigma * sigma));
 
@@ -1681,13 +1667,13 @@ It has a generally similar shape to the Gaussian—it is symmetric and smoothly 
 
 The trimmed logistic function is the logistic limited to an interval [a, b]and then renormalized using the technique introduced in Section A.4.5. 〈Math Inline Functions〉 +≡ Float TrimmedLogistic(Float x, Float s, Float a, Float b) { return Logistic(x, s) / (LogisticCDF(b, s) -LogisticCDF(a, s)); }
 
-ErfInv() is the inverse to the error function std:erf(), implemented via a polynomial approximation. I0() evaluates the modified Bessel function of the first kind and LogI0() returns its logarithm.
+`ErfInv()` is the inverse to the error function std:`erf()`, implemented via a polynomial approximation. `I0()` evaluates the modified Bessel function of the first kind and `LogI0()` returns its logarithm.
 
 〈Math Inline Functions〉 +≡ Float ErfInv(Float a); Float I0(Float x); Float LogI0(Float x);
 
 B.2.6 INTERVAL SEARCH
 
-FindInterval() is a helper function that emulates the behavior of std::upper_bound() but uses a function object to get values at various indices instead of requiring access to an actual array. This way, it becomes possible to bisect arrays that are procedurally generated, such as those interpolated from point samples.
+`FindInterval()` is a helper function that emulates the behavior of `std::upper_bound()` but uses a function object to get values at various indices instead of requiring access to an actual array. This way, it becomes possible to bisect arrays that are procedurally generated, such as those interpolated from point samples.
 
 ```rust
     Float 23
@@ -1716,13 +1702,13 @@ A variant of RoundUpPow2() for int64_t is also provided but is not included in t
 
 The bits of a 64-bit value can then be reversed by reversing the two 32-bit components individually and then interchanging them. 〈Bit Operation Inline Functions〉 +≡ inline uint64_t ReverseBits64(uint64_t n) { uint64_t n0 = ReverseBits32((uint32_t)n); uint64_t n1 = ReverseBits32((uint32_t)(n >> 32)); return (n0 << 32) | n1; }
 
-Morton Indexing To be able to compute 3D Morton codes, which were introduced in Section 7.3.3, we will first define a helper function: LeftShift3() takes a 32-bit value and returns the result of shifting the ith bit to be at the 3ith bit, leaving zeros in other bits. Figure B.1 illustrates this operation. The most obvious approach to implement this operation, shifting each bit value individually, is not the most efficient. (It would require a total of 9 shifts, along with bitwise OR operations to compute the final value.) Instead, we can decompose each bit’s shift into multiple shifts of power-of-two size that together shift the bit’s value to its final position. Then, all the bits that need to be shifted a given power-of-two number of places can be shifted together. The LeftShift3() function implements this computation, and Figure B.2 shows how it works.
+Morton Indexing To be able to compute 3D Morton codes, which were introduced in Section 7.3.3, we will first define a helper function: `LeftShift3()` takes a 32-bit value and returns the result of shifting the ith bit to be at the 3ith bit, leaving zeros in other bits. Figure B.1 illustrates this operation. The most obvious approach to implement this operation, shifting each bit value individually, is not the most efficient. (It would require a total of 9 shifts, along with bitwise OR operations to compute the final value.) Instead, we can decompose each bit’s shift into multiple shifts of power-of-two size that together shift the bit’s value to its final position. Then, all the bits that need to be shifted a given power-of-two number of places can be shifted together. The `LeftShift3()` function implements this computation, and Figure B.2 shows how it works.
 
-*Figure B.1: Bit Shifts to Compute 3D Morton Codes. The LeftShift3() function takes a 32-bit integer value and for the bottom 10 bits, shifts the ith bit to be in position 3i—in other words, shifts it 2i places to the left. All other bits are set to zero.*
+*Figure B.1: Bit Shifts to Compute 3D Morton Codes. The `LeftShift3()` function takes a 32-bit integer value and for the bottom 10 bits, shifts the ith bit to be in position 3i—in other words, shifts it 2i places to the left. All other bits are set to zero.*
 
-*Figure B.2: Power-of-Two Decomposition of Morton Bit Shifts. The bit shifts to compute the Morton code for each 3D coordinate are performed in a series of shifts of power-of-two size. First, bits 8 and 9 are shifted 16 places to the left. This places bit 8 in its final position. Next bits 4 through 7 are shifted 8 places. After shifts of 4 and 2 places (with appropriate masking so that each bit is shifted the right number of places in the end), all bits are in the proper position. This computation is implemented by the LeftShift3() function.*
+*Figure B.2: Power-of-Two Decomposition of Morton Bit Shifts. The bit shifts to compute the Morton code for each 3D coordinate are performed in a series of shifts of power-of-two size. First, bits 8 and 9 are shifted 16 places to the left. This places bit 8 in its final position. Next bits 4 through 7 are shifted 8 places. After shifts of 4 and 2 places (with appropriate masking so that each bit is shifted the right number of places in the end), all bits are in the proper position. This computation is implemented by the `LeftShift3()` function.*
 
-*Figure B.3: Final Interleaving of Coordinate Values. Given interleaved values for x, y, and z computed by LeftShift3(), the final Morton-encoded value is computed by shifting y and z one and two places, respectively, and then computing the bitwise OR of the results.*
+*Figure B.3: Final Interleaving of Coordinate Values. Given interleaved values for x, y, and z computed by `LeftShift3()`, the final Morton-encoded value is computed by shifting y and z one and two places, respectively, and then computing the bitwise OR of the results.*
 
 〈Bit Operation Inline Functions〉 +≡ inline uint32_t LeftShift3(uint32_t x) { if (x == (1 << 10)) --x;
 
@@ -1745,11 +1731,11 @@ EncodeMorton3() takes a 3D coordinate value where each component is a floating-p
     LeftShift3() 1041
 ```
 
-Support for 2D Morton encoding is provided by the EncodeMorton2() function, which takes a pair of 32-bit integer values and follows an analogous approach. It is not included here.
+Support for 2D Morton encoding is provided by the `EncodeMorton2()` function, which takes a pair of 32-bit integer values and follows an analogous approach. It is not included here.
 
 B.2.8 HASHING AND RANDOM PERMUTATIONS
 
-A handful of hashing functions are provided. Their implementations are in the file util/hash.rs. The first, MixBits(), takes an integer value and applies a so-called finalizer, which is commonly found at the end of hash function
+A handful of hashing functions are provided. Their implementations are in the file util/hash.rs. The first, `MixBits()`, takes an integer value and applies a so-called finalizer, which is commonly found at the end of hash function
 
 implementations. A good hash function has the property that flipping a single bit in the input causes each of the bits in the result to flip with probability 1/2; a finalizer takes values where this may not be the case and shuffles them around in a way that increases this likelihood. MixBits() is particularly handy for tasks like computing unique seeds for a pseudo-random number generator at each pixel: depending on the RNG implementation, the naive approach of converting the pixel coordinates into an index and giving the RNG successive integer values as seeds may lead to correlation between values it generates at nearby pixels. Running such an index through MixBits() first is good protection against this. 〈Hashing Inline Functions〉 ≡ uint64_t MixBits(uint64_t v);
 
@@ -1757,7 +1743,7 @@ There are also complete hash functions for arbitrary data. HashBuffer() hashes a
 
 For convenience, pbrt also provides a Hash() function that can be passed an arbitrary sequence of values, all of which are hashed together. 〈Hashing Inline Functions〉 +≡ template <typename… Args> uint64_t Hash(Args… args);
 
-It is sometimes useful to convert a hash to a floating-point value between 0 and 1; the HashFloat() function handles the details of doing so.
+It is sometimes useful to convert a hash to a floating-point value between 0 and 1; the `HashFloat()` function handles the details of doing so.
 
 〈Hashing Inline Functions〉 +≡
 
@@ -1767,7 +1753,7 @@ It is sometimes useful to convert a hash to a floating-point value between 0 and
    * 0x1p-32f; }
 ```
 
-PermutationElement() returns the ith element of a random permutation of n values based on the provided seed. Remarkably, it is able to do so without needing to explicitly represent the permutation. The key idea underlying its implementation is the insight that any invertible hash function of n bits represents a permutation of the values from 0 to 2n − 1— otherwise, it would not be invertible. Such a hash function can be used to define a permutation over a non-power-of-two number of elements n using the permutation for the next power-of-two number of elements and then repermuting any values greater than n until a valid one is reached.
+`PermutationElement()` returns the ith element of a random permutation of n values based on the provided seed. Remarkably, it is able to do so without needing to explicitly represent the permutation. The key idea underlying its implementation is the insight that any invertible hash function of n bits represents a permutation of the values from 0 to 2n − 1— otherwise, it would not be invertible. Such a hash function can be used to define a permutation over a non-power-of-two number of elements n using the permutation for the next power-of-two number of elements and then repermuting any values greater than n until a valid one is reached.
 
 ```rust
     Float 23
@@ -1797,7 +1783,7 @@ It is also possible to compute a compensation term e for floating-point addition
 
 It is not in general possible to compute exact compensation terms for sums or products of more than two values. However, maintaining them anyway, even if they carry some rounding error, makes it possible to implement various algorithms with lower error than if they were not used. A similar trick based on FMA can be applied to the difference-of-products calculation of the form a × b − c × d. To understand the challenge involved in this computation, consider computing this difference as FMA(a, b, −c ⊗ d). There are two rounding operations, one after computing c × d and then another after the FMA.1 If, for example, all of a, b, c, and d are positive and the products a × b and c × d are of similar magnitudes, then catastrophic cancellation may result: the rounding error from c ⊗ d, though small with respect to the product c × d, may be large with respect to the final result. The following DifferenceOfProducts() function uses FMA in a similar manner to TwoProd(), finding an initial value for the difference of products as well as the rounding error from c ⊗ d. The rounding error is then added back to the value that is returned, thus fixing up catastrophic cancellation after the fact. It has been shown that this gives a result within 1.5 ulps of the correct value; see the “Further Reading” section for details. 〈Math Inline Functions〉 +≡ template <typename Ta, typename Tb, typename Tc, typename Td> inline auto DifferenceOfProducts(Ta a, Tb b, Tc c, Td d) { auto cd = c * d; auto differenceOfProducts = FMA(a, b, -cd); auto error = FMA(-c, d, cd); return differenceOfProducts + error; }
 
-pbrt also provides a SumOfProducts() function that reliably computes a × b + c × d in a similar manner. Compensation can also be used to compute a sum of numbers more accurately than adding them together directly. An algorithm to do so is implemented in the CompensatedSum class.
+pbrt also provides a `SumOfProducts()` function that reliably computes a × b + c × d in a similar manner. Compensation can also be used to compute a sum of numbers more accurately than adding them together directly. An algorithm to do so is implemented in the `CompensatedSum` class.
 
 〈CompensatedSum Definition〉 ≡ template <typename Float> class CompensatedSum { public: 〈CompensatedSum Public Methods 1044〉 private: Float sum = 0, c = 0; };
 
@@ -1821,7 +1807,7 @@ B.2.10 FINDING ZEROS
 
 The Quadratic() function finds solutions of the quadratic equation at2 + bt + c = 0; the Boolean return value indicates whether solutions were found. 〈Math Inline Functions〉 +≡ bool Quadratic(float a, float b, float c, float *t0, float *t1) {
 
-〈Handle case of a = 0 for quadratic solution 1045〉 〈Find quadratic discriminant 1045〉 〈Compute quadratic〉 t values 1046〉 return true; }
+〈Handle case of a = 0 for quadratic solution 1045〉 〈Find quadratic discriminant 1045〉 〈Compute quadratic t values 1046〉 return true; }
 
 If a is zero, then the caller has actually specified a linear function. That case is handled first to avoid not-a-number values being generated via the usual execution path. (Our implementation does not handle the case of all coefficients being equal to zero, in which case there are an infinite number of solutions.) 〈Handle case of a = 0 for quadratic solution〉 ≡ 1045
 
@@ -1837,7 +1823,7 @@ algebraically into a more stable form:
 
 where
 
-The implementation uses pstd::copysign() in place of an if test for the condition on b, setting the sign of the square root of the discriminant to be the same as the sign of b, which is equivalent. This micro-optimization does not meaningfully affect pbrt’s performance, but it is a trick that is worth being aware of.
+The implementation uses `pstd::copysign()` in place of an if test for the condition on b, setting the sign of the square root of the discriminant to be the same as the sign of b, which is equivalent. This micro-optimization does not meaningfully affect pbrt’s performance, but it is a trick that is worth being aware of.
 
 ```rust
    DifferenceOfProducts() 1044
@@ -1848,9 +1834,9 @@ The implementation uses pstd::copysign() in place of an if test for the conditio
 
 float q = -0.5f * (b + pstd::copysign(rootDiscrim, b)); *t0 = q / a; *t1 = c / q; if (*t0 > *t1) pstd::swap(*t0, *t1);
 
-NewtonBisection() finds a zero of an arbitrary function f (x) over a specified range [x0, x1] using an iterative root-finding technique that is guaranteed to converge to the solution so long as [x0, x1]brackets a root and f (x0) and f (x1) differ in sign.
+`NewtonBisection()` finds a zero of an arbitrary function f (x) over a specified range [x0, x1] using an iterative root-finding technique that is guaranteed to converge to the solution so long as [x0, x1]brackets a root and f (x0) and f (x1) differ in sign.
 
-In each iteration, bisection search splits the interval into two parts and discards the subinterval that does not bracket the solution—in this way, it can be interpreted as a continuous extension of binary search. The method’s robustness is clearly desirable, but its relatively slow (linear) convergence can still be improved. We therefore use Newton-bisection, which is a combination of the quadratically converging but potentially unsafe2 Newton’s method with the safety of bisection search as a fallback. The provided function f should return a std::pair<Float, Float> where the first value is the function’s value and the second is its derivative. Two “epsilon” values control the accuracy of the result: xEps gives a minimum
+In each iteration, bisection search splits the interval into two parts and discards the subinterval that does not bracket the solution—in this way, it can be interpreted as a continuous extension of binary search. The method’s robustness is clearly desirable, but its relatively slow (linear) convergence can still be improved. We therefore use Newton-bisection, which is a combination of the quadratically converging but potentially unsafe2 Newton’s method with the safety of bisection search as a fallback. The provided function f should return a std::pair<`Float`, `Float`> where the first value is the function’s value and the second is its derivative. Two “epsilon” values control the accuracy of the result: xEps gives a minimum
 
 distance between the x values that bracket the root, and fEps specifies how close to zero is sufficient for f (x). 〈Math Inline Functions〉 +≡ template <typename Func> Float NewtonBisection(Float x0, Float x1, Func f, Float xEps = 1e-6f, Float fEps = 1e-6f) { 〈Check function endpoints for roots 1046〉 〈Set initial midpoint using linear approximation of f 1047〉 while (true) { 〈Fall back to bisection if xMid is out of bounds 1047〉 〈Evaluate function and narrow bracket range [x0, x1] 1047〉 〈Stop the iteration if converged 1047〉 〈Perform a Newton step 1047〉 } }
 
@@ -1898,9 +1884,9 @@ xMid -= fxMid.first / fxMid.second;
 
 B.2.11 ROBUST VARIANCE ESTIMATION
 
-One problem with computing the sample variance using Equation (2.11) is that doing so requires storing all the samples Xi. The storage requirements for this may be unacceptable—for example, for a Film implementation that is estimating per-pixel variance with thousands of samples per pixel. Equation (2.9) suggests another possibility: if we accumulate estimates of both X and , then the sample variance could be estimated as
+One problem with computing the sample variance using Equation (2.11) is that doing so requires storing all the samples Xi. The storage requirements for this may be unacceptable—for example, for a `Film` implementation that is estimating per-pixel variance with thousands of samples per pixel. Equation (2.9) suggests another possibility: if we accumulate estimates of both X and , then the sample variance could be estimated as
 
-which only requires storing two values. This approach is numerically unstable, however, due to having a much larger magnitude than X. Therefore, the following Variance Estimator class, which computes an online estimate of variance without storing all the samples, uses Welford’s algorithm, which is numerically stable. Its implementation in pbrt is parameterized by a floating-point type so that, for example, double precision can be used even when pbrt is built to use single-precision Floats.
+which only requires storing two values. This approach is numerically unstable, however, due to having a much larger magnitude than X. Therefore, the following Variance Estimator class, which computes an online estimate of variance without storing all the samples, uses Welford’s algorithm, which is numerically stable. Its implementation in pbrt is parameterized by a floating-point type so that, for example, double precision can be used even when pbrt is built to use single-precision `Float`s.
 
 〈VarianceEstimator Definition〉 ≡
 
@@ -1922,7 +1908,7 @@ added to Sn−1 gives Sn: After some algebraic manipulation, this can be found t
    Float 23
 ```
 
-which is comprised of quantities that are all readily available. The implementation of the VarianceEstimator Add() method is then just a
+which is comprised of quantities that are all readily available. The implementation of the `VarianceEstimator` `Add()` method is then just a
 
 matter of applying Equations (B.1) and (B.2). 〈VarianceEstimator Public Methods〉 ≡ 1048
 
@@ -1932,7 +1918,7 @@ Given these two quantities, VarianceEstimator can provide a number of useful sta
 
 Float Mean() const { return mean; } Float Variance() const { return (n > 1) ? S / (n - 1) : 0; } Float RelativeVariance() const { return (n < 1 || mean == 0) ? 0 : Variance() / Mean(); }
 
-It is also possible to merge two VarianceEstimators so that the result stores the same mean and variance estimates (modulo minor floating-point rounding error) as if a single VarianceEstimator had processed all the values seen by the two of them. This capability is particularly useful in parallel implementations, where separate threads may separately compute sample statistics that are merged later. The Merge() method implements this operation, which we will not include here; see the “Further Reading” section for details of its derivation.
+It is also possible to merge two `VarianceEstimator`s so that the result stores the same mean and variance estimates (modulo minor floating-point rounding error) as if a single `VarianceEstimator` had processed all the values seen by the two of them. This capability is particularly useful in parallel implementations, where separate threads may separately compute sample statistics that are merged later. The `Merge()` method implements this operation, which we will not include here; see the “Further Reading” section for details of its derivation.
 
 B.2.12 SQUARE MATRICES
 
@@ -1940,7 +1926,7 @@ The SquareMatrix class provides a representation of square matrices with dimensi
 
 class SquareMatrix { public: 〈SquareMatrix Public Methods 1050〉 private: Float m[N][N]; };
 
-The default constructor initializes the identity matrix. Other constructors (not included here) allow providing the values of the matrix directly or via a two-dimensional array of values. Alternatively, Zero() can be used to get a zero-valued matrix or Diag() can be called with N values to get the corresponding diagonal matrix.
+The default constructor initializes the identity matrix. Other constructors (not included here) allow providing the values of the matrix directly or via a two-dimensional array of values. Alternatively, `Zero()` can be used to get a zero-valued matrix or `Diag()` can be called with N values to get the corresponding diagonal matrix.
 
 ```rust
    Float 23
@@ -2016,7 +2002,7 @@ control points pi:
     SquareMatrix::Inverse() 1051
 ```
 
-BlossomBezier() implements this computation, which we will see has a variety of uses. The type P of the control point is a template parameter, which makes it possible to call this function with any type for which a Lerp() function is defined.
+`BlossomBezier()` implements this computation, which we will see has a variety of uses. The type P of the control point is a template parameter, which makes it possible to call this function with any type for which a `Lerp()` function is defined.
 
 〈Bezier Inline Functions〉 ≡ template <typename P> P BlossomCubicBezier(pstd::span<const P> p, Float u0, Float u1, Float u2) { P a[3] = { Lerp(u0, p[0], p[1]), Lerp(u0, p[1], p[2]), Lerp(u0, p[2], p[3]) }; P b[2] = { Lerp(u1, a[0], a[1]), Lerp(u1, a[1], a[2]) }; return Lerp(u2, b[0], b[1]); }
 
@@ -2060,11 +2046,11 @@ More generally, the four control points for the curve segment over the range umi
 
 Bounding boxes of Curves can be efficiently computed by taking advantage of the convex hull property, a property of Bézier curves that says that they must lie within the convex hull of their control points. Therefore, the bounding box of the control points gives a conservative bound of the
 
-underlying curve. This bounding box is returned by the BoundCubicBezier() function.
+underlying curve. This bounding box is returned by the `BoundCubicBezier()` function.
 
 〈Bezier Inline Functions〉 +≡ Bounds3f BoundCubicBezier(pstd::span<const Point3f> cp) { return Union(Bounds3f(cp[0], cp[1]), Bounds3f(cp[2], cp[3])); }
 
-A second variant of this function bounds a Bézier curve over a specified parametric range via a call to CubicBezierControlPoints().
+A second variant of this function bounds a Bézier curve over a specified parametric range via a call to `CubicBezierControlPoints()`.
 
 〈Bezier Inline Functions〉 +≡ Bounds3f BoundCubicBezier(pstd::span<const Point3f> cp, Float uMin, Float uMax) { if (uMin == 0 && uMax == 1) return BoundCubicBezier(cp); auto cpSeg = CubicBezierControlPoints(cp, uMin, uMax); return BoundCubicBezier(pstd::span<const Point3f> (cpSeg)); }
 
@@ -2120,13 +2106,13 @@ Generating a uniformly distributed signed 32-bit integer requires surprisingly t
 
 〈RNG Inline Method Definitions〉 +≡ template <> int32_t RNG::Uniform<int32_t>() { uint32_t v = Uniform<uint32_t>(); if (v <= (uint32_t)std::numeric_limits<int32_t>::max()) return int32_t(v); return int32_t(v - std::numeric_limits<int32_t>::min()) + std::numeric_limits<int32_t>::min(); }
 
-A similar method returns pseudo-random int64_t values.
+A similar method returns pseudo-random `int64_t` values.
 
-It is often useful to generate a value that is uniformly distributed in the range [0, b − 1] a bound b. The first two versions of pbrt effectively computed Uniform<int32_t>() % b to do so. That approach is subtly flawed—in the case that b does not evenly divide 232, there is higher probability of choosing any given value in the sub-range [0, 232 mod b − 1].
+It is often useful to generate a value that is uniformly distributed in the range [0, b − 1] a bound b. The first two versions of pbrt effectively computed Uniform<`int32_t`>() % b to do so. That approach is subtly flawed—in the case that b does not evenly divide 232, there is higher probability of choosing any given value in the sub-range [0, 232 mod b − 1].
 
-Therefore, the implementation here first computes the above remainder 232 mod b efficiently using 32-bit arithmetic and stores it in the variable threshold. Then, if the value returned by Uniform() is less than
+Therefore, the implementation here first computes the above remainder 232 mod b efficiently using 32-bit arithmetic and stores it in the variable threshold. Then, if the value returned by `Uniform()` is less than
 
-threshold, it is discarded and a new value is generated. The resulting distribution of values has a uniform distribution after the modulus operation, giving a uniformly distributed sample value. The tricky declaration of the return value ensures that this variant of Uniform() is only available for integral types.
+threshold, it is discarded and a new value is generated. The resulting distribution of values has a uniform distribution after the modulus operation, giving a uniformly distributed sample value. The tricky declaration of the return value ensures that this variant of `Uniform()` is only available for integral types.
 
 〈RNG Public Methods〉 +≡ 1054
 
@@ -2136,7 +2122,7 @@ A specialization of Uniform() for floats generates a pseudo-random floating-poin
 
 An equivalent method for doubles is provided but is not included here.
 
-With this random number generator, it is possible to step forward or back to a different spot in the sequence without generating all the intermediate values. The Advance() method provides this functionality.
+With this random number generator, it is possible to step forward or back to a different spot in the sequence without generating all the intermediate values. The `Advance()` method provides this functionality.
 
 ```text
     OneMinusEpsilon 470
@@ -2148,9 +2134,9 @@ void Advance(int64_t idelta);
 
 B.2.15 INTERVAL ARITHMETIC
 
-Interval arithmetic is a technique that can be used to reason about the range of a function over some range of values and also to bound the round-off error introduced by a series of floating-point calculations. The Interval class provides functionality for both of these uses. To understand the basic idea of interval arithmetic, consider, for example, the function f (x) = 2x. If we have an interval of values [a, b] ⊂ ℝ, then we can see that, over the interval, the range of f is the interval [2a, 2b]. In other words, f ([a, b]) ⊂ [2a, 2b]. More generally, all the basic operations of arithmetic have interval extensions that describe how they operate on intervals of values. For example, given two intervals [a, b]and [c, d], [a, b] + [c, d] ⊂ [a + c, b + d]. In other words, if we add together two values where one is in the range [a, b] and the second is in [c, d], then the result must be in the range [a + c, b + d]. Interval arithmetic has the important property that the intervals that it gives are conservative. For example, if f ([a, b]) ⊂ [c, d] and if c > 0, then we know for sure that no value in [a, b] causes f to be negative. When implemented in floating-point arithmetic, interval operations can be defined so that they result in intervals that bound the true value. Given a function RoundDown that rounds a value that cannot exactly be represented as a floating-point value down to the next lower floating-point value and RoundUp that similarly rounds up, interval addition can be defined as
+Interval arithmetic is a technique that can be used to reason about the range of a function over some range of values and also to bound the round-off error introduced by a series of floating-point calculations. The `Interval` class provides functionality for both of these uses. To understand the basic idea of interval arithmetic, consider, for example, the function f (x) = 2x. If we have an interval of values [a, b] ⊂ ℝ, then we can see that, over the interval, the range of f is the interval [2a, 2b]. In other words, f ([a, b]) ⊂ [2a, 2b]. More generally, all the basic operations of arithmetic have interval extensions that describe how they operate on intervals of values. For example, given two intervals [a, b]and [c, d], [a, b] + [c, d] ⊂ [a + c, b + d]. In other words, if we add together two values where one is in the range [a, b] and the second is in [c, d], then the result must be in the range [a + c, b + d]. Interval arithmetic has the important property that the intervals that it gives are conservative. For example, if f ([a, b]) ⊂ [c, d] and if c > 0, then we know for sure that no value in [a, b] causes f to be negative. When implemented in floating-point arithmetic, interval operations can be defined so that they result in intervals that bound the true value. Given a function RoundDown that rounds a value that cannot exactly be represented as a floating-point value down to the next lower floating-point value and RoundUp that similarly rounds up, interval addition can be defined as
 
-Performing a series of floating-point calculations in this manner is the basis of running error analysis, which was described in Section 6.8.1. pbrt uses interval arithmetic to compute error bounds for ray intersections with quadrics and also uses the interval-based Point3i class to store computed ray intersection points on surfaces. The zero-finding method used to find the extrema of moving bounding boxes in
+Performing a series of floating-point calculations in this manner is the basis of running error analysis, which was described in Section 6.8.1. pbrt uses interval arithmetic to compute error bounds for ray intersections with quadrics and also uses the interval-based `Point3i` class to store computed ray intersection points on surfaces. The zero-finding method used to find the extrema of moving bounding boxes in
 
 AnimatedTransform::BoundPointMotion() (included in the online edition) is also based on interval arithmetic. The Interval class provides interval arithmetic capabilities using operator overloading to make it fairly easy to switch existing regular floating-point computations over to be interval-based. 〈Interval Definition〉 ≡ class Interval { public: 〈Interval Public Methods 1058〉 private: 〈Interval Private Members 1058〉 };
 
@@ -2267,7 +2253,7 @@ public: 〈Vector3fi Public Methods 1060〉 };
 
 In addition to the usual constructors, Vector3fi can be initialized by specifying a base vector and a second one that gives error bounds for each component. 〈Vector3fi Public Methods〉 ≡ 1060
 
-Vector3fi(Vector3f v, Vector3f e) : Vector3<Interval>(Interval::FromValueAndError(v.x, e.x), Interval::FromValueAndError(v.y, e.y), Interval::FromValueAndError(v.z, e.z)) {}
+Vector3fi(Vector3f v, Vector3f e) : `Vector3`<Interval>(Interval::FromValueAndError(v.x, e.x), Interval::FromValueAndError(v.y, e.y), Interval::FromValueAndError(v.z, e.z)) {}
 
 Helper methods return error bounds for the vector components and indicate if the value stored has empty intervals. 〈Vector3fi Public Methods〉 +≡ 1060
 
@@ -2289,15 +2275,15 @@ Vector3f Error() const { return {x.Width() / 2, y.Width() / 2, z.Width() / 2}; }
    Vector3fi 1060
 ```
 
-The Point3fi class, not included here, similarly provides the capabilities of a Point3 using intervals for its coordinate values. It, too, provides Error() and IsExact() methods.
+The Point3fi class, not included here, similarly provides the capabilities of a `Point3` using intervals for its coordinate values. It, too, provides `Error()` and `IsExact()` methods.
 
 B.3 USER INTERACTION
 
-A number of functions and classes are useful to mediate communicating information to the user. In addition to consolidating functionality like printing progress bars, hiding user communication behind a small API like the one here also permits easy modification of the communication mechanisms. For example, if pbrt were embedded in an application that had a graphical user interface, errors might be reported via a dialog box or a routine provided by the parent application. If printf() calls were strewn throughout the system, it would be more difficult to make the two systems work together well.
+A number of functions and classes are useful to mediate communicating information to the user. In addition to consolidating functionality like printing progress bars, hiding user communication behind a small API like the one here also permits easy modification of the communication mechanisms. For example, if pbrt were embedded in an application that had a graphical user interface, errors might be reported via a dialog box or a routine provided by the parent application. If `printf()` calls were strewn throughout the system, it would be more difficult to make the two systems work together well.
 
 B.3.1 WORKING WITH FILES
 
-A few utility routines make it easy to read and write files from disk. ReadFileContents() returns the contents of a file as a string and ReadDecompressedFileContents() does the same for files that are compressed using the gzip algorithm, decompressing them before returning their contents. WriteFileContents() writes the contents of a string to a file. Note that the use of std::string does not impose the requirement that the file contents be text: binary data, including null characters, can be stored in a std::string.
+A few utility routines make it easy to read and write files from disk. `ReadFileContents()` returns the contents of a file as a string and `ReadDecompressedFileContents()` does the same for files that are compressed using the gzip algorithm, decompressing them before returning their contents. `WriteFileContents()` writes the contents of a string to a file. Note that the use of std::string does not impose the requirement that the file contents be text: binary data, including null characters, can be stored in a std::string.
 
 〈File and Filename Function Declarations〉 ≡ std::string ReadFileContents(std::string filename); std::string ReadDecompressedFileContents(std::string filename); bool WriteFileContents(std::string filename, const std::string &contents);
 
@@ -2311,11 +2297,11 @@ B.3.2 CHARACTER ENCODING AND UNICODE
 
 As a rendering system, pbrt is relatively unconcerned with text processing. Yet the scene description is provided as text and the user can configure the system by specifying text command-line arguments, including those that specify scene description files to be parsed and the filename for the final rendered image. Previous versions of pbrt have implicitly assumed that all text is encoded in ASCII, where each character is represented using a single byte. There are 95 printable ASCII characters. In hexadecimal, their values range from 2016, a blank space, to 7e16, a tilde.
 
-Adopting ASCII implied that the only letters that can be used in this text are the Latin letters from A to Z. No accented letters were allowed, nor was text written in Chinese, Japanese, or the Devanagari script used for Hindi. (Emoji were also not possible, though we are unsure whether being able to directly render an image named .exr is a feature worth devoting attention to.) Float 23 Point3 92
+Adopting ASCII implied that the only letters that can be used in this text are the Latin letters from A to Z. No accented letters were allowed, nor was text written in Chinese, Japanese, or the Devanagari script used for Hindi. (Emoji were also not possible, though we are unsure whether being able to directly render an image named .exr is a feature worth devoting attention to.) `Float` 23 `Point3` 92
 
 This version of pbrt uses Unicode (Unicode Consortium 2020) to represent text. At writing, Unicode allows the representation of nearly 150,000 characters, drawn from scripts that cover a wide variety of languages. (In Unicode, a script is a collection of letters and symbols used in the writing system for a language.) Fortunately, most of the code that handles text in pbrt was minimally affected by the change to Unicode, though it is important to understand the underlying principles if one is to read or modify code in pbrt that works with character strings. Unicode associates a unique numeric code point with each character; code points are denoted by U+n, where n is a hexadecimal integer.3 The code points for ASCII characters match the ASCII encoding, so “~” corresponds to both ASCII 7e16 and U+007e. The letter ü is represented by U+00fc, and the Chinese character is U+5149.
 
-Unicode also defines a number of encodings that map code points to sequences of byte values. The simplest is UTF-32, which uses 4 bytes (32 bits) to represent each code point. UTF-32 has the advantage that all code points use the same amount of storage, which makes it easy to perform operations like finding the nth code point in a string, though it uses four times more storage for ASCII characters than ASCII does, which is a disadvantage if text is mostly ASCII. UTF-8 uses a variable number of bytes to represent each code point. ASCII characters are represented with a single byte equal to their code point’s value and thus pure ASCII text is by construction UTF-8 encoded. Code points after U+007f are encoded using 2, 3, or 4 bytes depending on their magnitude. Therefore, finding the nth code point requires scanning from the start of a string in the absence of auxiliary data structures. (That operation is not important in pbrt, however.) UTF-16 occupies an awkward middle ground; it uses two bytes to encode most code points, though it requires four for the ones that cannot fit in two. It offers the disadvantages of UTF-32 (wasted space if text is primarily ASCII), with few advantages in return. UTF-16 is used in the Windows APIs, however, which requires us to be aware of it. Rather than supporting multiple encodings, pbrt standardizes on UTF-8. It uses std::strings to represent UTF-8-encoded strings, which poses no problems since, in C++, std::strings are just arrays of bytes. It is, however, important to keep in mind that indexing to the nth element in a std::string does not necessarily return the nth character of the string and that the size() method returns the number of bytes stored in the string and not necessarily the number of characters it holds. Given the choice of UTF-8, we must ensure that any input from the user in a different encoding is converted to UTF-8 and that any use of strings in calls to system library functions is converted to the character encoding they use. For example, OSX and most versions of Linux now set the system locale to use a UTF-8 encoding. This causes command shells to encode programs’ command-line arguments as UTF-8. On those systems, pbrt therefore assumes that the argv parameters passed to the main() function are already UTF-8 encoded. On Windows, however, command-line
+Unicode also defines a number of encodings that map code points to sequences of byte values. The simplest is UTF-32, which uses 4 bytes (32 bits) to represent each code point. UTF-32 has the advantage that all code points use the same amount of storage, which makes it easy to perform operations like finding the nth code point in a string, though it uses four times more storage for ASCII characters than ASCII does, which is a disadvantage if text is mostly ASCII. UTF-8 uses a variable number of bytes to represent each code point. ASCII characters are represented with a single byte equal to their code point’s value and thus pure ASCII text is by construction UTF-8 encoded. Code points after U+007f are encoded using 2, 3, or 4 bytes depending on their magnitude. Therefore, finding the nth code point requires scanning from the start of a string in the absence of auxiliary data structures. (That operation is not important in pbrt, however.) UTF-16 occupies an awkward middle ground; it uses two bytes to encode most code points, though it requires four for the ones that cannot fit in two. It offers the disadvantages of UTF-32 (wasted space if text is primarily ASCII), with few advantages in return. UTF-16 is used in the Windows APIs, however, which requires us to be aware of it. Rather than supporting multiple encodings, pbrt standardizes on UTF-8. It uses std::strings to represent UTF-8-encoded strings, which poses no problems since, in C++, std::strings are just arrays of bytes. It is, however, important to keep in mind that indexing to the nth element in a std::string does not necessarily return the nth character of the string and that the `size()` method returns the number of bytes stored in the string and not necessarily the number of characters it holds. Given the choice of UTF-8, we must ensure that any input from the user in a different encoding is converted to UTF-8 and that any use of strings in calls to system library functions is converted to the character encoding they use. For example, OSX and most versions of Linux now set the system locale to use a UTF-8 encoding. This causes command shells to encode programs’ command-line arguments as UTF-8. On those systems, pbrt therefore assumes that the argv parameters passed to the `main()` function are already UTF-8 encoded. On Windows, however, command-line
 
 arguments are available in ASCII or UTF-16; pbrt takes the latter and converts them to UTF-8. The GetCommandLineArguments() function handles these details, returning the provided command-line arguments in a vector of std::strings that use the UTF-8 encoding. 〈Command-line Argument Utility Functions〉 ≡ std::vector<std::string> GetCommandLineArguments(char *argv[]);
 
@@ -2327,7 +2313,7 @@ Windows introduces the additional complication of using the type std::wchar_t fo
 
 Filenames also require attention. On Linux, filenames can be any string of bytes, other than the forward slash “/”, which separates path components, and U+0000, which is the end of string marker in C. Thus, UTF-8 encoded filenames (slash notwithstanding) are supported with no further effort, though filenames that are not valid UTF-8 strings are also allowed. Both
 
-OSX and Windows use Unicode for filenames, with the UTF-8 and UTF-16 encodings, respectively. Both the ReadFileContents() and WriteFileContents() functions introduced earlier therefore handle converting filenames to UTF-16 on Windows, allowing callers to directly pass UTF-8 encoded strings to them. pbrt further provides FOpenRead() and FOpenWrite() functions that wrap the functionality of fopen(). On Windows, they perform the UTF-16 file-name conversion and then call _wfopen() in place of fopen(). Few further changes were needed for Unicode support in pbrt thanks to a key component of the UTF-8 design: not only are the ASCII characters represented in UTF-8 with a single byte and with the same value, but it is also guaranteed that no byte used to encode a non-ASCII code point will be equal to an ASCII value. (Effectively, this means that because the high bit of 8-bit ASCII values is unset, the high bit of any byte used for a non-ASCII Unicode character in UTF-8 is always set.) To see the value of this part of the design of UTF-8, consider parsing the scene description in pbrt. If for example the parser has encountered an opening double quotation mark “, it then copies all subsequent bytes until the closing quote into a std::string and issues an error if a newline is encountered before the closing quote. In UTF-8, the quotation mark U+0022 is encoded as 2216 and newline U+000a as 0a16. Because the byte values 2216 and 0a16 are not used to encode any other code points, the parser can be oblivious to Unicode, copying bytes into a string just as it did before until it encounters a 2216 byte. It makes no difference to the parsing code whether the byte values in the string represent plain ASCII or characters from other scripts.
+OSX and Windows use Unicode for filenames, with the UTF-8 and UTF-16 encodings, respectively. Both the `ReadFileContents()` and `WriteFileContents()` functions introduced earlier therefore handle converting filenames to UTF-16 on Windows, allowing callers to directly pass UTF-8 encoded strings to them. pbrt further provides `FOpenRead()` and `FOpenWrite()` functions that wrap the functionality of `fopen()`. On Windows, they perform the UTF-16 file-name conversion and then call `_wfopen()` in place of `fopen()`. Few further changes were needed for Unicode support in pbrt thanks to a key component of the UTF-8 design: not only are the ASCII characters represented in UTF-8 with a single byte and with the same value, but it is also guaranteed that no byte used to encode a non-ASCII code point will be equal to an ASCII value. (Effectively, this means that because the high bit of 8-bit ASCII values is unset, the high bit of any byte used for a non-ASCII Unicode character in UTF-8 is always set.) To see the value of this part of the design of UTF-8, consider parsing the scene description in pbrt. If for example the parser has encountered an opening double quotation mark “, it then copies all subsequent bytes until the closing quote into a std::string and issues an error if a newline is encountered before the closing quote. In UTF-8, the quotation mark U+0022 is encoded as 2216 and newline U+000a as 0a16. Because the byte values 2216 and 0a16 are not used to encode any other code points, the parser can be oblivious to Unicode, copying bytes into a string just as it did before until it encounters a 2216 byte. It makes no difference to the parsing code whether the byte values in the string represent plain ASCII or characters from other scripts.
 
 ```rust
     ReadFileContents() 1061
@@ -2342,7 +2328,7 @@ Printf() and StringPrintf() respectively provide improvements to C’s printf() 
 
 B.3.4 ERROR REPORTING
 
-A few functions are available for communicating with the user, provided via the files util/error.rs and util/error.rs. These should be used for things like reporting errors in scene description files or warnings for cases like scene descriptions that lack any light sources. Each of them takes a FileLoc pointer; this is the structure that the parser uses to record which file and line number a particular token is from. These are passed through to
+A few functions are available for communicating with the user, provided via the files util/error.rs and util/error.rs. These should be used for things like reporting errors in scene description files or warnings for cases like scene descriptions that lack any light sources. Each of them takes a `FileLoc` pointer; this is the structure that the parser uses to record which file and line number a particular token is from. These are passed through to
 
 object creation routines as the scene description is being initialized so that error messages can include that information. 〈Error Reporting Function Declarations〉 ≡ void Warning(const FileLoc *loc, const char *message); void Error(const FileLoc *loc, const char *message); [[noreturn]] void ErrorExit(const FileLoc *loc, const char *message);
 
@@ -2361,11 +2347,11 @@ Mechanisms for logging program execution are provided in the files util/log.rs a
 
 〈LogLevel Global Variable Declaration〉 ≡ namespace logging { extern LogLevel logLevel; extern FILE *logFile; } // namespace logging
 
-Here is the implementation of LOG_VERBOSE(); the other two are similar. There is one trick to note: the macro is carefully written using the short-circuit && operator so that not only does it expand to a single statement, making it safe to use after an if statement without braces, but the arguments after the formatting string are also not evaluated if verbose logging has not been specified. In this way, it is safe to write logging code that calls functions that may do meaningful amounts of computation for the parameter values while not paying the cost for them if their results are unneeded.
+Here is the implementation of `LOG_VERBOSE()`; the other two are similar. There is one trick to note: the macro is carefully written using the short-circuit && operator so that not only does it expand to a single statement, making it safe to use after an if statement without braces, but the arguments after the formatting string are also not evaluated if verbose logging has not been specified. In this way, it is safe to write logging code that calls functions that may do meaningful amounts of computation for the parameter values while not paying the cost for them if their results are unneeded.
 
 〈Logging Macros〉 ≡ #define LOG_VERBOSE(…) \ (pbrt::LogLevel::Verbose >= logging::logLevel && \ (pbrt::Log(LogLevel::Verbose, __FILE__, __LINE__, __VA_ARGS__), \ true))
 
-The underlying Log() function handles the details of formatting the log entry and storing logging messages in a buffer in memory during GPU execution; in that case, messages are eventually copied back to the CPU to be printed.
+The underlying `Log()` function handles the details of formatting the log entry and storing logging messages in a buffer in memory during GPU execution; in that case, messages are eventually copied back to the CPU to be printed.
 
 ```rust
     LogLevel 1065
@@ -2382,7 +2368,7 @@ A common use of assertions is to check a relationship between two values (e.g., 
 
 There are three things to see in CHECK_IMPL(). First, it is careful to evaluate the provided expressions only once, storing their values in the va and vb variables. This ensures that they do not introduce unexpected behavior if they are invoked with an expression that includes side effects (e.g., var++). Second, when the check fails, the error message includes not just the source code form of the check, but also the values that caused the failure. This additional information alone is sometimes enough to debug an issue. Finally, it is implemented in terms of a single iteration do/while loop; in this way, it is a single C++ statement and therefore can be used with if statements without braces. 〈CHECK_IMPL Macro Definition〉 ≡ #define CHECK_IMPL(a, b, op) \ do { \ auto va = a; \ auto vb = b; \ if (!(va op vb)) \ LOG_FATAL(“Check failed: %s “ #op “ %s with %s = %s, %s = %s”, \ #a, #b, #a, va, #b, vb); \ } while (false) /* swallow semicolon */
 
-When a CHECK fails, not only is the error message printed, but pbrt also prints a stack trace that shows some context of the program’s state of execution at that point. In addition, the CheckCallbackScope class can be used to provide additional information about the current program state that is printed upon a CHECK failure. The error handling system keeps a list of active CheckCallbackScope objects. For each one, it calls the provided callback to get an error string if a
+When a CHECK fails, not only is the error message printed, but pbrt also prints a stack trace that shows some context of the program’s state of execution at that point. In addition, the `CheckCallbackScope` class can be used to provide additional information about the current program state that is printed upon a CHECK failure. The error handling system keeps a list of active `CheckCallbackScope` objects. For each one, it calls the provided callback to get an error string if a
 
 CHECK fails.
 
@@ -2395,7 +2381,7 @@ CHECK fails.
 
 Thus, it might be used as Point2i currentPixel; /* Variable that is updated during rendering */ CheckCallbackScope callbackScope([&]() { return StringPrintf(“The current pixel is %s”, currentPixel); }); // Render…
 
-to include the current pixel coordinates in the error output. The expectation is that Check CallbackScope objects will be stack-allocated, such that when a function returns, for example, then a CheckCallbackScope that it declared will go out of scope and thence be removed from the active callback scopes by its destructor. Especially in systems that extensively use stochastic sampling, there may be unusual conditions that are allowed to happen rarely, but where their frequent occurrence would be a bug. (One example that comes up in the implementation of microfacet distributions is when the incident and outgoing directions are exactly opposite, in which case the half angle vector is degenerate. The renderer needs to handle this case when it happens, but it should only happen rarely.) pbrt therefore also provides a CHECK_RARE(freq, cond) macro that takes a maximum frequency of failure and a condition to check. An error is issued at the end of program execution for any of them where the condition occurred too frequently.
+to include the current pixel coordinates in the error output. The expectation is that Check CallbackScope objects will be stack-allocated, such that when a function returns, for example, then a `CheckCallbackScope` that it declared will go out of scope and thence be removed from the active callback scopes by its destructor. Especially in systems that extensively use stochastic sampling, there may be unusual conditions that are allowed to happen rarely, but where their frequent occurrence would be a bug. (One example that comes up in the implementation of microfacet distributions is when the incident and outgoing directions are exactly opposite, in which case the half angle vector is degenerate. The renderer needs to handle this case when it happens, but it should only happen rarely.) pbrt therefore also provides a CHECK_RARE(freq, cond) macro that takes a maximum frequency of failure and a condition to check. An error is issued at the end of program execution for any of them where the condition occurred too frequently.
 
 B.3.7 DISPLAYING IMAGES
 
@@ -2403,7 +2389,7 @@ pbrt supports a simple socket-based protocol that allows it to communicate with 
 
 DisplayStatic() causes an image of the specified size to be displayed. The number of specified image channel names determines the number of channels in the image. The provided callback will be called repeatedly for tiles of the overall image, where each call is provided a separate buffer for each specified image channel. These buffers should be filled with values for the given tile bounds in scanline order. 〈DisplayServer Function Declarations〉 ≡ void DisplayStatic(std::string title, Point2i resolution, std::vector<std::string> channelNames, std::function<void(Bounds2i, pstd::span<pstd::span<Float>>)> getValues);
 
-DisplayDynamic() is similar, but the callback will be called repeatedly during program execution to get the latest values for dynamic data.
+`DisplayDynamic()` is similar, but the callback will be called repeatedly during program execution to get the latest values for dynamic data.
 
 ```text
    Bounds2i 97
@@ -2442,15 +2428,15 @@ void Update(int64_t num = 1); void Done(); double ElapsedSeconds() const;
 
 B.4 CONTAINERS AND MEMORY MANAGEMENT
 
-A variety of container data structures that extend those made available by the standard library are provided in the file util/containers.rs. First, there is InlinedVector. We will not describe its implementation here, but note that it is an extended version of std::vector that has storage for a handful of vector elements preallocated in its class definition. Thus, for short vectors, it can be used without incurring the cost of dynamic memory allocation. It is used extensively in the Image class, for example.
+A variety of container data structures that extend those made available by the standard library are provided in the file util/containers.rs. First, there is `InlinedVector`. We will not describe its implementation here, but note that it is an extended version of std::vector that has storage for a handful of vector elements preallocated in its class definition. Thus, for short vectors, it can be used without incurring the cost of dynamic memory allocation. It is used extensively in the `Image` class, for example.
 
-Its class declaration is of the form: template <typename T, int N, class Allocator = /* … */> class InlinedVector;
+Its class declaration is of the form: template <typename T, int N, class `Allocator` = /* … */> class `InlinedVector`;
 
-The value of N specifies the number of elements to handle via the inline allocation in the class definition. Even though the C++ standard library provides a hash table via std::unordered_map, pbrt additionally provides a HashMap, also not included here. There are two reasons it exists: first, the hash table in the standard library is specified such that pointers to elements in the hash table will not change even if the table is resized, which in turn requires dynamic memory allocation for each element. Second, the GPU rendering path requires a hash table that can be used from GPU code. Its class declaration is of the form: template <typename Key, typename Value, typename Hash = std::hash<Key>, typename Allocator = /* … */> class HashMap; Its main methods have the following signatures: void Insert(const Key &key, const Value &value); bool HasKey(const Key &key) const; const Value &operator[](const Key &key) const;
+The value of N specifies the number of elements to handle via the inline allocation in the class definition. Even though the C++ standard library provides a hash table via std::unordered_map, pbrt additionally provides a HashMap, also not included here. There are two reasons it exists: first, the hash table in the standard library is specified such that pointers to elements in the hash table will not change even if the table is resized, which in turn requires dynamic memory allocation for each element. Second, the GPU rendering path requires a hash table that can be used from GPU code. Its class declaration is of the form: template <typename Key, typename Value, typename Hash = std::hash<Key>, typename `Allocator` = /* … */> class HashMap; Its main methods have the following signatures: void Insert(const Key &key, const Value &value); bool HasKey(const Key &key) const; const Value &operator[](const Key &key) const;
 
 B.4.1 2D ARRAYS
 
-While it is not difficult to index into a 1D memory buffer that represents a 2D array of values, having a template class that handles this task helps make code elsewhere in the system less verbose and easier to verify. Array2D fills this role in pbrt.
+While it is not difficult to index into a 1D memory buffer that represents a 2D array of values, having a template class that handles this task helps make code elsewhere in the system less verbose and easier to verify. `Array2D` fills this role in pbrt.
 
 〈Array2D Definition〉 ≡ template <typename T> class Array2D { public: 〈Array2D Type Definitions〉
 
@@ -2490,7 +2476,7 @@ iterator begin() { return values; } iterator end() { return begin() + size(); }
 
 B.4.2 INTERNED OBJECTS
 
-If many instances of the same object are stored in memory, especially if the objects are large, the interning technique can be helpful. With it, a single copy of each unique object is stored and all uses of it refer to that copy. (The technique is thus generally only useful for read-only data.) pbrt uses interning both for transformations found in the scene description and for strings in the scene entity objects defined in Section C.2.1. For complex scenes, the memory savings from eliminating redundant copies can be large. The InternCache class manages such caches. It is a template class based on the type being managed and its hash function. Types managed by it must provide an equality operator so that it can find matches. template <typename T, typename Hash = std::hash<T>> class InternCache;
+If many instances of the same object are stored in memory, especially if the objects are large, the interning technique can be helpful. With it, a single copy of each unique object is stored and all uses of it refer to that copy. (The technique is thus generally only useful for read-only data.) pbrt uses interning both for transformations found in the scene description and for strings in the scene entity objects defined in Section C.2.1. For complex scenes, the memory savings from eliminating redundant copies can be large. The `InternCache` class manages such caches. It is a template class based on the type being managed and its hash function. Types managed by it must provide an equality operator so that it can find matches. template <typename T, typename Hash = std::hash<T>> class `InternCache`;
 
 ```rust
     Allocator 40
@@ -2512,7 +2498,7 @@ If many instances of the same object are stored in memory, especially if the obj
    std::pmr::polymorphic_allocator::allocate_object() 41
 ```
 
-Beyond the constructor, InternCache provides two variations of a single method, Lookup(). Their signatures are below. Both store a single copy of provided objects in a hash table, using a mutex to allow concurrent access by multiple threads. The first Lookup() method allocates memory for the object itself using the allocator passed to the InternCache constructor and copies the provided item to initialize the object stored in the cache. The second takes a user-provided creation callback function with the signature shown below. This allows for more complex object initialization—as is used in the LightBase::LookupSpectrum() method, for example. const T *Lookup(const T &item);
+Beyond the constructor, `InternCache` provides two variations of a single method, `Lookup()`. Their signatures are below. Both store a single copy of provided objects in a hash table, using a mutex to allow concurrent access by multiple threads. The first `Lookup()` method allocates memory for the object itself using the allocator passed to the `InternCache` constructor and copies the provided item to initialize the object stored in the cache. The second takes a user-provided creation callback function with the signature shown below. This allows for more complex object initialization—as is used in the `LightBase::LookupSpectrum()` method, for example. const T *Lookup(const T &item);
 
 /* F: T *create(Allocator alloc, const T &item) */ template <typename F> const T *Lookup(const T &item, F create);
 
@@ -2541,11 +2527,11 @@ In pbrt’s wavefront rendering path, it was useful to perform various operation
     Material 674
 ```
 
-IndexOf provides the index of a given type among the types in a TypePack. Here is the declaration of the structure for its general template, which will only be instantiated if the given type is not in fact one of the types in a type pack. We can use a C++ trick to ensure a reasonable error message is
+`IndexOf` provides the index of a given type among the types in a `TypePack`. Here is the declaration of the structure for its general template, which will only be instantiated if the given type is not in fact one of the types in a type pack. We can use a C++ trick to ensure a reasonable error message is
 
 printed in this case: because the following static_assert’s condition can only be evaluated at compile time given a concrete type T (even though it will clearly always be false), the error message is thus only printed if this version of IndexOf is instantiated. 〈TypePack Operations〉 ≡ template <typename T, typename… Ts> struct IndexOf { static constexpr int count = 0; static_assert(!std::is_same_v<T, T>, “Type not present in TypePack”); };
 
-A first template specialization handles the case where the first type in the TypePack matches the given type T. In this case, the index is zero.
+A first template specialization handles the case where the first type in the `TypePack` matches the given type T. In this case, the index is zero.
 
 〈TypePack Operations〉 +≡ template <typename T, typename… Ts> struct IndexOf<T, TypePack<T, Ts…>> { static constexpr int count = 0; };
 
@@ -2555,11 +2541,11 @@ Another template specialization handles the case where T is not the first type. 
 
 We will find it useful to be able to wrap a template class around each of a set of types. This operation is provided by MapType. The base case is a single-element type pack. 〈TypePack Operations〉 +≡ template <template <typename> class M, typename T> struct MapType<M, TypePack<T>> { using type = TypePack<M<T>>; };
 
-Larger numbers of types are handled recursively. Prepend, not included here, gives the TypePack that results from prepending a given type to a TypePack of others.
+Larger numbers of types are handled recursively. Prepend, not included here, gives the `TypePack` that results from prepending a given type to a `TypePack` of others.
 
 〈TypePack Operations〉 +≡ template <template <typename> class M, typename T, typename… Ts> struct MapType<M, TypePack<T, Ts…>> { using type = typename Prepend<M<T>, typename MapType<M, TypePack<Ts…>>::type>::type; };
 
-Finally, we will define a ForEachType() function, which calls the provided function (which is assumed to be a template function) once for each of the types in a TypePack. The general case peels off the first type, calls the provided function, and then proceeds with a recursive call with the remainder of types in the TypePack. In this case, the recursion is expressed in a slightly different manner, via a temporary instance of a TypePack-typed variable that is used purely to record the types yet to be handled.
+Finally, we will define a `ForEachType()` function, which calls the provided function (which is assumed to be a template function) once for each of the types in a `TypePack`. The general case peels off the first type, calls the provided function, and then proceeds with a recursive call with the remainder of types in the `TypePack`. In this case, the recursion is expressed in a slightly different manner, via a temporary instance of a `TypePack`-typed variable that is used purely to record the types yet to be handled.
 
 ```text
    IndexOf 1072
@@ -2579,7 +2565,7 @@ The base case of an empty TypePack ends the recursion. 〈TypePack Operations〉
 
 B.4.4 TAGGED POINTERS
 
-The TaggedPointer class is at the heart of how pbrt handles polymorphic types. It takes the pointer to an object of known type and uses excess bits in its pointer to encode the object’s actual type (i.e., to tag it). When dynamic dispatch or other type-specific operations are needed, the object’s type can be extracted from the pointer.5 This class’s implementation is in the file util/taggedptr.rs.
+The `TaggedPointer` class is at the heart of how pbrt handles polymorphic types. It takes the pointer to an object of known type and uses excess bits in its pointer to encode the object’s actual type (i.e., to tag it). When dynamic dispatch or other type-specific operations are needed, the object’s type can be extracted from the pointer.5 This class’s implementation is in the file util/taggedptr.rs.
 
 TaggedPointer is a template class that requires all the types it may represent to be provided at compile time. Note that this approach thus precludes runtime loading of additional class definitions of new types, as would be possible with the usual approach to polymorphism based on virtual functions. 〈TaggedPointer Definition〉 ≡ template <typename… Ts> class TaggedPointer { public: 〈TaggedPointer Public Types 1073〉 〈TaggedPointer Public Methods 1074〉 private: 〈TaggedPointer Private Members 1074〉 };
 
@@ -2589,7 +2575,7 @@ All the possible types for a tagged pointer are provided via a public type defin
 
 using Types = TypePack<Ts…>;
 
-Modern processors ubiquitously use 64-bit pointers, which allow addressing 264 bytes of memory. Memory sizes of tens to hundreds of gigabytes are common now, which is a far cry from the billions of gigabytes that a 64-bit pointer can address. Therefore, processors specify the size of their addressable memory space in terms of a smaller number of bits. Until recently, a 48-bit address space was common on CPUs, though that has recently increased to 57 bits. While it is still unimaginable for a single system to have 257 bytes of RAM, large address spaces can be useful for cluster computing where many machines present a unified address space or for mapping pointers to data in offline storage. TaggedPointer therefore steals the upper bits of pointers in order to encode types. Even with 57-bit address spaces, there are still 7 bits left, which allows 27 types, far more than pbrt needs.
+Modern processors ubiquitously use 64-bit pointers, which allow addressing 264 bytes of memory. Memory sizes of tens to hundreds of gigabytes are common now, which is a far cry from the billions of gigabytes that a 64-bit pointer can address. Therefore, processors specify the size of their addressable memory space in terms of a smaller number of bits. Until recently, a 48-bit address space was common on CPUs, though that has recently increased to 57 bits. While it is still unimaginable for a single system to have 257 bytes of RAM, large address spaces can be useful for cluster computing where many machines present a unified address space or for mapping pointers to data in offline storage. `TaggedPointer` therefore steals the upper bits of pointers in order to encode types. Even with 57-bit address spaces, there are still 7 bits left, which allows 27 types, far more than pbrt needs.
 
 ```text
    TypePack 1071
@@ -2623,7 +2609,7 @@ Most of the work for the TypeIndex() method is done by the IndexOf structure def
 
 template <typename T> static constexpr unsigned int TypeIndex() { using Tp = typename std::remove_cv_t<T>; if constexpr (std::is_same_v<Tp, std::nullptr_t>) return 0; else return 1 + pbrt::IndexOf<Tp, Types>::count; }
 
-Tag() returns a TaggedPointer’s tag by extracting the relevant bits. In turn, the Is() method performs a runtime check of whether a TaggedPointer represents a particular type.
+`Tag()` returns a `TaggedPointer`’s tag by extracting the relevant bits. In turn, the `Is()` method performs a runtime check of whether a `TaggedPointer` represents a particular type.
 
 〈TaggedPointer Public Methods〉 +≡ 1073
 
@@ -2633,9 +2619,9 @@ The maximum value of a tag is equal to the number of represented types. 〈Tagge
 
 static constexpr unsigned int MaxTag() { return sizeof…(Ts); }
 
-A pointer of a specified type is returned by CastOrNullptr(). As the name suggests, it returns nullptr if the TaggedPointer does not in fact hold an object of type T. In addition to this method, TaggedPointer also provides a const variant that returns a const T * as well as unsafe Cast() methods that always return a pointer of the given type. Those should only be used
+A pointer of a specified type is returned by `CastOrNullptr()`. As the name suggests, it returns nullptr if the `TaggedPointer` does not in fact hold an object of type T. In addition to this method, `TaggedPointer` also provides a const variant that returns a const T * as well as unsafe `Cast()` methods that always return a pointer of the given type. Those should only be used
 
-when there is no question about the underlying type held by a TaggedPointer.
+when there is no question about the underlying type held by a `TaggedPointer`.
 
 ```rust
    IndexOf 1072
@@ -2656,13 +2642,13 @@ For cases where the original pointer is needed but void pointer will suffice, th
 
 void *ptr() { return reinterpret_cast<void *>(bits & ptrMask); }
 
-The most interesting TaggedPointer method is Dispatch(), which is at the heart of pbrt’s dynamic dispatch mechanism for polymorphic types. Its task is to determine which type of object a TaggedPointer points to and then call the provided function, passing it the object’s pointer, cast to the correct type. (See the Spectrum::operator() method, which calls TaggedPointer::Dispatch(); details about the operation of the function that is provided to Dispatch() are discussed with its implementation.) Most of the work is done by standalone Dispatch() functions that are defined in a detail namespace, signifying that although they are defined in a header file, they should not be used by code outside of the header. Those functions require the return type of the provided function, which is determined by the ReturnType helper template. We will not include ReturnType’s implementation here; it uses C++ template pack expansion to find the return type of func when called with each of the types that the
+The most interesting `TaggedPointer` method is `Dispatch()`, which is at the heart of pbrt’s dynamic dispatch mechanism for polymorphic types. Its task is to determine which type of object a `TaggedPointer` points to and then call the provided function, passing it the object’s pointer, cast to the correct type. (See the `Spectrum::operator()` method, which calls `TaggedPointer::Dispatch()`; details about the operation of the function that is provided to `Dispatch()` are discussed with its implementation.) Most of the work is done by standalone `Dispatch()` functions that are defined in a detail namespace, signifying that although they are defined in a header file, they should not be used by code outside of the header. Those functions require the return type of the provided function, which is determined by the ReturnType helper template. We will not include ReturnType’s implementation here; it uses C++ template pack expansion to find the return type of func when called with each of the types that the
 
 TaggedPointer can hold, issues a compile time error if they are not all the same, and provides the return type via its definition of type.6 〈TaggedPointer Public Methods〉 +≡ 1073
 
 template <typename F> PBRT_CPU_GPU decltype(auto) Dispatch(F &&func) { using R = typename detail::ReturnType<F, Ts…>::type; return detail::Dispatch<F, R, Ts…>(func, ptr(), Tag() - 1); }
 
-detail::Dispatch() may be called with an arbitrary number of types to handle, depending on how many a TaggedPointer manages. This is handled by providing a number of template specializations for different numbers of such types. Early in the development of this version of pbrt, we implemented a dispatch mechanism that applied binary search, making a series of recursive function calls based on the type index until the corresponding type was found. That had equivalent performance to the approach implemented here and entailed fewer lines of code. However, we found that it cluttered call stacks, which was a nuisance when debugging. With the current approach, dynamic dispatch only imposes a single function call.
+`detail::Dispatch()` may be called with an arbitrary number of types to handle, depending on how many a `TaggedPointer` manages. This is handled by providing a number of template specializations for different numbers of such types. Early in the development of this version of pbrt, we implemented a dispatch mechanism that applied binary search, making a series of recursive function calls based on the type index until the corresponding type was found. That had equivalent performance to the approach implemented here and entailed fewer lines of code. However, we found that it cluttered call stacks, which was a nuisance when debugging. With the current approach, dynamic dispatch only imposes a single function call.
 
 ```rust
    PBRT_CPU_GPU 928
@@ -2674,7 +2660,7 @@ detail::Dispatch() may be called with an arbitrary number of types to handle, de
    TaggedPointer::Tag() 1074
 ```
 
-As an example of a Dispatch() function, here is the implementation of the one that handles three types; it is parameterized by the type of the callback function F and its return type R as well. All that there is to it is a switch statement to call the function with the appropriate pointer type based on the index passed in from TaggedPointer::Dispatch().
+As an example of a `Dispatch()` function, here is the implementation of the one that handles three types; it is parameterized by the type of the callback function F and its return type R as well. All that there is to it is a switch statement to call the function with the appropriate pointer type based on the index passed in from `TaggedPointer::Dispatch()`.
 
 〈TaggedPointer Helper Templates〉 ≡ template <typename F, typename R, typename T0, typename T1, typename T2>
 
@@ -2688,7 +2674,7 @@ As an example of a Dispatch() function, here is the implementation of the one th
    }
 ```
 
-There are implementations of detail::Dispatch() for up to 8 types. If more are provided, a fallback implementation handles the first 8 and then makes a recursive call to detail::Dispatch() with the rest of them for larger indices. For pbrt’s uses, where there are at most 10 or so types, this approach works well. TaggedPointer also includes a const-qualified dispatch method as well as DispatchCPU(), which is necessary for methods that are only able to run on the CPU. (The default Dispatch() method requires that the method be callable from both CPU or GPU code, which is the most common use case in pbrt.) These both have corresponding dispatch functions in the detail namespace.
+There are implementations of `detail::Dispatch()` for up to 8 types. If more are provided, a fallback implementation handles the first 8 and then makes a recursive call to `detail::Dispatch()` with the rest of them for larger indices. For pbrt’s uses, where there are at most 10 or so types, this approach works well. `TaggedPointer` also includes a const-qualified dispatch method as well as `DispatchCPU()`, which is necessary for methods that are only able to run on the CPU. (The default `Dispatch()` method requires that the method be callable from both CPU or GPU code, which is the most common use case in pbrt.) These both have corresponding dispatch functions in the detail namespace.
 
 B.4.5 3D SAMPLED DATA
 
@@ -2717,7 +2703,7 @@ A sequence of linear interpolations gives the trilinearly interpolated sample va
 
 auto d00 = Lerp(d.x, Lookup(pi, convert), Lookup(pi + Vector3i(1, 0, 0), convert)); auto d10 = Lerp(d.x, Lookup(pi + Vector3i(0, 1, 0), convert), Lookup(pi + Vector3i(1, 1, 0), convert)); auto d01 = Lerp(d.x, Lookup(pi + Vector3i(0, 0, 1), convert), Lookup(pi + Vector3i(1, 0, 1), convert)); auto d11 = Lerp(d.x, Lookup(pi + Vector3i(0, 1, 1), convert), Lookup(pi + Vector3i(1, 1, 1), convert)); return Lerp(d.z, Lerp(d.y, d00, d10), Lerp(d.y, d01, d11));
 
-Finally, the MaxValue() method, also not included here, returns a bound on the maximum value of the interpolated function over the given bounds, computed by looping over all of the sample values that contribute to grid lookups inside those bounds. It takes a function that converts the in-memory type to a Float; the maximum of all such Floats is then returned.
+Finally, the `MaxValue()` method, also not included here, returns a bound on the maximum value of the interpolated function over the given bounds, computed by looping over all of the sample values that contribute to grid lookups inside those bounds. It takes a function that converts the in-memory type to a `Float`; the maximum of all such `Float`s is then returned.
 
 B.4.6 EFFICIENT TEMPORARY MEMORY ALLOCATIONS
 
@@ -2763,7 +2749,7 @@ void *Alloc(size_t size, size_t align) { if ((offset % align) != 0) offset += al
    ThreadLocal 1112
 ```
 
-ScratchBuffer provides two additional Alloc() methods that are not included here. Both are templated on the type of object being allocated. One
+`ScratchBuffer` provides two additional `Alloc()` methods that are not included here. Both are templated on the type of object being allocated. One
 
 allocates a single object, passing along provided parameters to its constructor. The other allocates an array of objects of a specified length, running the default constructor for each one. If a larger buffer is needed, Realloc() holds on to a pointer to the current buffer and its size in smallBuffers. The current buffer cannot be freed until the user later calls ScratchBuffer’s Reset() method, but it should be returned to the system then, as ScratchBuffer will henceforth have no need for it. 〈ScratchBuffer Private Methods〉 ≡ 1078
 
@@ -2777,7 +2763,7 @@ A call to Reset() is lightweight, usually just resetting offset to 0. Note that,
 
 void Reset() { for (const auto &buf : smallBuffers) Allocator().deallocate_bytes(buf.first, buf.second, align); smallBuffers.clear(); offset = 0; }
 
-B.5 IMAGES The Image class stores a 2D array of pixel values, where each pixel stores a fixed number of scalar-valued channels. (For example, an image storing RGB color would have three channels.) It provides a variety of operations ranging from looking up or interpolating pixel values to image-wide operations like resizing. It is at the core of both the FloatImageTexture and SpectrumImageTexture classes and is used for lights such as the ImageInfiniteLight and ProjectionLight. Furthermore, both of pbrt’s Film implementations make use of its capabilities for writing images to disk in a variety of file formats.
+B.5 IMAGES The `Image` class stores a 2D array of pixel values, where each pixel stores a fixed number of scalar-valued channels. (For example, an image storing `RGB` color would have three channels.) It provides a variety of operations ranging from looking up or interpolating pixel values to image-wide operations like resizing. It is at the core of both the `FloatImageTexture` and `SpectrumImageTexture` classes and is used for lights such as the `ImageInfiniteLight` and `ProjectionLight`. Furthermore, both of pbrt’s `Film` implementations make use of its capabilities for writing images to disk in a variety of file formats.
 
 〈Image Definition〉 ≡ class Image { public: 〈Image Public Methods 1080〉 private: 〈Image Private Methods〉 〈Image Private Members 1080〉 };
 
@@ -2798,9 +2784,9 @@ Image is defined in the files util/image.rs and util/image.rs.
     std::pmr::polymorphic_allocator::allocate_bytes() 41
 ```
 
-The Image class provides a number of constructors as well as a method (which will be discussed in Section B.5.3) that reads an image from a file. We will only describe the operation of its most general-purpose constructor here; see the class definition for the remainder of them.
+The `Image` class provides a number of constructors as well as a method (which will be discussed in Section B.5.3) that reads an image from a file. We will only describe the operation of its most general-purpose constructor here; see the class definition for the remainder of them.
 
-This Image constructor takes the in-memory format to use for storing pixel data, format, the overall image resolution, and names for all of the channels. Optionally, both a ColorEncoding and an Allocator can be provided; the former specifies a technique for encoding fixed-precision pixel values and will be discussed in Section B.5.6.
+This `Image` constructor takes the in-memory format to use for storing pixel data, format, the overall image resolution, and names for all of the channels. Optionally, both a `ColorEncoding` and an `Allocator` can be provided; the former specifies a technique for encoding fixed-precision pixel values and will be discussed in Section B.5.6.
 
 〈Image Public Methods〉 ≡ 1079
 
@@ -2809,15 +2795,15 @@ This Image constructor takes the in-memory format to use for storing pixel data,
     channelNames, ColorEncoding encoding = nullptr, Allocator alloc = {});
 ```
 
-Three in-memory formats are supported for pixel channel values. Note that Image uses the same encoding for all channels; it is not possible to mix and match. The first of them, U256, specifies an unsigned 8-bit encoding of values between 0 and 1 using integers ranging from 0 to 255. This is a memory-efficient encoding and is widely used in image file formats, but it provides limited range. Half uses 16-bit floating-point values (which were described in Section 6.8.1) to provide much more dynamic range than U256, while still being memory efficient. Finally, Float specifies full 32-bit floats. It would not be difficult to generalize Image to also support double-precision floating-point storage, though we have not found a need to do so for pbrt’s uses of this class.
+Three in-memory formats are supported for pixel channel values. Note that Image uses the same encoding for all channels; it is not possible to mix and match. The first of them, U256, specifies an unsigned 8-bit encoding of values between 0 and 1 using integers ranging from 0 to 255. This is a memory-efficient encoding and is widely used in image file formats, but it provides limited range. `Half` uses 16-bit floating-point values (which were described in Section 6.8.1) to provide much more dynamic range than U256, while still being memory efficient. Finally, `Float` specifies full 32-bit floats. It would not be difficult to generalize Image to also support double-precision floating-point storage, though we have not found a need to do so for pbrt’s uses of this class.
 
 〈PixelFormat Definition〉 ≡ enum class PixelFormat { U256, Half, Float };
 
-A few helper functions test whether a given PixelFormat uses a specified amount of storage. Isolating these tests in this way makes it easier, for example, to extend Image to also provide a 16-bit integer representation without needing to update logic that purely relates to memory allocation.
+A few helper functions test whether a given `PixelFormat` uses a specified amount of storage. Isolating these tests in this way makes it easier, for example, to extend Image to also provide a 16-bit integer representation without needing to update logic that purely relates to memory allocation.
 
 〈PixelFormat Inline Functions〉 ≡ bool Is8Bit(PixelFormat format) { return format == PixelFormat::U256; } bool Is16Bit(PixelFormat format) { return format == PixelFormat::Half; } bool Is32Bit(PixelFormat format) { return format == PixelFormat::Float; }
 
-The size of the provided channelNames parameter determines the number of channels the image stores at each pixel. The Image class does not impose any semantics on the channels or attempt to interpret their meaning but instead just stores values and performs the operations on them specified by the caller.
+The size of the provided channelNames parameter determines the number of channels the image stores at each pixel. The `Image` class does not impose any semantics on the channels or attempt to interpret their meaning but instead just stores values and performs the operations on them specified by the caller.
 
 〈Image Private Members〉 ≡ 1079
 
@@ -2866,7 +2852,7 @@ Image allows the specification of an image with no pixels; operator bool provide
    operator bool() const { return resolution.x > 0 && resolution.y > 0; }
 ```
 
-One of the following member variables stores the pixel values. Which one is used is determined by the specified PixelFormat.
+One of the following member variables stores the pixel values. Which one is used is determined by the specified `PixelFormat`.
 
 〈Image Private Members〉 +≡ 1079
 
@@ -2874,7 +2860,7 @@ One of the following member variables stores the pixel values. Which one is used
    pstd::vector<uint8_t> p8; pstd::vector<Half> p16; pstd::vector<float> p32;
 ```
 
-The PixelOffset() method returns the offset into the pixel value array for given integer pixel coordinates. In debug builds, a DCHECK() call, not included here, checks that the provided coordinates are between 0 and the image resolution in each dimension.
+The `PixelOffset()` method returns the offset into the pixel value array for given integer pixel coordinates. In debug builds, a `DCHECK()` call, not included here, checks that the provided coordinates are between 0 and the image resolution in each dimension.
 
 A few factors determine the following indexing computation: first, the coordinate system for images has (0, 0) at the upper left corner of the image; images are then laid out in x scanline order, and each pixel’s channel values are laid out successively in memory.
 
@@ -2889,7 +2875,7 @@ An alternative memory layout would first store all the pixels’ first channel v
 
 B.5.1 WORKING WITH PIXEL VALUES
 
-The GetChannel() method returns the floating-point value for a single image channel, taking care of both addressing pixels and converting the in-memory value to a Float. Note that if this method is used, it is the caller’s responsibility to keep track of what is being stored in each channel.
+The `GetChannel()` method returns the floating-point value for a single image channel, taking care of both addressing pixels and converting the in-memory value to a `Float`. Note that if this method is used, it is the caller’s responsibility to keep track of what is being stored in each channel.
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -2905,7 +2891,7 @@ The GetChannel() method returns the floating-point value for a single image chan
    }
 ```
 
-Like all the upcoming methods that return pixel values, the lookup point p that is passed to GetChannel() is not required to be inside the image bounds. This is a convenience for code that calls these methods and saves them from all needing to handle boundary conditions themselves.
+Like all the upcoming methods that return pixel values, the lookup point p that is passed to `GetChannel()` is not required to be inside the image bounds. This is a convenience for code that calls these methods and saves them from all needing to handle boundary conditions themselves.
 
 ```rust
     DCHECK() 1066
@@ -2919,13 +2905,13 @@ Like all the upcoming methods that return pixel values, the lookup point p that 
     WrapMode2D 1082
 ```
 
-WrapMode and WrapMode2D specify how out-of-bounds coordinates should be handled. The first three options are widely used in texture mapping, and are respectively to return a black (zero-valued) result, to clamp out-of-bounds coordinates to the valid bounds, and to take them modulus the image resolution, which effectively repeats the image infinitely. The last option, OctahedralSphere, accounts for the layout of the octahedron used in the definition of equi-area spherical mapping (see Section 3.8.3) and should be used when looking up values in images that are based on that parameterization.
+`WrapMode` and `WrapMode2D` specify how out-of-bounds coordinates should be handled. The first three options are widely used in texture mapping, and are respectively to return a black (zero-valued) result, to clamp out-of-bounds coordinates to the valid bounds, and to take them modulus the image resolution, which effectively repeats the image infinitely. The last option, OctahedralSphere, accounts for the layout of the octahedron used in the definition of equi-area spherical mapping (see Section 3.8.3) and should be used when looking up values in images that are based on that parameterization.
 
 〈WrapMode Definitions〉 ≡ enum class WrapMode { Black, Clamp, Repeat, OctahedralSphere }; struct WrapMode2D { pstd::array<WrapMode, 2> wrap; };
 
-The RemapPixelCoords() function handles modifying the pixel coordinates as needed according to the WrapMode for each dimension. If an out-of-bounds coordinate has been provided and
+The `RemapPixelCoords()` function handles modifying the pixel coordinates as needed according to the `WrapMode` for each dimension. If an out-of-bounds coordinate has been provided and
 
-WrapMode::Black has been specified, it returns a false value, which is handled here by returning 0. The implementation of this function is not included here.
+`WrapMode::Black` has been specified, it returns a false value, which is handled here by returning 0. The implementation of this function is not included here.
 
 〈Remap provided pixel coordinates before reading channel〉 ≡ 1081
 
@@ -2933,7 +2919,7 @@ WrapMode::Black has been specified, it returns a false value, which is handled h
    if (!RemapPixelCoords(&p, resolution, wrapMode)) return 0;
 ```
 
-Given a valid pixel coordinate, PixelOffset() gives the offset to the first channel for that pixel. A further offset by the channel index c is all that is left to get to the channel value. For U256 images, this value is decoded into a Float using the specified color encoding (discussed in Section B.5.6).
+Given a valid pixel coordinate, `PixelOffset()` gives the offset to the first channel for that pixel. A further offset by the channel index c is all that is left to get to the channel value. For U256 images, this value is decoded into a `Float` using the specified color encoding (discussed in Section B.5.6).
 
 〈Return U256-encoded pixel channel value〉 ≡ 1081
 
@@ -2942,7 +2928,7 @@ Given a valid pixel coordinate, PixelOffset() gives the offset to the first chan
    r;
 ```
 
-For Half images, the Half class’s Float conversion operator is invoked to get the return value.
+For `Half` images, the `Half` class’s `Float` conversion operator is invoked to get the return value.
 
 〈Return Half-encoded pixel channel value〉 ≡ 1081
 
@@ -2950,7 +2936,7 @@ For Half images, the Half class’s Float conversion operator is invoked to get 
    return Float(p16[PixelOffset(p) + c]);
 ```
 
-And for Float images, the task is trivial.
+And for `Float` images, the task is trivial.
 
 〈Return Float-encoded pixel channel value〉 ≡ 1081
 
@@ -2958,7 +2944,7 @@ And for Float images, the task is trivial.
    return p32[PixelOffset(p) + c];
 ```
 
-The Image class also provides a LookupNearestChannel() method, which returns the specified channel value for the pixel sample nearest a provided coordinate with respect to [0, 1]2. It is a simple wrapper around GetChannel(), so it is not included here.
+The `Image` class also provides a `LookupNearestChannel()` method, which returns the specified channel value for the pixel sample nearest a provided coordinate with respect to [0, 1]2. It is a simple wrapper around `GetChannel()`, so it is not included here.
 
 Slightly more interesting in its implementation is BilerpChannel, which uses bilinear interpolation between four image pixels to compute the channel value. (This is equivalent to filtering with a pixel-wide triangle filter.)
 
@@ -3012,7 +2998,7 @@ After the distances are found in each dimension to the pixel at the last integer
               (1 - dx) * dy * v[2] + dx * dy * v[3]);
 ```
 
-The SetChannel() method, the implementation of which is not included in the book, sets the value of a channel in a specified pixel.
+The `SetChannel()` method, the implementation of which is not included in the book, sets the value of a channel in a specified pixel.
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -3020,11 +3006,11 @@ The SetChannel() method, the implementation of which is not included in the book
    void SetChannel(Point2i p, int c, Float value);
 ```
 
-A few methods return multiple pixel channel values all at once. Doing so can be more efficient than repeatedly calling methods like GetChannel() or BilerpChannel(), as various common computations like handling the wrapMode can be done just once.
+A few methods return multiple pixel channel values all at once. Doing so can be more efficient than repeatedly calling methods like `GetChannel()` or `BilerpChannel()`, as various common computations like handling the wrapMode can be done just once.
 
-GetChannels() returns all the channel values for a given pixel all at once. (There are also LookupNearest() and Bilerp() methods that similarly perform the corresponding lookup on all
+`GetChannels()` returns all the channel values for a given pixel all at once. (There are also `LookupNearest()` and `Bilerp()` methods that similarly perform the corresponding lookup on all
 
-channels and return the result using ImageChannelValues.)
+channels and return the result using `ImageChannelValues`.)
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -3033,7 +3019,7 @@ channels and return the result using ImageChannelValues.)
    WrapMode::Clamp) const;
 ```
 
-GetChannels() returns the channel values using an instance of the ImageChannelValues class, the definition of which is not included here. ImageChannelValues can be operated on more or less as if it were a std::vector, though it is based on the InlinedVector class that was described in Section B.4. It is thus able to avoid the cost of the dynamic memory allocations that std::vector would otherwise require if a small number of channel values were being returned.
+`GetChannels()` returns the channel values using an instance of the `ImageChannelValues` class, the definition of which is not included here. `ImageChannelValues` can be operated on more or less as if it were a std::vector, though it is based on the `InlinedVector` class that was described in Section B.4. It is thus able to avoid the cost of the dynamic memory allocations that std::vector would otherwise require if a small number of channel values were being returned.
 
 ```rust
     Float 23
@@ -3045,7 +3031,7 @@ GetChannels() returns the channel values using an instance of the ImageChannelVa
     WrapMode2D 1082
 ```
 
-It is also possible to specify a particular subset of the channels for these sorts of operations. GetChannelDesc() takes one or more image channel names and returns an instance of the ImageChannelDesc class. This class is opaque to the caller, but tracks which channel index each of the requested channels corresponds to. It includes an operator bool() method that can be called to check whether the requested channels were in fact present in the image.
+It is also possible to specify a particular subset of the channels for these sorts of operations. `GetChannelDesc()` takes one or more image channel names and returns an instance of the `ImageChannelDesc` class. This class is opaque to the caller, but tracks which channel index each of the requested channels corresponds to. It includes an operator `bool()` method that can be called to check whether the requested channels were in fact present in the image.
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -3054,7 +3040,7 @@ It is also possible to specify a particular subset of the channels for these sor
         pstd::span<const std::string> channels) const;
 ```
 
-All the methods that we have seen in this section also have variants that take an ImageChannel Desc and then return values for just the specified channels, in the order they were requested in the call to GetChannelDesc(). Here is the one for GetChannels():
+All the methods that we have seen in this section also have variants that take an ImageChannel Desc and then return values for just the specified channels, in the order they were requested in the call to `GetChannelDesc()`. Here is the one for `GetChannels()`:
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -3063,15 +3049,15 @@ All the methods that we have seen in this section also have variants that take a
    WrapMode2D wrapMode = WrapMode::Clamp) const;
 ```
 
-B.5.2 IMAGE-WIDE OPERATIONS The Image class also provides a number of operations that operate on the entire image, again agnostic to the semantics of the values an image stores.
+B.5.2 IMAGE-WIDE OPERATIONS The `Image` class also provides a number of operations that operate on the entire image, again agnostic to the semantics of the values an image stores.
 
-SelectChannels() returns a new image that includes only the specified channels of the original image, and Crop() returns an image that contains the specified subset of pixels of the original.
+`SelectChannels()` returns a new image that includes only the specified channels of the original image, and `Crop()` returns an image that contains the specified subset of pixels of the original.
 
 〈Image Public Methods〉 +≡ 1079
 
 Image SelectChannels(const ImageChannelDesc &desc, Allocator alloc = {}) const; Image Crop(const Bounds2i &bounds, Allocator alloc = {}) const;
 
-CopyRectOut() and CopyRectIn() copy the specified rectangular regions of the image to and from the provided buffers. For some performance-sensitive image processing operations, it is helpful to incur the overhead of converting the in-memory image format to floats just once so that subsequent operations can operate directly on float values.
+`CopyRectOut()` and `CopyRectIn()` copy the specified rectangular regions of the image to and from the provided buffers. For some performance-sensitive image processing operations, it is helpful to incur the overhead of converting the in-memory image format to floats just once so that subsequent operations can operate directly on float values.
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -3081,7 +3067,7 @@ CopyRectOut() and CopyRectIn() copy the specified rectangular regions of the ima
    pstd::span<const float> buf);
 ```
 
-A number of methods compute aggregate statistics about the image. Average() returns the average value of each specified channel across the entire image.
+A number of methods compute aggregate statistics about the image. `Average()` returns the average value of each specified channel across the entire image.
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -3099,7 +3085,7 @@ Two methods respectively check for pixels with infinite or not-a-number values.
 
 Three methods measure error, comparing the image to a provided reference image, which should have the same resolution and named channels. Each takes a set of channels to include in the error computation and returns the error with respect to the specified metric. Optionally, they return an Image where each pixel stores its error.
 
-MAE() computes mean absolute error—the absolute value of the difference with the reference image. MSE() computes mean squared error, and MRSE() computes mean relative squared error, which is based on dividing the squared error by the reference value.
+`MAE()` computes mean absolute error—the absolute value of the difference with the reference image. `MSE()` computes mean squared error, and `MRSE()` computes mean relative squared error, which is based on dividing the squared error by the reference value.
 
 ```text
     Allocator 40
@@ -3122,7 +3108,7 @@ MAE() computes mean absolute error—the absolute value of the difference with t
    Image *mrseImage = nullptr) const;
 ```
 
-Finally, GetSamplingDistribution() returns a 2D array of scalar weights for use in importance sampling. The weights are not normalized, but are suitable to be directly passed to the PiecewiseConstant2D class’s constructor. The caller can optionally specify the domain of the image as well as a function that returns a change of variables factor if the final sampling domain is not uniform and over [0, 1]2. This factor is then included in the sampling distribution.
+Finally, `GetSamplingDistribution()` returns a 2D array of scalar weights for use in importance sampling. The weights are not normalized, but are suitable to be directly passed to the `PiecewiseConstant2D` class’s constructor. The caller can optionally specify the domain of the image as well as a function that returns a change of variables factor if the final sampling domain is not uniform and over [0, 1]2. This factor is then included in the sampling distribution.
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -3156,7 +3142,7 @@ PFM is a floating-point format based on an extension to the PPM file format; it 
     Point2f 92
 ```
 
-The Image Read() method attempts to read an image from the given file. It uses the suffix at the end of the filename to determine which image file format reader to use.
+The Image `Read()` method attempts to read an image from the given file. It uses the suffix at the end of the filename to determine which image file format reader to use.
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -3165,11 +3151,11 @@ The Image Read() method attempts to read an image from the given file. It uses t
    ColorEncoding encoding = nullptr);
 ```
 
-Image::Read() returns an instance of the ImageAndMetadata structure. In the event of an error reading the image, it issues an error message and exits immediately, so no error handling is required of the caller.
+`Image::Read()` returns an instance of the `ImageAndMetadata` structure. In the event of an error reading the image, it issues an error message and exits immediately, so no error handling is required of the caller.
 
 〈ImageAndMetadata Definition〉 ≡ struct ImageAndMetadata { Image image; ImageMetadata metadata; };
 
-Some image formats can store additional metadata beyond the pixel values; ImageMetadata is pbrt’s container for this information. OpenEXR is particularly flexible in this regard: the user is free to add arbitrary named metadata using a variety of data types.
+Some image formats can store additional metadata beyond the pixel values; `ImageMetadata` is pbrt’s container for this information. OpenEXR is particularly flexible in this regard: the user is free to add arbitrary named metadata using a variety of data types.
 
 〈ImageMetadata Definition〉 ≡ struct ImageMetadata { 〈ImageMetadata Public Methods〉 〈ImageMetadata Public Members 1086〉 };
 
@@ -3184,7 +3170,7 @@ If the image has the corresponding metadata, pbrt’s image reading routines ini
    samplesPerPixel; pstd::optional<const RGBColorSpace *> colorSpace;
 ```
 
-The Write() method writes an image in one of the supported formats, based on the extension of the filename passed to it. It stores as much of the provided metadata as possible given the image format used.
+The `Write()` method writes an image in one of the supported formats, based on the extension of the filename passed to it. It stores as much of the provided metadata as possible given the image format used.
 
 〈Image Public Methods〉 +≡ 1079
 
@@ -3192,7 +3178,7 @@ The Write() method writes an image in one of the supported formats, based on the
    bool Write(std::string name, const ImageMetadata &metadata = {}) const;
 ```
 
-B.5.4 RESIZING IMAGES Image resizing involves application of the sampling and reconstruction theory from Chapter 8: we have an image function that has been sampled at one sampling rate, and we would like to reconstruct a continuous image function from the original samples to resample at a new set of sample positions. In this section, we will discuss the Image’s FloatResizeUp() method, which resamples an image to a higher resolution. Because this represents an increase in the sampling rate from the original rate, we do not have to worry about introducing aliasing due to undersampling high-frequency components in this step; we only need to reconstruct and directly resample the new function. Figure B.6 illustrates this task in 1D.
+B.5.4 RESIZING IMAGES Image resizing involves application of the sampling and reconstruction theory from Chapter 8: we have an image function that has been sampled at one sampling rate, and we would like to reconstruct a continuous image function from the original samples to resample at a new set of sample positions. In this section, we will discuss the Image’s `FloatResizeUp()` method, which resamples an image to a higher resolution. Because this represents an increase in the sampling rate from the original rate, we do not have to worry about introducing aliasing due to undersampling high-frequency components in this step; we only need to reconstruct and directly resample the new function. Figure B.6 illustrates this task in 1D.
 
 ```text
     Allocator 40
@@ -3208,13 +3194,13 @@ B.5.4 RESIZING IMAGES Image resizing involves application of the sampling and re
 
 A separable reconstruction filter is used for this task; recall from Section 8.8 that separable filters can be written as the product of 1D filters: f (x, y) = f(x)f(y). One advantage of a separable filter is that if we are using one to resample an image from one resolution (x, y) to another (x′, y′), then we can implement the resampling as two 1D resampling steps, first resampling in x to create an image of resolution (x′, y) and then resampling that image to create the final image of resolution (x′, y′). Resampling the image via two 1D steps in this manner simplifies implementation and makes the number of pixels accessed for each pixel in the final image a linear function of the filter width, rather than a quadratic one.
 
-*Figure B.6: To increase an image’s resolution, the Image class performs two 1D resampling steps with a separable reconstruction filter. (a) A 1D function reconstructed from four samples, denoted by dots. (b) To represent the same image function with more samples, we only need to reconstruct the continuous function and evaluate it at the new positions.*
+*Figure B.6: To increase an image’s resolution, the `Image` class performs two 1D resampling steps with a separable reconstruction filter. (a) A 1D function reconstructed from four samples, denoted by dots. (b) To represent the same image function with more samples, we only need to reconstruct the continuous function and evaluate it at the new positions.*
 
 Reconstructing the original image function and sampling it at a new pixel’s position are mathematically equivalent to centering the reconstruction filter kernel at the new pixel’s position and weighting the nearby pixels in the original image appropriately. Thus, each new pixel is a weighted average of a small number of pixels in the original image.
 
-The Image::ResampleWeights() method utility determines which original pixels contribute to each new pixel and what the values are of the contribution weights for each new pixel. It returns the values in an array of ResampleWeight structures for all the pixels in a 1D row or column of the image. Because this information is the same for all rows of the image when resampling in x and all columns when resampling in y, it is more efficient to compute it once for each of the two passes and then reuse it many times for each one.
+The `Image::ResampleWeights()` method utility determines which original pixels contribute to each new pixel and what the values are of the contribution weights for each new pixel. It returns the values in an array of `ResampleWeight` structures for all the pixels in a 1D row or column of the image. Because this information is the same for all rows of the image when resampling in x and all columns when resampling in y, it is more efficient to compute it once for each of the two passes and then reuse it many times for each one.
 
-For the reconstruction filter used here, no more than four of the original pixels will contribute to each new pixel after resizing, so ResampleWeight only needs to hold four weights. Because the four pixels are contiguous, we only store the offset to the first one.
+For the reconstruction filter used here, no more than four of the original pixels will contribute to each new pixel after resizing, so `ResampleWeight` only needs to hold four weights. Because the four pixels are contiguous, we only store the offset to the first one.
 
 〈ResampleWeight Definition〉 ≡ struct ResampleWeight { int firstPixel; Float weight[4]; };
 
@@ -3252,7 +3238,7 @@ The four filter weights generally do not sum to one. Therefore, to ensure that t
                                     j < 4; ++j) wt[i].weight[j] *= invSumWts;
 ```
 
-Given ResampleWeights(), we can continue to FloatResizeUp(), which resizes an image to a higher resolution and returns the result, with pixels stored as Floats in memory, regardless of the input image format.
+Given `ResampleWeights()`, we can continue to `FloatResizeUp()`, which resizes an image to a higher resolution and returns the result, with pixels stored as `Float`s in memory, regardless of the input image format.
 
 〈Image Method Definitions〉 +≡ Image Image::FloatResizeUp(Point2i newRes, WrapMode2D wrapMode) const { Image resampledImage(PixelFormat::Float, newRes, channelNames); 〈Compute x and y resampling weights for image resizing 1089〉 〈Resize image in parallel, working by tiles 1089〉 return resampledImage; }
 
@@ -3278,7 +3264,7 @@ Given filter weights, the image is resized in parallel, where threads work on ti
 
 〈Resize image in parallel, working by tiles〉 ≡ ParallelFor2D(Bounds2i({0, 0}, newRes), [&](Bounds2i outExtent) { 〈Determine extent in source image and copy pixel values to inBuf 1089〉 〈Resize image in the x dimension 1089〉 〈Resize image in the y dimension〉 〈Copy resampled image pixels out into resampledImage 1090〉 });
 
-The first step copies all the pixel values that will be needed from the source image to compute the pixels in outExtent into a local buffer, inBuf. There are two reasons for doing this (versus accessing pixel values as needed from the input image): first, CopyRectOut() is generally more efficient than accessing the pixel channel values individually since not only are boundary conditions handled just once, but any necessary format conversion to Float is also done once for each pixel channel and in
+The first step copies all the pixel values that will be needed from the source image to compute the pixels in outExtent into a local buffer, inBuf. There are two reasons for doing this (versus accessing pixel values as needed from the input image): first, `CopyRectOut()` is generally more efficient than accessing the pixel channel values individually since not only are boundary conditions handled just once, but any necessary format conversion to `Float` is also done once for each pixel channel and in
 
 bulk. Second, the pixel channel values that will be accessed for subsequent filtering computations end up being contiguous in memory, which also improves cache coherence.
 
@@ -3336,8 +3322,7 @@ Once all the values are lined up, the actual resampling operation is straightfor
 〈Resample image pixel (xOut, yOut)〉 ≡ 1089
 
 ```rust
-   const ResampleWeight &rsw = xWeights[xOut]; 〈Compute inOffset into inBuf for
-   (xOut, yOut) 1090〉
+   const ResampleWeight &rsw = xWeights[xOut]; 〈Compute inOffset into inBuf for (xOut, yOut) 1090〉
    for (int c = 0; c < NChannels(); ++c, ++xBufOffset, ++inOffset)
    xBuf[xBufOffset] = rsw.weight[0] * inBuf[inOffset] +
                                rsw.weight[1] * inBuf[inOffset + NChannels()] +
@@ -3357,7 +3342,7 @@ The (xOut, yOut) pixel coordinate is with respect to the overall final resampled
 
 The fragment 〈Resize image in the y dimension〉 follows a similar approach but filters along y, going from xBuf into outBuf. It is therefore not included here.
 
-Given resampled pixels for outExtent, they can be copied in bulk to the output image via CopyRectIn().
+Given resampled pixels for outExtent, they can be copied in bulk to the output image via `CopyRectIn()`.
 
 〈Copy resampled image pixels out into resampledImage〉 ≡ 1089
 
@@ -3365,7 +3350,7 @@ Given resampled pixels for outExtent, they can be copied in bulk to the output i
    resampledImage.CopyRectIn(outExtent, outBuf);
 ```
 
-B.5.5 IMAGE PYRAMIDS The GeneratePyramid() method generates an image pyramid, which stores a source image, first resized if necessary to have power-of-two resolution in each dimension, at its base. Higher levels of the pyramid are successively found by downsampling the next lower level by a factor of two in each dimension. Image pyramids are widely used for accelerating image filtering operations and are a cornerstone of MIP mapping, which is implemented in pbrt’s MIPMap class, defined in Section 10.4.3.
+B.5.5 IMAGE PYRAMIDS The `GeneratePyramid()` method generates an image pyramid, which stores a source image, first resized if necessary to have power-of-two resolution in each dimension, at its base. Higher levels of the pyramid are successively found by downsampling the next lower level by a factor of two in each dimension. Image pyramids are widely used for accelerating image filtering operations and are a cornerstone of MIP mapping, which is implemented in pbrt’s `MIPMap` class, defined in Section 10.4.3.
 
 ```text
     Allocator 40
@@ -3388,7 +3373,7 @@ B.5.5 IMAGE PYRAMIDS The GeneratePyramid() method generates an image pyramid, wh
 
 〈Image Method Definitions〉 +≡ pstd::vector<Image> Image::GeneratePyramid(Image image, WrapMode2D wrapMode, Allocator alloc) { PixelFormat origFormat = image.format; int nChannels = image.NChannels(); ColorEncoding origEncoding = image.encoding; 〈Prepare image for building pyramid 1091〉 〈Initialize levels of pyramid from image 1091〉 〈Initialize top level of pyramid and return it 1093〉 }
 
-Implementation of an image pyramid is easier if the resolution of the original image is an exact power of two in each direction; this ensures that there is a direct relationship between the level of the pyramid and the number of texels at that level. If the user has provided an image where the resolution in one or both of the dimensions is not a power of two, then the GeneratePyramid() method calls FloatResizeUp() to resize the image up to the next power-of-two resolution greater than the original resolution before constructing the pyramid. (Exercise B.1 at the end of the chapter describes an approach for building image pyramids with non-power-of-two resolutions.) Otherwise, if the provided image does not use 32-bit floats for its in-memory format, it is converted to that representation. This helps avoid errors in the image pyramid due to insufficient precision being used for the inputs to the filtering computations. (In the end, however, the returned pyramid will have images in the format of the original image so that memory use is not unnecessarily increased.) These two operations motivate taking the Image as a parameter to a static method, as GeneratePyramid() is, rather than being a non-static member function. Thus, a new image can easily be reassigned to image as necessary.
+Implementation of an image pyramid is easier if the resolution of the original image is an exact power of two in each direction; this ensures that there is a direct relationship between the level of the pyramid and the number of texels at that level. If the user has provided an image where the resolution in one or both of the dimensions is not a power of two, then the `GeneratePyramid()` method calls `FloatResizeUp()` to resize the image up to the next power-of-two resolution greater than the original resolution before constructing the pyramid. (Exercise B.1 at the end of the chapter describes an approach for building image pyramids with non-power-of-two resolutions.) Otherwise, if the provided image does not use 32-bit floats for its in-memory format, it is converted to that representation. This helps avoid errors in the image pyramid due to insufficient precision being used for the inputs to the filtering computations. (In the end, however, the returned pyramid will have images in the format of the original image so that memory use is not unnecessarily increased.) These two operations motivate taking the Image as a parameter to a static method, as `GeneratePyramid()` is, rather than being a non-static member function. Thus, a new image can easily be reassigned to image as necessary.
 
 〈Prepare image for building pyramid〉 ≡ 1090
 
@@ -3437,7 +3422,7 @@ Each time through this loop, image starts out as the already-filtered image for 
    〈Downsample image to create next level and update pyramid 1092〉
 ```
 
-For non-square images, the resolution in one direction must be clamped to 1 for the upper levels of the image pyramid, where there is still downsampling to do in the larger of the two resolutions. This is handled by the following std::max() calls:
+For non-square images, the resolution in one direction must be clamped to 1 for the upper levels of the image pyramid, where there is still downsampling to do in the larger of the two resolutions. This is handled by the following `std::max()` calls:
 
 〈Initialize nextImage for i + 1st level〉 ≡ 1091
 
@@ -3447,11 +3432,11 @@ For non-square images, the resolution in one direction must be clamped to 1 for 
    image.channelNames, origEncoding);
 ```
 
-GeneratePyramid() uses a simple box filter to average four texels from the previous level to find the value at the current texel. Using the Lanczos filter here would give a slightly better result for this computation, although this modification is left for Exercise B.2 at the end of the chapter.
+`GeneratePyramid()` uses a simple box filter to average four texels from the previous level to find the value at the current texel. Using the Lanczos filter here would give a slightly better result for this computation, although this modification is left for Exercise B.2 at the end of the chapter.
 
 With the box filter, each pixel (x, y) in nextImage is given by the average of the pixels (2x, 2y), (2x + 1, 2y), (2x, 2y + 1), and (2x + 1, 2y + 1). Here we compute the corresponding offsets from a pixel in the
 
-source image to those four pixels; doing this here saves some math in pixel indexing when downsampling. These offsets are based on the scanline-based layout of Image data in memory; referring to the implementation of Image::PixelOffset() may make their operation more clear.
+source image to those four pixels; doing this here saves some math in pixel indexing when downsampling. These offsets are based on the scanline-based layout of Image data in memory; referring to the implementation of `Image::PixelOffset()` may make their operation more clear.
 
 Here is also a good chance to handle images with single pixel resolution in one dimension; in that case the offsets are set so that valid pixels are used twice, and the downsampling loop can be written to always assume four values.
 
@@ -3489,7 +3474,7 @@ The following fragment computes a scanline’s worth of downsampled pixel values
 
 We will take advantage of the fact that processing is happening in parallel here to also copy pixel values from image into their place in the pyramid. Doing so here has the added benefit that the pixel values should already be in the cache from their use as inputs to the downsampling computation.
 
-Because the ParallelFor() loop is over scanlines in the lower-resolution image, two scanlines from image are copied here except in the edge case of a single-scanline-high image from a non-square-input image. The Image CopyRectIn() method copies the pixels inside the provided bounds, taking care of converting them to the format of the destination image pixels if necessary.
+Because the `ParallelFor()` loop is over scanlines in the lower-resolution image, two scanlines from image are copied here except in the edge case of a single-scanline-high image from a non-square-input image. The Image `CopyRectIn()` method copies the pixels inside the provided bounds, taking care of converting them to the format of the destination image pixels if necessary.
 
 〈Copy two scanlines from image out to its pyramid level〉 ≡ 1092
 
@@ -3524,17 +3509,17 @@ After the loop terminates, we are left with a 1 × 1 image to copy into the top 
 
 B.5.6 COLOR ENCODINGS
 
-Color spaces often define a transfer function that is used to encode color component values that are stored in the color space. Transfer functions date to cathode ray tube (CRT) displays, which had a nonlinear relationship between display intensity and the voltage V of the electron gun, which was modeled with a gamma curve Vγ. With CRTs, doubling the RGB color components stored at a pixel did not lead to a doubling of displayed intensity, an undesirable nonlinearity at the end of a rendering process that is built on an assumption of linearity. It was therefore necessary to apply gamma correction to image pixels using the inverse of the gamma curve so that the image on the screen had a linear relationship between intensity and pixel values.
+Color spaces often define a transfer function that is used to encode color component values that are stored in the color space. Transfer functions date to cathode ray tube (CRT) displays, which had a nonlinear relationship between display intensity and the voltage V of the electron gun, which was modeled with a gamma curve Vγ. With CRTs, doubling the `RGB` color components stored at a pixel did not lead to a doubling of displayed intensity, an undesirable nonlinearity at the end of a rendering process that is built on an assumption of linearity. It was therefore necessary to apply gamma correction to image pixels using the inverse of the gamma curve so that the image on the screen had a linear relationship between intensity and pixel values.
 
 While modern displays no longer use electron guns, it is still worthwhile to use a nonlinear mapping with colors that are stored in quantized representations (e.g., 8-bit pixel components). One reason to do so is suggested by Weber’s law, which is based on the observation that an increase of 1% of a stimulus value (e.g., displayed color) is generally required before a human observer notices a change— this is the just noticeable difference. In turn, a pixel encoding that allocates multiple values to invisible differences is inefficient, at least for display. Weber’s law also suggests a power law–based encoding, along the lines of gamma correction.
 
 pbrt does most of its computation using floating-point color values, for which there is no need to apply a color encoding. (And indeed, such an encoding would need to be inverted any time a computation was performed with such a color value.) However, it is necessary to support color encodings to decode color values from non-floating-point image formats like PNG as well as to encode them before writing images in such formats.
 
-The ColorEncoding class defines the ColorEncoding interface, which handles both encoding and decoding color in various ways.
+The `ColorEncoding` class defines the `ColorEncoding` interface, which handles both encoding and decoding color in various ways.
 
 〈ColorEncoding Definitions〉 ≡ class ColorEncoding : public TaggedPointer<LinearColorEncoding, sRGBColorEncoding, GammaColorEncoding> { public: 〈ColorEncoding Interface 1094〉 };
 
-The two main methods that ColorEncodings must provide are ToLinear(), which takes a set of encoded 8-bit color values and converts them to linear Floats, and FromLinear(), which does the reverse. Both of these take buffers of potentially many values to convert at once, which saves dynamic dispatch overhead compared to invoking them for each value independently.
+The two main methods that `ColorEncoding`s must provide are `ToLinear()`, which takes a set of encoded 8-bit color values and converts them to linear `Float`s, and `FromLinear()`, which does the reverse. Both of these take buffers of potentially many values to convert at once, which saves dynamic dispatch overhead compared to invoking them for each value independently.
 
 〈ColorEncoding Interface〉 ≡ 1094
 
@@ -3544,7 +3529,7 @@ The two main methods that ColorEncodings must provide are ToLinear(), which take
    const;
 ```
 
-It is sometimes useful to decode values with greater than 8-bit precision (e.g., some image formats like PNG are able to store 16-bit color channels). Such cases are handled by ToFloatLinear(), which takes a single encoded value stored as a Float and decodes it.
+It is sometimes useful to decode values with greater than 8-bit precision (e.g., some image formats like PNG are able to store 16-bit color channels). Such cases are handled by `ToFloatLinear()`, which takes a single encoded value stored as a `Float` and decodes it.
 
 〈ColorEncoding Interface〉 +≡ 1094
 
@@ -3552,7 +3537,7 @@ It is sometimes useful to decode values with greater than 8-bit precision (e.g.,
    Float ToFloatLinear(Float v) const;
 ```
 
-The LinearColorEncoding class is trivial: it divides 8-bit values by 255 to convert them to Floats and does the reverse to convert back. pbrt also provides GammaColorEncoding, which applies a plain gamma curve of specified exponent. Neither of these are included in the text here.
+The `LinearColorEncoding` class is trivial: it divides 8-bit values by 255 to convert them to `Float`s and does the reverse to convert back. pbrt also provides `GammaColorEncoding`, which applies a plain gamma curve of specified exponent. Neither of these are included in the text here.
 
 ```text
     Float 23
@@ -3562,17 +3547,17 @@ The LinearColorEncoding class is trivial: it divides 8-bit values by 255 to conv
     TaggedPointer 1073
 ```
 
-sRGBColorEncoding implements the encoding specified by the sRGB color space. It combines a linear segment for small values with a power curve for larger ones.
+`sRGBColorEncoding` implements the encoding specified by the sRGB color space. It combines a linear segment for small values with a power curve for larger ones.
 
 〈ColorEncoding Definitions〉 +≡ class sRGBColorEncoding { public: 〈sRGBColorEncoding Public Methods〉 };
 
 A linear value x is converted to an sRGB-encoded value xe by
 
-The work of conversion is handled by the LinearToSRGB8() function, which is not included here. It uses a rational polynomial approximation to avoid the cost of a std::pow() call in computing the encoded value.
+The work of conversion is handled by the `LinearToSRGB8()` function, which is not included here. It uses a rational polynomial approximation to avoid the cost of a `std::pow()` call in computing the encoded value.
 
 〈ColorEncoding Method Definitions〉 ≡ void sRGBColorEncoding::FromLinear(pstd::span<const Float> vin, pstd::span<uint8_t> vout) const { for (size_t i = 0; i < vin.size(); ++i) vout[i] = LinearToSRGB8(vin[i]); }
 
-The inverse transformation is For 8-bit encoded values, the SRGB8ToLinear() function uses a precomputed 256-entry lookup table. A separate SRGBToLinear() uses a rational polynomial approximation for arbitrary floating-point values between 0 and 1.
+The inverse transformation is For 8-bit encoded values, the `SRGB8ToLinear()` function uses a precomputed 256-entry lookup table. A separate `SRGBToLinear()` uses a rational polynomial approximation for arbitrary floating-point values between 0 and 1.
 
 〈ColorEncoding Method Definitions〉 +≡ void sRGBColorEncoding::ToLinear(pstd::span<const uint8_t> vin, pstd::span<Float> vout) const {
 
@@ -3580,7 +3565,7 @@ The inverse transformation is For 8-bit encoded values, the SRGB8ToLinear() func
            for (size_t i = 0; i < vin.size(); ++i) vout[i] = SRGB8ToLinear(vin[i]); }
 ```
 
-The linear and sRGB encodings are widely used in the system, so they are made available via static member variables in the ColorEncoding class.
+The linear and sRGB encodings are widely used in the system, so they are made available via static member variables in the `ColorEncoding` class.
 
 〈ColorEncoding Interface〉 +≡ 1094
 
@@ -3588,7 +3573,7 @@ The linear and sRGB encodings are widely used in the system, so they are made av
    static ColorEncoding Linear; static ColorEncoding sRGB;
 ```
 
-B.6 PARALLELISM As improvements in the performance of single processing cores have slowed over the past fifteen years, it has become increasingly important to write parallel programs in order to reach the full computational capabilities of a system. Fortunately, ray tracing offers abundant independent work, which makes it easier to distribute work across processing cores. This section discusses some important principles of parallelism, focusing on CPUs, and introduces assorted classes and functions that pbrt uses for parallelism. (See Section 15.1 for discussion of parallelism on GPUs and how pbrt is parallelized on those processors.) ColorEncoding 1094 Float 23 LinearToSRGB8() 1095 One of the biggest challenges with parallel ray tracing is the impact of nonparallel phases of computation. For example, it is not as easy to effectively parallelize the construction of many types of acceleration structure while the scene is being constructed as it is to parallelize rendering. While this may seem like a minor issue, Amdahl’s law, which describes the speedup of a workload that has both serial and parallel phases, points to the challenge. Given n cores performing computation and a workload where the fraction s of its overall computation is inherently serial,
+B.6 PARALLELISM As improvements in the performance of single processing cores have slowed over the past fifteen years, it has become increasingly important to write parallel programs in order to reach the full computational capabilities of a system. Fortunately, ray tracing offers abundant independent work, which makes it easier to distribute work across processing cores. This section discusses some important principles of parallelism, focusing on CPUs, and introduces assorted classes and functions that pbrt uses for parallelism. (See Section 15.1 for discussion of parallelism on GPUs and how pbrt is parallelized on those processors.) `ColorEncoding` 1094 `Float` 23 `LinearToSRGB8()` 1095 One of the biggest challenges with parallel ray tracing is the impact of nonparallel phases of computation. For example, it is not as easy to effectively parallelize the construction of many types of acceleration structure while the scene is being constructed as it is to parallelize rendering. While this may seem like a minor issue, Amdahl’s law, which describes the speedup of a workload that has both serial and parallel phases, points to the challenge. Given n cores performing computation and a workload where the fraction s of its overall computation is inherently serial,
 
 the maximum speedup then possible is Thus, even with an infinite number of cores, the maximum speedup is 1/s. If, for example, a seemingly innocuous 5% of the run time is spent in a serial phase of parsing the scene file and building acceleration structures, the maximum speedup possible is 1/0.05 = 20×, no matter how quickly the parallel phase executes. We experienced the impact of Amdahl’s law as we brought pbrt’s GPU rendering path to life: it was often the case that it took longer to parse the scene description and to prepare the scene for rendering than it took to render the image, even at high sampling rates! This led to more attention to
 
@@ -3596,7 +3581,7 @@ parallelizing parsing and creating the objects that represent the scene. (See Se
 
 B.6.1 DATA RACES AND COORDINATION
 
-When pbrt is running on the CPU, we assume that the computation is running on processors that provide coherent shared memory. The main idea of coherent shared memory is that all threads can read and write to a common set of memory locations and that changes to memory made by one thread will eventually be seen by other threads. These properties greatly simplify the implementation of the system, as there is no need to explicitly communicate data between cores. Although coherent shared memory relieves the need for separate threads to explicitly communicate data with each other, they still need to coordinate their access to shared data; a danger of coherent shared memory is data races. If two threads modify the same memory location without coordination between the two of them, the program will almost certainly compute incorrect results or even crash. Consider the example of two processors simultaneously running the following innocuous-looking code, where globalCounter starts with a value of two: extern int globalCounter; if (--globalCounter == 0) printf(“done\n”); Because the two threads do not coordinate their reading and writing of globalCounter, it is possible that “done” will be printed zero, one, or even two times. For example, if both threads simultaneously load globalCounter, decrement it in a local register, and then write the result simultaneously, both will write a value of 1 and “done” will never be printed.8 Two main mechanisms are used for this type of synchronization: mutual exclusion and atomic operations. Mutual exclusion is implemented with std::mutex objects in pbrt. A std::mutex can be used to protect access to some resource, ensuring that only one thread can access it at a time: extern int globalCounter; extern std::mutex globalCounterMutex; globalCounterMutex.lock(); if (--
+When pbrt is running on the CPU, we assume that the computation is running on processors that provide coherent shared memory. The main idea of coherent shared memory is that all threads can read and write to a common set of memory locations and that changes to memory made by one thread will eventually be seen by other threads. These properties greatly simplify the implementation of the system, as there is no need to explicitly communicate data between cores. Although coherent shared memory relieves the need for separate threads to explicitly communicate data with each other, they still need to coordinate their access to shared data; a danger of coherent shared memory is data races. If two threads modify the same memory location without coordination between the two of them, the program will almost certainly compute incorrect results or even crash. Consider the example of two processors simultaneously running the following innocuous-looking code, where globalCounter starts with a value of two: extern int globalCounter; if (--globalCounter == 0) printf(“done\n”); Because the two threads do not coordinate their reading and writing of globalCounter, it is possible that “done” will be printed zero, one, or even two times. For example, if both threads simultaneously load globalCounter, decrement it in a local register, and then write the result simultaneously, both will write a value of 1 and “done” will never be printed.8 Two main mechanisms are used for this type of synchronization: mutual exclusion and atomic operations. Mutual exclusion is implemented with std::mutex objects in pbrt. A std::mutex can be used to protect access to some resource, ensuring that only one thread can access it at a time: extern int globalCounter; extern std::mutex globalCounterMutex; globalCounterMutex.`lock()`; if (--
 
 globalCounter == 0) printf(“done\n”); globalCounterMutex.unlock(); Atomic memory operations (or atomics) are the other option for correctly performing this type of memory update with multiple threads. Atomics are machine instructions that guarantee that their respective memory updates will be performed in a single transaction. (Atomic in this case refers to the notion that the memory updates are indivisible.) The implementations of atomic operations in pbrt are from the C++ standard library. Using atomics, the computation above could be written to use the std::atomic<int> type, which has overloaded add, subtract, increment, and decrement operations, as below: extern std::atomic<int> globalCounter; if (--globalCounter == 0) printf(“done\n”); The std::atomic -- operator subtracts one from the given variable, globalCounter, and returns the new value of the variable. Using an atomic operation ensures that if two threads simultaneously try to update the variable, then not only will the final value of the variable be the expected value, but each thread will be returned the value of the variable after its update alone. In this example, then, globalCounter will end up with a value of zero, as expected, with one thread guaranteed to have the value one returned from the atomic subtraction and the other thread guaranteed to have zero returned. Another useful atomic operation is “compare and swap,” which is also provided by the C++ standard library. It takes a memory location and the value that the caller believes the location currently stores. If the memory location still holds that value when the atomic compare and swap executes, then a new value is stored and true is returned; otherwise, memory is left unchanged and false is returned. Compare and swap is a building block that can be used to build many other atomic operations. For example, the code below could be executed by multiple threads to compute the maximum of values computed by all the threads. (For this particular case, the specialized atomic maximum function would be a better choice, but this example helps convey the usage.) std::atomic<int> maxValue; int localMax = …; int currentMax = maxValue; while (localMax > currentMax) {
 
@@ -3610,7 +3595,7 @@ B.6.2 ATOMIC FLOATING-POINT VALUES
 
 The std::atomic template cannot be used with floating-point types. One of the main reasons that atomic operations are not supported with it is that floating-point operations are generally not associative: as discussed in Section 6.8.1, when computed in floating-point, the value of the sum (a+b)+c is not necessarily equal to the sum a+(b+c). In turn, if a multi-threaded computation used atomic floating-point addition operations to compute some value, then the result computed would not be the same across multiple program executions. (In contrast, with integer types all the supported operations are associative, and so atomic operations give consistent results no matter which order threads perform them in.) For pbrt’s needs, these inconsistencies are generally tolerable, and being able to use atomic operations on Floats is preferable in some cases to using a lock. (One example is splatting pixel contributions in the RGBFilm::AddSplat() and GBufferFilm::AddSplat() methods.) For these purposes, we provide a small AtomicFloat class. 〈AtomicFloat Definition〉 ≡ class AtomicFloat { public: 〈AtomicFloat Public Methods 1099〉 private: 〈AtomicFloat Private Members 1099〉 };
 
-An AtomicFloat can be initialized from a provided floating-point value. In the implementation here, floating-point values are actually represented as their unsigned integer bitwise values, as returned by the FloatToBits() function.
+An `AtomicFloat` can be initialized from a provided floating-point value. In the implementation here, floating-point values are actually represented as their unsigned integer bitwise values, as returned by the `FloatToBits()` function.
 
 〈AtomicFloat Public Methods〉 ≡ explicit AtomicFloat(float v = 0) { bits = FloatToBits(v); }
 
@@ -3635,13 +3620,13 @@ void Add(float v) { FloatBits oldBits = bits, newBits; do { newBits = FloatToBit
    RGBFilm::AddSplat() 252
 ```
 
-pbrt does not currently need to perform any other operations on AtomicFloats, so we do not provide any additional methods. An AtomicDouble class, not included here, provides an equivalent Add() method for atomic addition with doubles.
+pbrt does not currently need to perform any other operations on `AtomicFloat`s, so we do not provide any additional methods. An AtomicDouble class, not included here, provides an equivalent `Add()` method for atomic addition with doubles.
 
 B.6.3 MEMORY COHERENCE MODELS AND PERFORMANCE
 
 Cache coherence is a feature of all modern multicore CPUs; with it, memory writes by one processor are automatically visible to other processors. This is an incredibly useful feature; being able to assume it in the implementation of a system like pbrt is extremely helpful to the programmer. Understanding the subtleties and performance characteristics of this feature is important, however. One potential issue is that other processors may not see writes to memory in the same order that the processor that performed the writes issued them. This can happen for two main reasons: the compiler’s optimizer may have reordered write operations to improve performance, and the CPU hardware may write values to memory in a different order than the stream of executed machine instructions. When only a single thread is running, both of these are innocuous; by design, the compiler and hardware, respectively, ensure that it is impossible for a single thread of execution running the program to detect when these cases happen. This guarantee is not provided for multi-threaded code, however; doing so would impose a significant performance penalty, so hardware architectures leave requiring such ordering, when it matters, to software. Memory barrier instructions can be used to ensure that all write instructions before the barrier are visible in memory before any subsequent instructions execute. In practice, we generally do not need to issue memory barrier instructions explicitly, since both C++ atomic and the thread synchronization calls used to build multi-threaded algorithms can include them in their operation. Although cache coherence is helpful to the programmer, it can sometimes impose a substantial performance penalty for data that is frequently modified and accessed by multiple processors. Read-only data has little penalty; copies of it can be stored in the local caches of all the processors
 
-that are accessing it, allowing all of them the same performance benefits from the caches as in the single-threaded case. To understand the downside of taking too much advantage of cache coherence for read–write data, it is useful to understand how cache coherence is typically implemented on processors. CPUs implement a cache coherence protocol, which is responsible for tracking the memory transactions issued by all the processors in order to provide cache coherence. A classic such protocol is MESI, where the acronym represents the four states that each cache line can be in. Each processor stores the current state for each cache line in its local caches: Modified—The current processor has written to the memory location, but the result is only stored in the cache—it is dirty and has not been written to main memory. No other processor has the location in its cache. Exclusive—The current processor is the only one with the data from the corresponding memory location in its cache. The value in the cache matches the value in memory. Shared—Multiple processors have the corresponding memory location in their caches, but they have only performed read operations. Invalid—The cache line does not hold valid data. At system startup time, the caches are empty and all cache lines are in the invalid state. The first time a processor reads a memory location, the data for that location is loaded into cache and its cache line marked as being in the “exclusive” state. If another processor performs a memory read of a location that is in the “exclusive” state in another cache, then both caches record the state for the corresponding memory location to instead be “shared.” When a processor writes to a memory location, the performance of the write depends on the state of the corresponding cache line. If it is in the “exclusive” state and already in the writing processor’s cache, then the write is cheap; the data is modified in the cache and the cache line’s state is changed to “modified.” (If it was already in the “modified” state, then the write is similarly efficient.) In these cases, the value will eventually be
+that are accessing it, allowing all of them the same performance benefits from the caches as in the single-threaded case. To understand the downside of taking too much advantage of cache coherence for read–write data, it is useful to understand how cache coherence is typically implemented on processors. CPUs implement a cache coherence protocol, which is responsible for tracking the memory transactions issued by all the processors in order to provide cache coherence. A classic such protocol is `MESI`, where the acronym represents the four states that each cache line can be in. Each processor stores the current state for each cache line in its local caches: Modified—The current processor has written to the memory location, but the result is only stored in the cache—it is dirty and has not been written to main memory. No other processor has the location in its cache. Exclusive—The current processor is the only one with the data from the corresponding memory location in its cache. The value in the cache matches the value in memory. Shared—Multiple processors have the corresponding memory location in their caches, but they have only performed read operations. Invalid—The cache line does not hold valid data. At system startup time, the caches are empty and all cache lines are in the invalid state. The first time a processor reads a memory location, the data for that location is loaded into cache and its cache line marked as being in the “exclusive” state. If another processor performs a memory read of a location that is in the “exclusive” state in another cache, then both caches record the state for the corresponding memory location to instead be “shared.” When a processor writes to a memory location, the performance of the write depends on the state of the corresponding cache line. If it is in the “exclusive” state and already in the writing processor’s cache, then the write is cheap; the data is modified in the cache and the cache line’s state is changed to “modified.” (If it was already in the “modified” state, then the write is similarly efficient.) In these cases, the value will eventually be
 
 written to main memory, at which point the corresponding cache line returns to the “exclusive” state. However, if a processor writes to a memory location that is in the “shared” state in its cache or is in the “modified” or “exclusive” state in another processor’s cache, then expensive communication between the cores is required. All of this is handled transparently by the hardware, though it still has a performance impact. In this case, the writing processor must issue a read for ownership (RFO), which marks the memory location as invalid in the caches of any other processors; RFOs can cause stalls of tens or hundreds of cycles—a substantial penalty for a single memory write. In general, we would therefore like to avoid the situation of multiple processors concurrently writing to the same memory location as well as unnecessarily reading memory that another processor is writing to. An important case to be aware of is “false sharing,” where a single cache line holds some read-only data and some data that is frequently modified. In this case, even if only a single processor is writing to the part of the cache line that is modified but many are reading from the read-only part, the overhead of frequent RFO operations will be unnecessarily incurred. pbrt uses alignas in the declaration of classes that are modified during rendering and are susceptible to false sharing in order to ensure that they take entire cache lines for themselves. A macro makes the system’s cache line size available. 〈Define Cache Line Size Constant〉 ≡ #ifdef PBRT_BUILD_GPU_RENDERER #define PBRT_L1_CACHE_LINE_SIZE 128 #else #define PBRT_L1_CACHE_LINE_SIZE 64 #endif
 
@@ -3677,7 +3662,7 @@ Before we get to the implementation of the WorkOrWait() method, we will discuss 
    ThreadPool::WorkOrWait() 1104
 ```
 
-All the parallel work in pbrt is handled by a single thread pool managed by ParallelJob.
+All the parallel work in pbrt is handled by a single thread pool managed by `ParallelJob`.
 
 〈ParallelJob Public Members〉 ≡ 1102
 
@@ -3701,7 +3686,7 @@ Returning to the ThreadPool implementation now, we will consider how work to be 
 
 ParallelJob *jobList = nullptr;
 
-The link pointers are stored as ParallelJob member variables that are just for the use of the ThreadPool and should not be accessed by the ParallelJob implementation.
+The link pointers are stored as `ParallelJob` member variables that are just for the use of the `ThreadPool` and should not be accessed by the `ParallelJob` implementation.
 
 〈ParallelJob Private Members〉 +≡ 1102
 
@@ -3725,11 +3710,7 @@ When there is no available work, worker threads wait on the jobListCondition con
 
 std::condition_variable jobListCondition;
 
-```text
-                      _
-```
-
-We can finally return to the WorkOrWait() method that all threads execute. The lock provided to it is of the mutex member variable, so it is safe to access other ThreadPool members as long as it is held. Its second parameter, isEnqueuingThread, is used when the thread pool has been temporarily disabled to ensure that only the thread that submits work performs computation in that case. (That capability is needed for an arcane situation in the implementation of some of pbrt’s GPU code, so it is not discussed further here.) The method implementation starts by walking through the job list in search of a ParallelJob that still has work left.
+We can finally return to the `WorkOrWait()` method that all threads execute. The lock provided to it is of the mutex member variable, so it is safe to access other `ThreadPool` members as long as it is held. Its second parameter, isEnqueuingThread, is used when the thread pool has been temporarily disabled to ensure that only the thread that submits work performs computation in that case. (That capability is needed for an arcane situation in the implementation of some of pbrt’s GPU code, so it is not discussed further here.) The method implementation starts by walking through the job list in search of a `ParallelJob` that still has work left.
 
 〈ThreadPool Method Definitions〉 +≡ void ThreadPool::WorkOrWait(std::unique_lock<std::mutex> *lock, bool isEnqueuingThread) { 〈Return if this is a worker thread and the thread pool is disabled〉 ParallelJob *job = jobList; while (job && !job->HaveWork()) job = job->next; if (job) { 〈Execute work for job 1104〉 } else 〈Wait for new work to arrive or the job to finish 1105〉 }
 
@@ -3745,7 +3726,7 @@ We can finally return to the WorkOrWait() method that all threads execute. The l
    ThreadPool::mutex 1102
 ```
 
-If an unfinished job is found, then its active worker count is incremented and its RunStep() method is called with the lock passed along.
+If an unfinished job is found, then its active worker count is incremented and its `RunStep()` method is called with the lock passed along.
 
 〈Execute work for job〉 ≡ 1104
 
@@ -3761,13 +3742,13 @@ jobListCondition.wait(*lock);
 
 Removing a job from the list just requires rewiring the pointers of adjacent list nodes, if present, and updating the list head pointer if the job is at the head. 〈ThreadPool Method Definitions〉 +≡ void ThreadPool::RemoveFromJobList(ParallelJob *job) { if (job->prev) job->prev->next = job->next; else jobList = job->next; if (job->next) job->next->prev = job->prev; }
 
-The ThreadPool::WorkOrReturn() method is very similar to WorkOrWait() with the differences that it acquires a lock to the mutex itself rather than expecting it to be passed in and that it returns if there is no work available. (Its implementation is therefore elided.) This method will be useful with the forthcoming AsyncJob class, which opportunistically helps out with parallel work when it would otherwise be blocked. The thread pool also provides a ForEachThread() function that takes a function to be executed on each of the threads in the thread pool as well as
+The `ThreadPool::WorkOrReturn()` method is very similar to `WorkOrWait()` with the differences that it acquires a lock to the mutex itself rather than expecting it to be passed in and that it returns if there is no work available. (Its implementation is therefore elided.) This method will be useful with the forthcoming `AsyncJob` class, which opportunistically helps out with parallel work when it would otherwise be blocked. The thread pool also provides a `ForEachThread()` function that takes a function to be executed on each of the threads in the thread pool as well as
 
 the main thread. In pbrt, it is used by the statistics system to collect statistics that are stored in per-thread variables.
 
 B.6.5 PARALLEL for LOOPS
 
-Much of the multi-core parallelism when pbrt is running on the CPU is expressed through parallel for loops using the ParallelFor() and ParallelFor2D() functions, which implement the ParallelJob interface.10 These functions take the loop body in the form of a function that is called for each iteration as well as a count of the total number of loop iterations to execute. Multiple iterations can thus run in parallel on different CPU cores. Calls to these functions return only after all the loop iterations have finished.
+Much of the multi-core parallelism when pbrt is running on the CPU is expressed through parallel for loops using the `ParallelFor()` and `ParallelFor2D()` functions, which implement the `ParallelJob` interface.10 These functions take the loop body in the form of a function that is called for each iteration as well as a count of the total number of loop iterations to execute. Multiple iterations can thus run in parallel on different CPU cores. Calls to these functions return only after all the loop iterations have finished.
 
 ```rust
     AsyncJob 1109
@@ -3780,9 +3761,9 @@ Much of the multi-core parallelism when pbrt is running on the CPU is expressed 
     ThreadPool::jobListCondition 1104
 ```
 
-Here is an example of using ParallelFor(). The first two arguments give the range of values for the loop index and a C++ lambda expression is used to define the loop body; the loop index is passed to it as an argument. The lambda has access to the local array variable and doubles each array element in its body. Float array[1024] = { … }; ParallelFor(0, 1024, [array](int index) { array[index] *= 2; });
+Here is an example of using `ParallelFor()`. The first two arguments give the range of values for the loop index and a C++ lambda expression is used to define the loop body; the loop index is passed to it as an argument. The lambda has access to the local array variable and doubles each array element in its body. `Float` array[1024] = { … }; ParallelFor(0, 1024, [array](int index) { array[index] *= 2; });
 
-While it is also possible to pass a function pointer to ParallelFor(), lambdas are generally much more convenient, given their ability to capture locally visible variables and make them available in their body. ParallelForLoop1D implements the ParallelJob interface, for use in the ParallelFor() functions.
+While it is also possible to pass a function pointer to `ParallelFor()`, lambdas are generally much more convenient, given their ability to capture locally visible variables and make them available in their body. `ParallelForLoop1D` implements the `ParallelJob` interface, for use in the `ParallelFor()` functions.
 
 〈ParallelForLoop1D Definition〉 ≡
 
@@ -3800,7 +3781,7 @@ The HaveWork() method is easily implemented. 〈ParallelForLoop1D Public Methods
 
 bool HaveWork() const { return nextIndex < endIndex; }
 
-RunStep() determines which loop iterations to run and does some housekeeping before releasing the provided lock and executing loop iterations.
+`RunStep()` determines which loop iterations to run and does some housekeeping before releasing the provided lock and executing loop iterations.
 
 ```rust
    ParallelFor() 1107
@@ -3851,9 +3832,9 @@ int64_t chunkSize = std::max<int64_t>(1, (end - start) / (8 * RunningThreads()))
 
 ParallelForLoop1D loop(start, end, chunkSize, std::move(func)); std::unique_lock<std::mutex> lock = ParallelJob::threadPool->AddToJobList(&loop);
 
-After adding the job, the thread that called ParallelFor() (be it the main thread or one of the worker threads) starts work on the loop. By finishing the loop before allowing the thread that submitted it to do any more work, the implementation keeps the amount of enqueued work limited and allows subsequent code in the caller to proceed knowing the loop’s work is done after its call to ParallelFor() returns.
+After adding the job, the thread that called `ParallelFor()` (be it the main thread or one of the worker threads) starts work on the loop. By finishing the loop before allowing the thread that submitted it to do any more work, the implementation keeps the amount of enqueued work limited and allows subsequent code in the caller to proceed knowing the loop’s work is done after its call to `ParallelFor()` returns.
 
-Because a held lock to the ThreadPool’s mutex is returned from the call to AddToJobList(), it is safe to call both Finished() and WorkOrWait().
+Because a held lock to the `ThreadPool`’s mutex is returned from the call to `AddToJobList()`, it is safe to call both `Finished()` and `WorkOrWait()`.
 
 〈Help out with parallel loop iterations in the current thread〉 ≡ 1107
 
@@ -3861,7 +3842,7 @@ while (!loop.Finished()) ParallelJob::threadPool->WorkOrWait(&lock, true);
 
 There is a second variant of ParallelFor() that calls a callback that only takes a single loop index. This saves a line or two of code in implementations that do not care to know about the chunk’s [start, end) range. 〈Parallel Inline Functions〉 ≡ void ParallelFor(int64_t start, int64_t end, std::function<void(int64_t)> func) { ParallelFor(start, end, [&func](int64_t start, int64_t end) { for (int64_t i = start; i < end; ++i) func(i); }); }
 
-ParallelFor2D(), not included here, takes a Bounds2i to specify the loop domain and then calls a function that either takes a Bounds2i or one that takes a Point2i, along the lines of the two ParallelFor() variants.
+`ParallelFor2D()`, not included here, takes a `Bounds2i` to specify the loop domain and then calls a function that either takes a `Bounds2i` or one that takes a `Point2i`, along the lines of the two `ParallelFor()` variants.
 
 ```rust
     Bounds2i 97
@@ -3876,9 +3857,9 @@ ParallelFor2D(), not included here, takes a Bounds2i to specify the loop domain 
 
 B.6.6 ASYNCHRONOUS JOBS
 
-Parallel for loops are useful when the parallel work is easily expressed as a loop of independent iterations; it is just a few lines of changed code to parallelize an existing for loop. The fact that ParallelFor() and ParallelFor2D() ensure that all loop iterations have finished before they return is also helpful since subsequent code can proceed knowing any values set in the loop are available. However, not all work fits that form. Sometimes one thread of execution may produce independent work that could be done concurrently by a different thread. In this case, we would like to be able to provide that work to the thread pool and then continue on in the current thread, harvesting the result of the independent work some time later. pbrt therefore provides a second mechanism for parallel execution in the form of asynchronous jobs that execute a given function (often, a lambda function). The following code shows an example of their use. extern Result func(float x); AsyncJob<Result> *job = RunAsync(func, 0.5f); … Result r = job->GetResult();
+Parallel for loops are useful when the parallel work is easily expressed as a loop of independent iterations; it is just a few lines of changed code to parallelize an existing for loop. The fact that `ParallelFor()` and `ParallelFor2D()` ensure that all loop iterations have finished before they return is also helpful since subsequent code can proceed knowing any values set in the loop are available. However, not all work fits that form. Sometimes one thread of execution may produce independent work that could be done concurrently by a different thread. In this case, we would like to be able to provide that work to the thread pool and then continue on in the current thread, harvesting the result of the independent work some time later. pbrt therefore provides a second mechanism for parallel execution in the form of asynchronous jobs that execute a given function (often, a lambda function). The following code shows an example of their use. extern Result func(float x); `AsyncJob`<Result> *job = RunAsync(func, 0.5f); … Result r = job->`GetResult()`;
 
-The RunAsync() function takes a function as its first parameter as well as any arguments that the function takes. It returns an AsyncJob to the caller, which can then continue execution. When the AsyncJob’s GetResult() method is subsequently called, the call will only return after the
+The `RunAsync()` function takes a function as its first parameter as well as any arguments that the function takes. It returns an `AsyncJob` to the caller, which can then continue execution. When the `AsyncJob`’s `GetResult()` method is subsequently called, the call will only return after the
 
 asynchronous function has executed, be it by another thread in the thread pool or by the calling thread. The value returned by the asynchronous function is then returned to the caller. The AsyncJob class implements the ParallelJob interface. It is templated on the return type of the function it manages. 〈AsyncJob Definition〉 ≡ template <typename T> class AsyncJob : public ParallelJob { public: 〈AsyncJob Public Methods 1109〉 private: 〈AsyncJob Private Members 1109〉 };
 
@@ -3886,7 +3867,7 @@ The constructor, not included here, takes the asynchronous function and stores i
 
 std::function<T(void)> func; bool started = false;
 
-An AsyncJob represents a single quantum of work; only one thread can help, so once one has started running the function, there is nothing for any other thread to do. Implementation of the HaveWork() method for the ParallelJob interface follows.
+An `AsyncJob` represents a single quantum of work; only one thread can help, so once one has started running the function, there is nothing for any other thread to do. Implementation of the `HaveWork()` method for the `ParallelJob` interface follows.
 
 〈AsyncJob Public Methods〉 ≡ 1109
 
@@ -3919,9 +3900,9 @@ The GetResult() method starts by calling Wait(), which only returns once the fun
 
 T GetResult() { Wait(); std::lock_guard<std::mutex> lock(mutex); return *result; }
 
-AsyncJob also provides a TryGetResult() method that takes an already-locked std::mutex as a parameter. It then returns the asynchronous
+`AsyncJob` also provides a `TryGetResult()` method that takes an already-locked std::mutex as a parameter. It then returns the asynchronous
 
-function’s return value if it is available, with the lock still held, or unlocks the lock, performs some work via a call to DoParallelWork(), and then relocks the mutex. (The definition of DoParallelWork() is not included in the text; it takes a single work item from the parallel job queue, performs the associated work, and then returns.) This variant is useful when multiple threads are waiting for the value returned by an asynchronous function, since it allows them to perform other useful work rather than stalling as they wait.
+function’s return value if it is available, with the lock still held, or unlocks the lock, performs some work via a call to `DoParallelWork()`, and then relocks the mutex. (The definition of `DoParallelWork()` is not included in the text; it takes a single work item from the parallel job queue, performs the associated work, and then returns.) This variant is useful when multiple threads are waiting for the value returned by an asynchronous function, since it allows them to perform other useful work rather than stalling as they wait.
 
 ```rust
    AsyncJob::cv 1110
@@ -3979,7 +3960,7 @@ The Get() method returns the instance of the object that is associated with the 
 
 T &Get();
 
-It is useful to be able to iterate over all the per-thread objects managed by ThreadLocal. That capability is provided by the ForAll() method.
+It is useful to be able to iterate over all the per-thread objects managed by `ThreadLocal`. That capability is provided by the `ForAll()` method.
 
 〈ThreadLocal Public Methods〉 +≡ 1112
 
@@ -4000,7 +3981,7 @@ STAT_COUNTER(“Integrator/Regular ray intersection tests”, nIsectTests); STAT
 
 As appropriate, counters can be incremented with simple statements like ++nIsectTests; With no further intervention from the developer, the preceding is enough for the statistics system to be able to automatically print out nicely formatted results like the following when rendering completes: Integrator Regular ray intersection tests 752982 Shadow ray intersection tests 4237165
 
-The statistics system supports the following aggregate measurements: STAT_COUNTER(“name”, var): A count of the number of instances of an event. The counter variable var can be updated as if it was a regular integer variable; for example, ++var and var += 10 are both valid. STAT_MEMORY_COUNTER(“name”, var): A specialized counter for recording memory usage. In particular, the values reported at the end of rendering are in terms of kilobytes, megabytes, or gigabytes, as appropriate. The counter is updated the same way as a regular counter: var += count * sizeof(MyStruct) and so forth. STAT_INT_DISTRIBUTION(“name”, dist): Tracks the distribution of some value; at the end of rendering, the minimum, maximum, and average of the supplied values are reported. Call dist << value to include value in the distribution. STAT_PERCENT(“name”, num, denom): Tracks how often a given event happens; the aggregate value is reported as the percentage num/denom when statistics are printed. Both num and denom can be incremented as if they were integers—for example, one might write if (event) ++num; or ++denom. STAT_RATIO(“name”, num, denom): This tracks how often an event happens but reports the result as a ratio num/denom rather than a percentage. This is often a more useful presentation if num is often greater than denom. (For example, we might record the percentage of ray–triangle intersection tests that resulted in an intersection but the ratio of triangle intersection tests to the total number of rays traced.) In addition to statistics that are aggregated over the entire rendering, pbrt can also measure statistics at each pixel and generate images with their values. Two variants are supported: STAT_PIXEL_COUNTER and STAT_PIXEL_RATIO, which are used in the same way as the corresponding aggregate statistics. Per-pixel statistics are only measured if the --pixelstats command line option is provided to pbrt. Figure B.8 shows an image generated using STAT_PIXEL_COUNTER.
+The statistics system supports the following aggregate measurements: STAT_COUNTER(“name”, var): A count of the number of instances of an event. The counter variable var can be updated as if it was a regular integer variable; for example, ++var and var += 10 are both valid. STAT_MEMORY_COUNTER(“name”, var): A specialized counter for recording memory usage. In particular, the values reported at the end of rendering are in terms of kilobytes, megabytes, or gigabytes, as appropriate. The counter is updated the same way as a regular counter: var += count * sizeof(MyStruct) and so forth. STAT_INT_DISTRIBUTION(“name”, dist): Tracks the distribution of some value; at the end of rendering, the minimum, maximum, and average of the supplied values are reported. Call dist << value to include value in the distribution. STAT_PERCENT(“name”, num, denom): Tracks how often a given event happens; the aggregate value is reported as the percentage num/denom when statistics are printed. Both num and denom can be incremented as if they were integers—for example, one might write if (event) ++num; or ++denom. STAT_RATIO(“name”, num, denom): This tracks how often an event happens but reports the result as a ratio num/denom rather than a percentage. This is often a more useful presentation if num is often greater than denom. (For example, we might record the percentage of ray–triangle intersection tests that resulted in an intersection but the ratio of triangle intersection tests to the total number of rays traced.) In addition to statistics that are aggregated over the entire rendering, pbrt can also measure statistics at each pixel and generate images with their values. Two variants are supported: `STAT_PIXEL_COUNTER` and `STAT_PIXEL_RATIO`, which are used in the same way as the corresponding aggregate statistics. Per-pixel statistics are only measured if the --pixelstats command line option is provided to pbrt. Figure B.8 shows an image generated using `STAT_PIXEL_COUNTER`.
 
 All the macros to define statistics trackers can only be used at file scope and should only be used in *.cpp files (for reasons that will become apparent as we dig into their implementations). They specifically should not be used in header files or function or class definitions. Note also that the string names provided for each measurement should be of the form “category/statistic.” When values are reported, everything under the same category is reported together (as in the preceding example).
 
@@ -4008,21 +3989,21 @@ B.7.1 IMPLEMENTATION
 
 There are a number of challenges in making the statistics system both efficient and easy to use. The efficiency challenges stem from pbrt being multi-threaded: if there was not any parallelism, we could associate regular integer or floating-point variables with each measurement and just update them like regular variables. In the presence of multiple concurrent threads of execution, however, we need to ensure that two threads do not try to modify these variables at the same time (recall the discussion of mutual exclusion in Section B.6.1).
 
-*Figure B.8: Visualization of Average Path Length at Each Pixel. Each pixel’s value is based on the number of rays traced to compute the pixel’s shaded value. Not only it is evident that longer paths are traced at pixels with specular surfaces like the glasses on the tables, but it is also possible to see the effect of Russian roulette terminating paths more quickly at darker surfaces. This image was generated using STAT_PIXEL_COUNTER and only required adding two lines of code to an integrator. (Scene courtesy of Guillermo M. Leal Llaguno.)*
+*Figure B.8: Visualization of Average Path Length at Each Pixel. Each pixel’s value is based on the number of rays traced to compute the pixel’s shaded value. Not only it is evident that longer paths are traced at pixels with specular surfaces like the glasses on the tables, but it is also possible to see the effect of Russian roulette terminating paths more quickly at darker surfaces. This image was generated using `STAT_PIXEL_COUNTER` and only required adding two lines of code to an integrator. (Scene courtesy of Guillermo M. Leal Llaguno.)*
 
 While atomic operations like those described in Section B.6.1 could be used to safely increment counters without using a mutex, there would still be a performance impact from multiple threads modifying the same location in memory. Recall from Section B.6.3 that the cache coherence protocols can introduce substantial overhead in this case. Because the statistics measurements are updated so frequently during the course of rendering, we found that an atomics-based implementation caused the renderer to be 10– 15% slower than the following implementation, which avoids the overhead of multiple threads frequently modifying the same memory location. The implementation here is based on having separate counters for each running thread, allowing the counters to be updated without atomics and without cache coherence overhead (since each thread increments its own counters). This approach means that in order to report statistics, it is necessary to merge all of these per-thread counters into final aggregate values, which we will see is possible with a bit of trickiness.
 
 To see how this all works, we will dig into the implementation for regular counters; the other types of measurements are all along similar lines. First, here is the STAT_COUNTER macro, which packs three different things into its definition. 〈Statistics Macros〉 ≡ #define STAT_COUNTER(title, var) \ static thread_local int64_t var; \ static StatRegisterer STATS_REG##var([](StatsAccumulator &accum) { \ accum.ReportCounter(title, var); \ var = 0; \ });
 
-First, and most obviously, the macro defines a 64-bit integer variable named var, the second argument passed to the macro. The variable definition has the thread_local qualifier, which indicates that there should be a separate copy of the variable for each executing thread. This variable can then be incremented directly as appropriate to report results. However, given these per-thread instances, we need to be able to sum together the per-thread values and to aggregate all the individual counters into the final program output. To this end, the macro next defines a static variable of type StatRegisterer, giving it a (we hope!) unique name derived from var. A lambda function is passed to the StatRegisterer constructor, which stores a copy of it. When called, the lambda passes the current thread’s counter value to a ReportCounter() method and then resets the counter. Evidently, all that is required is for this lambda to be called by each thread and for ReportCounter() to sum up the values provided and then report them. (We will gloss over the implementation of the StatsAccumulator class and methods like ReportCounter(), as there is nothing very interesting about them.) Recall that in C++, constructors of global static objects run when program execution starts; thus, each static instance of the StatRegisterer class runs its constructor before main() starts running. This constructor, which is not included here, adds the lambda passed to it to a std::vector that holds all such lambdas for all the statistics.
+First, and most obviously, the macro defines a 64-bit integer variable named var, the second argument passed to the macro. The variable definition has the thread_local qualifier, which indicates that there should be a separate copy of the variable for each executing thread. This variable can then be incremented directly as appropriate to report results. However, given these per-thread instances, we need to be able to sum together the per-thread values and to aggregate all the individual counters into the final program output. To this end, the macro next defines a static variable of type StatRegisterer, giving it a (we hope!) unique name derived from var. A lambda function is passed to the StatRegisterer constructor, which stores a copy of it. When called, the lambda passes the current thread’s counter value to a `ReportCounter()` method and then resets the counter. Evidently, all that is required is for this lambda to be called by each thread and for `ReportCounter()` to sum up the values provided and then report them. (We will gloss over the implementation of the StatsAccumulator class and methods like `ReportCounter()`, as there is nothing very interesting about them.) Recall that in C++, constructors of global static objects run when program execution starts; thus, each static instance of the StatRegisterer class runs its constructor before `main()` starts running. This constructor, which is not included here, adds the lambda passed to it to a std::vector that holds all such lambdas for all the statistics.
 
-At the end of rendering, the ForEachThread() function is used to cause each thread to loop over the registered lambdas and call each of them. In turn, the StatsAccumulator will have all the aggregate values when they are done. The PrintStats() function can then be called to print all the statistics that have been accumulated in StatsAccumulator.
+At the end of rendering, the `ForEachThread()` function is used to cause each thread to loop over the registered lambdas and call each of them. In turn, the StatsAccumulator will have all the aggregate values when they are done. The `PrintStats()` function can then be called to print all the statistics that have been accumulated in StatsAccumulator.
 
 ## FURTHER READING
 
-Hacker’s Delight (Warren 2006) is a delightful and thought-provoking exploration of bit-twiddling algorithms like those used in some of the utility routines in this appendix. Sean Anderson (2004) has a Web page filled with a collection of bit-twiddling techniques like the ones in IsPowerOf2() and RoundUpPow2() at graphics.stanford.edu/~seander/bithacks.html.
+Hacker’s Delight (Warren 2006) is a delightful and thought-provoking exploration of bit-twiddling algorithms like those used in some of the utility routines in this appendix. Sean Anderson (2004) has a Web page filled with a collection of bit-twiddling techniques like the ones in `IsPowerOf2()` and `RoundUpPow2()` at graphics.stanford.edu/~seander/bithacks.html.
 
-The MurmurHash hashing function that is wrapped by pbrt’s Hash() and HashBuffer() functions is due to Appleby (2011) and the implementation of MixBits() is due to Stafford (2011), who found the various constant values used in the implementation via search. The inverse bilinear interpolation function implemented in InvertBilinear() is due to Quilez (2010) and SinXOverX() is thanks to Hatch (2003).
+The MurmurHash hashing function that is wrapped by pbrt’s `Hash()` and `HashBuffer()` functions is due to Appleby (2011) and the implementation of `MixBits()` is due to Stafford (2011), who found the various constant values used in the implementation via search. The inverse bilinear interpolation function implemented in `InvertBilinear()` is due to Quilez (2010) and `SinXOverX()` is thanks to Hatch (2003).
 
 ```rust
    CompensatedSum 1044
@@ -4040,11 +4021,11 @@ The MurmurHash hashing function that is wrapped by pbrt’s Hash() and HashBuffe
    VarianceEstimator 1048
 ```
 
-The algorithm implemented in TwoSum() is due to Møller (1965) and Knuth (1969), and the FMA-based TwoProd() was developed by Ogita et al. (2005). The approach used in the CompensatedSum class is due to Kahan
+The algorithm implemented in `TwoSum()` is due to Møller (1965) and Knuth (1969), and the FMA-based `TwoProd()` was developed by Ogita et al. (2005). The approach used in the `CompensatedSum` class is due to Kahan
 
-(1965). The approach used in DifferenceOfProducts() is also attributed to Kahan; its error was analyzed by Jeannerod et al. (2013). Welford (1962) developed the algorithm that is implemented in the VarianceEstimator class. Its Merge() method is based on an algorithm developed by Chan et al. (1979). Atkinson’s book (1993) on numerical analysis discusses algorithms for matrix inversion and solving linear systems. See Moore’s book (1966) for an introduction to interval arithmetic. Farin’s book (2001) is a good introduction to splines. The blossoming approach was introduced by Ramshaw (1987); his report remains a readable introduction to the topic. A subsequent publication drew further connections to polar forms and related work (Ramshaw 1989). The PCG random number generator was developed by O’Neill (2014). The paper describing its implementation is well written and also features extensive discussion of a range of previous pseudo-random number generators and the challenges that they have faced in passing rigorous tests of their quality (L’Ecuyer and Simard 2007). The article “UTF-8 Everywhere” by Radzivilovsky et al. (2012) is a good introduction to Unicode and also makes a strong case for adopting the UTF-8 representation. pbrt follows the approach they propose for interoperating with Windows’s UTF-16-based APIs. At over 1,000 pages, the length of the official Unicode specification gives some sense of the complexities in representing multi-lingual text (Unicode Consortium 2020). Gamma correction has a long history in computer graphics. Poynton (2002a, 2002b) has written comprehensive FAQs on issues related to color representation and gamma correction. The sRGB encoding was described by the International Electrotechnical Commission (1999). See Gritz and d’Eon (2008) for a detailed discussion of the implications of gamma correction for rendering and how to correctly account for it in rendering systems. McKenney’s book on parallel programming is wonderfully written and has comprehensive coverage of the underlying issues, as well as many useful
+(1965). The approach used in `DifferenceOfProducts()` is also attributed to Kahan; its error was analyzed by Jeannerod et al. (2013). Welford (1962) developed the algorithm that is implemented in the `VarianceEstimator` class. Its `Merge()` method is based on an algorithm developed by Chan et al. (1979). Atkinson’s book (1993) on numerical analysis discusses algorithms for matrix inversion and solving linear systems. See Moore’s book (1966) for an introduction to interval arithmetic. Farin’s book (2001) is a good introduction to splines. The blossoming approach was introduced by Ramshaw (1987); his report remains a readable introduction to the topic. A subsequent publication drew further connections to polar forms and related work (Ramshaw 1989). The PCG random number generator was developed by O’Neill (2014). The paper describing its implementation is well written and also features extensive discussion of a range of previous pseudo-random number generators and the challenges that they have faced in passing rigorous tests of their quality (L’Ecuyer and Simard 2007). The article “UTF-8 Everywhere” by Radzivilovsky et al. (2012) is a good introduction to Unicode and also makes a strong case for adopting the UTF-8 representation. pbrt follows the approach they propose for interoperating with Windows’s UTF-16-based APIs. At over 1,000 pages, the length of the official Unicode specification gives some sense of the complexities in representing multi-lingual text (Unicode Consortium 2020). Gamma correction has a long history in computer graphics. Poynton (2002a, 2002b) has written comprehensive FAQs on issues related to color representation and gamma correction. The sRGB encoding was described by the International Electrotechnical Commission (1999). See Gritz and d’Eon (2008) for a detailed discussion of the implications of gamma correction for rendering and how to correctly account for it in rendering systems. McKenney’s book on parallel programming is wonderfully written and has comprehensive coverage of the underlying issues, as well as many useful
 
-techniques for high-performance parallel programming on CPUs (2021). Drepper’s paper (2007) is a useful resource for understanding performance issues related to caches, cache coherence, and main memory access, particularly in multicore systems. Boehm’s paper “Threads Cannot Be Implemented as a Library” (2005) makes the remarkable (and disconcerting) observation that multi-threading cannot be reliably implemented without the compiler having explicit knowledge of the fact that multi-threaded execution is expected. Boehm presented a number of examples that demonstrate the corresponding dangers in 2005-era compilers and language standards like C and C++ that did not have awareness of threading. Fortunately, the C++11 and C11 standards addressed the issues that he identified. pbrt’s parallel for loop–based approach to multi-threading is a widely used technique for multi-threaded programming; the OpenMP standard supports a similar construct (and much more) (OpenMP Architecture Review Board 2013). A slightly more general model for multi-core parallelism is available from task systems, where computations are broken up into a set of independent tasks that can be executed concurrently. That model is supported through RunAsync(). Blumofe et al. (1996) described the task scheduler in Cilk, and Blumofe and Leiserson (1999) described the work-stealing algorithm that is the mainstay of many current high-performance task systems. EXERCISES
+techniques for high-performance parallel programming on CPUs (2021). Drepper’s paper (2007) is a useful resource for understanding performance issues related to caches, cache coherence, and main memory access, particularly in multicore systems. Boehm’s paper “Threads Cannot Be Implemented as a Library” (2005) makes the remarkable (and disconcerting) observation that multi-threading cannot be reliably implemented without the compiler having explicit knowledge of the fact that multi-threaded execution is expected. Boehm presented a number of examples that demonstrate the corresponding dangers in 2005-era compilers and language standards like C and C++ that did not have awareness of threading. Fortunately, the C++11 and C11 standards addressed the issues that he identified. pbrt’s parallel for loop–based approach to multi-threading is a widely used technique for multi-threaded programming; the OpenMP standard supports a similar construct (and much more) (OpenMP Architecture Review Board 2013). A slightly more general model for multi-core parallelism is available from task systems, where computations are broken up into a set of independent tasks that can be executed concurrently. That model is supported through `RunAsync()`. Blumofe et al. (1996) described the task scheduler in Cilk, and Blumofe and Leiserson (1999) described the work-stealing algorithm that is the mainstay of many current high-performance task systems. EXERCISES
 
 ```rust
    Image::GeneratePyramid() 1090
@@ -4052,7 +4033,7 @@ techniques for high-performance parallel programming on CPUs (2021). Drepper’s
    RunAsync() 1111
 ```
 
-➋ B.1 It is possible to use image pyramids and MIP mapping with images that have non-power-of-two resolutions—the details are explained by Guthe and Heckbert (2005). Implementing this approach can save a substantial amount of memory: in the worst case, the resampling that pbrt’s MIPMap implementation performs can increase memory requirements by a factor of four. (Consider a 513 × 513 texture that is resampled to be 1024 × 1024.) Implement this approach in pbrt, and compare the amount of memory used to store texture data for a variety of texture-heavy scenes. ➋ B.2 Improve the filtering algorithm used in the Image::GeneratePyramid() method to initialize the pyramid levels using the Lanczos filter instead of the box filter. How do the
+➋ B.1 It is possible to use image pyramids and MIP mapping with images that have non-power-of-two resolutions—the details are explained by Guthe and Heckbert (2005). Implementing this approach can save a substantial amount of memory: in the worst case, the resampling that pbrt’s `MIPMap` implementation performs can increase memory requirements by a factor of four. (Consider a 513 × 513 texture that is resampled to be 1024 × 1024.) Implement this approach in pbrt, and compare the amount of memory used to store texture data for a variety of texture-heavy scenes. ➋ B.2 Improve the filtering algorithm used in the `Image::GeneratePyramid()` method to initialize the pyramid levels using the Lanczos filter instead of the box filter. How do the
 
 sphere test images in Figure 10.16 change after your modifications? Do you see a difference in other scenes that use image textures? ➋ B.3 Try a few alternative implementations of the statistics system described in Section B.7 to get a sense of the performance trade-offs with various approaches. You might try using atomic operations to update single counters that are shared across threads, or you might try using a mutex to allow safe updates to shared counters by multiple threads. Measure the performance compared to pbrt’s current implementation and discuss possible explanations for your results. ➌ B.4 Generalize the statistics system (including the per-pixel statistics) so that it is also available in the GPU rendering path. You will likely want to pursue an approach based on atomic variables rather than the thread_local approach that is used for the CPU. Measure the performance of your implementation and compare to the system before your changes. Is performance meaningfully affected?
 
@@ -4062,21 +4043,21 @@ _________________ 1 The following argument applies equivalently to computing the
      Float 23
 ```
 
-3 For those already familiar with Unicode, we admit that our use of the word “character” in this section is informal; Unicode differentiates between abstract characters, coded characters, and user-perceived characters, each with distinct definitions, and none of them the same as a glyph, which is a shape defined by a font for display. We will generally equate code points with characters here, with the caveat that this equivalence is not always so. 4 Thomas Müller’s tev image viewer, available from https://github.com/Tom94/tev, supports this protocol. 5 Our TaggedPointer implementation is derived from DiscriminatedPtr in Facebook’s open source folly library. 6 About the decltype(auto) specifying Dispatch()’s return type: this syntax is unfortunately necessary in C++ for perfect forwarding, which ensures that reference types are returned as references and not converted to their underlying value type if a plain auto was used. 7 pbrt’s PNG support is provided by Lode Vandevenne’s lodepng library, PFM support is thanks to code from Jiawen Chen, and JPG, TGA, BMP, GIF, and HDR are thanks to Sean Barrett’s stb_image.h library. 8 More generally, C++ defines such uncoordinated access to be “undefined behavior,” which in turn means that what happens in subsequent program execution is completely undefined. 9 The “weak” in the compare/exchange instruction refers to the shared memory model required of the underlying hardware. For our purposes, the lesser requirement of “weak” is fine, as it can be much more efficient than a strongly ordered memory model on some architectures. In return for this choice, the compare and exchange may occasionally fail incorrectly, so it requires a retry loop as we have implemented here. 10 Our implementation is based on the parallel for loop implementation in Halide written by Jonathan Ragan-Kelley, Andrew Adams, and Zalman Stern.
+3 For those already familiar with Unicode, we admit that our use of the word “character” in this section is informal; Unicode differentiates between abstract characters, coded characters, and user-perceived characters, each with distinct definitions, and none of them the same as a glyph, which is a shape defined by a font for display. We will generally equate code points with characters here, with the caveat that this equivalence is not always so. 4 Thomas Müller’s tev image viewer, available from https://github.com/Tom94/tev, supports this protocol. 5 Our `TaggedPointer` implementation is derived from DiscriminatedPtr in Facebook’s open source folly library. 6 About the decltype(auto) specifying `Dispatch()`’s return type: this syntax is unfortunately necessary in C++ for perfect forwarding, which ensures that reference types are returned as references and not converted to their underlying value type if a plain auto was used. 7 pbrt’s PNG support is provided by Lode Vandevenne’s lodepng library, PFM support is thanks to code from Jiawen Chen, and JPG, TGA, BMP, GIF, and HDR are thanks to Sean Barrett’s stb_image.h library. 8 More generally, C++ defines such uncoordinated access to be “undefined behavior,” which in turn means that what happens in subsequent program execution is completely undefined. 9 The “weak” in the compare/exchange instruction refers to the shared memory model required of the underlying hardware. For our purposes, the lesser requirement of “weak” is fine, as it can be much more efficient than a strongly ordered memory model on some architectures. In return for this choice, the compare and exchange may occasionally fail incorrectly, so it requires a retry loop as we have implemented here. 10 Our implementation is based on the parallel for loop implementation in Halide written by Jonathan Ragan-Kelley, Andrew Adams, and Zalman Stern.
 
 ## C PROCESSING THE SCENE DESCRIPTION
 
-In the discussion of pbrt’s main() function in Section 1.3.2 at the start of the book, we wrote that after the command-line arguments are processed, the scene description is parsed and converted into corresponding Shapes, Lights, Materials, and so forth. Thereafter, as we have discussed the implementations of those classes, we have not worried about when they are created or where the parameter values for their constructors come from. This appendix fills in that gap and explains the path from human-readable scene description files to corresponding C++ objects in memory.
+In the discussion of pbrt’s `main()` function in Section 1.3.2 at the start of the book, we wrote that after the command-line arguments are processed, the scene description is parsed and converted into corresponding Shapes, Lights, Materials, and so forth. Thereafter, as we have discussed the implementations of those classes, we have not worried about when they are created or where the parameter values for their constructors come from. This appendix fills in that gap and explains the path from human-readable scene description files to corresponding C++ objects in memory.
 
 The scene description is processed in three stages, each of which is described in successive sections of this appendix:
 
-The text file format that describes the scene is parsed. Each statement in the file causes a corresponding method to be called in a ParserTarget class implementation.
+The text file format that describes the scene is parsed. Each statement in the file causes a corresponding method to be called in a `ParserTarget` class implementation.
 
-An instance of the BasicSceneBuilder class, which implements the ParserTarget interface, tracks graphics state such as the current material and transformation matrix as the file is parsed. For each entity in the scene (the camera, each light and shape, etc.), it produces a single object that represents the entity and its parameters.
+An instance of the `BasicSceneBuilder` class, which implements the `ParserTarget` interface, tracks graphics state such as the current material and transformation matrix as the file is parsed. For each entity in the scene (the camera, each light and shape, etc.), it produces a single object that represents the entity and its parameters.
 
-A BasicScene instance collects the objects produced by the BasicSceneBuilder and creates the corresponding object types that are used for rendering.
+A `BasicScene` instance collects the objects produced by the `BasicSceneBuilder` and creates the corresponding object types that are used for rendering.
 
-Once the BasicScene is complete, it is passed to either the RenderCPU() or RenderWavefront() function, as appropriate. Those functions then create the final representation of the scene that they will use for rendering. For most types of scene objects (e.g., the Sampler), both call a BasicScene method that returns the object that corresponds to what was specified in the scene description. Those two functions diverge in how they represent the intersectable scene geometry. In RenderCPU() as well as when the wavefront renderer is running on the CPU, the primitives and accelerators defined in Chapter 7 are used to represent it. With GPU rendering, shapes are converted to the representation expected by the GPU’s ray-tracing API.
+Once the `BasicScene` is complete, it is passed to either the `RenderCPU()` or `RenderWavefront()` function, as appropriate. Those functions then create the final representation of the scene that they will use for rendering. For most types of scene objects (e.g., the Sampler), both call a `BasicScene` method that returns the object that corresponds to what was specified in the scene description. Those two functions diverge in how they represent the intersectable scene geometry. In `RenderCPU()` as well as when the wavefront renderer is running on the CPU, the primitives and accelerators defined in Chapter 7 are used to represent it. With GPU rendering, shapes are converted to the representation expected by the GPU’s ray-tracing API.
 
 ```rust
     BasicScene 1134
@@ -4094,7 +4075,7 @@ Two functions expose pbrt’s scene-parsing capabilities, one taking one or more
 
 〈Scene Parsing Declarations〉 ≡ void ParseFiles(ParserTarget *target, pstd::span<const std::string> filenames); void ParseString(ParserTarget *target, std::string str);
 
-Rather than directly returning an object that represents the parsed scene, the parsing functions call methods of the provided ParserTarget to convey what they have found. Parser Target is an abstract interface class that defines nearly 40 pure virtual functions, each one corresponding to a statement in a pbrt scene description file.
+Rather than directly returning an object that represents the parsed scene, the parsing functions call methods of the provided `ParserTarget` to convey what they have found. Parser Target is an abstract interface class that defines nearly 40 pure virtual functions, each one corresponding to a statement in a pbrt scene description file.
 
 〈ParserTarget Definition〉 ≡ class ParserTarget { public: 〈ParserTarget Interface 1120〉 protected: 〈ParserTarget Protected Methods〉 };
 
@@ -4106,9 +4087,9 @@ virtual void Scale(Float sx, Float sy, Float sz, FileLoc loc) = 0;
 
 The provided FileLoc records the location of the corresponding statement in a file. If it is passed to the Warning(), Error(), and ErrorExit() functions, the resulting message includes this information so that it is easier for users to fix errors in their scene files. 〈FileLoc Definition〉 ≡ struct FileLoc { std::string_view filename; int line = 1, column = 0; };
 
-Specifying ParserTarget as an abstract base class makes it easy to do a variety of things while parsing pbrt scene descriptions. For example, there
+Specifying `ParserTarget` as an abstract base class makes it easy to do a variety of things while parsing pbrt scene descriptions. For example, there
 
-is a FormattingParserTarget implementation of the ParserTarget interface that pretty-prints scene files and can upgrade scene files from the previous version of pbrt to conform to the current implementation’s syntax. (FormattingParserTarget is not described any further in the book.) Section C.2 will describe the BasicSceneBuilder class, which also inherits from ParserTarget and builds an in-memory representation of the parsed scene.
+is a FormattingParserTarget implementation of the `ParserTarget` interface that pretty-prints scene files and can upgrade scene files from the previous version of pbrt to conform to the current implementation’s syntax. (FormattingParserTarget is not described any further in the book.) Section C.2 will describe the `BasicSceneBuilder` class, which also inherits from `ParserTarget` and builds an in-memory representation of the parsed scene.
 
 ```rust
    BasicSceneBuilder 1123
@@ -4120,19 +4101,19 @@ is a FormattingParserTarget implementation of the ParserTarget interface that pr
    Warning() 1064
 ```
 
-pbrt’s scene description is easy to convert into tokens.1 Its salient properties are: Individual tokens are separated by whitespace. Strings are delimited using double quotes. One-dimensional arrays of values can be specified using square brackets: [ ]. Comments start with a hash character, #, and continue to the end of the current line. We have not included pbrt’s straightforward tokenizer in the book text. (See the Tokenizer class in parser.rs and parser.rs for its implementation.) Given a stream of tokens, the next task is parsing them. Some scene file statements have a fixed format (e.g., Scale, which expects three numeric values to follow). For each of those, the parser has fixed logic that looks for the expected number of values and checks that they have the correct types, issuing an error message if they are deficient. Other statements take lists of named parameters and values: Shape “sphere” “float radius” 10 “float zmin” 0 Such named parameter lists are encoded by the parser in instances of the ParsedParameter Vector class that are passed to ParserTarget interface methods. For example, the signature for the Shape() interface method is:
+pbrt’s scene description is easy to convert into tokens.1 Its salient properties are: Individual tokens are separated by whitespace. Strings are delimited using double quotes. One-dimensional arrays of values can be specified using square brackets: [ ]. Comments start with a hash character, #, and continue to the end of the current line. We have not included pbrt’s straightforward tokenizer in the book text. (See the Tokenizer class in parser.rs and parser.rs for its implementation.) Given a stream of tokens, the next task is parsing them. Some scene file statements have a fixed format (e.g., Scale, which expects three numeric values to follow). For each of those, the parser has fixed logic that looks for the expected number of values and checks that they have the correct types, issuing an error message if they are deficient. Other statements take lists of named parameters and values: Shape “sphere” “float radius” 10 “float zmin” 0 Such named parameter lists are encoded by the parser in instances of the `ParsedParameter` Vector class that are passed to `ParserTarget` interface methods. For example, the signature for the `Shape()` interface method is:
 
 〈ParserTarget Interface〉 +≡ 1120
 
 virtual void Shape(const std::string &name, ParsedParameterVector params, FileLoc loc) = 0;
 
-One might ask: why tokenize and parse the files using a custom implementation and not use lexer and parser generators like flex, bison, or antlr? In fact, previous versions of pbrt did use flex and bison. However, when investigating pbrt’s performance in loading multi-gigabyte scene description files when rendering Disney’s Moana Island scene (Walt Disney Animation Studios 2018), we found that a substantial fraction of execution time was spent in the mechanics of parsing. Replacing that part of the system with a custom implementation substantially improved parsing performance. A secondary advantage of not using those tools is that doing so makes it easier to build pbrt on a variety of systems by eliminating the requirement of ensuring that they are installed. ParsedParameterVector uses InlinedVector to store a vector of parameters, avoiding the performance cost of dynamic allocation that comes with std::vector in the common case of a handful of parameters.
+One might ask: why tokenize and parse the files using a custom implementation and not use lexer and parser generators like flex, bison, or antlr? In fact, previous versions of pbrt did use flex and bison. However, when investigating pbrt’s performance in loading multi-gigabyte scene description files when rendering Disney’s Moana Island scene (Walt Disney Animation Studios 2018), we found that a substantial fraction of execution time was spent in the mechanics of parsing. Replacing that part of the system with a custom implementation substantially improved parsing performance. A secondary advantage of not using those tools is that doing so makes it easier to build pbrt on a variety of systems by eliminating the requirement of ensuring that they are installed. `ParsedParameterVector` uses `InlinedVector` to store a vector of parameters, avoiding the performance cost of dynamic allocation that comes with std::vector in the common case of a handful of parameters.
 
 〈ParsedParameterVector Definition〉 ≡ using ParsedParameterVector = InlinedVector<ParsedParameter *, 8>;
 
 〈ParsedParameter Definition〉 ≡ class ParsedParameter { public: 〈ParsedParameter Public Methods〉 〈ParsedParameter Public Members 1122〉 };
 
-ParsedParameter provides the parameter type and name as strings as well as the location of the parameter in the scene description file. For the first parameter in the sphere example above, type would store “float” and name would store “radius”. Note that the parser makes no effort to ensure that the type is valid or that the parameter name is used by the corresponding statement; those checks are handled subsequently.
+`ParsedParameter` provides the parameter type and name as strings as well as the location of the parameter in the scene description file. For the first parameter in the sphere example above, type would store “float” and name would store “radius”. Note that the parser makes no effort to ensure that the type is valid or that the parameter name is used by the corresponding statement; those checks are handled subsequently.
 
 ```text
    FileLoc 1120
@@ -4149,7 +4130,7 @@ ParsedParameter provides the parameter type and name as strings as well as the l
 
 std::string type, name; FileLoc loc;
 
-Parameter values are provided in one of four formats, corresponding to the basic types used for parameter values in scene description files. (Values for higher-level parameter types like point3 are subsequently constructed from the corresponding basic type.) Exactly one of the following vectors will be non-empty in each provided ParsedParameter.
+Parameter values are provided in one of four formats, corresponding to the basic types used for parameter values in scene description files. (Values for higher-level parameter types like point3 are subsequently constructed from the corresponding basic type.) Exactly one of the following vectors will be non-empty in each provided `ParsedParameter`.
 
 As before, the parser makes no effort to validate these—for example, if the user has provided string values for a parameter with “float” type, those values will be provided in strings with no complaint (yet). 〈ParsedParameter Public Members〉 +≡ 1121
 
@@ -4159,11 +4140,11 @@ The lookedUp member variable is provided for the code related to extracting para
 
 mutable bool lookedUp = false;
 
-We will not discuss the remainder of the methods in the ParserTarget interface here, though we will see more of them in the BasicSceneBuilder methods that implement them in Sections C.2.3 and C.2.4. C.2 MANAGING THE SCENE DESCRIPTION
+We will not discuss the remainder of the methods in the `ParserTarget` interface here, though we will see more of them in the `BasicSceneBuilder` methods that implement them in Sections C.2.3 and C.2.4. C.2 MANAGING THE SCENE DESCRIPTION
 
 pbrt’s scene description files allow the user to specify various properties that then apply to the definition of subsequent objects in the scene. One example is a current material. Once the current material is set, all subsequent shapes are assigned that material until it is changed. In addition
 
-to the material, the current transformation matrix, RGB color space, an area light specification, and the current media are similarly maintained. We will call this collective information the graphics state. Tracking graphics state provides the advantage that it is not necessary to specify a material with every shape in the scene description, but it imposes the requirement that the scene processing code keep track of the current graphics state while the scene description is being parsed. Managing this graphics state is the primary task of the BasicSceneBuilder, which implements the interface defined by ParserTarget. Its implementation is in the files scene.rs and scene.rs. An initial BasicSceneBuilder is allocated at the start of parsing the scene description. Typically, it handles graphics state management for the provided scene description files. However, pbrt’s scene description format supports an Import directive that indicates that a file can be parsed in parallel with the file that contains it. (Import effectively discards any changes to the graphics state at the end of an imported file, which allows parsing of the current file to continue concurrently without needing to wait for the imported file.) A new BasicSceneBuilder is allocated for each imported file; it makes a copy of the current graphics state before parsing begins.
+to the material, the current transformation matrix, `RGB` color space, an area light specification, and the current media are similarly maintained. We will call this collective information the graphics state. Tracking graphics state provides the advantage that it is not necessary to specify a material with every shape in the scene description, but it imposes the requirement that the scene processing code keep track of the current graphics state while the scene description is being parsed. Managing this graphics state is the primary task of the `BasicSceneBuilder`, which implements the interface defined by `ParserTarget`. Its implementation is in the files scene.rs and scene.rs. An initial `BasicSceneBuilder` is allocated at the start of parsing the scene description. Typically, it handles graphics state management for the provided scene description files. However, pbrt’s scene description format supports an Import directive that indicates that a file can be parsed in parallel with the file that contains it. (Import effectively discards any changes to the graphics state at the end of an imported file, which allows parsing of the current file to continue concurrently without needing to wait for the imported file.) A new `BasicSceneBuilder` is allocated for each imported file; it makes a copy of the current graphics state before parsing begins.
 
 ```text
    BasicSceneBuilder 1123
@@ -4175,7 +4156,7 @@ to the material, the current transformation matrix, RGB color space, an area lig
 
 〈BasicSceneBuilder Definition〉 ≡ class BasicSceneBuilder : public ParserTarget { public: 〈BasicSceneBuilder Public Methods〉 private: 〈BasicSceneBuilder::GraphicsState Definition 1128〉 〈BasicSceneBuilder Private Methods 1131〉 〈BasicSceneBuilder Private Members 1123〉 };
 
-As the entities in the scene are fully specified, they are passed along to an instance of the BasicScene class, which will be described in the next section. When parsing is being performed in parallel with multiple BasicSceneBuilders, all share a single BasicScene.
+As the entities in the scene are fully specified, they are passed along to an instance of the `BasicScene` class, which will be described in the next section. When parsing is being performed in parallel with multiple `BasicSceneBuilder`s, all share a single `BasicScene`.
 
 〈BasicSceneBuilder Private Members〉 ≡ 1123
 
@@ -4183,7 +4164,7 @@ BasicScene *scene;
 
 In addition to storing a pointer to a BasicScene, the BasicSceneBuilder constructor sets a few default values so that if, for example, no camera is specified in the scene description, a basic 90 degree perspective camera is used. The fragment that sets these values is not included here. 〈BasicSceneBuilder Method Definitions〉 ≡ BasicSceneBuilder::BasicSceneBuilder(BasicScene *scene) : scene(scene) { 〈Set scene defaults〉 }
 
-pbrt scene descriptions are split into sections by the WorldBegin statement. Before WorldBegin is encountered, it is legal to specify global rendering options including the camera, film, sampler, and integrator, but shapes, lights, textures, and materials cannot yet be specified. After WorldBegin, all of that flips: things like the camera specification are fixed, and the rest of the scene can be specified. Some scene description statements, like those that modify the current transformation or specify participating media, are allowed in both contexts. This separation of information can help simplify the implementation of the renderer. For example, consider a spline patch shape that tessellates itself into triangles. This shape might compute the size of its triangles based on the area of the screen that it covers. If the camera’s position and the image resolution are fixed when the shape is created, then the shape can tessellate itself immediately at creation time. An enumeration records which part of the scene description is currently being specified. Two macros that are not included here, VERIFY_OPTIONS()
+pbrt scene descriptions are split into sections by the WorldBegin statement. Before WorldBegin is encountered, it is legal to specify global rendering options including the camera, film, sampler, and integrator, but shapes, lights, textures, and materials cannot yet be specified. After WorldBegin, all of that flips: things like the camera specification are fixed, and the rest of the scene can be specified. Some scene description statements, like those that modify the current transformation or specify participating media, are allowed in both contexts. This separation of information can help simplify the implementation of the renderer. For example, consider a spline patch shape that tessellates itself into triangles. This shape might compute the size of its triangles based on the area of the screen that it covers. If the camera’s position and the image resolution are fixed when the shape is created, then the shape can tessellate itself immediately at creation time. An enumeration records which part of the scene description is currently being specified. Two macros that are not included here, `VERIFY_OPTIONS()`
 
 and VERIFY_WORLD(), check the current block against the one that is expected and issue an error if there is a mismatch. 〈BasicSceneBuilder Private Members〉 +≡ 1123
 
@@ -4191,7 +4172,7 @@ enum class BlockState { OptionsBlock, WorldBlock }; BlockState currentBlock = Bl
 
 C.2.1 SCENE ENTITIES
 
-Before further describing the BasicSceneBuilder’s operation, we will start by describing the form of its output, which is a high-level representation of the parsed scene. In this representation, all the objects in the scene are represented by various *Entity classes.
+Before further describing the `BasicSceneBuilder`’s operation, we will start by describing the form of its output, which is a high-level representation of the parsed scene. In this representation, all the objects in the scene are represented by various *Entity classes.
 
 ```text
     BasicScene 1134
@@ -4213,7 +4194,7 @@ A single InternCache defined as a public static member in SceneEntity is used fo
 
 static InternCache<std::string> internedStrings;
 
-Other entity types include the CameraSceneEntity, LightSceneEntity, TextureSceneEntity, MediumSceneEntity, ShapeSceneEntity, and AnimatedShapeSceneEntity. All have the obvious roles. There is furthermore an InstanceDefinitionSceneEntity, which represents an instance definition, and InstanceSceneEntity, which represents the use of an instance definition. We will not include the definitions of these classes in the text as they are all easily understood from their definitions in the source code.
+Other entity types include the `CameraSceneEntity`, LightSceneEntity, TextureSceneEntity, `MediumSceneEntity`, `ShapeSceneEntity`, and `AnimatedShapeSceneEntity`. All have the obvious roles. There is furthermore an InstanceDefinitionSceneEntity, which represents an instance definition, and InstanceSceneEntity, which represents the use of an instance definition. We will not include the definitions of these classes in the text as they are all easily understood from their definitions in the source code.
 
 C.2.2 PARAMETER DICTIONARIES
 
@@ -4252,7 +4233,7 @@ Float GetOneFloat(const std::string &name, Float def) const; int GetOneInt(const
    std::string &def) const;
 ```
 
-These methods all take the name of the parameter and a default value. If the parameter is not found, the default value is returned. This makes it easy to write initialization code like: Point3f center = params.GetOnePoint3f(“center”, Point3f(0, 0, 0));
+These methods all take the name of the parameter and a default value. If the parameter is not found, the default value is returned. This makes it easy to write initialization code like: `Point3f` center = params.GetOnePoint3f(“center”, Point3f(0, 0, 0));
 
 The single value lookup methods for the other types follow the same form and so their declarations are not included here. In contrast, if calling code wants to detect a missing parameter and issue an error, it should instead use the corresponding parameter array lookup method, which returns an empty vector if the parameter is not present. (Those methods will be described in a few pages.) For parameters that represent spectral distributions, it is necessary to specify if the spectrum represents an illuminant, a reflectance that is bounded between 0 and 1, or is an arbitrary spectral distribution (e.g., a scattering coefficient). In turn, if a parameter has been specified using RGB color, the appropriate one of RGBIlluminantSpectrum, RGBAlbedoSpectrum, or RGBUnboundedSpectrum is used for the returned Spectrum. 〈ParameterDictionary Public Methods〉 +≡ 1124
 
@@ -4282,7 +4263,7 @@ The parameter lookup methods make use of C++ type traits, which make it possible
 
 The following signature of the lookupSingle() method alone has brought us into the realm of template-based type information. lookupSingle() is itself a template method, parameterized by an instance of the ParameterType enumeration. In turn, we can see that another template class, ParameterTypeTraits, not yet defined, is expected to provide the type ReturnType, which is used for both lookupSingle’s return type and the provided default value. 〈ParameterDictionary Method Definitions〉 +≡ template <ParameterType PT> typename ParameterTypeTraits<PT>::ReturnType ParameterDictionary::lookupSingle(const std::string &name, typename ParameterTypeTraits<PT>::ReturnType defaultValue) const { 〈Search params for parameter name 1127〉 return defaultValue; }
 
-Each of the parameter types in the ParameterType enumeration has a ParameterTypeTraits template specialization. Here is the one for
+Each of the parameter types in the `ParameterType` enumeration has a `ParameterTypeTraits` template specialization. Here is the one for
 
 Point3f: 〈Point3f ParameterTypeTraits Definition〉 ≡ template <> struct ParameterTypeTraits<ParameterType::Point3f> { 〈ParameterType::Point3f Type Traits 1126〉 }; All the specializations provide a type definition for ReturnType. Naturally, the Parameter Type::Point3f specialization uses Point3f for ReturnType. 〈ParameterType::Point3f Type Traits〉 ≡ 1126
 
@@ -4308,7 +4289,7 @@ using traits = ParameterTypeTraits<PT>; for (const ParsedParameter *p : params) 
 
 〈Return parameter values as ReturnType 1127〉 }
 
-A static GetValues() method in each type traits template specialization returns a reference to one of the floats, ints, strings, or bools ParsedParameter member variables. Note that using auto for the
+A static `GetValues()` method in each type traits template specialization returns a reference to one of the floats, ints, strings, or bools `ParsedParameter` member variables. Note that using auto for the
 
 declaration of values makes it possible for this code in lookupSingle() to work with any of those. 〈Extract parameter values from p〉 ≡ 1127
 
@@ -4335,7 +4316,7 @@ Finally, a static Convert() method in the type traits specialization takes care 
 
 p->lookedUp = true; return traits::Convert(values.data(), &p->loc);
 
-The Convert() method converts the parameter values, starting at a given location, to the return type. When arrays of values are returned, this method is called once per returned array element, with the pointer incremented after each one by the type traits nPerItem value. The current FileLoc is passed along to this method in case any errors need to be reported.
+The `Convert()` method converts the parameter values, starting at a given location, to the return type. When arrays of values are returned, this method is called once per returned array element, with the pointer incremented after each one by the type traits nPerItem value. The current `FileLoc` is passed along to this method in case any errors need to be reported.
 
 ```rust
    ErrorExit() 1064
@@ -4353,15 +4334,15 @@ The Convert() method converts the parameter values, starting at a given location
 
 static Point3f Convert(const Float *f, const FileLoc *loc) { return Point3f(f[0], f[1], f[2]); }
 
-Implementing the parameter lookup methods via type traits is more complex than implementing each one directly would be. However, this approach has the advantage that each additional parameter type effectively only requires defining an appropriate ParameterType Traits specialization, which is just a few lines of code. Further, that additional code is mostly declarative, which in turn is easier to verify as correct than multiple independent implementations of parameter processing logic. The second set of parameter lookup functions returns an array of values. An empty vector is returned if the parameter is not found, so no default value need be provided by the caller. Here are the declarations of a few of them. The rest are equivalent, though GetSpectrumArray() also takes a SpectrumType and an Allocator to use for allocating any returned Spectrum values.
+Implementing the parameter lookup methods via type traits is more complex than implementing each one directly would be. However, this approach has the advantage that each additional parameter type effectively only requires defining an appropriate `ParameterType` Traits specialization, which is just a few lines of code. Further, that additional code is mostly declarative, which in turn is easier to verify as correct than multiple independent implementations of parameter processing logic. The second set of parameter lookup functions returns an array of values. An empty vector is returned if the parameter is not found, so no default value need be provided by the caller. Here are the declarations of a few of them. The rest are equivalent, though `GetSpectrumArray()` also takes a `SpectrumType` and an `Allocator` to use for allocating any returned Spectrum values.
 
 〈ParameterDictionary Public Methods〉 +≡ 1124
 
 std::vector<Float> GetFloatArray(const std::string &name) const; std::vector<int> GetIntArray(const std::string &name) const; std::vector<uint8_t> GetBoolArray(const std::string &name) const;
 
-We will not include the implementations of any of the array lookup methods or the type traits for the other parameter types here. We also note that the methods corresponding to Spectrum parameters are more complex than the other ones, since spectral distributions may be specified in a number of different ways, including as RGB colors, blackbody emission temperatures, and spectral distributions stored in files; see the source code for details.
+We will not include the implementations of any of the array lookup methods or the type traits for the other parameter types here. We also note that the methods corresponding to `Spectrum` parameters are more complex than the other ones, since spectral distributions may be specified in a number of different ways, including as `RGB` colors, blackbody emission temperatures, and spectral distributions stored in files; see the source code for details.
 
-Finally, because the user may misspell parameter names in the scene description file, the ParameterDictionary also provides a ReportUnused() function that issues an error if any of the parameters present were never looked up; the assumption is that in that case the user has provided an incorrect parameter. (This check is based on the values of the ParsedParameter::lookedUp member variables.)
+Finally, because the user may misspell parameter names in the scene description file, the `ParameterDictionary` also provides a `ReportUnused()` function that issues an error if any of the parameters present were never looked up; the assumption is that in that case the user has provided an incorrect parameter. (This check is based on the values of the `ParsedParameter::lookedUp` member variables.)
 
 〈ParameterDictionary Public Methods〉 +≡ 1124
 
@@ -4406,7 +4387,7 @@ const RGBColorSpace *colorSpace = RGBColorSpace::sRGB;
 
 Many of the other method implementations related to graphics state management are similarly simple, so we will only include a few of the interesting ones in the following.
 
-Managing Transformations The current transformation matrix (CTM) is a widely used part of the graphics state. Initially the identity matrix, the CTM is modified by statements like Translate and Scale in scene description files. When objects like shapes and lights are defined, the CTM gives the transformation between their object coordinate system and world space.
+Managing Transformations The current transformation matrix (`CTM`) is a widely used part of the graphics state. Initially the identity matrix, the `CTM` is modified by statements like Translate and Scale in scene description files. When objects like shapes and lights are defined, the `CTM` gives the transformation between their object coordinate system and world space.
 
 The current transformation matrix is actually a pair of transformation matrices, each one specifying a transformation at a specific time. If the transformations are different, then they describe an animated transformation. A number of methods are available to modify one or both of the CTMs as well as to specify the time associated with each one. GraphicsState stores these two CTMs in a ctm member variable. They are represented by a TransformSet, which is a simple utility class that stores an array of transformations and provides some routines for managing them. Its methods include an operator[] for indexing into the Transforms, an Inverse() method that returns a TransformSet that is the inverse, and IsAnimated(), which indicates whether the two Transforms differ from each other. The activeTransformBits member variable is a bit-vector indicating which of the CTMs are active; the active Transforms are updated when the transformation-related API calls are made, while the others are unchanged. This mechanism allows the user to selectively modify the CTMs in order to define animated transformations. 〈GraphicsState Public Members〉 +≡ 1128
 
@@ -4442,7 +4423,7 @@ Translate() postmultiplies the active CTMs with specified translation transforma
 
 The rest of the transformation methods are similarly defined, so we will not show their definitions here.
 
-RenderFromObject() is a convenience method that returns the rendering-from-object transformation for the specified transformation index. It is called, for example, when a shape is specified. In the world specification block, the CTM specifies the world-from-object transformation, but because pbrt performs rendering computation in a separately defined rendering coordinate system (recall Section 5.1.1), the rendering-from-world transformation must be included to get the full transformation.
+`RenderFromObject()` is a convenience method that returns the rendering-from-object transformation for the specified transformation index. It is called, for example, when a shape is specified. In the world specification block, the `CTM` specifies the world-from-object transformation, but because pbrt performs rendering computation in a separately defined rendering coordinate system (recall Section 5.1.1), the rendering-from-world transformation must be included to get the full transformation.
 
 ```rust
    BasicSceneBuilder::graphicsState 1128
@@ -4461,7 +4442,7 @@ RenderFromObject() is a convenience method that returns the rendering-from-objec
 
 class Transform RenderFromObject(int index) const { return pbrt::Transform((renderFromWorld * graphicsState.ctm[index]).GetMatrix()); }
 
-The camera-from-world transformation is given by the CTM when the camera is specified in the scene description. renderFromWorld is therefore set in the BasicSceneBuilder::Camera() method (not included here), via a call to the CameraTransform::RenderFromWorld() method with the CameraTransform for the camera.
+The camera-from-world transformation is given by the `CTM` when the camera is specified in the scene description. renderFromWorld is therefore set in the `BasicSceneBuilder::Camera()` method (not included here), via a call to the `CameraTransform::RenderFromWorld()` method with the `CameraTransform` for the camera.
 
 〈BasicSceneBuilder Private Members〉 +≡ 1123
 
@@ -4499,7 +4480,7 @@ Hierarchical Graphics State When specifying the scene, it is useful to be able t
 
 GraphicsState objects: the user can specify that the current graphics state should be copied and pushed on the stack and then later specify that the current state should be replaced with the state on the top of the stack. This stack is managed by the AttributeBegin and AttributeEnd statements in pbrt’s scene description files. The former saves the current graphics state and the latter restores the most recent saved state. Thus, a scene description file might contain the following: Material “diffuse“ AttributeBegin Material “dielectric“ Translate 5 0 0 Shape “sphere” “float radius” [ 1 ] AttributeEnd Shape “sphere” “float radius” [ 1 ]
 
-The first sphere is affected by the translation and is bound to the dielectric material, while the second sphere is diffuse and is not translated. BasicSceneBuilder maintains a vector of GraphicsStates for this stack.
+The first sphere is affected by the translation and is bound to the dielectric material, while the second sphere is diffuse and is not translated. `BasicSceneBuilder` maintains a vector of GraphicsStates for this stack.
 
 〈BasicSceneBuilder Method Definitions〉 +≡ void BasicSceneBuilder::AttributeBegin(FileLoc loc) { VERIFY_WORLD(“AttributeBegin”); pushedGraphicsStates.push_back(graphicsState); }
 
@@ -4511,7 +4492,7 @@ The AttributeEnd() method also checks to see if the stack is empty and issues an
 
 C.2.4 CREATING SCENE ELEMENTS
 
-As soon as an entity in the scene is fully specified, BasicSceneBuilder passes its specification on to the BasicScene. It is thus possible to immediately begin construction of the associated object that is used for rendering even as parsing the rest of the scene description continues. For brevity, in this section and in Section C.3 we will only discuss how this process works for Samplers and for the Medium objects that represent participating media. (Those two are representative of how the rest of the scene objects are handled.) When a Sampler statement is parsed in the scene description, the following Sampler() method is called by the parser. All that needs to be done is to record the sampler’s name and parameters; because the sampler may be changed by a subsequent Sampler statement in the scene description, it should not immediately be passed along to the BasicScene.
+As soon as an entity in the scene is fully specified, `BasicSceneBuilder` passes its specification on to the `BasicScene`. It is thus possible to immediately begin construction of the associated object that is used for rendering even as parsing the rest of the scene description continues. For brevity, in this section and in Section C.3 we will only discuss how this process works for Samplers and for the `Medium` objects that represent participating media. (Those two are representative of how the rest of the scene objects are handled.) When a Sampler statement is parsed in the scene description, the following `Sampler()` method is called by the parser. All that needs to be done is to record the sampler’s name and parameters; because the sampler may be changed by a subsequent Sampler statement in the scene description, it should not immediately be passed along to the `BasicScene`.
 
 〈BasicSceneBuilder Method Definitions〉 +≡ void BasicSceneBuilder::Sampler(const std::string &name, ParsedParameterVector params, FileLoc loc) { ParameterDictionary dict(std::move(params), graphicsState.colorSpace); VERIFY_OPTIONS(“Sampler”); sampler = SceneEntity(name, std::move(dict), loc); }
 
@@ -4548,7 +4529,7 @@ Assuming the medium is not multiply defined, all that is to be done is to pass a
 
 ParameterDictionary dict(std::move(params), graphicsState.mediumAttributes, graphicsState.colorSpace); scene->AddMedium(MediumSceneEntity(name, std::move(dict), loc, RenderFromObject()));
 
-The other object specification methods follow the same general form, though the BasicScene Builder::Shape() method is more complex than the others. Not only does it need to check to see if an AreaLight specification is active and call BasicScene::AddAreaLight() if so, but it also needs to distinguish between shapes with animated transformations and those without, creating an AnimatedShapeSceneEntity or a ShapeSceneEntity as appropriate.
+The other object specification methods follow the same general form, though the `BasicScene` `Builder::Shape()` method is more complex than the others. Not only does it need to check to see if an AreaLight specification is active and call `BasicScene::AddAreaLight()` if so, but it also needs to distinguish between shapes with animated transformations and those without, creating an `AnimatedShapeSceneEntity` or a `ShapeSceneEntity` as appropriate.
 
 ```rust
    AnimatedShapeSceneEntity 1124
@@ -4567,9 +4548,9 @@ The other object specification methods follow the same general form, though the 
    ShapeSceneEntity 1124
 ```
 
-C.3 BasicScene AND FINAL OBJECT CREATION
+C.3 `BasicScene` AND FINAL OBJECT CREATION
 
-The responsibilities of the BasicScene are straightforward: it takes scene entity objects and provides methods that convert them into objects for rendering. However, there are two factors that make its implementation not completely trivial. First, as discussed in Section C.2, if the Import directive is used in the scene specification, there may be multiple
+The responsibilities of the `BasicScene` are straightforward: it takes scene entity objects and provides methods that convert them into objects for rendering. However, there are two factors that make its implementation not completely trivial. First, as discussed in Section C.2, if the Import directive is used in the scene specification, there may be multiple
 
 BasicSceneBuilders that are concurrently calling BasicScene methods. Therefore, the implementation must use mutual exclusion to ensure correct operation. The second consideration is performance: we would like to minimize the time spent in the execution of BasicScene methods, as time spent in them delays parsing the remainder of the scene description. System startup time is a facet of performance that is worth attending to, and so BasicScene uses the asynchronous job capabilities introduced in Section B.6.6 to create scene objects while parsing proceeds when possible. 〈BasicScene Definition〉 ≡ class BasicScene { public: 〈BasicScene Public Methods 1136〉 〈BasicScene Public Members 1134〉 private: 〈BasicScene Private Methods〉 〈BasicScene Private Members 1135〉 };
 
@@ -4611,7 +4592,7 @@ The AsyncJob * returned by RunAsync() is held in a member variable. The BasicSce
    ThreadLocal<Allocator> threadAllocators;
 ```
 
-Briefly diverting from the BasicScene implementation, we will turn to the Sampler::Create() method that is called in the job that creates the Sampler. (This method is defined in the file samplers.rs with the rest of the Sampler code.) It checks the provided sampler name against all the sampler names it is aware of, calling the appropriate object-specific creation method when it finds a match and issuing an error if no match is found. Thus, if the system is to be extended with an additional sampler, this is a second place in the code where the existence of the new sampler must be registered. Most of the values that are passed to the object constructors are extracted from the Parameter Dictionary in the object-specific Create() methods, though some that are not in the available parameter list (like here, the uncropped image resolution) are directly passed as parameters to the Create() methods.
+Briefly diverting from the `BasicScene` implementation, we will turn to the `Sampler::Create()` method that is called in the job that creates the Sampler. (This method is defined in the file samplers.rs with the rest of the `Sampler` code.) It checks the provided sampler name against all the sampler names it is aware of, calling the appropriate object-specific creation method when it finds a match and issuing an error if no match is found. Thus, if the system is to be extended with an additional sampler, this is a second place in the code where the existence of the new sampler must be registered. Most of the values that are passed to the object constructors are extracted from the Parameter Dictionary in the object-specific `Create()` methods, though some that are not in the available parameter list (like here, the uncropped image resolution) are directly passed as parameters to the `Create()` methods.
 
 〈Sampler Method Definitions〉 ≡ Sampler Sampler::Create(const std::string &name, const ParameterDictionary &parameters, Point2i fullRes, const FileLoc *loc, Allocator alloc) { Sampler sampler = nullptr; if (name == “zsobol”) sampler = ZSobolSampler::Create(parameters, fullRes, loc, alloc); 〈Create remainder of Sampler types〉 return sampler; }
 
@@ -4645,7 +4626,7 @@ The fragment that handles the remainder of types of samplers, 〈Create remainde
    ZSobolSampler 505
 ```
 
-BasicScene also provides methods that return these asynchronously created objects. All have a similar form, acquiring a mutex before harvesting the result from the asynchronous job if needed. Calling code should delay calling these methods as long as possible, doing as much independent work as it can to increase the likelihood that the asynchronous job has completed and that the AsyncJob::GetResult() calls do not stall.
+`BasicScene` also provides methods that return these asynchronously created objects. All have a similar form, acquiring a mutex before harvesting the result from the asynchronous job if needed. Calling code should delay calling these methods as long as possible, doing as much independent work as it can to increase the likelihood that the asynchronous job has completed and that the `AsyncJob::GetResult()` calls do not stall.
 
 〈BasicScene Public Methods〉 ≡ 1134
 
@@ -4655,7 +4636,7 @@ Sampler GetSampler() { samplerJobMutex.lock(); while (!sampler) { pstd::optional
 
 std::mutex samplerJobMutex; Sampler sampler;
 
-Medium creation is also based on RunAsync()’s asynchronous job capabilities, though in that case a std::map of jobs is maintained, one for each medium. Note that it is important that a mutex be held when storing the AsyncJob * returned by RunAsync() in mediumJobs, since multiple threads may call this method concurrently if Import statements are used for multithreaded parsing.
+Medium creation is also based on `RunAsync()`’s asynchronous job capabilities, though in that case a std::map of jobs is maintained, one for each medium. Note that it is important that a mutex be held when storing the `AsyncJob` * returned by `RunAsync()` in mediumJobs, since multiple threads may call this method concurrently if Import statements are used for multithreaded parsing.
 
 〈BasicScene Method Definitions〉 +≡ void BasicScene::AddMedium(MediumSceneEntity medium) { 〈Define create lambda function for Medium creation 1136〉 std::lock_guard<std::mutex> lock(mediaMutex); mediumJobs[medium.name] = RunAsync(create); }
 
@@ -4667,7 +4648,7 @@ Creation of each Medium follows a similar form to Sampler creation, though here 
 
 auto create = [medium, this]() { std::string type = medium.parameters.GetOneString(“type”, “”); 〈Check for missing medium “type” or animated medium transform〉 return Medium::Create(type, medium.parameters, medium.renderFromObject.startTransform, &medium.loc, threadAllocators.Get()); };
 
-All the media specified in the scene are provided to callers via a map from names to Medium objects.
+All the media specified in the scene are provided to callers via a map from names to `Medium` objects.
 
 ```rust
    AsyncJob 1109
@@ -4700,7 +4681,7 @@ All the media specified in the scene are provided to callers via a map from name
      mediaMutex.unlock(); return mediaMap; }
 ```
 
-The asynchronously created Medium objects are consumed using calls to AsyncJob::TryGet Result(), which returns the result if it is available and otherwise unlocks the mutex, does some of the enqueued parallel work, and then relocks it before returning. Thus, there is no risk of deadlock from one thread holding mediaMutex, finding that the result is not ready and working on enqueued parallel work that itself ends up trying to acquire mediaMutex.
+The asynchronously created `Medium` objects are consumed using calls to AsyncJob::TryGet `Result()`, which returns the result if it is available and otherwise unlocks the mutex, does some of the enqueued parallel work, and then relocks it before returning. Thus, there is no risk of deadlock from one thread holding mediaMutex, finding that the result is not ready and working on enqueued parallel work that itself ends up trying to acquire mediaMutex.
 
 〈Consume results for asynchronously created Medium objects〉 ≡ 1137
 
@@ -4710,11 +4691,11 @@ for (auto &m : mediumJobs) { while (mediaMap.find(m.first) == mediaMap.end()) { 
 
 std::map<std::string, Medium> mediaMap;
 
-As much as possible, other scene objects are created similarly using RunAsync(). Light sources are easy to handle, and it is especially helpful to start creating image textures during parsing, as reading image file formats from disk can be a bottleneck for scenes with many such textures. However, extra attention is required due to the cache of images already read for textures (Section 10.4.1). If an image file on disk is used in multiple textures, BasicScene takes care not to have multiple jobs redundantly reading the same image. Instead, only one reads it and the rest wait. When
+As much as possible, other scene objects are created similarly using `RunAsync()`. Light sources are easy to handle, and it is especially helpful to start creating image textures during parsing, as reading image file formats from disk can be a bottleneck for scenes with many such textures. However, extra attention is required due to the cache of images already read for textures (Section 10.4.1). If an image file on disk is used in multiple textures, `BasicScene` takes care not to have multiple jobs redundantly reading the same image. Instead, only one reads it and the rest wait. When
 
 those textures are then created, the image they need can be efficiently returned from the cache. In return for the added complexity of this asynchronous object creation, we have found that for complex scenes it is not unusual for this version of pbrt to be able to start rendering 4 times more quickly than the previous version. C.4 ADDING NEW OBJECT IMPLEMENTATIONS
 
-To sum up various details that have been spread across multiple chapters, three main steps are required in order to add a new implementation of one of pbrt’s interface types: AsyncJob::TryGetResult() 1110 BasicScene 1134 BasicScene::mediaMap 1137 BasicScene::mediaMutex 1136 BasicScene::mediumJobs 1136 Medium 714 RunAsync() 1111 TaggedPointer 1073 1. The source files containing its implementation need to be added to the appropriate places in pbrt’s top-level CMakeLists.txt file, or they should be added to an appropriate preexisting source file so that they are compiled into the pbrt binary. 2. The name of the type should be added to the list of types provided to the TaggedPointer that the corresponding interface type inherits from; this can be done by editing the appropriate header file in the base/ directory. 3. The interface type’s Create() method should be modified to create an instance of the new type when it has been specified in the scene description. It is probably a good idea to implement a static Create() method in the new type that takes a ParameterDictionary and such, to specify the
+To sum up various details that have been spread across multiple chapters, three main steps are required in order to add a new implementation of one of pbrt’s interface types: AsyncJob::TryGetResult() 1110 BasicScene 1134 BasicScene::mediaMap 1137 BasicScene::mediaMutex 1136 BasicScene::mediumJobs 1136 Medium 714 RunAsync() 1111 TaggedPointer 1073 1. The source files containing its implementation need to be added to the appropriate places in pbrt’s top-level CMakeLists.txt file, or they should be added to an appropriate preexisting source file so that they are compiled into the pbrt binary. 2. The name of the type should be added to the list of types provided to the `TaggedPointer` that the corresponding interface type inherits from; this can be done by editing the appropriate header file in the base/ directory. 3. The interface type’s `Create()` method should be modified to create an instance of the new type when it has been specified in the scene description. It is probably a good idea to implement a static `Create()` method in the new type that takes a `ParameterDictionary` and such, to specify the
 
 object’s parameters in the same way that the existing classes do, but doing so is not a requirement. FURTHER READING
 
@@ -4731,11 +4712,11 @@ pbrt’s scene file format is custom, which has allowed us to tailor it to prese
 
 One improvement is to allow the user to specify an arbitrary number of keyframe transformations, each associated with an arbitrary time.
 
-More generally, the system could be extended to support transformations that are explicit functions of time. For example, a rotation could be described with an expression of the form Rotate (time * 2 + 1) 0 0 1 to describe a time-varying rotation about the z axis. Extend pbrt to support a more general matrix animation scheme, and render images showing results that are not possible with the current implementation. Is there a performance cost due to your changes for scenes with animated objects that do not need the generality of your improvements? ➌ C.3 Extend pbrt to have some retained mode semantics so that animated sequences of images can be rendered without needing to respecify the entire scene for each frame. Make sure that it is possible to remove some objects from the scene, add others, modify objects’ materials and transformations from frame to frame, and so on. Measure the performance benefit from your approach versus the current implementation. How is the benefit affected by how fast rendering is? ➋ C.4 In pbrt’s current implementation, a unique TransformedPrimitive is created for each Shape with an animated transformation when the CPU is used for rendering. If many shapes have exactly the same animated transformation, this turns out to be a poor choice. Consider the difference between a million-triangle mesh with an animated transformation versus a million independent triangles, all of which happen to have the same animated transformation.
+More generally, the system could be extended to support transformations that are explicit functions of time. For example, a rotation could be described with an expression of the form Rotate (time * 2 + 1) 0 0 1 to describe a time-varying rotation about the z axis. Extend pbrt to support a more general matrix animation scheme, and render images showing results that are not possible with the current implementation. Is there a performance cost due to your changes for scenes with animated objects that do not need the generality of your improvements? ➌ C.3 Extend pbrt to have some retained mode semantics so that animated sequences of images can be rendered without needing to respecify the entire scene for each frame. Make sure that it is possible to remove some objects from the scene, add others, modify objects’ materials and transformations from frame to frame, and so on. Measure the performance benefit from your approach versus the current implementation. How is the benefit affected by how fast rendering is? ➋ C.4 In pbrt’s current implementation, a unique `TransformedPrimitive` is created for each Shape with an animated transformation when the CPU is used for rendering. If many shapes have exactly the same animated transformation, this turns out to be a poor choice. Consider the difference between a million-triangle mesh with an animated transformation versus a million independent triangles, all of which happen to have the same animated transformation.
 
-In the first case, all the triangles in the mesh are stored in a single instance of a TransformedPrimitive with an animated transformation. If a ray intersects the bounding box that encompasses all the object’s motion over the frame time, then it is transformed to the mesh’s object space according to the interpolated transformation at the ray’s time. At this point, the intersection computation is no different from the intersection test with a static primitive; the only overhead due to the animation is from the larger bounding box and rays that hit the bounding box but not the animated primitive and the extra computation for matrix interpolation and transforming each ray once, according to its time.
+In the first case, all the triangles in the mesh are stored in a single instance of a `TransformedPrimitive` with an animated transformation. If a ray intersects the bounding box that encompasses all the object’s motion over the frame time, then it is transformed to the mesh’s object space according to the interpolated transformation at the ray’s time. At this point, the intersection computation is no different from the intersection test with a static primitive; the only overhead due to the animation is from the larger bounding box and rays that hit the bounding box but not the animated primitive and the extra computation for matrix interpolation and transforming each ray once, according to its time.
 
-In the second case, each triangle is stored in its own TransformedPrimitive, all of which happen to have the same AnimatedTransform. Each instance of Transformed Primitive will have a large bounding box to encompass each triangle’s motion, giving the acceleration structure a difficult set of inputs to deal with: many primitives with substantially overlapping bounding boxes. The impact on ray–primitive intersection efficiency will be high: the ray will be redundantly transformed many times by what happens to be the same recomputed interpolated transformation, and many intersection tests will be performed due to the large bounding boxes. Performance will be much worse than the first case.
+In the second case, each triangle is stored in its own `TransformedPrimitive`, all of which happen to have the same `AnimatedTransform`. Each instance of Transformed Primitive will have a large bounding box to encompass each triangle’s motion, giving the acceleration structure a difficult set of inputs to deal with: many primitives with substantially overlapping bounding boxes. The impact on ray–primitive intersection efficiency will be high: the ray will be redundantly transformed many times by what happens to be the same recomputed interpolated transformation, and many intersection tests will be performed due to the large bounding boxes. Performance will be much worse than the first case.
 
 To address this case, modify the code that creates primitives so that if independent shapes are provided with the same animated transformation, they are all collected into a single acceleration structure with a single animated transformation. What is the performance improvement for the worst case outlined above? Are there cases where the current implementation is a better choice?
 

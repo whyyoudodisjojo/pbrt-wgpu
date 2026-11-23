@@ -60,6 +60,7 @@ Total emission from light sources is generally described in terms of flux. Figur
 
 ![Figure 4.1](images/img-235-005.png)
 
+
 *Figure 4.1: Radiant flux, Φ, measures energy passing through a surface or region of space. Here, flux from a point light source is measured at spheres that surround the light.*
 
 Irradiance and Radiant Exitance Any measurement of flux requires an area over which photons per time is being measured. Given a finite area A, we can define the average density of power over the area by E = Φ/A. This quantity is either irradiance (E), the area density of flux arriving at a surface, or radiant exitance (M), the area density of flux leaving a surface. These measurements have units of W/m2. (The term irradiance is sometimes also used to refer to flux leaving a surface, but for clarity we will use different terms for the two cases.) For the point light source example in Figure 4.1, irradiance at a point on the outer sphere is less than the irradiance at a point on the inner sphere, since the surface area of the outer sphere is larger. In particular, if the point source is emitting the same amount of illumination in all directions,
@@ -77,6 +78,7 @@ figure), then the area on the surface receiving light A1 is equal to A. Irradian
 is then
 
 ![Figure 4.2](images/img-236-006.png)
+
 
 *Figure 4.2: Lambert’s Law. Irradiance arriving at a surface varies according to the cosine of the angle of incidence of illumination, since illumination is over a larger area at larger incident angles.*
 
@@ -98,6 +100,7 @@ respect to solid angles. It is defined by where we have used Eω to denote irrad
 
 ![Figure 4.3](images/img-237-007.png)
 
+
 *Figure 4.3: Radiance L is defined as flux per unit solid angle dω per unit projected area dA⊥.*
 
 Radiance is the flux density per unit area, per unit solid angle. In terms of flux, it is defined by
@@ -113,6 +116,7 @@ When light interacts with surfaces in the scene, the radiance function L is gene
 It therefore makes sense to take one-sided limits at the discontinuity to distinguish between the radiance function just above and below
 
 ![Figure 4.4](images/img-238-008.png)
+
 
 *Figure 4.4: (a) The incident radiance function Li(p, ω) describes the distribution of radiance arriving at a point as a function of position and direction. (b) The exitant radiance function Lo(p, ω) gives the distribution of radiance leaving the point. Note that for both functions, ω is oriented to point away from the surface, and thus, for example, Li(p, −ω) gives the radiance arriving on the other side of the surface than the one where ω lies.*
 
@@ -146,7 +150,7 @@ Luminance measures how bright a spectral power distribution appears to a human o
 
 We will denote luminance by Y; it is related to spectral radiance by
 
-Luminance and the spectral response curve V (λ) are closely related to the XYZ representation of color, which will be introduced in Section 4.6.1.
+Luminance and the spectral response curve V (λ) are closely related to the `XYZ` representation of color, which will be introduced in Section 4.6.1.
 
 The units of luminance are candelas per meter squared (cd/m2), where the candela is the photometric equivalent of radiant intensity. Some representative luminance values are given in Table 4.1.
 
@@ -156,18 +160,9 @@ All the other radiometric quantities that we have introduced in this chapter hav
 
 ```text
    Condition                                              Luminance (cd/m2, or nits)
-```
-
-```text
-                                                       600,000
-   Sun at horizon
-```
-
-60-watt lightbulb 120,000
-
-```text
-                                                       8,000
-   Clear sky
+   Sun at horizon                                         600,000
+   60-watt lightbulb                                      120,000
+   Clear sky                                              8,000
    Typical office                                         100–1,000
    Typical computer display                               1–100
    Street lighting                                        1–10
@@ -187,6 +182,7 @@ All the other radiometric quantities that we have introduced in this chapter hav
 
 ![Figure 4.5](images/img-241-010.png)
 
+
 *Figure 4.5: Irradiance at a point p is given by the integral of radiance times the cosine of the incident direction over the entire upper hemisphere above the point.*
 
 ## 4.2 WORKING WITH RADIOMETRIC INTEGRALS
@@ -198,6 +194,7 @@ where Li(p, ω) is the incident radiance function (Figure 4.5) and the cos θ fa
 due to the dA⊥ factor in the definition of radiance. θ is measured as the angle between ω and the surface normal n. Irradiance is usually computed over the hemisphere ℌ2(n) of directions about a given surface normal n.
 
 ![Figure 4.6](images/img-242-011.png)
+
 
 *Figure 4.6: The projected solid angle subtended by an object is the cosine-weighted solid angle that it subtends. It can be computed by finding the object’s solid angle, projecting it down to the plane perpendicular to the surface normal, and measuring its area there. Thus, the projected solid angle depends on the surface normal where it is being measured, since the normal orients the plane of projection.*
 
@@ -223,6 +220,7 @@ It is often convenient to transform integrals over solid angle into integrals ov
 
 ![Figure 4.7](images/img-243-012.png)
 
+
 *Figure 4.7: The differential area dω subtended by a differential solid angle is the product of the differential lengths of the two edges sin θdϕ and dθ. The resulting relationship, dω = sin θdθdϕ, is the key to converting between integrals over solid angles and integrals over spherical angles.*
 
 (This result can also be derived using the multidimensional transformation approach from Section 2.4.1.) We can thus see that the irradiance integral over the hemisphere, Equation (4.7) with Ω =
@@ -243,9 +241,11 @@ where L is the emitted radiance from the surface of the quadrilateral, θi is th
 
 ![Figure 4.8](images/img-244-013.png)
 
+
 *Figure 4.8: The differential solid angle dω subtended by a differential area dA is equal to dA cos θ/r2, where θ is the angle between dA’s surface normal and the vector to the point p and r is the distance from p to dA.*
 
 ![Figure 4.9](images/img-245-014.png)
+
 
 *Figure 4.9: To compute irradiance at a point p from a quadrilateral source, it is easier to integrate over the surface area of the source than to integrate over the irregular set of directions that it subtends. The relationship between solid angles and areas given by Equation (4.9) lets us go back and forth between the two approaches.*
 
@@ -264,6 +264,7 @@ A differential amount of radiance will be reflected in the direction ωo due to 
 and ωo: The spectral BRDF is defined by using spectral radiance in place of radiance.
 
 ![Figure 4.10](images/img-246-015.png)
+
 
 *Figure 4.10: The BRDF. The bidirectional reflectance distribution function is a 4D function over pairs of directions ωi and ωo that describes how much incident light along ωi is scattered from the surface in the direction ωo.*
 
@@ -312,6 +313,7 @@ Light transport beneath a surface is described by the same principles as volume 
 
 ![Figure 4.11](images/img-249-016.png)
 
+
 *Figure 4.11: The bidirectional scattering surface reflectance distribution function generalizes the BSDF to account for light that exits the surface at a point other than where it enters. It is often more difficult to evaluate than the BSDF, although subsurface light transport makes a substantial contribution to the appearance of many real-world objects.*
 
 ## 4.4 LIGHT EMISSION
@@ -352,9 +354,10 @@ T measured in kelvins: where c is the speed of light in the medium (299,792,458 
 
 *Figure 4.12 plots the emitted radiance distributions of a blackbody for a number of temperatures.*
 
-The Blackbody() function computes emitted radiance at the given temperature T in Kelvin for the given wavelength lambda.
+The `Blackbody()` function computes emitted radiance at the given temperature T in Kelvin for the given wavelength lambda.
 
 ![Figure 4.12](images/img-251-017.png)
+
 
 *Figure 4.12: Plots of emitted radiance as a function of wavelength for blackbody emitters at a few temperatures, as given by Equation (4.17). Note that as temperature increases, more of the emitted light is in the visible frequencies (roughly 380 nm–780 nm) and that the spectral distribution shifts from reddish colors to bluish colors. The total amount of emitted energy grows quickly as temperature increases, as described by the Stefan–Boltzmann law in Equation (4.19).*
 
@@ -370,7 +373,7 @@ The Blackbody() function computes emitted radiance at the given temperature T in
         // 〈Return emitted radiance for blackbody at wavelength lambda〉
 ```
 
-The wavelength passed to Blackbody() is in nm, but the constants for Equation (4.17) are in terms of meters. Therefore, it is necessary to first convert the wavelength to meters by scaling it by 10−9.
+The wavelength passed to `Blackbody()` is in nm, but the constants for Equation (4.17) are in terms of meters. Therefore, it is necessary to first convert the wavelength to meters by scaling it by 10−9.
 
 〈Return emitted radiance for blackbody at wavelength lambda〉 ≡ 162
 
@@ -409,13 +412,16 @@ The Standard Illuminant A was introduced in 1931 and was intended to represent a
 
 ![Figure 4.13](images/img-253-018.png)
 
+
 *Figure 4.13: Plot of the CIE Standard Illuminant A’s Spectral Power Distribution as a Function of Wavelength in nm. This illuminant represents incandescent illumination and is close to a blackbody at 2856 K.*
 
 ![Figure 4.14](images/img-254-019.png)
 
+
 *Figure 4.14: Plot of the CIE Standard D65 Illuminant Spectral Distribution as a Function of Wavelength in nm. This illuminant represents noontime daylight at European latitudes and is commonly used to define the whitepoint of color spaces (Section 4.6.3).*
 
 ![Figure 4.15](images/img-254-020.png)
+
 
 *Figure 4.15: Plots of the F4 and F9 Standard Illuminants as a Function of Wavelength in nm. These represent two fluorescent lights. Note that the distributions are quite different. Spikes in the two distributions correspond to the wavelengths directly emitted by atoms in the gas, while the other wavelengths are generated by the bulb’s fluorescent coating. The F9 illuminant is a “broadband” emitter that uses multiple phosphors to achieve a more uniform spectral distribution.*
 
@@ -429,6 +435,7 @@ Finally, the F series of illuminants describes fluorescents; it is based on meas
 
 ![Figure 4.16](images/img-255-021.png)
 
+
 *Figure 4.16: Spectral Distribution of Reflection from Lemon Skin.*
 
 ## 4.5 REPRESENTING SPECTRAL DISTRIBUTIONS
@@ -441,7 +448,7 @@ We will start by defining constants that give the range of visible wavelengths. 
 
 ### 4.5.1 SPECTRUM INTERFACE
 
-We will find a variety of spectral representations useful in pbrt, ranging from spectral sample values tabularized by wavelength to functional descriptions such as the blackbody function. This brings us to our first interface class, Spectrum. A Spectrum corresponds to a pointer to a class that implements one such spectral representation.
+We will find a variety of spectral representations useful in pbrt, ranging from spectral sample values tabularized by wavelength to functional descriptions such as the blackbody function. This brings us to our first interface class, `Spectrum`. A `Spectrum` corresponds to a pointer to a class that implements one such spectral representation.
 
 ```text
     BlackbodySpectrum 169
@@ -458,7 +465,7 @@ We will find a variety of spectral representations useful in pbrt, ranging from 
 
 Spectrum inherits from TaggedPointer, which handles the details of runtime polymorphism. TaggedPointer requires that all the types of Spectrum implementations be provided as template parameters, which allows it to associate a unique integer identifier with each type. (See Section B.4.4 for details of its implementation.) 〈Spectrum Definition〉 ≡ class Spectrum : public TaggedPointer<ConstantSpectrum, DenselySampledSpectrum, PiecewiseLinearSpectrum, RGBAlbedoSpectrum, RGBUnboundedSpectrum, RGBIlluminantSpectrum, BlackbodySpectrum> { public: 〈Spectrum Interface 166〉 };
 
-As with other classes that are based on TaggedPointer, Spectrum defines an interface that must be implemented by all the spectral representations. Typical practice in C++ would be for such an interface to be specified by pure virtual methods in Spectrum and for Spectrum implementations to inherit from Spectrum and implement those methods. With the TaggedPointer approach, the interface is specified implicitly: for each method in the interface, there is a method in Spectrum that dispatches calls to the appropriate type’s implementation. We will discuss the details of how this works for a single method here but will omit them for other Spectrum methods and for other interface classes since they all follow the same boilerplate.
+As with other classes that are based on `TaggedPointer`, `Spectrum` defines an interface that must be implemented by all the spectral representations. Typical practice in C++ would be for such an interface to be specified by pure virtual methods in `Spectrum` and for `Spectrum` implementations to inherit from `Spectrum` and implement those methods. With the `TaggedPointer` approach, the interface is specified implicitly: for each method in the interface, there is a method in `Spectrum` that dispatches calls to the appropriate type’s implementation. We will discuss the details of how this works for a single method here but will omit them for other `Spectrum` methods and for other interface classes since they all follow the same boilerplate.
 
 The most important method that Spectrum defines is operator(), which takes a single wavelength λ and returns the value of the spectral distribution for that wavelength. 〈Spectrum Interface〉 ≡ 165
 
@@ -472,7 +479,7 @@ Float MaxValue() const;
 
 ### 4.5.2 GENERAL SPECTRAL DISTRIBUTIONS
 
-With the Spectrum interface specified, we will start by defining a few Spectrum class implementations that explicitly tabularize values of the spectral distribution function. Constant Spectrum is the simplest: it represents a constant spectral distribution over all wavelengths. The most common use of the ConstantSpectrum class in pbrt is to define a zero-valued spectral distribution in cases where a particular form of scattering is not present.
+With the `Spectrum` interface specified, we will start by defining a few `Spectrum` class implementations that explicitly tabularize values of the spectral distribution function. `ConstantSpectrum` is the simplest: it represents a constant spectral distribution over all wavelengths. The most common use of the `ConstantSpectrum` class in pbrt is to define a zero-valued spectral distribution in cases where a particular form of scattering is not present.
 
 ```text
    ConstantSpectrum 167
@@ -482,11 +489,11 @@ With the Spectrum interface specified, we will start by defining a few Spectrum 
    TaggedPointer::Dispatch() 1075
 ```
 
-The ConstantSpectrum implementation is straightforward and we omit its trivial MaxValue() method here. Note that it does not inherit from Spectrum. This is another difference from using traditional C++ abstract base classes with virtual functions—as far as the C++ type system is concerned, there is no explicit connection between ConstantSpectrum and Spectrum.
+The `ConstantSpectrum` implementation is straightforward and we omit its trivial `MaxValue()` method here. Note that it does not inherit from `Spectrum`. This is another difference from using traditional C++ abstract base classes with virtual functions—as far as the C++ type system is concerned, there is no explicit connection between `ConstantSpectrum` and `Spectrum`.
 
 〈Spectrum Definitions〉 ≡ class ConstantSpectrum { public: ConstantSpectrum(Float c) : c(c) {} Float operator()(Float lambda) const { return c; } private: Float c; };
 
-More expressive is DenselySampledSpectrum, which stores a spectral distribution sampled at 1 nm intervals over a given range of integer wavelengths [λmin, λmax].
+More expressive is `DenselySampledSpectrum`, which stores a spectral distribution sampled at 1 nm intervals over a given range of integer wavelengths [λmin, λmax].
 
 〈Spectrum Definitions〉 +≡ class DenselySampledSpectrum { public:
 
@@ -520,9 +527,10 @@ Float operator()(Float lambda) const { int offset = std::lround(lambda) - lambda
    Spectrum::operator() 166
 ```
 
-While sampling a spectral distribution at 1 nm wavelengths gives sufficient accuracy for most uses in rendering, doing so requires nearly 2 kB of memory to store a distribution that covers the visible wavelengths. PiecewiseLinearSpectrum offers another representation that is often more compact; its distribution is specified by a set of pairs of values (λi, vi) where the spectral distribution is defined by linearly interpolating between them; see Figure 4.17. For spectra that are smooth in some regions and change rapidly in others, this representation makes it possible to specify the distribution at a higher rate in regions where its variation is greatest.
+While sampling a spectral distribution at 1 nm wavelengths gives sufficient accuracy for most uses in rendering, doing so requires nearly 2 kB of memory to store a distribution that covers the visible wavelengths. `PiecewiseLinearSpectrum` offers another representation that is often more compact; its distribution is specified by a set of pairs of values (λi, vi) where the spectral distribution is defined by linearly interpolating between them; see Figure 4.17. For spectra that are smooth in some regions and change rapidly in others, this representation makes it possible to specify the distribution at a higher rate in regions where its variation is greatest.
 
 ![Figure 4.17](images/img-260-022.png)
+
 
 *Figure 4.17: PiecewiseLinearSpectrum defines a spectral distribution using a set of sample values (λi, vi). A continuous distribution is then defined by linearly interpolating between them.*
 
@@ -600,9 +608,9 @@ A number of important spectra are made available directly through corresponding 
 
 ### 4.5.4 SAMPLED SPECTRAL DISTRIBUTIONS
 
-The attentive reader may have noticed that although Spectrum makes it possible to evaluate spectral distribution functions, it does not provide the ability to do very much computation with them other than sampling their value at a specified wavelength. Yet, for example, evaluating the integrand of the reflection equation, (4.14), requires taking the product of two spectral distributions, one for the BSDF and one for the incident radiance function. Providing this functionality with the abstractions that have been introduced so far would quickly become unwieldy. For example, while the product of two DenselySampledSpectrums could be faithfully represented by another
+The attentive reader may have noticed that although `Spectrum` makes it possible to evaluate spectral distribution functions, it does not provide the ability to do very much computation with them other than sampling their value at a specified wavelength. Yet, for example, evaluating the integrand of the reflection equation, (4.14), requires taking the product of two spectral distributions, one for the BSDF and one for the incident radiance function. Providing this functionality with the abstractions that have been introduced so far would quickly become unwieldy. For example, while the product of two `DenselySampledSpectrum`s could be faithfully represented by another
 
-DenselySampledSpectrum, consider taking the product of two PiecewiseLinearSpectrums: the resulting function would be piecewise-quadratic and subsequent products would only increase its degree. Further, operations between Spectrum implementations of different types would not only require a custom implementation for each pair, but would require choosing a suitable Spectrum representation for each result.
+`DenselySampledSpectrum`, consider taking the product of two `PiecewiseLinearSpectrum`s: the resulting function would be piecewise-quadratic and subsequent products would only increase its degree. Further, operations between `Spectrum` implementations of different types would not only require a custom implementation for each pair, but would require choosing a suitable `Spectrum` representation for each result.
 
 pbrt avoids this complexity by performing spectral calculations at a set of discrete wavelengths as part of the Monte Carlo integration that is already being performed for image synthesis. To understand how this works, consider computing the (non-spectral) irradiance at some point p with surface normal n over some range of wavelengths of interest, [λ0, λ1]. Using Equation (4.7), which expresses irradiance in terms of incident radiance, and Equation (4.5), which expresses radiance in terms of spectral radiance,
 
@@ -618,7 +626,7 @@ we have where Li(p, ω, λ) is the incident spectral radiance at wavelength λ.
    Spectrum 165
 ```
 
-Applying the standard Monte Carlo estimator and taking advantage of the fact that ω and λ are independent, we can see that estimates of E can be computed by sampling directions ωi from some distribution pω, wavelengths λi from some distribution pλ, and then evaluating: art Thus, we only need to be able to evaluate the integrand at the specified discrete wavelengths to estimate the irradiance. More generally, we will see that it is possible to express all the spectral quantities that pbrt outputs as integrals over wavelength. For example, Section 4.6 shows that when rendering an image represented using RGB colors, each pixel’s color can be computed by integrating the spectral radiance arriving at a pixel with functions that model red, green, and blue color response. pbrt therefore uses only discrete spectral samples for spectral computation.
+Applying the standard Monte Carlo estimator and taking advantage of the fact that ω and λ are independent, we can see that estimates of E can be computed by sampling directions ωi from some distribution pω, wavelengths λi from some distribution pλ, and then evaluating: art Thus, we only need to be able to evaluate the integrand at the specified discrete wavelengths to estimate the irradiance. More generally, we will see that it is possible to express all the spectral quantities that pbrt outputs as integrals over wavelength. For example, Section 4.6 shows that when rendering an image represented using `RGB` colors, each pixel’s color can be computed by integrating the spectral radiance arriving at a pixel with functions that model red, green, and blue color response. pbrt therefore uses only discrete spectral samples for spectral computation.
 
 So that we can proceed to the implementation of the classes related to sampling spectra and performing computations with spectral samples, we will define the constant that sets the number of spectral samples here. (Section 4.6.5 will discuss in more detail the trade-offs involved in choosing this value.) pbrt uses 4 wavelength samples by default; this value can easily be changed, though doing so requires recompiling the system. 〈Spectrum Constants〉 +≡ static constexpr int NSpectrumSamples = 4;
 
@@ -653,9 +661,9 @@ SafeDiv() divides two sampled spectra, but generates zero for any sample where t
 
 for (int i = 0; i < NSpectrumSamples; ++i) r[i] = (b[i] != 0) ? a[i] / b[i] : 0.; return r; }
 
-In addition to the basic arithmetic operations, SampledSpectrum also provides Lerp(), Sqrt(), Clamp(), ClampZero(), Pow(), Exp(), and FastExp() functions that operate (again, component-wise) on SampledSpectrum objects; some of these operations are necessary for evaluating some of the reflection models in Chapter 9 and for evaluating volume scattering models in Chapter 14. Finally, MinComponentValue() and MaxComponentValue() return the minimum and maximum of all the values, and Average() returns their average. These methods are all straightforward and are therefore not included in the text.
+In addition to the basic arithmetic operations, `SampledSpectrum` also provides `Lerp()`, `Sqrt()`, `Clamp()`, `ClampZero()`, `Pow()`, `Exp()`, and `FastExp()` functions that operate (again, component-wise) on `SampledSpectrum` objects; some of these operations are necessary for evaluating some of the reflection models in Chapter 9 and for evaluating volume scattering models in Chapter 14. Finally, `MinComponentValue()` and `MaxComponentValue()` return the minimum and maximum of all the values, and `Average()` returns their average. These methods are all straightforward and are therefore not included in the text.
 
-SampledWavelengths A separate class, SampledWavelengths, stores the wavelengths for which a SampledSpectrum stores samples. Thus, it is important not only to keep careful track of the SampledWavelengths that are represented by an individual SampledSpectrum but also to not perform any operations that combine SampledSpectrums that have samples at different wavelengths.
+`SampledWavelengths` A separate class, `SampledWavelengths`, stores the wavelengths for which a `SampledSpectrum` stores samples. Thus, it is important not only to keep careful track of the `SampledWavelengths` that are represented by an individual `SampledSpectrum` but also to not perform any operations that combine `SampledSpectrum`s that have samples at different wavelengths.
 
 ```text
    NSpectrumSamples 171
@@ -716,7 +724,7 @@ In some cases, different wavelengths of light may follow different paths after a
 
 void TerminateSecondary() { if (SecondaryTerminated()) return; 〈Update wavelength probabilities for termination 174〉 }
 
-The wavelength stored in lambda[0] is always the survivor: there is no need to randomly select the surviving wavelength so long as each lambda value was randomly sampled from the same distribution as is the case with SampleUniform(), for example. Note that this means that it would be incorrect for SampledWavelengths::SampleUniform() to always place lambda[0] in a first wavelength stratum between lambda_min and lambda_min+delta, lambda[1] in the second, and so forth.6
+The wavelength stored in lambda[0] is always the survivor: there is no need to randomly select the surviving wavelength so long as each lambda value was randomly sampled from the same distribution as is the case with `SampleUniform()`, for example. Note that this means that it would be incorrect for `SampledWavelengths::SampleUniform()` to always place lambda[0] in a first wavelength stratum between lambda_min and lambda_min+delta, lambda[1] in the second, and so forth.6
 
 Terminated wavelengths have their PDF values set to zero; code that computes Monte Carlo estimates using SampledWavelengths must therefore detect this case and ignore terminated wavelengths accordingly. The surviving wavelength’s PDF is updated to account for the termination event by multiplying it by the probability of a wavelength surviving termination, 1 / NSpectrumSamples. (This is similar to how applying Russian roulette affects the Monte Carlo estimator—see Section 2.2.4.) 〈Update wavelength probabilities for termination〉 ≡ 174
 
@@ -744,11 +752,11 @@ We will often have a Spectrum and a set of wavelengths for which we would like t
 
 SampledSpectrum Sample(const SampledWavelengths &lambda) const;
 
-Discussion Now that SampledWavelengths and SampledSpectrum have been introduced, it is reasonable to ask the question: why are they separate classes, rather than a single class that stores both wavelengths and their sample values? Indeed, an advantage of such a design would be that it would be possible to detect at runtime if an operation was performed with two SampledSpectrum instances that stored values for different wavelengths—such an operation is nonsensical and would signify a bug in the system. However, in practice many SampledSpectrum objects are created during rendering, many as temporary values in the course of evaluating expressions involving spectral computation. It is therefore worthwhile to minimize the object’s size, if only to avoid initialization and copying of additional data. While the pbrt’s CPU-based integrators do not store many SampledSpectrum values in memory at the same time, the GPU rendering path stores a few million of them, giving further motivation to minimize their size. Our experience has been that bugs from mixing computations at different wavelengths have been rare. With the way that computation is structured in pbrt, wavelengths are generally sampled at the start of following a ray’s
+Discussion Now that `SampledWavelengths` and `SampledSpectrum` have been introduced, it is reasonable to ask the question: why are they separate classes, rather than a single class that stores both wavelengths and their sample values? Indeed, an advantage of such a design would be that it would be possible to detect at runtime if an operation was performed with two `SampledSpectrum` instances that stored values for different wavelengths—such an operation is nonsensical and would signify a bug in the system. However, in practice many `SampledSpectrum` objects are created during rendering, many as temporary values in the course of evaluating expressions involving spectral computation. It is therefore worthwhile to minimize the object’s size, if only to avoid initialization and copying of additional data. While the pbrt’s CPU-based integrators do not store many `SampledSpectrum` values in memory at the same time, the GPU rendering path stores a few million of them, giving further motivation to minimize their size. Our experience has been that bugs from mixing computations at different wavelengths have been rare. With the way that computation is structured in pbrt, wavelengths are generally sampled at the start of following a ray’s
 
-path through the scene, and then the same wavelengths are used throughout for all spectral calculations along the path. There ends up being little opportunity for inadvertent mingling of sampled wavelengths in SampledSpectrum instances. Indeed, in an earlier version of the system, SampledSpectrum did carry along a SampledWavelengths member variable in debug builds in order to be able to check for that case. It was eliminated in the interests of simplicity after a few months’ existence without finding a bug. 4.6 COLOR
+path through the scene, and then the same wavelengths are used throughout for all spectral calculations along the path. There ends up being little opportunity for inadvertent mingling of sampled wavelengths in `SampledSpectrum` instances. Indeed, in an earlier version of the system, `SampledSpectrum` did carry along a `SampledWavelengths` member variable in debug builds in order to be able to check for that case. It was eliminated in the interests of simplicity after a few months’ existence without finding a bug. 4.6 COLOR
 
-“Spectral distribution” and “color” might seem like two names for the same thing, but they are distinct. A spectral distribution is a purely physical concept, while color describes the human perception of a spectrum. Color is thus closely connected to the physiology of the human visual system and the brain’s processing of visual stimulus. Although the majority of rendering computation in pbrt is based on spectral distributions, color still must be treated carefully. For example, the spectral distribution at each pixel in a rendered image must be converted to RGB color to be displayed on a monitor. Performing this conversion accurately requires using information about the monitor’s color characteristics. The renderer also finds color in scene descriptions that use it to describe reflectance and light emission. Although it is convenient for humans to use colors to describe the appearance of modeled scenes, these colors must be converted to spectra if a renderer uses spectral distributions in its light transport simulation. Unfortunately, doing so is an underspecified problem. A variety of approaches have been developed for it; the one implemented in pbrt is described in Section 4.6.6.
+“Spectral distribution” and “color” might seem like two names for the same thing, but they are distinct. A spectral distribution is a purely physical concept, while color describes the human perception of a spectrum. Color is thus closely connected to the physiology of the human visual system and the brain’s processing of visual stimulus. Although the majority of rendering computation in pbrt is based on spectral distributions, color still must be treated carefully. For example, the spectral distribution at each pixel in a rendered image must be converted to `RGB` color to be displayed on a monitor. Performing this conversion accurately requires using information about the monitor’s color characteristics. The renderer also finds color in scene descriptions that use it to describe reflectance and light emission. Although it is convenient for humans to use colors to describe the appearance of modeled scenes, these colors must be converted to spectra if a renderer uses spectral distributions in its light transport simulation. Unfortunately, doing so is an underspecified problem. A variety of approaches have been developed for it; the one implemented in pbrt is described in Section 4.6.6.
 
 ```text
    SampledSpectrum 171
@@ -759,33 +767,32 @@ path through the scene, and then the same wavelengths are used throughout for al
 
 The tristimulus theory of color perception says that all visible spectral distributions can be accurately represented for human observers using three scalar values. Its basis is that there are three types of photoreceptive cone
 
-cells in the eye, each sensitive to different wavelengths of light. This theory, which has been tested in numerous experiments since its introduction in the 1800s, has led to the development of spectral matching functions, which are functions of wavelength that can be used to compute a tristimulus representation of a spectral distribution. Integrating the product of a spectral distribution S(λ) with three tristimulus matching functions m{1,2,3}(λ) gives three tristimulus values vi: art The matching functions thus define a color space, which is a 3D vector space of the tristimulus values: the tristimulus values for the sum of two spectra are given by the sum of their tristimulus values and the tristimulus values associated with a spectrum that has been scaled by a constant can be found by scaling the tristimulus values by the same factor. Note that from these definitions, the tristimulus values for the product of two spectral distributions are not given by the product of their tristimulus values. This nit is why using tristimulus color like RGB for rendering may not give accurate results; we will say more about this topic in Section 4.6.6. The files util/color.rs and util/color.rs in the pbrt distribution contain the implementation of the functionality related to color that is introduced in this section.
+cells in the eye, each sensitive to different wavelengths of light. This theory, which has been tested in numerous experiments since its introduction in the 1800s, has led to the development of spectral matching functions, which are functions of wavelength that can be used to compute a tristimulus representation of a spectral distribution. Integrating the product of a spectral distribution S(λ) with three tristimulus matching functions m{1,2,3}(λ) gives three tristimulus values vi: art The matching functions thus define a color space, which is a 3D vector space of the tristimulus values: the tristimulus values for the sum of two spectra are given by the sum of their tristimulus values and the tristimulus values associated with a spectrum that has been scaled by a constant can be found by scaling the tristimulus values by the same factor. Note that from these definitions, the tristimulus values for the product of two spectral distributions are not given by the product of their tristimulus values. This nit is why using tristimulus color like `RGB` for rendering may not give accurate results; we will say more about this topic in Section 4.6.6. The files util/color.rs and util/color.rs in the pbrt distribution contain the implementation of the functionality related to color that is introduced in this section.
 
 ### 4.6.1 XYZ COLOR
 
-An important set of color matching functions were determined by the Commission Internationale de l’Éclairage (CIE) standards body after a series of experiments with human test subjects. They define the XYZ color space and are graphed in Figure 4.18. XYZ is a device-independent color space, which means that it does not describe the characteristics of a particular display or color measurement device.
+An important set of color matching functions were determined by the Commission Internationale de l’Éclairage (CIE) standards body after a series of experiments with human test subjects. They define the `XYZ` color space and are graphed in Figure 4.18. `XYZ` is a device-independent color space, which means that it does not describe the characteristics of a particular display or color measurement device.
 
 ![Figure 4.18](images/img-275-023.png)
 
+
 *Figure 4.18: The XYZ Color Matching Curves. A given spectral distribution can be converted to XYZ by multiplying it by each of the three matching curves and integrating the result to compute the values xλ, yλ, and zλ, using Equation (4.22).*
 
-```text
-                                                            art
-       Figure 4.19: Plot of XYZ color coefficients for the wavelengths of light in the visible range. The curve is
-       shaded with the RGB color associated with each wavelength.
-```
+![Figure 4.19](images/pages/page-0275.png)
 
-Given a spectral distribution S(λ), its XYZ color space coordinates xλ, yλ, and zλ are computed by integrating its product with the X(λ), Y (λ), and Z(λ) spectral matching curves:7 art The CIE Y (λ) tristimulus curve was chosen to be proportional to the V (λ) spectral response curve used to define photometric quantities such as luminance in Equation (4.6). Their relationship is: V (λ) = 683 Y (λ). Remarkably, spectra with substantially different distributions may have very similar xλ, yλ, and zλ values. To the human observer, such spectra
+*Figure 4.19: Plot of XYZ color coefficients for the wavelengths of light in the visible range. The curve is shaded with the RGB color associated with each wavelength.*
+
+Given a spectral distribution S(λ), its `XYZ` color space coordinates xλ, yλ, and zλ are computed by integrating its product with the X(λ), Y (λ), and Z(λ) spectral matching curves:7 art The CIE Y (λ) tristimulus curve was chosen to be proportional to the V (λ) spectral response curve used to define photometric quantities such as luminance in Equation (4.6). Their relationship is: V (λ) = 683 Y (λ). Remarkably, spectra with substantially different distributions may have very similar xλ, yλ, and zλ values. To the human observer, such spectra
 
 appear the same. Pairs of such spectra are called metamers. Figure 4.19 shows a 3D plot of the curve in the XYZ space corresponding to the XYZ coefficients for single wavelengths of light over the visible range. The coefficients for more complex spectral distributions therefore correspond to linear combinations of points along this curve. Although all spectral distributions can be represented with XYZ coefficients, not all values of XYZ coefficients correspond to realizable spectra; such sets of coefficients are termed imaginary colors. Three functions in the Spectra namespace provide the CIE XYZ matching curves sampled at 1-nm increments from 360 nm to 830 nm. 〈Spectral Function Declarations〉 +≡ namespace Spectra { const DenselySampledSpectrum &X(); const DenselySampledSpectrum &Y(); const DenselySampledSpectrum &Z(); }
 
 The integral of Y (λ) is precomputed and available in a constant. 〈Spectrum Constants〉 +≡ static constexpr Float CIE_Y_integral = 106.856895;
 
-There is also an XYZ class that represents XYZ colors.
+There is also an `XYZ` class that represents `XYZ` colors.
 
 〈XYZ Definition〉 ≡ class XYZ { public: 〈XYZ Public Methods 178〉 〈XYZ Public Members 178〉 };
 
-Its implementation is the obvious one, using three Float values to represent the three color components. All the regular arithmetic operations are provided for XYZ in methods that are not included in the text here.
+Its implementation is the obvious one, using three `Float` values to represent the three color components. All the regular arithmetic operations are provided for `XYZ` in methods that are not included in the text here.
 
 〈XYZ Public Methods〉 ≡ 178
 
@@ -793,7 +800,7 @@ XYZ(Float X, Float Y, Float Z) : X(X), Y(Y), Z(Z) {} 〈XYZ Public Members〉 �
 
 Float X = 0, Y = 0, Z = 0;
 
-The SpectrumToXYZ() function computes the XYZ coefficients of a spectral distribution following Equation (4.22) using the following InnerProduct() utility function to handle each component.
+The `SpectrumToXYZ()` function computes the `XYZ` coefficients of a spectral distribution following Equation (4.22) using the following `InnerProduct()` utility function to handle each component.
 
 〈Spectrum Function Definitions〉 ≡ XYZ SpectrumToXYZ(Spectrum s) { return XYZ(InnerProduct(&Spectra::X(), s), InnerProduct(&Spectra::Y(), s), InnerProduct(&Spectra::Z(), s)) / CIE_Y_integral; }
 
@@ -817,7 +824,7 @@ Monte Carlo is not necessary for a simple 1D integral of two spectra, so InnerPr
    XYZ 178
 ```
 
-It is also useful to be able to compute XYZ coefficients for a SampledSpectrum. Because SampledSpectrum only has point samples of the spectral distribution at predetermined wavelengths, they are found via a Monte Carlo estimate of Equation (4.22) using the sampled spectral values si at wavelengths λi and their associated PDFs: art and so forth, where n is the number of wavelength samples. SampledSpectrum::ToXYZ() computes the value of this estimator.
+It is also useful to be able to compute `XYZ` coefficients for a `SampledSpectrum`. Because `SampledSpectrum` only has point samples of the spectral distribution at predetermined wavelengths, they are found via a Monte Carlo estimate of Equation (4.22) using the sampled spectral values si at wavelengths λi and their associated PDFs: art and so forth, where n is the number of wavelength samples. `SampledSpectrum::ToXYZ()` computes the value of this estimator.
 
 〈Spectrum Method Definitions〉 +≡ XYZ SampledSpectrum::ToXYZ(const SampledWavelengths &lambda) const { 〈Sample the X, Y , and Z matching curves at lambda 179〉 〈Evaluate estimator to compute (x, y, z) coefficients 179〉 }
 
@@ -834,7 +841,7 @@ SampledSpectrum pdf = lambda.PDF(); return XYZ(SafeDiv(X * *this, pdf).Average()
     SafeDiv(z * self, pdf).Average()) / CIE_Y_integral;
 ```
 
-To avoid the expense of computing the X and Z coefficients when only luminance is needed, there is a y() method that only returns Y. Its implementation is the obvious subset of XYZ() and so is not included here.
+To avoid the expense of computing the X and Z coefficients when only luminance is needed, there is a `y()` method that only returns Y. Its implementation is the obvious subset of `XYZ()` and so is not included here.
 
 ```text
    CIE_Y_integral 178
@@ -852,22 +859,21 @@ To avoid the expense of computing the X and Z coefficients when only luminance i
    XYZ 178
 ```
 
-Chromaticity and xyY Color Color can be separated into lightness, which describes how bright it is relative to something white, and chroma, which describes its relative colorfulness with respect to white. One approach to quantifying chroma is the xyz chromaticity coordinates, which are defined in terms of XYZ color space coordinates by art Note that any two of them are sufficient to specify chromaticity.
+Chromaticity and xyY Color Color can be separated into lightness, which describes how bright it is relative to something white, and chroma, which describes its relative colorfulness with respect to white. One approach to quantifying chroma is the xyz chromaticity coordinates, which are defined in terms of `XYZ` color space coordinates by art Note that any two of them are sufficient to specify chromaticity.
 
-```text
-                                                           art
-        Figure 4.20: xy Chromaticity Diagram. All valid colors lie inside the shaded region.
-```
+![Figure 4.20](images/pages/page-0279.png)
 
-Considering just x and y, we can plot a chromaticity diagram to visualize their values; see Figure 4.20. Spectra with light at just a single wavelength —the pure spectral colors—lie along the curved part of the chromaticity diagram. This part corresponds to the xy projection of the 3D XYZ curve that was shown in Figure 4.19. All the valid colors lie inside the upside-
+*Figure 4.20: xy Chromaticity Diagram. All valid colors lie inside the shaded region.*
 
-down horseshoe shape; points outside that region correspond to imaginary colors. The xyY color space separates a color’s chromaticity from its lightness. It uses the x and y chromaticity coordinates and yλ from XYZ, since the Y (λ) matching curve was defined to be proportional to luminance. pbrt makes limited use of xyY colors and therefore does not provide a class to represent them, but the XYZ class does provide a method that returns its xy chromaticity coordinates as a Point2f.
+Considering just x and y, we can plot a chromaticity diagram to visualize their values; see Figure 4.20. Spectra with light at just a single wavelength —the pure spectral colors—lie along the curved part of the chromaticity diagram. This part corresponds to the xy projection of the 3D `XYZ` curve that was shown in Figure 4.19. All the valid colors lie inside the upside-
+
+down horseshoe shape; points outside that region correspond to imaginary colors. The xyY color space separates a color’s chromaticity from its lightness. It uses the x and y chromaticity coordinates and yλ from `XYZ`, since the Y (λ) matching curve was defined to be proportional to luminance. pbrt makes limited use of xyY colors and therefore does not provide a class to represent them, but the `XYZ` class does provide a method that returns its xy chromaticity coordinates as a `Point2f`.
 
 〈XYZ Public Methods〉 +≡ 178
 
 Point2f xy() const { return Point2f(X / (X + Y + Z), Y / (X + Y + Z)); }
 
-A corresponding method converts from xyY to XYZ, given xy and optionally yλ coordinates.
+A corresponding method converts from xyY to `XYZ`, given xy and optionally yλ coordinates.
 
 〈XYZ Public Methods〉 +≡ static XYZ FromxyY(Point2f xy, Float Y = 1) { if (xy.y == 0) return XYZ(0, 0, 0); return XYZ(xy.x * Y / xy.y, Y, (1 - xy.x - xy.y) * Y / xy.y); }
 
@@ -875,7 +881,7 @@ A corresponding method converts from xyY to XYZ, given xy and optionally yλ coo
 
 RGB color is used more commonly than XYZ in rendering applications. In RGB color spaces, colors are represented by a triplet of values corresponding to red, green, and blue colors, often referred to as RGB. However, an RGB triplet on its own is meaningless; it must be defined with respect to a specific RGB color space. To understand why, consider what happens when an RGB color is shown on a display: the spectrum that is displayed is given by the weighted sum of three spectral emission curves, one for each of red, green, and blue, as emitted by the display elements, be they phosphors, LED or LCD elements,
 
-or plasma cells.8 Figure 4.21 plots the red, green, and blue distributions emitted by an LCD display and an LED display; note that they are remarkably different. Figure 4.22 in turn shows the spectral distributions that result from displaying the RGB color (0.6, 0.3, 0.2) on those displays. Not surprisingly, the resulting spectra are quite different as well.
+or plasma cells.8 Figure 4.21 plots the red, green, and blue distributions emitted by an LCD display and an LED display; note that they are remarkably different. Figure 4.22 in turn shows the spectral distributions that result from displaying the `RGB` color (0.6, 0.3, 0.2) on those displays. Not surprisingly, the resulting spectra are quite different as well.
 
 ```text
    Float 23
@@ -886,23 +892,17 @@ or plasma cells.8 Figure 4.21 plots the red, green, and blue distributions emitt
    XYZ::Z 178
 ```
 
-```text
-                                                           art
-        Figure 4.21: Red, Green, and Blue Emission Curves for an LCD Display and an LED Display. The
-        first plot shows the curves for an LCD display, and the second shows them for an LED. These two
-        displays have quite different emission profiles. (Data courtesy of X-Rite, Inc.)
-```
+![Figure 4.21](images/pages/page-0281.png)
 
-```text
-                                                           art
-        Figure 4.22: Spectral Distributions from Displaying the RGB Color (0.6, 0.3, 0.2) on LED (red) and
-        LCD (blue) Displays. The resulting emitted distributions are remarkably different, even given the same
-        RGB values, due to the different emission curves illustrated in Figure 4.21.
-```
+*Figure 4.21: Red, Green, and Blue Emission Curves for an LCD Display and an LED Display. The first plot shows the curves for an LCD display, and the second shows them for an LED. These two displays have quite different emission profiles. (Data courtesy of X-Rite, Inc.)*
 
-If a display’s R(λ), G(λ), and B(λ) curves are known, the RGB coefficients for displaying a spectral distribution S(λ) on that display can be found by integrating S(λ) with each curve: art and so forth. The same approaches that were used to compute XYZ values for spectra in the previous section can be used to compute the values of these integrals. Alternatively, if we already have the (xλ, yλ, zλ) representation of S(λ), it is possible to convert the XYZ coefficients directly to corresponding RGB
+![Figure 4.22](images/pages/page-0281.png)
 
-coefficients. Consider, for example, computing the value of the red component for a spectral distribution S(λ): art where the second step takes advantage of the tristimulus theory of color perception. The integrals of the products of an RGB response function and XYZ matching function can be precomputed for given response curves, making it possible to express the full conversion as a matrix: art pbrt frequently uses this approach in order to efficiently convert colors from one color space to another. An RGB class that has the obvious representation and provides a variety of useful arithmetic operations (not included in the text) is also provided by pbrt.
+*Figure 4.22: Spectral Distributions from Displaying the RGB Color (0.6, 0.3, 0.2) on LED (red) and LCD (blue) Displays. The resulting emitted distributions are remarkably different, even given the same RGB values, due to the different emission curves illustrated in Figure 4.21.*
+
+If a display’s R(λ), G(λ), and B(λ) curves are known, the `RGB` coefficients for displaying a spectral distribution S(λ) on that display can be found by integrating S(λ) with each curve: art and so forth. The same approaches that were used to compute `XYZ` values for spectra in the previous section can be used to compute the values of these integrals. Alternatively, if we already have the (xλ, yλ, zλ) representation of S(λ), it is possible to convert the `XYZ` coefficients directly to corresponding `RGB`
+
+coefficients. Consider, for example, computing the value of the red component for a spectral distribution S(λ): art where the second step takes advantage of the tristimulus theory of color perception. The integrals of the products of an `RGB` response function and `XYZ` matching function can be precomputed for given response curves, making it possible to express the full conversion as a matrix: art pbrt frequently uses this approach in order to efficiently convert colors from one color space to another. An `RGB` class that has the obvious representation and provides a variety of useful arithmetic operations (not included in the text) is also provided by pbrt.
 
 〈RGB Definition〉 ≡ class RGB { public: 〈RGB Public Methods 182〉 〈RGB Public Members 182〉 };
 
@@ -916,9 +916,9 @@ Float r = 0, g = 0, b = 0;
 
 ### 4.6.3 RGB COLOR SPACES
 
-Full spectral response curves are not necessary to define color spaces. For example, a color space can be defined using xy chromaticity coordinates to specify three color primaries. From them, it is possible to derive matrices that convert XYZ colors to and from that color space. In cases where we do not otherwise need explicit spectral response curves, this is a convenient way to specify a color space. The RGBColorSpace class, which is defined in the files util/colorspace.rs and util/colorspace.rs, uses this approach to
+Full spectral response curves are not necessary to define color spaces. For example, a color space can be defined using xy chromaticity coordinates to specify three color primaries. From them, it is possible to derive matrices that convert `XYZ` colors to and from that color space. In cases where we do not otherwise need explicit spectral response curves, this is a convenient way to specify a color space. The `RGBColorSpace` class, which is defined in the files util/colorspace.rs and util/colorspace.rs, uses this approach to
 
-encapsulate a representation of an RGB color space as well as a variety of useful operations like converting XYZ colors to and from its color space.
+encapsulate a representation of an `RGB` color space as well as a variety of useful operations like converting `XYZ` colors to and from its color space.
 
 ```text
    Float 23
@@ -927,13 +927,13 @@ encapsulate a representation of an RGB color space as well as a variety of usefu
 
 〈RGBColorSpace Definition〉 ≡ class RGBColorSpace { public: 〈RGBColorSpace Public Methods 184〉 private: 〈RGBColorSpace Private Members 184〉 };
 
-An RGB color space is defined using the chromaticities of red, green, and blue color primaries. The primaries define the gamut of the color space, which is the set of colors it can represent with RGB values between 0 and 1. For three primaries, the gamut forms a triangle on the chromaticity diagram where each primary’s chromaticity defines one of the vertices.9 In addition to the primaries, it is necessary to specify the color space’s whitepoint, which is the color that is displayed when all three primaries are activated to their maximum emission. It may be surprising that this is necessary—after all, should not white correspond to a spectral distribution with the same value at every wavelength? White is, however, a color, and as a color it is what humans perceive as being uniform and label “white.” The spectra for white colors tend to have more power in the lower wavelengths that correspond to blues and greens than they do at higher wavelengths that correspond to oranges and reds. The D65 illuminant, which was described in Section 4.4.2 and plotted in Figure 4.14, is a common choice for specifying color spaces’ whitepoints. While the chromaticities of the whitepoint are sufficient to define a color space, the RGBColor Space constructor takes its full spectral distribution, which is useful for forthcoming code that converts from color to spectral distributions. Storing the illuminant spectrum allows users of the renderer to
+An `RGB` color space is defined using the chromaticities of red, green, and blue color primaries. The primaries define the gamut of the color space, which is the set of colors it can represent with `RGB` values between 0 and 1. For three primaries, the gamut forms a triangle on the chromaticity diagram where each primary’s chromaticity defines one of the vertices.9 In addition to the primaries, it is necessary to specify the color space’s whitepoint, which is the color that is displayed when all three primaries are activated to their maximum emission. It may be surprising that this is necessary—after all, should not white correspond to a spectral distribution with the same value at every wavelength? White is, however, a color, and as a color it is what humans perceive as being uniform and label “white.” The spectra for white colors tend to have more power in the lower wavelengths that correspond to blues and greens than they do at higher wavelengths that correspond to oranges and reds. The D65 illuminant, which was described in Section 4.4.2 and plotted in Figure 4.14, is a common choice for specifying color spaces’ whitepoints. While the chromaticities of the whitepoint are sufficient to define a color space, the `RGBColorSpace` constructor takes its full spectral distribution, which is useful for forthcoming code that converts from color to spectral distributions. Storing the illuminant spectrum allows users of the renderer to
 
 specify emission from light sources using RGB color; the provided illuminant then gives the spectral distribution for RGB white, (1, 1, 1). 〈RGBColorSpace Method Definitions〉 ≡ RGBColorSpace::RGBColorSpace(Point2f r, Point2f g, Point2f b, Spectrum illuminant, const RGBToSpectrumTable *rgbToSpec, Allocator alloc) : r(r), g(g), b(b), illuminant(illuminant, alloc), rgbToSpectrumTable(rgbToSpec) { 〈Compute whitepoint primaries and XYZ coordinates 184〉 〈Initialize XYZ color space conversion matrices 184〉 }
 
 RGBColorSpace represents the illuminant as a DenselySampledSpectrum for efficient lookups by wavelength. 〈RGBColorSpace Public Members〉 ≡ Point2f r, g, b, w; DenselySampledSpectrum illuminant;
 
-RGBColorSpaces also store a pointer to an RGBToSpectrumTable class that stores information related to converting RGB values in the color space to full spectral distributions; it will be introduced shortly, in Section 4.6.6.
+`RGBColorSpace`s also store a pointer to an `RGBToSpectrumTable` class that stores information related to converting `RGB` values in the color space to full spectral distributions; it will be introduced shortly, in Section 4.6.6.
 
 ```text
    Allocator 40
@@ -948,7 +948,7 @@ RGBColorSpaces also store a pointer to an RGBToSpectrumTable class that stores i
 
 const RGBToSpectrumTable *rgbToSpectrumTable;
 
-To find RGB values in the color space, it is useful to be able to convert to and from XYZ. This can be done using 3 × 3 matrices. To compute them,
+To find `RGB` values in the color space, it is useful to be able to convert to and from `XYZ`. This can be done using 3 × 3 matrices. To compute them,
 
 we will require the XYZ coordinates of the chromaticities and the whitepoint. 〈Compute whitepoint primaries and XYZ coordinates〉 ≡ 183
 
@@ -969,7 +969,7 @@ We will first derive the matrix M that transforms from RGB coefficients in the c
 
 〈RGBColorSpace Public Members〉 +≡ SquareMatrix<3> XYZFromRGB, RGBFromXYZ;
 
-Given a color space’s XYZ/RGB conversion matrices, a matrix-vector multiplication is sufficient to convert any XYZ triplet into the color space and to convert any RGB in the color space to XYZ.
+Given a color space’s `XYZ`/`RGB` conversion matrices, a matrix-vector multiplication is sufficient to convert any `XYZ` triplet into the color space and to convert any `RGB` in the color space to `XYZ`.
 
 ```text
    RGB 182
@@ -1010,15 +1010,11 @@ Standard Color Spaces There are a number of widely used standard color spaces fo
    XYZ 178
 ```
 
-```text
-                                                              art
-        Figure 4.23: The gamuts of the sRGB, DCI-P3, Rec2020, and ACES2065-1 color spaces, visualized
-        using the chromaticity diagram. sRGB covers the smallest gamut, DCI-P3 the next largest, Rec2020 an
-        even larger one. ACES2065-1, which corresponds to the large triangle, is distinguished by using primaries
-        that correspond to imaginary colors. In doing so, it is able to represent all valid colors, unlike the others.
-```
+![Figure 4.23](images/pages/page-0287.png)
 
-The RGBColorSpace class provides pre-initialized instances of the RGBColorSpaces for each of these.
+*Figure 4.23: The gamuts of the sRGB, DCI-P3, Rec2020, and ACES2065-1 color spaces, visualized using the chromaticity diagram. sRGB covers the smallest gamut, DCI-P3 the next largest, Rec2020 an even larger one. ACES2065-1, which corresponds to the large triangle, is distinguished by using primaries that correspond to imaginary colors. In doing so, it is able to represent all valid colors, unlike the others.*
+
+The `RGBColorSpace` class provides pre-initialized instances of the `RGBColorSpace`s for each of these.
 
 〈RGBColorSpace Public Members〉 +≡ static const RGBColorSpace *sRGB, *DCI_P3, *Rec2020, *ACES2065_1;
 
@@ -1028,22 +1024,18 @@ static const RGBColorSpace *GetNamed(std::string name); static const RGBColorSpa
 
 ### 4.6.4 WHY SPECTRAL RENDERING?
 
-Thus far, we have been proceeding with the description of pbrt’s implementation with the understanding that it uses point-sampled spectra to represent spectral quantities. While that may seem natural given pbrt’s physical basis and general adoption of Monte Carlo integration, it does not fit with the current widespread practice of using RGB color for spectral computations in rendering. We hinted at a significant problem with that practice at the start of this section; having introduced RGB color spaces, we can now go farther. As discussed earlier, because color spaces are vector spaces, addition of two colors in the same color space gives the same color as adding the underlying spectra and then finding the resulting spectrum’s color. That is not so for multiplication. To understand the problem, suppose that we are rendering a uniformly colored object (e.g., green) that is uniformly illuminated by light of the same color. For simplicity, assume that both illumination and the object’s reflectance value are represented by the RGB color (0, 1, 0). The scattered light is then given by a product of reflectance and incident illumination: art where componentwise multiplication of RGB colors is indicated by the “ʘ” operator.
+Thus far, we have been proceeding with the description of pbrt’s implementation with the understanding that it uses point-sampled spectra to represent spectral quantities. While that may seem natural given pbrt’s physical basis and general adoption of Monte Carlo integration, it does not fit with the current widespread practice of using `RGB` color for spectral computations in rendering. We hinted at a significant problem with that practice at the start of this section; having introduced `RGB` color spaces, we can now go farther. As discussed earlier, because color spaces are vector spaces, addition of two colors in the same color space gives the same color as adding the underlying spectra and then finding the resulting spectrum’s color. That is not so for multiplication. To understand the problem, suppose that we are rendering a uniformly colored object (e.g., green) that is uniformly illuminated by light of the same color. For simplicity, assume that both illumination and the object’s reflectance value are represented by the `RGB` color (0, 1, 0). The scattered light is then given by a product of reflectance and incident illumination: art where componentwise multiplication of `RGB` colors is indicated by the “ʘ” operator.
 
-In the sRGB color space, the green color (0, 1, 0) maps to the upper vertex of the gamut of representable colors (Figure 4.24), and this RGB color value furthermore remains unchanged by the multiplication. Now suppose that we change to the wide-gamut color space ACES2065-1. The sRGB color (0, 1, 0) can be found to be (0.38, 0.82, 0.12) in this color space—it thus maps to a location that lies in the interior of the set of representable colors. Performing the same component-wise multiplication gives the result: art This time, the resulting color has lower intensity than it started with and has also become more saturated due to an increase in the relative proportion of green light. That leads to the somewhat bizarre situation shown in Figure 4.24: component-wise multiplication in this new color space not only produces a different color—it also increases saturation so severely that the color is pushed outside of the CIE horseshoe shape of physically realizable colors! The ability to multiply spectral values is crucial for evaluating the interaction of materials and light sources in the context of rendering. At the same time, this example demonstrates the problem when RGB values are used for this purpose: the multiplication operation is in some sense arbitrary, because its behavior heavily depends on the chosen color space. Thus, rendering using a spectral model is preferable even in situations where RGB output is ultimately desired, as is the case with pbrt.
+In the sRGB color space, the green color (0, 1, 0) maps to the upper vertex of the gamut of representable colors (Figure 4.24), and this `RGB` color value furthermore remains unchanged by the multiplication. Now suppose that we change to the wide-gamut color space ACES2065-1. The sRGB color (0, 1, 0) can be found to be (0.38, 0.82, 0.12) in this color space—it thus maps to a location that lies in the interior of the set of representable colors. Performing the same component-wise multiplication gives the result: art This time, the resulting color has lower intensity than it started with and has also become more saturated due to an increase in the relative proportion of green light. That leads to the somewhat bizarre situation shown in Figure 4.24: component-wise multiplication in this new color space not only produces a different color—it also increases saturation so severely that the color is pushed outside of the CIE horseshoe shape of physically realizable colors! The ability to multiply spectral values is crucial for evaluating the interaction of materials and light sources in the context of rendering. At the same time, this example demonstrates the problem when `RGB` values are used for this purpose: the multiplication operation is in some sense arbitrary, because its behavior heavily depends on the chosen color space. Thus, rendering using a spectral model is preferable even in situations where `RGB` output is ultimately desired, as is the case with pbrt.
 
 ```text
    Point2f 92
    RGBColorSpace 183
 ```
 
-```text
-                                                            art
-        Figure 4.24: The same color can have very different RGB values when expressed in RGB color spaces
-        with differently shaped gamuts. The green primary (0, 1, 0) in the sRGB color gamut (inner triangle) has
-        chromaticity coordinates (0.3, 0.6) (white dot). In the wide-gamut ACES2065-1 color space (outer
-        triangle), the same color has the RGB value (0.38, 0.82, 0.12).
-```
+![Figure 4.24](images/pages/page-0289.png)
+
+*Figure 4.24: The same color can have very different RGB values when expressed in RGB color spaces with differently shaped gamuts. The green primary (0, 1, 0) in the sRGB color gamut (inner triangle) has chromaticity coordinates (0.3, 0.6) (white dot). In the wide-gamut ACES2065-1 color space (outer triangle), the same color has the RGB value (0.38, 0.82, 0.12).*
 
 Additional benefits come from using spectral representations for rendering: they allow dispersion to easily be modeled and advanced reflectance
 
@@ -1051,7 +1043,7 @@ models often have a natural dependence on wavelength to account for iridescence 
 
 ### 4.6.5 CHOOSING THE NUMBER OF WAVELENGTH SAMPLES
 
-Even though it uses a spectral model for light transport simulation, pbrt’s output is generally an image in a tristimulus color representation like RGB. Having described how those colors are computed—Monte Carlo estimates of the products of spectra and matching functions of the form of Equation (4.23)—we will briefly return to the question of how many spectral samples are used for the SampledSpectrum class. The associated Monte Carlo estimators are easy to evaluate, but error in them leads to color noise in images. Figure 4.25 shows an example of this phenomenon. Figure 4.25(a) shows a scene illuminated by a point light source where only direct illumination from the light is included. In this simple setting, the Monte Carlo estimator for the scattered light has zero variance at all wavelengths, so the only source of Monte Carlo error is the integrals of the color matching functions. With a single ray path per pixel and each one tracking a single wavelength, the image is quite noisy, as shown in Figure 4.25(b). Intuitively, the challenge in this case can be understood from the fact that the renderer is trying to estimate three values at each pixel—red, green, and blue—all from the spectral value at a single wavelength.
+Even though it uses a spectral model for light transport simulation, pbrt’s output is generally an image in a tristimulus color representation like `RGB`. Having described how those colors are computed—Monte Carlo estimates of the products of spectra and matching functions of the form of Equation (4.23)—we will briefly return to the question of how many spectral samples are used for the `SampledSpectrum` class. The associated Monte Carlo estimators are easy to evaluate, but error in them leads to color noise in images. Figure 4.25 shows an example of this phenomenon. Figure 4.25(a) shows a scene illuminated by a point light source where only direct illumination from the light is included. In this simple setting, the Monte Carlo estimator for the scattered light has zero variance at all wavelengths, so the only source of Monte Carlo error is the integrals of the color matching functions. With a single ray path per pixel and each one tracking a single wavelength, the image is quite noisy, as shown in Figure 4.25(b). Intuitively, the challenge in this case can be understood from the fact that the renderer is trying to estimate three values at each pixel—red, green, and blue—all from the spectral value at a single wavelength.
 
 ```text
     SampledSpectrum 171
@@ -1059,26 +1051,15 @@ Even though it uses a spectral model for light transport simulation, pbrt’s ou
 
 Increasing the number of pixel samples can reduce this error (as long as they sample different wavelengths), though it is more effective to associate multiple wavelength samples with each ray. The path that a ray takes through the scene is usually independent of wavelength and the incremental cost to compute lighting at multiple wavelengths is generally small compared to the cost of finding ray intersections and computing other wavelength-independent quantities. (Considering multiple wavelengths for each ray can be seen as an application of the Monte Carlo splitting technique that is described in Section 2.2.5.) Figure 4.25(c) shows the improvement from associating four wavelengths with each ray; color noise is substantially reduced.
 
-```text
-                                                              art
-       Figure 4.25: (a) Reference image of the example scene. (b) If the scene is rendered using only a single
-       image sample per pixel, each sampling only a single wavelength, there is a substantial amount of variance
-       from error in the Monte Carlo estimates of the pixels’ RGB colors. (c) With four wavelength samples
-       (pbrt’s default), this variance is substantially reduced, though color noise is still evident. In practice, four
-       wavelength samples is usually sufficient since multiple image samples are generally taken at each pixel.
-       (Model courtesy of Yasutoshi Mori.)
-```
+![Figure 4.25](images/pages/page-0291.png)
 
-However, computing scattering from too many wavelengths with each ray can harm efficiency due to the increased computation required to compute spectral quantities. To investigate this trade-off, we rendered the scene from Figure 4.25 with a variety of numbers of wavelength samples, both with wavelengths sampled independently and with stratified sampling of wavelengths. (For both, wavelengths were sampled uniformly over the range 360–830 nm.10) Figure 4.26 shows the results. Figure 4.26(a) shows that for this scene, rendering with 32 wavelength samples requires nearly 1.6 × more time than rendering with a single wavelength sample. (Rendering performance with both independent and stratified sampling is effectively the same.) However, as shown in Figure 4.26(b), the benefit of more wavelength samples is substantial. On the log– log plot there, we can see that with independent samples, mean squared error decreases at a rate O(1/n), in line with the rate at which variance decreases with more samples. Stratified sampling does remarkably well, not only delivering orders of magnitude lower error, but at a faster asymptotic convergence rate as well. Figure 4.26(c) plots Monte Carlo efficiency for both approaches (note, with a logarithmic scale for the y axis). The result seems clear; 32 stratified wavelength samples is over a million times more efficient than one sample and there the curve has not yet leveled off. Why stop measuring at 32, and why is pbrt stuck with a default of four wavelength samples for its NSpectrumSamples parameter?
+*Figure 4.25: (a) Reference image of the example scene. (b) If the scene is rendered using only a single image sample per pixel, each sampling only a single wavelength, there is a substantial amount of variance from error in the Monte Carlo estimates of the pixels’ RGB colors. (c) With four wavelength samples (pbrt’s default), this variance is substantially reduced, though color noise is still evident. In practice, four wavelength samples is usually sufficient since multiple image samples are generally taken at each pixel. (Model courtesy of Yasutoshi Mori.)*
 
-```text
-                                                            art
-         Figure 4.26: (a) Rendering time when rendering the scene in Figure 4.25 graphed as a function of the
-         number of wavelength samples, normalized to rendering time with one wavelength sample. (b) Mean
-         squared error as a function of number of wavelength samples for both independent and stratified samples.
-         (c) Monte Carlo efficiency as a function of number of stratified wavelength samples. These results
-         suggest that at least 32 wavelength samples are optimal.
-```
+However, computing scattering from too many wavelengths with each ray can harm efficiency due to the increased computation required to compute spectral quantities. To investigate this trade-off, we rendered the scene from Figure 4.25 with a variety of numbers of wavelength samples, both with wavelengths sampled independently and with stratified sampling of wavelengths. (For both, wavelengths were sampled uniformly over the range 360–830 nm.10) Figure 4.26 shows the results. Figure 4.26(a) shows that for this scene, rendering with 32 wavelength samples requires nearly 1.6 × more time than rendering with a single wavelength sample. (Rendering performance with both independent and stratified sampling is effectively the same.) However, as shown in Figure 4.26(b), the benefit of more wavelength samples is substantial. On the log– log plot there, we can see that with independent samples, mean squared error decreases at a rate O(1/n), in line with the rate at which variance decreases with more samples. Stratified sampling does remarkably well, not only delivering orders of magnitude lower error, but at a faster asymptotic convergence rate as well. Figure 4.26(c) plots Monte Carlo efficiency for both approaches (note, with a logarithmic scale for the y axis). The result seems clear; 32 stratified wavelength samples is over a million times more efficient than one sample and there the curve has not yet leveled off. Why stop measuring at 32, and why is pbrt stuck with a default of four wavelength samples for its `NSpectrumSamples` parameter?
+
+![Figure 4.26](images/pages/page-0292.png)
+
+*Figure 4.26: (a) Rendering time when rendering the scene in Figure 4.25 graphed as a function of the number of wavelength samples, normalized to rendering time with one wavelength sample. (b) Mean squared error as a function of number of wavelength samples for both independent and stratified samples. (c) Monte Carlo efficiency as a function of number of stratified wavelength samples. These results suggest that at least 32 wavelength samples are optimal.*
 
 There are three main reasons for the current setting. First, although Figure 4.26(a) shows nearly a 500× reduction in error from 8 to 32 wavelength samples, the two images are nearly indistinguishable—the difference in error is irrelevant due to limitations in display technology and the human visual system. Second, scenes are usually rendered following multiple ray paths in each pixel in order to reduce error from other Monte Carlo estimators. As more pixel samples are taken with fewer wavelengths, the total number of wavelengths that contribute to each pixel’s value increases. Finally, and most importantly, those other sources of Monte Carlo error often make larger contributions to the overall error than wavelength sampling. Figure 4.27(a) shows a much more complex scene with challenging lighting that is sampled using Monte Carlo. A graph of mean squared error as a function of the number of wavelength samples is shown in Figure 4.27(b) and Monte Carlo efficiency is shown in Figure 4.27(c). It is evident that after eight wavelength samples, the incremental cost of more of them is not beneficial.
 
@@ -1088,41 +1069,29 @@ There are three main reasons for the current setting. First, although Figure 4.2
     NSpectrumSamples 171
 ```
 
-Although converting spectra to RGB for image output is a well-specified operation, the same is not true for converting RGB colors to spectral distributions. That is an important task, since much of the input to a renderer is often in the form of RGB colors. Scenes authored in current 3D modeling tools normally specify objects’ reflection properties and lights’ emission using RGB parameters and textures. In a spectral renderer, these RGB values must somehow be converted into equivalent color spectra, but
+Although converting spectra to `RGB` for image output is a well-specified operation, the same is not true for converting `RGB` colors to spectral distributions. That is an important task, since much of the input to a renderer is often in the form of `RGB` colors. Scenes authored in current 3D modeling tools normally specify objects’ reflection properties and lights’ emission using `RGB` parameters and textures. In a spectral renderer, these `RGB` values must somehow be converted into equivalent color spectra, but
 
 unfortunately any such conversion is inherently ambiguous due to the existence of metamers. How we can expect to find a reasonable solution if the problem is so poorly defined? On the flip side, this ambiguity can also be seen positively: it leaves a large space of possible answers containing techniques that are simple and efficient.
 
-```text
-                                                          art
-       Figure 4.27: (a) A more complex scene, where variance in the Monte Carlo estimator is present from a
-       variety of sources beyond wavelength sampling. (b) Graph of mean squared error versus the number of
-       stratified wavelength samples. The benefits of additional wavelength samples are limited after six of
-       them. (c) Monte Carlo efficiency versus number of stratified wavelength samples, normalized to
-       efficiency with one wavelength sample. For this scene, eight samples is optimal.
-```
+![Figure 4.27](images/pages/page-0293.png)
+
+*Figure 4.27: (a) A more complex scene, where variance in the Monte Carlo estimator is present from a variety of sources beyond wavelength sampling. (b) Graph of mean squared error versus the number of stratified wavelength samples. The benefits of additional wavelength samples are limited after six of them. (c) Monte Carlo efficiency versus number of stratified wavelength samples, normalized to efficiency with one wavelength sample. For this scene, eight samples is optimal.*
 
 Further complicating this task, we must account for three fundamentally different types of spectral distributions: Illuminant spectra, which specify the spectral dependence of a light source’s emission profile. These are nonnegative and unbounded; their shapes range from smooth (incandescent light sources, LEDs) to extremely spiky (stimulated emission in lasers or gas discharge in xenon arc and fluorescent lamps). Reflectance spectra, which describe reflection from absorbing surfaces. Reflectance spectra conserve the amount of energy at each wavelength, meaning that values cannot be outside of the [0, 1]range. They are typically smooth functions in the visible wavelength range.11 (Figure 4.28 shows a few examples of reflectance spectra from a color checker.) Unbounded spectra, which are nonnegative and unbounded but do not describe emission. Common examples include spectrally varying indices of refraction and coefficients used to describe medium scattering properties.
 
-```text
-                                                           art
-       Figure 4.28: Spectral reflectances of several color checker patches. Each curve is shaded with the
-       associated RGB color.
-```
+![Figure 4.28](images/pages/page-0294.png)
 
-This section first presents an approach for converting an RGB color value with components between 0 and 1 into a corresponding reflectance spectrum, followed by a generalization to unbounded and illuminant spectra. The conversion exploits the ambiguity of the problem to achieve the following goals: Identity: If an RGB value is converted to a spectrum, converting that spectrum back to RGB should give the same RGB coefficients. Smoothness: Motivated by the earlier observation about real-world reflectance spectra, the output spectrum should be as smooth as possible. Another kind of smoothness is also important: slight perturbations of the input RGB color should lead to a corresponding small change of the output spectrum. Discontinuities are undesirable, since they would cause visible seams on textured objects if observed under different illuminants. Energy conservation: Given RGB values in [0, 1], the associated spectral distribution should also be within [0, 1]. Although real-world reflectance spectra exist in a wide variety of shapes, they are often well-approximated by constant (white, black), approximately linear, or peaked curves with one (green, yellow) or two modes (bluish-purple). The approach chosen here attempts to represent such spectra using a function family that is designed to be simple, smooth, and efficient to evaluate at runtime, while exposing a sufficient number of degrees of freedom to precisely reproduce arbitrary RGB color values.
+*Figure 4.28: Spectral reflectances of several color checker patches. Each curve is shaded with the associated RGB color.*
+
+This section first presents an approach for converting an `RGB` color value with components between 0 and 1 into a corresponding reflectance spectrum, followed by a generalization to unbounded and illuminant spectra. The conversion exploits the ambiguity of the problem to achieve the following goals: Identity: If an `RGB` value is converted to a spectrum, converting that spectrum back to `RGB` should give the same `RGB` coefficients. Smoothness: Motivated by the earlier observation about real-world reflectance spectra, the output spectrum should be as smooth as possible. Another kind of smoothness is also important: slight perturbations of the input `RGB` color should lead to a corresponding small change of the output spectrum. Discontinuities are undesirable, since they would cause visible seams on textured objects if observed under different illuminants. Energy conservation: Given `RGB` values in [0, 1], the associated spectral distribution should also be within [0, 1]. Although real-world reflectance spectra exist in a wide variety of shapes, they are often well-approximated by constant (white, black), approximately linear, or peaked curves with one (green, yellow) or two modes (bluish-purple). The approach chosen here attempts to represent such spectra using a function family that is designed to be simple, smooth, and efficient to evaluate at runtime, while exposing a sufficient number of degrees of freedom to precisely reproduce arbitrary `RGB` color values.
 
 Polynomials are typically a standard building block in such constructions; indeed, a quadratic polynomial could represent constant and linear curves, as well as ones that peak in the middle or toward the endpoints of the wavelength range. However, their lack of energy conservation poses a problem that we address using a sigmoid function: art This function, plotted in Figure 4.29, is strictly monotonic and smoothly approaches the endpoints 0 and 1 as x → ∓∞.
 
-```text
-                                                          art
-       Figure 4.29: Sigmoid curve. The term sigmoid refers to smooth S-shaped curves that map all inputs to a
-       bounded output interval. The particular type of sigmoid used here is defined in terms of algebraic
-       functions, enabling highly efficient evaluation at runtime.
-```
+![Figure 4.29](images/pages/page-0295.png)
 
-We apply this sigmoid to a quadratic polynomial defined by three coefficients ci, squashing its domain to the interval [0, 1]to ensure energy conservation. art Representing ideally absorptive and reflective spectra (i.e., S(λ) = ±1) is somewhat awkward using this representation, since the polynomial must evaluate to positive or negative infinity to reach these two limits. This in turn leads to a fraction of the form ±∞/∞ in Equation (4.25), which evaluates to a not-a-number value in IEEE-754 arithmetic. We will need to separately handle this limit case. We begin with the definition of a class that encapsulates the coefficients ci and evaluates Equation (4.26). 〈RGBSigmoidPolynomial Definition〉 ≡ class RGBSigmoidPolynomial { public: 〈RGBSigmoidPolynomial Public Methods 192〉 private: 〈RGBSigmoidPolynomial Private Methods 193〉 〈RGBSigmoidPolynomial Private Members 192〉
+*Figure 4.29: Sigmoid curve. The term sigmoid refers to smooth S-shaped curves that map all inputs to a bounded output interval. The particular type of sigmoid used here is defined in terms of algebraic functions, enabling highly efficient evaluation at runtime.*
 
-};
+We apply this sigmoid to a quadratic polynomial defined by three coefficients ci, squashing its domain to the interval [0, 1]to ensure energy conservation. art Representing ideally absorptive and reflective spectra (i.e., S(λ) = ±1) is somewhat awkward using this representation, since the polynomial must evaluate to positive or negative infinity to reach these two limits. This in turn leads to a fraction of the form ±∞/∞ in Equation (4.25), which evaluates to a not-a-number value in IEEE-754 arithmetic. We will need to separately handle this limit case. We begin with the definition of a class that encapsulates the coefficients ci and evaluates Equation (4.26). 〈RGBSigmoidPolynomial Definition〉 ≡ class RGBSigmoidPolynomial { public: 〈RGBSigmoidPolynomial Public Methods 192〉 private: 〈RGBSigmoidPolynomial Private Methods 193〉 〈RGBSigmoidPolynomial Private Members 192〉 };
 
 It has the expected constructor and member variables. 〈RGBSigmoidPolynomial Public Methods〉 ≡ 192
 
@@ -1148,13 +1117,13 @@ The sigmoid function follows the earlier definition and adds a special case to h
 
 static Float s(Float x) { if (IsInf(x)) return x > 0 ? 1 : 0; return .5f + x / (2 * std::sqrt(1 + Sqr(x))); };
 
-The MaxValue() method returns the maximum value of the spectral distribution over the visible wavelength range 360–830 nm. Because the sigmoid function is monotonically increasing, this problem reduces to locating the maximum of the quadratic polynomial from Equation (4.25) and evaluating the model there.
+The `MaxValue()` method returns the maximum value of the spectral distribution over the visible wavelength range 360–830 nm. Because the sigmoid function is monotonically increasing, this problem reduces to locating the maximum of the quadratic polynomial from Equation (4.25) and evaluating the model there.
 
 We conservatively check the endpoints of the interval along with the extremum found by setting the polynomial’s derivative to zero and solving for the wavelength lambda. The value will be ignored if it happens to be a local minimum. 〈RGBSigmoidPolynomial Public Methods〉 +≡ 192
 
 Float MaxValue() const { Float result = std::max((*this)(360), (*this)(830)); Float lambda = -c1 / (2 * c0); if (lambda >= 360 && lambda <= 830) result = std::max(result, (*this)(lambda)); return result; }
 
-We now turn to the second half of RGBSigmoidPolynomial, which is the computation that determines suitable coefficients c0, c1, c2 for a given RGB color. This step depends on the spectral emission curves of the color primaries and generally does not have an explicit solution. We instead formulate it as an optimization problem that minimizes the round-trip error (i.e., the identity goal mentioned above) by computing the difference between input and output RGB values following forward and reverse conversion. The precise optimization goal is art where R(λ), G(λ), B(λ) describe emission curves of the color primaries and W(λ) represents the whitepoint (e.g., D65 shown in Figure 4.14 in the case of the sRGB color space). Including the whitepoint in this optimization problem ensures that monochromatic RGB values map to uniform reflectance spectra. In spaces with a relatively compact gamut like sRGB, this optimization can achieve zero error regardless of the method used to quantify color distances. In larger color spaces, particularly those including imaginary colors like ACES2065-1, zero round-trip error is clearly not achievable, and the choice of norm ‖·‖ becomes relevant. In principle, we could simply use the 2-norm —however, a problem with such a basic choice is that it is not perceptually uniform: whether a given amount of error is actually visible depends on its position within the RGB cube. We instead use CIE76 ΔE, which first transforms both colors into a color space known as CIELAB before evaluating the L2-distance.
+We now turn to the second half of `RGBSigmoidPolynomial`, which is the computation that determines suitable coefficients c0, c1, c2 for a given `RGB` color. This step depends on the spectral emission curves of the color primaries and generally does not have an explicit solution. We instead formulate it as an optimization problem that minimizes the round-trip error (i.e., the identity goal mentioned above) by computing the difference between input and output `RGB` values following forward and reverse conversion. The precise optimization goal is art where R(λ), G(λ), B(λ) describe emission curves of the color primaries and W(λ) represents the whitepoint (e.g., D65 shown in Figure 4.14 in the case of the sRGB color space). Including the whitepoint in this optimization problem ensures that monochromatic `RGB` values map to uniform reflectance spectra. In spaces with a relatively compact gamut like sRGB, this optimization can achieve zero error regardless of the method used to quantify color distances. In larger color spaces, particularly those including imaginary colors like ACES2065-1, zero round-trip error is clearly not achievable, and the choice of norm ‖·‖ becomes relevant. In principle, we could simply use the 2-norm —however, a problem with such a basic choice is that it is not perceptually uniform: whether a given amount of error is actually visible depends on its position within the `RGB` cube. We instead use CIE76 ΔE, which first transforms both colors into a color space known as CIELAB before evaluating the L2-distance.
 
 ```text
    Float 23
@@ -1164,18 +1133,15 @@ We now turn to the second half of RGBSigmoidPolynomial, which is the computation
    Sqr() 1034
 ```
 
-We then solve this optimization problem using the Gauss–Newton algorithm, an approximate form of Newton’s method. This optimization takes on the order of a few microseconds, which would lead to inefficiencies if performed every time an RGB value must be converted to a spectrum (e.g., once for every pixel of a high-resolution texture).
+We then solve this optimization problem using the Gauss–Newton algorithm, an approximate form of Newton’s method. This optimization takes on the order of a few microseconds, which would lead to inefficiencies if performed every time an `RGB` value must be converted to a spectrum (e.g., once for every pixel of a high-resolution texture).
 
-```text
-                                                            art
-        Figure 4.30: Spectra Computed from RGB Values. Plots of reflectance spectra represented by the
-        RGBSigmoidPolynomial for the RGB colors (0.7, 0.5, 0.8) (purple line), (0.25, 0.44, 0.33) (green line),
-        and (0.36, 0.275, 0.21) (brown line). Each line is colored with its corresponding RGB color.
-```
+![Figure 4.30](images/pages/page-0298.png)
 
-To avoid this inefficiency, we precompute coefficient tables spanning the [0, 1]3 RGB color cube when pbrt is first compiled. It is worth noting that the tabulation could in principle also be performed over a lower-dimensional 2D space of chromaticities: for example, a computed spectrum representing the maximally saturated color red (1, 0, 0) could simply be scaled to reproduce less saturated RGB colors (c, 0, 0), where c ∈ (0, 1). However, spectra for highly saturated colors must necessarily peak within a small wavelength range to achieve this saturation, while less saturated colors can be represented by smoother spectra. This is generally preferable whenever possible due to the inherent smoothness of reflectance spectra encountered in physical reality. We therefore precompute a full 3D tabulation for each RGB color space that pbrt supports (currently, sRGB, DCI-P3, Rec2020, and ACES2065-1). The implementation of this optimization step is contained in the file cmd/rgb2spec_opt.cpp, though we will not discuss it in detail here; see the “Further Reading” section for additional information. Figure 4.30 shows plots of spectra corresponding to a few RGB values.
+*Figure 4.30: Spectra Computed from RGB Values. Plots of reflectance spectra represented by the RGBSigmoidPolynomial for the RGB colors (0.7, 0.5, 0.8) (purple line), (0.25, 0.44, 0.33) (green line), and (0.36, 0.275, 0.21) (brown line). Each line is colored with its corresponding RGB color.*
 
-The resulting tables are stored in the pbrt binary. At system startup time, an RGBToSpectrum Table for each of the RGB color spaces is created.
+To avoid this inefficiency, we precompute coefficient tables spanning the [0, 1]3 `RGB` color cube when pbrt is first compiled. It is worth noting that the tabulation could in principle also be performed over a lower-dimensional 2D space of chromaticities: for example, a computed spectrum representing the maximally saturated color red (1, 0, 0) could simply be scaled to reproduce less saturated `RGB` colors (c, 0, 0), where c ∈ (0, 1). However, spectra for highly saturated colors must necessarily peak within a small wavelength range to achieve this saturation, while less saturated colors can be represented by smoother spectra. This is generally preferable whenever possible due to the inherent smoothness of reflectance spectra encountered in physical reality. We therefore precompute a full 3D tabulation for each `RGB` color space that pbrt supports (currently, sRGB, DCI-P3, Rec2020, and ACES2065-1). The implementation of this optimization step is contained in the file cmd/rgb2spec_opt.cpp, though we will not discuss it in detail here; see the “Further Reading” section for additional information. Figure 4.30 shows plots of spectra corresponding to a few `RGB` values.
+
+The resulting tables are stored in the pbrt binary. At system startup time, an `RGBToSpectrumTable` for each of the `RGB` color spaces is created.
 
 〈RGBToSpectrumTable Definition〉 ≡ class RGBToSpectrumTable { public: 〈RGBToSpectrumTable Public Constants 195〉 〈RGBToSpectrumTable Public Methods〉 private: 〈RGBToSpectrumTable Private Members 196〉 };
 
@@ -1183,13 +1149,13 @@ The resulting tables are stored in the pbrt binary. At system startup time, an R
    RGBSigmoidPolynomial 192
 ```
 
-The principal method of RGBToSpectrumTable returns the RGBSigmoidPolynomial corresponding to the given RGB color.
+The principal method of `RGBToSpectrumTable` returns the `RGBSigmoidPolynomial` corresponding to the given `RGB` color.
 
 〈RGBToSpectrumTable Method Definitions〉 ≡ RGBSigmoidPolynomial RGBToSpectrumTable::operator()(RGB rgb) const { 〈Handle uniform rgb values 195〉 〈Find maximum component and compute remapped component values 195〉 〈Compute integer indices and offsets for coefficient interpolation 196〉
 
 〈Trilinearly interpolate sigmoid polynomial coefficients c 197〉 return RGBSigmoidPolynomial(c[0], c[1], c[2]); }
 
-If the three RGB values are equal, it is useful to ensure that the returned spectrum is exactly constant. (In some cases, a slight color shift may otherwise be evident if interpolated values from the coefficient tables are used.) A constant spectrum results if c0 = c1 = 0 in Equation (4.26) and the appropriate value of c2 can be found by inverting the sigmoid function.
+If the three `RGB` values are equal, it is useful to ensure that the returned spectrum is exactly constant. (In some cases, a slight color shift may otherwise be evident if interpolated values from the coefficient tables are used.) A constant spectrum results if c0 = c1 = 0 in Equation (4.26) and the appropriate value of c2 can be found by inverting the sigmoid function.
 
 〈Handle uniform rgb values〉 ≡ 195
 
@@ -1221,14 +1187,9 @@ allocates more samples near both 0 and 1. The ci coefficients vary most rapidly 
    RGBToSpectrumTable::res 195
 ```
 
-```text
-                                                             art
-        Figure 4.31: Plots of Spectrum Polynomial Coefficients ci. These plots show the polynomial
-        coefficients for the corresponding xy chromaticities in the sRGB color space. Each of (a) c0, (b) c1, and
-        (c) c2 mostly vary smoothly, though they exhibit sharp transitions. (d) Partitioning the gamut according to
-        which of red, green, or blue has the largest magnitude closely corresponds to these transitions; coefficients
-        are therefore independently tabularized in those three regions.
-```
+![Figure 4.31](images/pages/page-0301.png)
+
+*Figure 4.31: Plots of Spectrum Polynomial Coefficients ci. These plots show the polynomial coefficients for the corresponding xy chromaticities in the sRGB color space. Each of (a) c0, (b) c1, and (c) c2 mostly vary smoothly, though they exhibit sharp transitions. (d) Partitioning the gamut according to which of red, green, or blue has the largest magnitude closely corresponds to these transitions; coefficients are therefore independently tabularized in those three regions.*
 
 The zNodes array (which is of res elements) stores the result of the remapping where if f is the remapping function then the ith element of zNodes stores f (i/res).
 
@@ -1262,7 +1223,7 @@ The coefficient lookup lambda function is now just a matter of using the correct
 
 auto co = [&](int dx, int dy, int dz) { return (*coeffs)[maxc][zi + dz][yi + dy][xi + dx][i]; };
 
-With RGBSigmoidPolynomial’s implementation complete, we can now add a method to RGBColorSpace to transform an RGB in its color space to an RGBSigmoidPolynomial.
+With `RGBSigmoidPolynomial`’s implementation complete, we can now add a method to `RGBColorSpace` to transform an `RGB` in its color space to an `RGBSigmoidPolynomial`.
 
 〈RGBColorSpace Method Definitions〉 +≡ RGBSigmoidPolynomial RGBColorSpace::ToRGBCoeffs(RGB rgb) const { return (*rgbToSpectrumTable)(ClampZero(rgb)); }
 
@@ -1279,9 +1240,7 @@ With these capabilities, we can now define the RGBAlbedoSpectrum class, which im
    Spectrum 165
 ```
 
-Runtime assertions in the constructor, not shown here, verify that the provided RGB value is between 0 and 1. 〈Spectrum Method Definitions〉 +≡ RGBAlbedoSpectrum::RGBAlbedoSpectrum(const RGBColorSpace &cs, RGB rgb) { rsp = cs.ToRGBCoeffs(rgb);
-
-}
+Runtime assertions in the constructor, not shown here, verify that the provided RGB value is between 0 and 1. 〈Spectrum Method Definitions〉 +≡ RGBAlbedoSpectrum::RGBAlbedoSpectrum(const RGBColorSpace &cs, RGB rgb) { rsp = cs.ToRGBCoeffs(rgb); }
 
 The only member variable necessary is one to store the polynomial coefficients. 〈RGBAlbedoSpectrum Private Members〉 ≡ 197
 
@@ -1291,11 +1250,11 @@ Implementation of the required Spectrum methods is a matter of forwarding the re
 
 Float operator()(Float lambda) const { return rsp(lambda); } Float MaxValue() const { return rsp.MaxValue(); }
 
-Unbounded RGB For unbounded (positive-valued) RGB values, the RGBSigmoidPolynomial foundation can still be used—just with the addition of a scale factor that remaps its range to the necessary range for the given RGB. That approach is implemented in the RGBUnboundedSpectrum class.
+Unbounded `RGB` For unbounded (positive-valued) `RGB` values, the `RGBSigmoidPolynomial` foundation can still be used—just with the addition of a scale factor that remaps its range to the necessary range for the given `RGB`. That approach is implemented in the `RGBUnboundedSpectrum` class.
 
 〈Spectrum Definitions〉 +≡ class RGBUnboundedSpectrum { public: 〈RGBUnboundedSpectrum Public Methods 199〉 private: 〈RGBUnboundedSpectrum Private Members 198〉 };
 
-A natural choice for a scale factor would be one over the maximum of the red, green, and blue color components. We would then use that to normalize the RGB value before finding polynomial coefficients and then rescale values returned by RGBSigmoidPolynomial accordingly. However, it is possible to get better results by instead normalizing RGB to have a maximum value of 1/2 rather than 1. The reason is illustrated in Figure
+A natural choice for a scale factor would be one over the maximum of the red, green, and blue color components. We would then use that to normalize the `RGB` value before finding polynomial coefficients and then rescale values returned by `RGBSigmoidPolynomial` accordingly. However, it is possible to get better results by instead normalizing `RGB` to have a maximum value of 1/2 rather than 1. The reason is illustrated in Figure
 
 4.32: because reflectance spectra must not exceed one, when highly saturated colors are provided, the resulting spectra may have unusual features, including large magnitudes in the unsaturated region of the spectrum. Rescaling to 1/2 gives the fit more room to work with, since the normalization constraint does not immediately affect it. 〈Spectrum Method Definitions〉 +≡ RGBUnboundedSpectrum::RGBUnboundedSpectrum(const RGBColorSpace &cs, RGB rgb) { Float m = std::max({rgb.r, rgb.g, rgb.b}); scale = 2 * m; rsp = cs.ToRGBCoeffs(scale ? rgb / scale : RGB(0, 0, 0)); }
 
@@ -1319,15 +1278,9 @@ Float scale = 1; RGBSigmoidPolynomial rsp;
    Spectrum 165
 ```
 
-```text
-                                                             art
-        Figure 4.32: With the sigmoid polynomial representation, highly saturated colors may end up with
-        unexpected features in their spectra. Here we have plotted the spectrum returned by RGBAlbedoSpectrum
-        for the RGB color (0.95, 0.05, 0.025) as well as that color with all components divided by two. With the
-        original color, we see a wide range of the higher wavelengths are near 1 and that the lower wavelengths
-        have more energy than expected. If that color is divided by two, the resulting spectrum is better behaved,
-        though note that its magnitude exceeds the original red value of 0.475 in the higher wavelengths.
-```
+![Figure 4.32](images/pages/page-0306.png)
+
+*Figure 4.32: With the sigmoid polynomial representation, highly saturated colors may end up with unexpected features in their spectra. Here we have plotted the spectrum returned by RGBAlbedoSpectrum for the RGB color (0.95, 0.05, 0.025) as well as that color with all components divided by two. With the original color, we see a wide range of the higher wavelengths are near 1 and that the lower wavelengths have more energy than expected. If that color is divided by two, the resulting spectrum is better behaved, though note that its magnitude exceeds the original red value of 0.475 in the higher wavelengths.*
 
 In comparison to the RGBAlbedoSpectrum implementation, the wavelength evaluation and MaxValue() methods here are just augmented with a multiplication by the scale factor. The Sample() method has been updated similarly, but is not included here. 〈RGBUnboundedSpectrum Public Methods〉 ≡ 198
 
@@ -1353,7 +1306,7 @@ Thus, a pointer to the illuminant is held in a member variable. 〈RGBIlluminant
 
 Implementations of the various Spectrum interface methods follow; here is the one that evaluates the spectral distribution at a single wavelength. One detail is that it must handle the case of a nullptr illuminant, as will happen if an RGBIlluminantSpectrum is default-initialized. In that case, a zero-valued spectrum should be the result. 〈RGBIlluminantSpectrum Public Methods〉 ≡ Float operator()(Float lambda) const { if (!illuminant) return 0; return scale * rsp(lambda) * (*illuminant)(lambda); }
 
-We will not include the implementations of the Sample() or MaxValue() methods here, as their implementations are as would be expected. FURTHER READING
+We will not include the implementations of the `Sample()` or `MaxValue()` methods here, as their implementations are as would be expected. FURTHER READING
 
 McCluney’s book on radiometry is an excellent introduction to the topic (McCluney 1994). Preisendorfer (1965) also covered radiometry in an accessible manner and delved into the relationship between radiometry and the physics of light. Nicodemus et al. (1977) carefully defined the BRDF, BSSRDF, and various quantities that can be derived from them. Books by Moon and Spencer (1936, 1948) and Gershun (1939) are classic early introductions to radiometry. Lambert’s seminal early writings about photometry from the mid-18th century have been translated into English by DiLaura (Lambert 1760). Preisendorfer (1965) has connected radiative transfer theory to Maxwell’s classical equations describing electromagnetic fields, and further work was done in this area by Fante (1981). Going well beyond earlier work that represented radiance with Wigner distribution functions to model wave effects (Oh et al. 2010, Cuypers et al. 2012), Steinberg and Yan (2021) have recently introduced a comprehensive model of light transport based on a wave model, including a generalization of the light transport equation. Correctly implementing radiometric computations can be tricky: one missed cosine factor and one is computing a completely different quantity than
 
@@ -1378,7 +1331,7 @@ The books by McCluney (1994) and Malacara (2002) discuss blackbody emitters and 
 
 Spectral Representations Meyer was one of the first researchers to closely investigate spectral representations in graphics (Meyer and Greenberg 1980; Meyer et al. 1986). Hall (1989) summarized the state of the art in spectral representations through 1989, and Glassner’s Principles of Digital Image Synthesis (1995) covers the topic through the mid-1990s. Survey articles by Hall (1999), Johnson and Fairchild (1999), and Devlin et al. (2002) are good resources on early work on this topic.
 
-Borges (1991) analyzed the error introduced from the tristimulus representation when used for spectral computation. A variety of approaches based on representing spectra using basis functions have been developed, including Peercy (1993), who developed a technique based on choosing basis functions in a scene-dependent manner by considering the spectral distributions of the lights and reflecting objects in the scene. Rougeron and Péroche (1997) projected all spectra in the scene onto a hierarchical basis (the Haar wavelets), and showed that this adaptive representation can be used to stay within a desired error bound. Ward and Eydelberg-Vileshin (2002) developed a method for improving the spectral fidelity of regular RGB-only rendering systems by carefully adjusting the color values provided to the system before rendering. Another approach to spectral representation was investigated by Sun et al. (2001), who partitioned spectral distributions into a smooth base distribution and a set of spikes. Each part was represented differently, using basis functions that worked well for each of these parts of the distribution. Drew and Finlayson (2003) applied a “sharp” basis, which is adaptive but has the property that computing the product of two functions in the basis does not require a full matrix multiplication as many other basis representations do. Both Walter et al. (1997) and Morley et al. (2006) described light transport algorithms based on associating a single wavelength with each light path. Evans and McCool (1999) generalized these techniques with stratified wavelength clusters, which are effectively the approach implemented in SampledSpectrum and SampledWavelengths.
+Borges (1991) analyzed the error introduced from the tristimulus representation when used for spectral computation. A variety of approaches based on representing spectra using basis functions have been developed, including Peercy (1993), who developed a technique based on choosing basis functions in a scene-dependent manner by considering the spectral distributions of the lights and reflecting objects in the scene. Rougeron and Péroche (1997) projected all spectra in the scene onto a hierarchical basis (the Haar wavelets), and showed that this adaptive representation can be used to stay within a desired error bound. Ward and Eydelberg-Vileshin (2002) developed a method for improving the spectral fidelity of regular `RGB`-only rendering systems by carefully adjusting the color values provided to the system before rendering. Another approach to spectral representation was investigated by Sun et al. (2001), who partitioned spectral distributions into a smooth base distribution and a set of spikes. Each part was represented differently, using basis functions that worked well for each of these parts of the distribution. Drew and Finlayson (2003) applied a “sharp” basis, which is adaptive but has the property that computing the product of two functions in the basis does not require a full matrix multiplication as many other basis representations do. Both Walter et al. (1997) and Morley et al. (2006) described light transport algorithms based on associating a single wavelength with each light path. Evans and McCool (1999) generalized these techniques with stratified wavelength clusters, which are effectively the approach implemented in `SampledSpectrum` and `SampledWavelengths`.
 
 Radziszewski et al. (2009) noted that it is not necessary to terminate all secondary spectral wavelengths when effects like dispersion happen at non-specular interfaces; they showed that it is possible to compute all wavelengths’ contributions for a single path, weighting the results using multiple importance sampling. Wilkie et al. (2014) used equally spaced point samples in the wavelength domain and showed how this approach can also be used for photon mapping and rendering of participating media.
 
@@ -1387,12 +1340,12 @@ Radziszewski et al. (2009) noted that it is not necessary to terminate all secon
    SampledWavelengths 173
 ```
 
-Color For background information on properties of the human visual system, Wandell’s book on vision is an excellent starting point (Wandell 1995). Ferwerda (2001) presented an overview of the human visual system for applications in graphics, and Malacara (2002) gave a concise overview of color theory and basic properties of how the human visual system processes color. Ciechanowski (2019) presented an excellent interactive introduction to color spaces; his treatment has influenced our presentation of the XYZ color space and chromaticity. A number of different approaches have been developed for mapping out-of-gamut colors to ones that can be displayed on a device with particular display primaries. This problem can manifest itself in a few ways: a color’s chromaticity may be outside of the displayed range, its chromaticity may be valid but it may be too bright for display, or both may be out of range. For the issue of how to handle colors with undisplayable chromaticities, see Rougeron and Péroche’s survey article, which includes references to many approaches (Rougeron and Péroche 1998). This topic was also covered by Hall (1989). Morovi’s book (2008) covers this topic, and a more recent survey has been written by Faridul et al. (2016). While high dynamic range displays that can display a wide range of intensities are now starting to become available, most of them are still not able to reproduce the full range of brightness in rendered images. This problem can be addressed with tone reproduction algorithms that use models of human visual response to make the most of displays’ available dynamic ranges. This topic became an active area of research starting with the work of Tumblin and Rushmeier (1993). The survey article of Devlin et al. (2002) summarizes most of the work in this area through 2002, giving pointers to the original papers. See Reinhard et al.’s book (2010) on high dynamic range imaging, which includes comprehensive coverage of this topic through 2010. More recently, Reinhard et al. (2012) have developed tone reproduction algorithms that consider both accurate brightness and color reproduction together, also accounting for the display and viewing environment, and Eilertsen et al. (2017) surveyed algorithms for tone mapping of video.
+Color For background information on properties of the human visual system, Wandell’s book on vision is an excellent starting point (Wandell 1995). Ferwerda (2001) presented an overview of the human visual system for applications in graphics, and Malacara (2002) gave a concise overview of color theory and basic properties of how the human visual system processes color. Ciechanowski (2019) presented an excellent interactive introduction to color spaces; his treatment has influenced our presentation of the `XYZ` color space and chromaticity. A number of different approaches have been developed for mapping out-of-gamut colors to ones that can be displayed on a device with particular display primaries. This problem can manifest itself in a few ways: a color’s chromaticity may be outside of the displayed range, its chromaticity may be valid but it may be too bright for display, or both may be out of range. For the issue of how to handle colors with undisplayable chromaticities, see Rougeron and Péroche’s survey article, which includes references to many approaches (Rougeron and Péroche 1998). This topic was also covered by Hall (1989). Morovi’s book (2008) covers this topic, and a more recent survey has been written by Faridul et al. (2016). While high dynamic range displays that can display a wide range of intensities are now starting to become available, most of them are still not able to reproduce the full range of brightness in rendered images. This problem can be addressed with tone reproduction algorithms that use models of human visual response to make the most of displays’ available dynamic ranges. This topic became an active area of research starting with the work of Tumblin and Rushmeier (1993). The survey article of Devlin et al. (2002) summarizes most of the work in this area through 2002, giving pointers to the original papers. See Reinhard et al.’s book (2010) on high dynamic range imaging, which includes comprehensive coverage of this topic through 2010. More recently, Reinhard et al. (2012) have developed tone reproduction algorithms that consider both accurate brightness and color reproduction together, also accounting for the display and viewing environment, and Eilertsen et al. (2017) surveyed algorithms for tone mapping of video.
 
-From RGB to Spectra Glassner (1989b) did early work on converting RGB values to spectral distributions. Smits (1999) optimized discrete reflectance spectra to reproduce primaries (red, green, blue) and combinations of primaries (yellow, cyan, magenta, white) based on the observation that linear interpolation in such an extended space tends to produce smoother reflectance spectra. Mallett and Yuksel (2019) presented a surprising result showing that linear interpolation of three carefully chosen spectra can fully cover the sRGB gamut, albeit at some cost in terms of smoothness. Meng et al. (2015) optimized a highly smooth spectral interpolant based on a dense sampling of the xy space of chromaticities, enabling usage independent of any specific RGB gamut. The method described in Section 4.6.6 was developed by Jakob and Hanika (2019). Several properties motivated its choice in pbrt: the spectral representation is based on a smooth function family with 3 parameters (i.e., the same dimension as an RGB). Conversion can then occur in two steps: a preprocessing step (e.g., per texel) replaces RGB values with polynomial coefficients, while the performance-critical evaluation at render time only requires a few floating-point instructions. Jung et al. (2019) extended this approach, using fluorescence to permit conversion of highly saturated RGB values that cannot be recreated using reflection alone. Peters et al. (2019) proposed a powerful parameterization of smooth reflectance spectra in terms of Fourier coefficients. Instead of using them in a truncated Fourier series, which would suffer from ringing, they built on the theory of moments to reconstruct smooth and energy-conserving spectra. The previous methods all incorporated smoothness as a central design constraint. While natural spectra indeed often tend to be smooth, maximally smooth spectra are not necessarily the most natural, especially when more information about the underlying type of material is available. Otsu et al. (2018) processed a large database of measured spectra, using principal component analysis to create a data-driven interpolant. Tódová et al. (2021) built on the moment-based method by Peters et al. (2019) to precompute an efficient spectral interpolant that is designed to reproduce user-specified spectra for certain RGB inputs.
+From `RGB` to Spectra Glassner (1989b) did early work on converting `RGB` values to spectral distributions. Smits (1999) optimized discrete reflectance spectra to reproduce primaries (red, green, blue) and combinations of primaries (yellow, cyan, magenta, white) based on the observation that linear interpolation in such an extended space tends to produce smoother reflectance spectra. Mallett and Yuksel (2019) presented a surprising result showing that linear interpolation of three carefully chosen spectra can fully cover the sRGB gamut, albeit at some cost in terms of smoothness. Meng et al. (2015) optimized a highly smooth spectral interpolant based on a dense sampling of the xy space of chromaticities, enabling usage independent of any specific `RGB` gamut. The method described in Section 4.6.6 was developed by Jakob and Hanika (2019). Several properties motivated its choice in pbrt: the spectral representation is based on a smooth function family with 3 parameters (i.e., the same dimension as an `RGB`). Conversion can then occur in two steps: a preprocessing step (e.g., per texel) replaces `RGB` values with polynomial coefficients, while the performance-critical evaluation at render time only requires a few floating-point instructions. Jung et al. (2019) extended this approach, using fluorescence to permit conversion of highly saturated `RGB` values that cannot be recreated using reflection alone. Peters et al. (2019) proposed a powerful parameterization of smooth reflectance spectra in terms of Fourier coefficients. Instead of using them in a truncated Fourier series, which would suffer from ringing, they built on the theory of moments to reconstruct smooth and energy-conserving spectra. The previous methods all incorporated smoothness as a central design constraint. While natural spectra indeed often tend to be smooth, maximally smooth spectra are not necessarily the most natural, especially when more information about the underlying type of material is available. Otsu et al. (2018) processed a large database of measured spectra, using principal component analysis to create a data-driven interpolant. Tódová et al. (2021) built on the moment-based method by Peters et al. (2019) to precompute an efficient spectral interpolant that is designed to reproduce user-specified spectra for certain `RGB` inputs.
 
 ## EXERCISES
 
-➊ 4.1 How many photons would a 50-W lightbulb that emits light at the single wavelength λ = 600 nm emit in 1 second? ➊ 4.2 Compute the irradiance at a point due to a unit-radius disk h units directly above its normal with constant outgoing radiance of 10 W/m2 sr. Do the computation twice, once as an integral over solid angle and once as an integral over area. (Hint: If the results do not match at first, see Section A.5.1.) ➊ 4.3 Similarly, compute the irradiance at a point due to a square quadrilateral with outgoing radiance of 10 W/m2 sr that has sides of length 1 and is 1 unit directly above the point in the direction of its surface normal. ➋ 4.4 Modify the SampledSpectrum class to also store the wavelengths associated with the samples and their PDFs. Using pbrt’s assertion macros, add checks to ensure that no computations are performed using SampledSpectrum values associated with different wavelengths. Measure the performance of pbrt with and without your changes. How much runtime overhead is there? Did you find any bugs in pbrt?
+➊ 4.1 How many photons would a 50-W lightbulb that emits light at the single wavelength λ = 600 nm emit in 1 second? ➊ 4.2 Compute the irradiance at a point due to a unit-radius disk h units directly above its normal with constant outgoing radiance of 10 W/m2 sr. Do the computation twice, once as an integral over solid angle and once as an integral over area. (Hint: If the results do not match at first, see Section A.5.1.) ➊ 4.3 Similarly, compute the irradiance at a point due to a square quadrilateral with outgoing radiance of 10 W/m2 sr that has sides of length 1 and is 1 unit directly above the point in the direction of its surface normal. ➋ 4.4 Modify the `SampledSpectrum` class to also store the wavelengths associated with the samples and their PDFs. Using pbrt’s assertion macros, add checks to ensure that no computations are performed using `SampledSpectrum` values associated with different wavelengths. Measure the performance of pbrt with and without your changes. How much runtime overhead is there? Did you find any bugs in pbrt?
 
-_________________ 1 The full range of perceptible wavelengths slightly extends beyond this interval, though the eye’s sensitivity at these wavelengths is lower by many orders of magnitude. The range 360–830 nm is often used as a conservative bound when tabulating spectral curves. 2 The spectral response curve model is based on experiments done in a normally illuminated indoor environment. Because sensitivity to color decreases in dark environments, it does not model the human visual system’s response well under all lighting situations. Nonetheless, it forms the basis for the definition of luminance and other related photometric properties. 3 The various photometric quantities have fairly unusual names; the somewhat confusing state of affairs was nicely summarized by Jim Kajiya: “Thus one nit is one lux per steradian is one candela per square meter is one lumen per square meter per steradian. Got it?” 4 The fact that these two quantities are equal is due to the reciprocity of reflection functions. 5 C++ arcana: the explicit qualifier ensures that a SampledSpectrum is not unintentionally passed as a bool argument to a function without an explicit cast. However, if a SampledSpectrum is used as the condition in an “if” test, it is still automatically converted to a Boolean value without a cast. 6 This mistake is one of the bugs that the authors encountered during the initial development of this functionality in pbrt. 7 A variety of conventions are used to define these integrals, sometimes with other or no normalization factors. For use in pbrt, the normalization by one over the integral of the Y matching curve is convenient, as it causes a spectral distribution with a constant value of 1 to have yλ = 1. 8 This model is admittedly a simplification in that it neglects any additional processing the display does; in particular, many displays perform nonlinear remappings of the displayed values; this topic will be discussed in Section B.5.6. 9 Some displays use more than three primaries to increase the size of the gamut, though we will assume conventional RGB here. 10 In Section 5.4.2, we will see that nonuniform sampling of wavelengths is beneficial but will stick to uniform sampling here for simplicity. 11 Note that this observation does not always hold: in the ultraviolet and infrared wavelength range, absorption bands cause sharp spikes in reflectance spectra. Furthermore, wave-optical effects such as iridescence produce oscillatory spectral variation. These behaviors could likely be handled using specialized conversion techniques, which are beyond the scope of the simple approach discussed here.
+_________________ 1 The full range of perceptible wavelengths slightly extends beyond this interval, though the eye’s sensitivity at these wavelengths is lower by many orders of magnitude. The range 360–830 nm is often used as a conservative bound when tabulating spectral curves. 2 The spectral response curve model is based on experiments done in a normally illuminated indoor environment. Because sensitivity to color decreases in dark environments, it does not model the human visual system’s response well under all lighting situations. Nonetheless, it forms the basis for the definition of luminance and other related photometric properties. 3 The various photometric quantities have fairly unusual names; the somewhat confusing state of affairs was nicely summarized by Jim Kajiya: “Thus one nit is one lux per steradian is one candela per square meter is one lumen per square meter per steradian. Got it?” 4 The fact that these two quantities are equal is due to the reciprocity of reflection functions. 5 C++ arcana: the explicit qualifier ensures that a `SampledSpectrum` is not unintentionally passed as a bool argument to a function without an explicit cast. However, if a `SampledSpectrum` is used as the condition in an “if” test, it is still automatically converted to a Boolean value without a cast. 6 This mistake is one of the bugs that the authors encountered during the initial development of this functionality in pbrt. 7 A variety of conventions are used to define these integrals, sometimes with other or no normalization factors. For use in pbrt, the normalization by one over the integral of the Y matching curve is convenient, as it causes a spectral distribution with a constant value of 1 to have yλ = 1. 8 This model is admittedly a simplification in that it neglects any additional processing the display does; in particular, many displays perform nonlinear remappings of the displayed values; this topic will be discussed in Section B.5.6. 9 Some displays use more than three primaries to increase the size of the gamut, though we will assume conventional `RGB` here. 10 In Section 5.4.2, we will see that nonuniform sampling of wavelengths is beneficial but will stick to uniform sampling here for simplicity. 11 Note that this observation does not always hold: in the ultraviolet and infrared wavelength range, absorption bands cause sharp spikes in reflectance spectra. Furthermore, wave-optical effects such as iridescence produce oscillatory spectral variation. These behaviors could likely be handled using specialized conversion techniques, which are beyond the scope of the simple approach discussed here.

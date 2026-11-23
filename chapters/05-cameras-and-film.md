@@ -15,9 +15,9 @@ In Chapter 1, we described the pinhole camera model that is commonly used in com
 
 Camera lens systems introduce various aberrations that affect the images that they form; for example, vignetting causes a darkening toward the edges of images due to less light making it through to the edges of the film or sensor than to the center. Lenses can also cause pincushion or barrel distortion, which causes straight lines to be imaged as curves. Although lens designers work to minimize aberrations in their designs, they can still have a meaningful effect on images.
 
-This chapter starts with a description of the Camera interface, after which we present a few implementations, starting with ideal pinhole models. We then generalize those models to account for the effect of finite aperture using a simple approximation of a single lens. (The online edition of this book includes a more sophisticated camera implementation that simulates light passing through a collection of glass lens elements to form an image, similar to real-world cameras.) After light has been captured by a camera, it is measured by a sensor. While traditional film uses a chemical process to measure light, most modern cameras use solid-state sensors that are divided into pixels, each of which counts the number of photons that arrive over a period of time for some range of wavelengths. Accurately modeling the radiometry of how sensors measure light is an important part of simulating the process of image formation.
+This chapter starts with a description of the `Camera` interface, after which we present a few implementations, starting with ideal pinhole models. We then generalize those models to account for the effect of finite aperture using a simple approximation of a single lens. (The online edition of this book includes a more sophisticated camera implementation that simulates light passing through a collection of glass lens elements to form an image, similar to real-world cameras.) After light has been captured by a camera, it is measured by a sensor. While traditional film uses a chemical process to measure light, most modern cameras use solid-state sensors that are divided into pixels, each of which counts the number of photons that arrive over a period of time for some range of wavelengths. Accurately modeling the radiometry of how sensors measure light is an important part of simulating the process of image formation.
 
-To that end, all of pbrt’s camera models use an instance of the Film class, which defines the basic interface for the classes that represent images captured by cameras. We describe two film implementations in this chapter, both of which use the PixelSensor class to model the spectral response of a particular image sensor, be it film or digital. The film and sensor classes are described in the final section of this chapter.
+To that end, all of pbrt’s camera models use an instance of the `Film` class, which defines the basic interface for the classes that represent images captured by cameras. We describe two film implementations in this chapter, both of which use the `PixelSensor` class to model the spectral response of a particular image sensor, be it film or digital. The film and sensor classes are described in the final section of this chapter.
 
 ```text
     Film 244
@@ -26,13 +26,13 @@ To that end, all of pbrt’s camera models use an instance of the Film class, wh
 
 ## 5.1 CAMERA INTERFACE
 
-The Camera class uses the usual TaggedPointer-based approach to dynamically dispatch interface method calls to the correct implementation based on the actual type of the camera. (As usual, we will not include the implementations of those methods in the book here.) Camera is defined in the file base/camera.h.
+The `Camera` class uses the usual `TaggedPointer`-based approach to dynamically dispatch interface method calls to the correct implementation based on the actual type of the camera. (As usual, we will not include the implementations of those methods in the book here.) `Camera` is defined in the file base/camera.h.
 
 〈Camera Definition〉 ≡ class Camera : public TaggedPointer<PerspectiveCamera, OrthographicCamera, SphericalCamera, RealisticCamera> { public: 〈Camera Interface 206〉 };
 
-The implementation of the first three Cameras follows in this chapter. RealisticCamera is described only in the online edition.
+The implementation of the first three Cameras follows in this chapter. `RealisticCamera` is described only in the online edition.
 
-The first method that cameras must implement is GenerateRay(), which computes the ray corresponding to a given image sample. It is important that the direction component of the returned ray be normalized—many other parts of the system will depend on this behavior. If for some reason there is no valid ray for the given CameraSample, then the pstd::optional return value should be unset. The SampledWavelengths for the ray are passed as a non-const reference so that cameras can model dispersion in their lenses, in which case only a single wavelength of light is tracked by the ray and the GenerateRay() method will call SampledWavelengths::TerminateSecondary().
+The first method that cameras must implement is `GenerateRay()`, which computes the ray corresponding to a given image sample. It is important that the direction component of the returned ray be normalized—many other parts of the system will depend on this behavior. If for some reason there is no valid ray for the given `CameraSample`, then the pstd::optional return value should be unset. The `SampledWavelengths` for the ray are passed as a non-const reference so that cameras can model dispersion in their lenses, in which case only a single wavelength of light is tracked by the ray and the `GenerateRay()` method will call `SampledWavelengths::TerminateSecondary()`.
 
 〈Camera Interface〉 ≡ 206
 
@@ -40,7 +40,7 @@ The first method that cameras must implement is GenerateRay(), which computes th
 fn generate_ray(&self, sample: CameraSample, lambda: &mut SampledWavelengths) -> Option<CameraRay>;
 ```
 
-The CameraSample structure that is passed to GenerateRay() holds all the sample values needed to specify a camera ray. Its pFilm member gives the point on the film to which the generated ray should carry radiance. The point on the lens the ray passes through is in pLens (for cameras that include the notion of lenses), and time gives the time at which the ray should sample the scene. If the camera itself is in motion, the time value determines what camera position to use when generating the ray.
+The `CameraSample` structure that is passed to `GenerateRay()` holds all the sample values needed to specify a camera ray. Its pFilm member gives the point on the film to which the generated ray should carry radiance. The point on the lens the ray passes through is in pLens (for cameras that include the notion of lenses), and time gives the time at which the ray should sample the scene. If the camera itself is in motion, the time value determines what camera position to use when generating the ray.
 
 Finally, the filterWeight member variable is an additional scale factor that is applied when the ray’s radiance is added to the image stored by the film; it accounts for the reconstruction filter used to filter image samples at each pixel. This topic is discussed in Sections 5.4.3 and 8.8.
 
@@ -50,27 +50,42 @@ Finally, the filterWeight member variable is an additional scale factor that is 
 }
 ```
 
-The CameraRay structure that is returned by GenerateRay() includes both a ray and a spectral weight associated with it. Simple camera models leave the weight at the default value of one, while more sophisticated ones like RealisticCamera return a weight that is used in modeling the radiometry of image formation. (Section 5.4.1 contains more information about how exactly this weight is computed and used in the latter case.) Camera 206 CameraRay 207 CameraSample 206 Float 23 OrthographicCamera 217 PerspectiveCamera 220 Point2f 92 RealisticCamera 206 SampledWavelengths 173 SampledWavelengths::TerminateSecondary() 174 SphericalCamera 229 TaggedPointer 1073
+The `CameraRay` structure that is returned by `GenerateRay()` includes both a ray and a spectral weight associated with it. Simple camera models leave the weight at the default value of one, while more sophisticated ones like `RealisticCamera` return a weight that is used in modeling the radiometry of image formation. (Section 5.4.1 contains more information about how exactly this weight is computed and used in the latter case.)
+
+```text
+    Camera 206
+    CameraRay 207
+    CameraSample 206
+    Float 23
+    OrthographicCamera 217
+    PerspectiveCamera 220
+    Point2f 92
+    RealisticCamera 206
+    SampledWavelengths 173
+    SampledWavelengths::TerminateSecondary() 174
+    SphericalCamera 229
+    TaggedPointer 1073
+```
 
 〈CameraRay Definition〉 ≡ struct CameraRay { Ray ray; SampledSpectrum weight = SampledSpectrum(1); };
 
-Cameras must also provide an implementation of GenerateRayDifferential(), which computes a main ray like GenerateRay() but also computes the corresponding rays for pixels shifted one pixel in the x and y directions on the film plane. This information about how camera rays change as a function of position on the film helps give other parts of the system a notion of how much of the film area a particular camera ray’s sample represents, which is useful for antialiasing texture lookups. 〈Camera Interface〉 +≡ 206
+Cameras must also provide an implementation of `GenerateRayDifferential()`, which computes a main ray like `GenerateRay()` but also computes the corresponding rays for pixels shifted one pixel in the x and y directions on the film plane. This information about how camera rays change as a function of position on the film helps give other parts of the system a notion of how much of the film area a particular camera ray’s sample represents, which is useful for antialiasing texture lookups. 〈Camera Interface〉 +≡ 206
 
 pstd::optional<CameraRayDifferential> GenerateRayDifferential( CameraSample sample, SampledWavelengths &lambda) const;
 
-GenerateRayDifferential() returns an instance of the CameraRayDifferential structure, which is equivalent to CameraRay, except it stores a RayDifferential.
+`GenerateRayDifferential()` returns an instance of the `CameraRayDifferential` structure, which is equivalent to `CameraRay`, except it stores a `RayDifferential`.
 
 〈CameraRayDifferential Definition〉 ≡ struct CameraRayDifferential { RayDifferential ray; SampledSpectrum weight = SampledSpectrum(1); };
 
-Camera implementations must provide access to their Film, which allows other parts of the system to determine things such as the resolution of the output image. 〈Camera Interface〉 +≡ 206
+`Camera` implementations must provide access to their Film, which allows other parts of the system to determine things such as the resolution of the output image. 〈Camera Interface〉 +≡ 206
 
 Film GetFilm() const;
 
-Just like real-world cameras, pbrt’s camera models include the notion of a shutter that opens for a short period of time to expose the film to light. One result of this nonzero exposure time is motion blur: objects that are in motion relative to the camera during the exposure are blurred. Time is yet another thing that is amenable to point sampling and Monte Carlo integration: given an appropriate distribution of ray times between the shutter open time and the shutter close time, it is possible to compute images that exhibit motion blur. The SampleTime() interface method should therefore map a uniform random sample u in the range [0, 1) to a time when the camera’s shutter is open. Normally, it is just used to linearly interpolate between the shutter open and close times. 〈Camera Interface〉 +≡ 206
+Just like real-world cameras, pbrt’s camera models include the notion of a shutter that opens for a short period of time to expose the film to light. One result of this nonzero exposure time is motion blur: objects that are in motion relative to the camera during the exposure are blurred. Time is yet another thing that is amenable to point sampling and Monte Carlo integration: given an appropriate distribution of ray times between the shutter open time and the shutter close time, it is possible to compute images that exhibit motion blur. The `SampleTime()` interface method should therefore map a uniform random sample u in the range [0, 1) to a time when the camera’s shutter is open. Normally, it is just used to linearly interpolate between the shutter open and close times. 〈Camera Interface〉 +≡ 206
 
 Float SampleTime(Float u) const;
 
-The last interface method allows camera implementations to set fields in the ImageMetadata class to specify transformation matrices related to the camera. If the output image format has support for storing this sort of
+The last interface method allows camera implementations to set fields in the `ImageMetadata` class to specify transformation matrices related to the camera. If the output image format has support for storing this sort of
 
 auxiliary information, it will be included in the final image that is written to disk. 〈Camera Interface〉 +≡ 206
 
@@ -93,26 +108,18 @@ void InitMetadata(ImageMetadata *metadata) const;
 
 Before we start to describe the implementation of pbrt’s camera models, we will define some of the coordinate spaces that they use. In addition to world space, which was introduced in Section 3.1, we will now introduce four additional coordinate spaces, object space, camera space, camera-world space, and rendering space.1 In sum, we have: Object space: This is the coordinate system in which geometric primitives are defined. For example, spheres in pbrt are defined to be centered at the origin of their object space. World space: While each primitive may have its own object space, all objects in the scene are placed in relation to a single world space. A world-from-object transformation determines where each object is located in world space. World space is the standard frame that all other spaces are defined in terms of. Camera space: A camera is placed in the scene at some world space point with a particular viewing direction and orientation. This camera defines a new coordinate system with its origin at the camera’s location. The z axis of this coordinate system is mapped to the viewing direction, and the y axis is mapped to the up direction.
 
-Camera-world space: Like camera space, the origin of this coordinate system is the camera’s position, but it maintains the orientation of world space (i.e., unlike camera space, the camera is not necessarily looking down the z axis). Rendering space: This is the coordinate system into which the scene is transformed for the purposes of rendering. In pbrt, it may be world space, camera space, or camera-world space. Renderers based on rasterization traditionally do most of their computations in camera space: triangle vertices are transformed all the way from object space to camera space before being projected onto the screen and rasterized. In that context, camera space is a handy space for reasoning about which objects are potentially visible to the camera. For example, if an object’s camera space bounding box is entirely behind the z = 0 plane (and the camera does not have a field of view wider than 180 degrees), the object will not be visible. Conversely, many ray tracers (including all versions of pbrt prior to this one) render in world space. Camera implementations may start out in camera space when generating rays, but they transform those rays to world space where all subsequent ray intersection and shading calculations are performed. A problem with that approach stems from the fact that floating-point numbers have more precision close to the origin than far away from it. If the camera is placed far from the origin, there may be insufficient precision to accurately represent the part of the scene that it is looking at. Figure 5.1 illustrates the precision problem with rendering in world space. In Figure 5.1(a), the scene is rendered with the camera and objects as they were provided in the original scene specification, which happened to be in the range of ±10 in each coordinate in world space. In Figure 5.1(b), both the camera and the scene have been translated 1,000,000 units in each dimension. In principle, both images should be the same, but much less precision is available for the second viewpoint, to the extent that the discretization of floating-point numbers is visible in the geometric model. Rendering in camera space naturally provides the most floating-point precision for the objects closest to the camera. If the scene in Figure 5.1 is rendered in camera space, translating both the camera and the scene
+Camera-world space: Like camera space, the origin of this coordinate system is the camera’s position, but it maintains the orientation of world space (i.e., unlike camera space, the camera is not necessarily looking down the z axis). Rendering space: This is the coordinate system into which the scene is transformed for the purposes of rendering. In pbrt, it may be world space, camera space, or camera-world space. Renderers based on rasterization traditionally do most of their computations in camera space: triangle vertices are transformed all the way from object space to camera space before being projected onto the screen and rasterized. In that context, camera space is a handy space for reasoning about which objects are potentially visible to the camera. For example, if an object’s camera space bounding box is entirely behind the z = 0 plane (and the camera does not have a field of view wider than 180 degrees), the object will not be visible. Conversely, many ray tracers (including all versions of pbrt prior to this one) render in world space. `Camera` implementations may start out in camera space when generating rays, but they transform those rays to world space where all subsequent ray intersection and shading calculations are performed. A problem with that approach stems from the fact that floating-point numbers have more precision close to the origin than far away from it. If the camera is placed far from the origin, there may be insufficient precision to accurately represent the part of the scene that it is looking at. Figure 5.1 illustrates the precision problem with rendering in world space. In Figure 5.1(a), the scene is rendered with the camera and objects as they were provided in the original scene specification, which happened to be in the range of ±10 in each coordinate in world space. In Figure 5.1(b), both the camera and the scene have been translated 1,000,000 units in each dimension. In principle, both images should be the same, but much less precision is available for the second viewpoint, to the extent that the discretization of floating-point numbers is visible in the geometric model. Rendering in camera space naturally provides the most floating-point precision for the objects closest to the camera. If the scene in Figure 5.1 is rendered in camera space, translating both the camera and the scene
 
 geometry by 1,000,000 units has no effect—the translations cancel. However, there is a problem with using camera space with ray tracing. Scenes are often modeled with major features aligned to the coordinate axes (e.g., consider an architectural model, where the floor and ceiling might be aligned with y planes). Axis-aligned bounding boxes of such features are degenerate in one dimension, which reduces their surface area. Acceleration structures like the BVH that will be introduced in Chapter 7 are particularly effective with such bounding boxes. In turn, if the camera is rotated with respect to the scene, axis-aligned bounding boxes are less effective at bounding such features and rendering performance is affected: for the scene in Figure 5.1, rendering time increases by 27%.
 
-```text
-                                                            art
-       Figure 5.1: Effect of the Loss of Floating-Point Precision Far from the Origin. (a) As originally
-       specified, this scene is within 10 units of the origin. Rendering the scene in world space produces the
-       expected image. (b) If both the scene and the camera are translated 1,000,000 units from the origin and
-       the scene is rendered in world space, there is significantly less floating-point precision to represent the
-       scene, giving this poor result. (c) If the translated scene is rendered in camera-world space, much more
-       precision is available and the geometric detail is preserved. However, the viewpoint has shifted slightly
-       due to a loss of accuracy in the representation of the camera position. (Model courtesy of Yasutoshi Mori.)
-```
+![Figure 5.1](images/pages/page-0321.png)
+*Figure 5.1: Effect of the Loss of Floating-Point Precision Far from the Origin. (a) As originally specified, this scene is within 10 units of the origin. Rendering the scene in world space produces the expected image. (b) If both the scene and the camera are translated 1,000,000 units from the origin and the scene is rendered in world space, there is significantly less floating-point precision to represent the scene, giving this poor result. (c) If the translated scene is rendered in camera-world space, much more precision is available and the geometric detail is preserved. However, the viewpoint has shifted slightly due to a loss of accuracy in the representation of the camera position. (Model courtesy of Yasutoshi Mori.)*
 
 Rendering using camera-world space gives the best of both worlds: the camera is at the origin and the scene is translated accordingly. However, the rotation is not applied to the scene geometry, thus preserving good bounding boxes for the acceleration structures. With camera-world space, there is no increase in rendering time and higher precision is maintained, as is shown in Figure 5.1(c). The CameraTransform class abstracts the choice of which particular coordinate system is used for rendering by handling the details of transforming among the various spaces. 〈CameraTransform Definition〉 ≡ class CameraTransform { public: 〈CameraTransform Public Methods〉 private:
 
 〈CameraTransform Private Members 210〉 };
 
-Camera implementations must make their CameraTransform available to other parts of the system, so we will add one more method to the Camera interface. 〈Camera Interface〉 +≡ 206
+`Camera` implementations must make their `CameraTransform` available to other parts of the system, so we will add one more method to the `Camera` interface. 〈Camera Interface〉 +≡ 206
 
 const CameraTransform &GetCameraTransform() const;
 
@@ -120,7 +127,7 @@ CameraTransform maintains two transformations: one from camera space to the rend
 
 AnimatedTransform renderFromCamera; Transform worldFromRender;
 
-The CameraTransform constructor takes the world-from-camera transformation as specified in the scene description and decomposes it into the two transformations described earlier. The default rendering space is camera-world, though this choice can be overridden using a command-line option.
+The `CameraTransform` constructor takes the world-from-camera transformation as specified in the scene description and decomposes it into the two transformations described earlier. The default rendering space is camera-world, though this choice can be overridden using a command-line option.
 
 ```text
    AnimatedTransform 135
@@ -163,7 +170,7 @@ Once worldFromRender has been set, whatever transformation remains in worldFromC
 
 Transform renderFromWorld = Inverse(worldFromRender); Transform rfc[2] = { renderFromWorld * worldFromCamera.startTransform, renderFromWorld * worldFromCamera.endTransform }; renderFromCamera = AnimatedTransform(rfc[0], worldFromCamera.startTime, rfc[1], worldFromCamera.endTime);
 
-The CameraTransform class provides a variety of overloaded methods named RenderFrom Camera(), CameraFromRender(), and RenderFromWorld() that transform points, vectors, normals, and rays among the coordinate systems it manages. Other methods return the corresponding transformations directly. Their straightforward implementations are not included here.
+The `CameraTransform` class provides a variety of overloaded methods named `RenderFromCamera()`, `CameraFromRender()`, and `RenderFromWorld()` that transform points, vectors, normals, and rays among the coordinate systems it manages. Other methods return the corresponding transformations directly. Their straightforward implementations are not included here.
 
 ```text
     AnimatedTransform 135
@@ -182,13 +189,13 @@ The CameraTransform class provides a variety of overloaded methods named RenderF
 
 ### 5.1.2 THE CameraBase CLASS
 
-All of the camera implementations in this chapter share some common functionality that we have factored into a single class, CameraBase, from which all of them inherit.3 CameraBase, as well as all the camera implementations, is defined in the files cameras.h and cameras.cpp.
+All of the camera implementations in this chapter share some common functionality that we have factored into a single class, `CameraBase`, from which all of them inherit.3 `CameraBase`, as well as all the camera implementations, is defined in the files cameras.h and cameras.cpp.
 
 〈CameraBase Definition〉 ≡ class CameraBase { public: 〈CameraBase Public Methods 213〉 protected: 〈CameraBase Protected Members 212〉 〈CameraBase Protected Methods 212〉 };
 
-The CameraBase constructor takes a variety of parameters that are applicable to all of pbrt’s cameras:
+The `CameraBase` constructor takes a variety of parameters that are applicable to all of pbrt’s cameras:
 
-One of the most important is the transformation that places the camera in the scene, which is represented by a CameraTransform and is stored in the cameraTransform member variable. Next is a pair of floating-point values that give the times at which the camera’s shutter opens and closes. A Film instance stores the final image and models the film sensor. Last is a Medium instance that represents the scattering medium that the camera lies in, if any (Medium is described in Section 11.4). A small structure bundles them together and helps shorten the length of the parameter lists for Camera constructors.
+One of the most important is the transformation that places the camera in the scene, which is represented by a `CameraTransform` and is stored in the cameraTransform member variable. Next is a pair of floating-point values that give the times at which the camera’s shutter opens and closes. A `Film` instance stores the final image and models the film sensor. Last is a `Medium` instance that represents the scattering medium that the camera lies in, if any (`Medium` is described in Section 11.4). A small structure bundles them together and helps shorten the length of the parameter lists for `Camera` constructors.
 
 〈CameraBaseParameters Definition〉 ≡ struct CameraBaseParameters { CameraTransform cameraTransform; Float shutterOpen = 0, shutterClose = 1; Film film; Medium medium;
 
@@ -209,17 +216,17 @@ CameraTransform cameraTransform; Float shutterOpen, shutterClose; Film film; Med
    Medium 714
 ```
 
-CameraBase can implement a number of the methods required by the Camera interface directly, thus saving the trouble of needing to redundantly implement them in the camera implementations that inherit from it. For example, accessor methods make the Film and CameraTransform available. 〈CameraBase Public Methods〉 ≡ 212
+`CameraBase` can implement a number of the methods required by the `Camera` interface directly, thus saving the trouble of needing to redundantly implement them in the camera implementations that inherit from it. For example, accessor methods make the Film and `CameraTransform` available. 〈CameraBase Public Methods〉 ≡ 212
 
 Film GetFilm() const { return film; } const CameraTransform &GetCameraTransform() const { return cameraTransform; }
 
-The SampleTime() method is implemented by linearly interpolating between the shutter open and close times using the sample u. 〈CameraBase Public Methods〉 +≡ 212
+The `SampleTime()` method is implemented by linearly interpolating between the shutter open and close times using the sample u. 〈CameraBase Public Methods〉 +≡ 212
 
 Float SampleTime(Float u) const { return Lerp(u, shutterOpen, shutterClose); }
 
 CameraBase provides a GenerateRayDifferential() method that computes a ray differential via multiple calls to a camera’s GenerateRay() method. One subtlety is that camera implementations that use this method still must implement a Camera GenerateRayDifferential() method themselves, but then call this method from theirs. (Note that this method’s signature is different than that one.) Cameras pass their this pointer as a Camera parameter, which allows it to call the camera’s GenerateRay() method. This additional complexity stems from our not using virtual functions for the camera interface, which means that the CameraBase class does not on its own have the ability to call that method unless a Camera is provided to it. 〈CameraBase Method Definitions〉 ≡ pstd::optional<CameraRayDifferential> CameraBase::GenerateRayDifferential(Camera camera, CameraSample sample, SampledWavelengths &lambda) { 〈Generate regular camera ray cr for ray differential 213〉 〈Find camera ray after shifting one pixel in the x direction 214〉 〈Find camera ray after shifting one pixel in the y direction〉 〈Return approximate ray differential and weight 214〉 }
 
-The primary ray is found via a first call to GenerateRay(). If there is no valid ray for the given sample, then there can be no ray differential either. 〈Generate regular camera ray cr for ray differential〉 ≡ 213
+The primary ray is found via a first call to `GenerateRay()`. If there is no valid ray for the given sample, then there can be no ray differential either. 〈Generate regular camera ray cr for ray differential〉 ≡ 213
 
 pstd::optional<CameraRay> cr = camera.GenerateRay(sample, lambda); if (!cr) return {}; RayDifferential rd(cr->ray);
 
@@ -260,7 +267,7 @@ rd.has_differentials = rx.is_some() && ry.is_some();
 return CameraRayDifferential { ray: rd, weight: cr.weight };
 ```
 
-Finally, for the convenience of its subclasses, CameraBase provides various transformation methods that use the CameraTransform. We will only include the Ray method here; the others are analogous.
+Finally, for the convenience of its subclasses, `CameraBase` provides various transformation methods that use the `CameraTransform`. We will only include the `Ray` method here; the others are analogous.
 
 〈CameraBase Protected Methods〉 +≡ 212
 
@@ -294,16 +301,8 @@ One of the fundamental issues in 3D computer graphics is the 3D viewing problem:
    RayDifferential::rxOrigin 96
 ```
 
-```text
-                                                            art
-        Figure 5.2: Several camera-related coordinate spaces are commonly used to simplify the implementation
-        of Cameras. The camera class holds transformations between them. Scene objects in rendering space are
-        viewed by the camera, which sits at the origin of camera space and points along the +z axis. Objects
-        between the near and far planes are projected onto the film plane at z = near in camera space. The film
-        plane is at z = 0 in raster space, where x and y range from (0, 0) to the image resolution in pixels.
-        Normalized device coordinate (NDC) space normalizes raster space so that x and y range from (0, 0) to (1,
-        1).
-```
+![Figure 5.2](images/pages/page-0330.png)
+*Figure 5.2: Several camera-related coordinate spaces are commonly used to simplify the implementation of Cameras. The camera class holds transformations between them. Scene objects in rendering space are viewed by the camera, which sits at the origin of camera space and points along the +z axis. Objects between the near and far planes are projected onto the film plane at z = near in camera space. The film plane is at z = 0 in raster space, where x and y range from (0, 0) to the image resolution in pixels. Normalized device coordinate (NDC) space normalizes raster space so that x and y range from (0, 0) to (1, 1).*
 
 The orthographic and perspective projections both require the specification of two planes perpendicular to the viewing direction: the near and far planes. When rasterization is used for rendering, objects that are not between those two planes are culled and not included in the final image. (Culling objects in front of the near plane is particularly important in order to avoid a singularity at the depth 0 and because otherwise the projection matrices map points behind the camera to appear to be in front of it.) In a ray tracer, the projection matrices are used purely to determine rays leaving the camera and these concerns do not apply; there is therefore less need to worry about setting those planes’ depths carefully in this context. Three more coordinate systems (summarized in Figure 5.2) are useful for defining and discussing projective cameras: Screen space: Screen space is defined on the film plane. The camera projects objects in camera space onto the film plane; the parts inside the screen window are visible in the image that is generated. Points at the near plane are mapped to a depth z value of 0 and points at the far plane are mapped to 1. Note that,
 
@@ -313,11 +312,11 @@ although this is called “screen” space, it is still a 3D coordinate system, 
    ProjectiveCamera 214
 ```
 
-In addition to the parameters required by the CameraBase class, the ProjectiveCamera takes the projective transformation matrix, the screen space extent of the image, and additional parameters related to the distance at which the camera is focused and the size of its lens aperture. If the lens aperture is not an infinitesimal pinhole, then parts of the image may be blurred, as happens for out-of-focus objects with real lens systems. Simulation of this effect will be discussed later in this section. 〈ProjectiveCamera Public Methods〉 ≡ 214
+In addition to the parameters required by the `CameraBase` class, the `ProjectiveCamera` takes the projective transformation matrix, the screen space extent of the image, and additional parameters related to the distance at which the camera is focused and the size of its lens aperture. If the lens aperture is not an infinitesimal pinhole, then parts of the image may be blurred, as happens for out-of-focus objects with real lens systems. Simulation of this effect will be discussed later in this section. 〈ProjectiveCamera Public Methods〉 ≡ 214
 
 ProjectiveCamera(CameraBaseParameters baseParameters, const Transform &screenFromCamera, Bounds2f screenWindow, Float lensRadius, Float focalDistance) : CameraBase(baseParameters), screenFromCamera(screenFromCamera), lensRadius(lensRadius), focalDistance(focalDistance) { 〈Compute projective camera transformations 216〉 }
 
-ProjectiveCamera implementations pass the projective transformation up to the base class constructor shown here. This transformation gives the screen-from-camera projection; from that, the constructor can easily
+`ProjectiveCamera` implementations pass the projective transformation up to the base class constructor shown here. This transformation gives the screen-from-camera projection; from that, the constructor can easily
 
 compute the other transformations that go all the way from raster space to camera space. 〈Compute projective camera transformations〉 ≡ 216
 
@@ -361,19 +360,11 @@ Transform rasterFromScreen, screenFromRaster;
 
 The orthographic camera is based on the orthographic projection transformation. The orthographic transformation takes a rectangular region of the scene and projects it onto the front face of the box that defines the region. It does not give the effect of foreshortening—objects becoming smaller on the image plane as they get farther away—but it does leave parallel lines parallel, and it preserves relative distance between objects. Figure 5.3 shows how this rectangular volume defines the visible region of the scene.
 
-```text
-                                                               art
-         Figure 5.3: The orthographic view volume is an axis-aligned box in camera space, defined such that
-         objects inside the region are projected onto the z = near face of the box.
-```
+![Figure 5.3](images/pages/page-0333.png)
+*Figure 5.3: The orthographic view volume is an axis-aligned box in camera space, defined such that objects inside the region are projected onto the z = near face of the box.*
 
-```text
-                                                               art
-         Figure 5.4: Kroken Scene Rendered with Different Camera Models. Images are rendered from the
-         same viewpoint with (a) orthographic and (b) perspective cameras. The lack of foreshortening makes the
-         orthographic view feel like it has less depth, although it does preserve parallel lines, which can be a useful
-         property. (Scene courtesy of Angelo Ferretti.)
-```
+![Figure 5.4](images/pages/page-0333.png)
+*Figure 5.4: Kroken Scene Rendered with Different Camera Models. Images are rendered from the same viewpoint with (a) orthographic and (b) perspective cameras. The lack of foreshortening makes the orthographic view feel like it has less depth, although it does preserve parallel lines, which can be a useful property. (Scene courtesy of Angelo Ferretti.)*
 
 〈OrthographicCamera Definition〉 ≡ class OrthographicCamera : public ProjectiveCamera { public:
 
@@ -385,7 +376,7 @@ The orthographic camera is based on the orthographic projection transformation. 
    ProjectiveCamera 214
 ```
 
-The orthographic camera constructor generates the orthographic transformation matrix with the Orthographic() function, which will be defined shortly. 〈OrthographicCamera Public Methods〉 ≡ 217
+The orthographic camera constructor generates the orthographic transformation matrix with the `Orthographic()` function, which will be defined shortly. 〈OrthographicCamera Public Methods〉 ≡ 217
 
 OrthographicCamera(CameraBaseParameters baseParameters, Bounds2f screenWindow, Float lensRadius, Float focalDist) : ProjectiveCamera(baseParameters, Orthographic(0, 1), screenWindow, lensRadius, focalDist) { 〈Compute differential changes in origin for orthographic camera rays 218〉
 
@@ -395,7 +386,7 @@ The orthographic viewing transformation leaves x and y coordinates unchanged but
 
 }
 
-Thanks to the simplicity of the orthographic projection, it is easy to directly compute the differential rays in the x and y directions in the GenerateRayDifferential() method. The directions of the differential rays will be the same as the main ray (as they are for all rays generated by an orthographic camera), and the difference in origins will be the same for all rays. Therefore, the constructor here precomputes how much the ray origins shift in camera space coordinates due to a single pixel shift in the x and y directions on the film plane. 〈Compute differential changes in origin for orthographic camera rays〉 ≡ 218
+Thanks to the simplicity of the orthographic projection, it is easy to directly compute the differential rays in the x and y directions in the `GenerateRayDifferential()` method. The directions of the differential rays will be the same as the main ray (as they are for all rays generated by an orthographic camera), and the difference in origins will be the same for all rays. Therefore, the constructor here precomputes how much the ray origins shift in camera space coordinates due to a single pixel shift in the x and y directions on the film plane. 〈Compute differential changes in origin for orthographic camera rays〉 ≡ 218
 
 dxCamera = cameraFromRaster(Vector3f(1, 0, 0)); dyCamera = cameraFromRaster(Vector3f(0, 1, 0)); 〈OrthographicCamera Private Members〉 ≡ 217
 
@@ -426,18 +417,14 @@ We can now go through the code that takes a sample point in raster space and tur
    Vector3f 86
 ```
 
-```text
-                                                             art
-        Figure 5.5: To create a ray with the orthographic camera, a raster space position on the film plane is
-        transformed to camera space, giving the ray’s origin on the near plane. The ray’s direction in camera
-        space is (0, 0, 1), down the z axis.
-```
+![Figure 5.5](images/pages/page-0336.png)
+*Figure 5.5: To create a ray with the orthographic camera, a raster space position on the film plane is transformed to camera space, giving the ray’s origin on the near plane. The ray’s direction in camera space is (0, 0, 1), down the z axis.*
 
 Once all the transformation matrices have been set up, it is easy to transform the raster space sample point to camera space. 〈Compute raster and camera sample positions〉 ≡ 218, 222
 
 Point3f pFilm = Point3f(sample.pFilm.x, sample.pFilm.y, 0); Point3f pCamera = cameraFromRaster(pFilm);
 
-The implementation of GenerateRayDifferential() performs the same computation to generate the main camera ray. The differential ray origins are found using the offsets computed in the OrthographicCamera constructor, and then the full ray differential is transformed to rendering space.
+The implementation of `GenerateRayDifferential()` performs the same computation to generate the main camera ray. The differential ray origins are found using the offsets computed in the `OrthographicCamera` constructor, and then the full ray differential is transformed to rendering space.
 
 〈OrthographicCamera Method Definitions〉 +≡ pstd::optional<CameraRayDifferential> OrthographicCamera::GenerateRayDifferential(CameraSample sample, SampledWavelengths &lambda) const { 〈Compute main orthographic viewing ray〉 〈Compute ray differentials for OrthographicCamera 219〉 ray.hasDifferentials = true; return CameraRayDifferential{RenderFromCamera(ray)}; } 〈Compute ray differentials for OrthographicCamera〉 ≡ 219
 
@@ -481,15 +468,8 @@ The perspective projection describes perspective viewing of the scene. Points in
 
 The transformation is most easily understood in two steps: 1. Points p in camera space are projected onto the viewing plane. A bit of algebra shows that the projected x′ and y′ coordinates on the viewing plane can be computed by dividing x and y by the point’s z coordinate value. The projected z depth is remapped so that z values at the near plane are 0 and z values at the far plane are 1. The computation we would like to do is
 
-```text
-                                                              art
-                  Figure 5.6: The perspective transformation matrix projects points in camera space onto
-                  the near plane. The x′ and y′ coordinates of the projected points are equal to the
-                  unprojected x and y coordinates divided by the z coordinate. That operation is depicted
-                  here, where the effect of the projection is indicated by an arrow. The projected z′
-                  coordinate is then computed so that points on the near plane map to z′ = 0 and points on
-                  the far plane map to z′ = 1.
-```
+![Figure 5.6](images/pages/page-0339.png)
+*Figure 5.6: The perspective transformation matrix projects points in camera space onto the near plane. The x′ and y′ coordinates of the projected points are equal to the unprojected x and y coordinates divided by the z coordinate. That operation is depicted here, where the effect of the projection is indicated by an arrow. The projected z′ coordinate is then computed so that points on the near plane map to z′ = 0 and points on the far plane map to z′ = 1.*
 
 ```text
              Bounds2f 97
@@ -526,7 +506,7 @@ let inv_tan_ang = 1.0 / (Radians(fov) / 2.0).tan();
 return Scale(inv_tan_ang, inv_tan_ang, 1.0) * Transform(persp);
 ```
 
-As with the OrthographicCamera, the PerspectiveCamera’s constructor computes information about how the rays it generates change with shifts in pixels. In this case, the ray origins are unchanged and the ray differentials are only different in their directions. Here, we compute the change in position on the near perspective plane in camera space with respect to shifts in pixel location. 〈Compute differential changes in origin for perspective camera rays〉 ≡ 220
+As with the `OrthographicCamera`, the `PerspectiveCamera`’s constructor computes information about how the rays it generates change with shifts in pixels. In this case, the ray origins are unchanged and the ray differentials are only different in their directions. Here, we compute the change in position on the near perspective plane in camera space with respect to shifts in pixel location. 〈Compute differential changes in origin for perspective camera rays〉 ≡ 220
 
 dxCamera = cameraFromRaster(Point3f(1, 0, 0)) -cameraFromRaster(Point3f(0, 0, 0)); dyCamera = cameraFromRaster(Point3f(0, 1, 0)) -cameraFromRaster(Point3f(0, 0, 0)); 〈PerspectiveCamera Private Members〉 ≡ 220
 
@@ -547,14 +527,8 @@ Vector3f dxCamera, dyCamera;
 
 The cosine of the maximum angle of the perspective camera’s field of view will occasionally be useful. In particular, points outside the field of view can be quickly culled via a dot product with the viewing direction and comparison to this value. This cosine can be found by computing the angle between the camera’s viewing vector and a vector to one of the corners of the image (see Figure 5.7). This corner needs a small adjustment here to account for the width of the filter function centered at each pixel that is used to weight image samples according to their location (this topic is discussed in Section 8.8).
 
-```text
-                                                            art
-       Figure 5.7: Computing the Cosine of the Perspective Camera’s Maximum View Angle. A cone that
-       bounds the viewing directions of a PerspectiveCamera can be found by using the camera’s viewing
-       direction as the center axis and by computing the cosine of the angle θ between that axis and a vector to
-       one of the corners of the image. In camera space, that simplifies to be the z component of that vector,
-       normalized.
-```
+![Figure 5.7](images/pages/page-0341.png)
+*Figure 5.7: Computing the Cosine of the Perspective Camera’s Maximum View Angle. A cone that bounds the viewing directions of a PerspectiveCamera can be found by using the camera’s viewing direction as the center axis and by computing the cosine of the angle θ between that axis and a vector to one of the corners of the image. In camera space, that simplifies to be the z component of that vector, normalized.*
 
 〈Compute cosTotalWidth for perspective camera〉 ≡ 220
 
@@ -562,9 +536,7 @@ Point2f radius = Point2f(film.GetFilter().Radius()); Point3f pCorner(-radius.x, 
 
 Float cosTotalWidth;
 
-With the perspective projection, camera space rays all originate from the origin, (0, 0, 0). A ray’s direction is given by the vector from the origin to the point on the near plane, pCamera, that corresponds to the provided CameraSample’s pFilm location. In other words, the ray’s vector direction is component-wise equal to this point’s position, so rather than doing a useless subtraction to compute the direction, we just initialize the direction directly from the point pCamera. 〈PerspectiveCamera Method Definitions〉 ≡ pstd::optional<CameraRay> PerspectiveCamera::GenerateRay(
-
-CameraSample sample, SampledWavelengths &lambda) const { 〈Compute raster and camera sample positions 219〉 Ray ray(Point3f(0, 0, 0), Normalize(Vector3f(pCamera)), SampleTime(sample.time), medium); 〈Modify ray for depth of field 226〉 return CameraRay{RenderFromCamera(ray)}; }
+With the perspective projection, camera space rays all originate from the origin, (0, 0, 0). A ray’s direction is given by the vector from the origin to the point on the near plane, pCamera, that corresponds to the provided CameraSample’s pFilm location. In other words, the ray’s vector direction is component-wise equal to this point’s position, so rather than doing a useless subtraction to compute the direction, we just initialize the direction directly from the point pCamera. 〈PerspectiveCamera Method Definitions〉 ≡ pstd::optional<CameraRay> PerspectiveCamera::GenerateRay(CameraSample sample, SampledWavelengths &lambda) const { 〈Compute raster and camera sample positions 219〉 Ray ray(Point3f(0, 0, 0), Normalize(Vector3f(pCamera)), SampleTime(sample.time), medium); 〈Modify ray for depth of field 226〉 return CameraRay{RenderFromCamera(ray)}; }
 
 The GenerateRayDifferential() method follows the implementation of GenerateRay(), except for this additional fragment that computes the differential rays. 〈Compute offset rays for PerspectiveCamera ray differentials〉 ≡ if (lensRadius > 0) { 〈Compute PerspectiveCamera ray differentials accounting for lens〉 } else { ray.rxOrigin = ray.ryOrigin = ray.o; ray.rxDirection = Normalize(Vector3f(pCamera) + dxCamera); ray.ryDirection = Normalize(Vector3f(pCamera) + dyCamera); }
 
@@ -602,61 +574,35 @@ The GenerateRayDifferential() method follows the implementation of GenerateRay()
 
 ### 5.2.3 THE THIN LENS MODEL AND DEPTH OF FIELD
 
-An ideal pinhole camera that only allows rays passing through a single point to reach the film is not physically realizable; while it is possible to make cameras with extremely small apertures that approach this behavior, small apertures allow relatively little light to reach the film sensor. With a small aperture, long exposure times are required to capture enough photons to accurately capture the image, which in turn can lead to blur from objects in the scene moving while the camera shutter is open. Real cameras have lens systems that focus light through a finite-sized aperture onto the film plane. Camera designers (and photographers using cameras with adjustable apertures) face a trade-off: the larger the aperture, the more light reaches the film and the shorter the exposures that are needed. However, lenses can only focus on a single plane (the focal plane), and the farther objects in the scene are from this plane, the blurrier they are. The larger the aperture, the more pronounced this effect is. The RealisticCamera (included only in the online edition of the book) implements a fairly accurate simulation of lens systems in real-world cameras. For the simple camera models introduced so far, we can apply a classic approximation from optics, the thin lens approximation, to model the effect of finite apertures with traditional computer graphics projection models. The thin lens approximation models an optical system as a single lens with spherical profiles, where the thickness of the lens is small relative to the radius of curvature of the lens.
+An ideal pinhole camera that only allows rays passing through a single point to reach the film is not physically realizable; while it is possible to make cameras with extremely small apertures that approach this behavior, small apertures allow relatively little light to reach the film sensor. With a small aperture, long exposure times are required to capture enough photons to accurately capture the image, which in turn can lead to blur from objects in the scene moving while the camera shutter is open. Real cameras have lens systems that focus light through a finite-sized aperture onto the film plane. Camera designers (and photographers using cameras with adjustable apertures) face a trade-off: the larger the aperture, the more light reaches the film and the shorter the exposures that are needed. However, lenses can only focus on a single plane (the focal plane), and the farther objects in the scene are from this plane, the blurrier they are. The larger the aperture, the more pronounced this effect is. The `RealisticCamera` (included only in the online edition of the book) implements a fairly accurate simulation of lens systems in real-world cameras. For the simple camera models introduced so far, we can apply a classic approximation from optics, the thin lens approximation, to model the effect of finite apertures with traditional computer graphics projection models. The thin lens approximation models an optical system as a single lens with spherical profiles, where the thickness of the lens is small relative to the radius of curvature of the lens.
 
 Under the thin lens approximation, incident rays that are parallel to the optical axis and pass through the lens focus at a point behind the lens called the focal point. The distance the focal point is behind the lens, f, is the lens’s focal length. If the film plane is placed at a distance equal to the focal length behind the lens, then objects infinitely far away will be in focus, as they image to a single point on the film. Figure 5.8 illustrates the basic setting. Here we have followed the typical lens coordinate system convention of placing the lens perpendicular to the z axis, with the lens at z = 0 and the scene along −z. (Note that this is a different coordinate system from the one we used for camera space, where the viewing direction is +z.) Distances on the scene side of the lens are denoted with unprimed variables z, and distances on the film side of the lens (positive z) are primed, z′.
 
-```text
-                                                                art
-        Figure 5.8: A thin lens, located along the z axis at z = 0. Incident rays that are parallel to the optical axis
-        and pass through a thin lens (dashed lines) all pass through a point p, the focal point. The distance
-        between the lens and the focal point, f, is the lens’s focal length.
-```
+![Figure 5.8](images/pages/page-0344.png)
+*Figure 5.8: A thin lens, located along the z axis at z = 0. Incident rays that are parallel to the optical axis and pass through a thin lens (dashed lines) all pass through a point p, the focal point. The distance between the lens and the focal point, f, is the lens’s focal length.*
 
 ```text
    RealisticCamera 206
 ```
 
-```text
-                                                                art
-        Figure 5.9: To focus a thin lens at a depth z in the scene, Equation (5.2) can be used to compute the
-        distance z′ on the film side of the lens that points at z focus to. Focusing is performed by adjusting the
-        distance between the lens and the film plane.
-```
+![Figure 5.9](images/pages/page-0344.png)
+*Figure 5.9: To focus a thin lens at a depth z in the scene, Equation (5.2) can be used to compute the distance z′ on the film side of the lens that points at z focus to. Focusing is performed by adjusting the distance between the lens and the film plane.*
 
 For points in the scene at a depth z from a thin lens with focal length f, the Gaussian lens equation relates the distances from the object to the lens and from the lens to the image of the point: art Note that for z = −∞, we have z′ = f, as expected.
 
 We can use the Gaussian lens equation to solve for the distance between the lens and the film that sets the plane of focus at some z, the focal distance (Figure 5.9): art A point that does not lie on the plane of focus is imaged to a disk on the film plane, rather than to a single point. The boundary of this disk is called the circle of confusion. The size of the circle of confusion is affected by the diameter of the aperture that light rays pass through, the focal distance, and the distance between the object and the lens. Although the circle of confusion only has zero radius for a single depth, a range of nearby depths have small enough circles of confusion that they still appear to be in focus. (As long as its circle of confusion is smaller than the spacing between pixels, a point will effectively appear to be in focus.) The range of depths that appear in focus are termed the depth of field. Figure 5.10 shows this effect, in the Watercolor scene. As the size of the lens aperture increases, blurriness increases the farther a point is from the plane of focus. Note that the pencil cup in the center remains in focus throughout all the images, as the plane of focus has been placed at its depth. Figure 5.11 shows depth of field used to render the landscape scene. Note how the effect draws the viewer’s eye to the in-focus grass in the center of the image. The Gaussian lens equation also lets us compute the size of the circle of confusion; given a lens with focal length f that is focused at a distance zf, the film plane is at art. Given another point at depth z, the Gaussian lens equation gives the distance z′ that the lens focuses the point to. This point is either in front of or behind the film plane; Figure 5.12(a) shows the case where it is behind. The diameter of the circle of confusion is given by the intersection of the cone between z′ and the lens with the film plane. If we know the diameter of the lens dl, then we can use similar triangles to solve for the diameter of the circle of confusion dc (Figure 5.12(b)): art
 
-```text
-                                                            art
-      Figure 5.10: (a) Scene rendered with no defocus blur, (b) extensive depth of field due to a relatively small
-      lens aperture, which gives only a small amount of blurriness in the out-of-focus regions, and (c) a very
-      large aperture, giving a larger circle of confusion in the out-of-focus areas, resulting in a greater amount
-      of blur on the film plane. (Scene courtesy of Angelo Ferretti.)
-```
+![Figure 5.10](images/pages/page-0346.png)
+*Figure 5.10: (a) Scene rendered with no defocus blur, (b) extensive depth of field due to a relatively small lens aperture, which gives only a small amount of blurriness in the out-of-focus regions, and (c) a very large aperture, giving a larger circle of confusion in the out-of-focus areas, resulting in a greater amount of blur on the film plane. (Scene courtesy of Angelo Ferretti.)*
 
-```text
-                                                            art
-      Figure 5.11: Depth of field gives a greater sense of depth and scale to this part of the landscape scene.
-      (Scene courtesy of Laubwerk.)
-```
+![Figure 5.11](images/pages/page-0346.png)
+*Figure 5.11: Depth of field gives a greater sense of depth and scale to this part of the landscape scene. (Scene courtesy of Laubwerk.)*
 
-```text
-                                                            art
-      Figure 5.12: (a) If a thin lens with focal length f is focused at some depth zf, then the distance from the
-      lens to the focus plane is    art, given by the Gaussian lens equation. A point in the scene at depth z ≠ zf
-      will be imaged as a circle on the film plane; here z focuses at z′, which is behind the film plane. (b) To
-      compute the diameter of the circle of confusion, we can apply similar triangles: the ratio of dl, the
-      diameter of the lens, to z′ must be the same as the ratio of dc, the diameter of the circle of confusion, to
-         art.
-```
+![Figure 5.12](images/pages/page-0346.png)
+*Figure 5.12: (a) If a thin lens with focal length f is focused at some depth zf, then the distance from the lens to the focus plane is    art, given by the Gaussian lens equation. A point in the scene at depth z ≠ zf will be imaged as a circle on the film plane; here z focuses at z′, which is behind the film plane. (b) To compute the diameter of the circle of confusion, we can apply similar triangles: the ratio of dl, the diameter of the lens, to z′ must be the same as the ratio of dc, the diameter of the circle of confusion, to art.*
 
-```text
-                                                            art
-      Figure 5.13: The diameter of the circle of confusion as a function of depth for a 50-mm focal length lens
-      with 25-mm aperture, focused at 1 meter.
-```
+![Figure 5.13](images/pages/page-0346.png)
+*Figure 5.13: The diameter of the circle of confusion as a function of depth for a 50-mm focal length lens with 25-mm aperture, focused at 1 meter.*
 
 Solving for dc, we have
 
@@ -675,25 +621,13 @@ if (lensRadius > 0) { 〈Sample point on lens 228〉 〈Compute point on plane o
    ProjectiveCamera::lensRadius 226
 ```
 
-```text
-                                                             art
-       Figure 5.14: (a) For a pinhole camera model, a single camera ray is associated with each point on the film
-       plane (filled circle), given by the ray that passes through the single point of the pinhole lens (empty
-       circle). (b) For a camera model with a finite aperture, we sample a point (filled circle) on the disk-shaped
-       lens for each ray. We then compute the ray that passes through the center of the lens (corresponding to the
-       pinhole model) and the point where it intersects the plane of focus (solid line). We know that all objects in
-       the plane of focus must be in focus, regardless of the lens sample position. Therefore, the ray
-       corresponding to the lens position sample (dashed line) is given by the ray starting on the lens sample
-       point and passing through the computed intersection point on the plane of focus.
-```
+![Figure 5.14](images/pages/page-0348.png)
+*Figure 5.14: (a) For a pinhole camera model, a single camera ray is associated with each point on the film plane (filled circle), given by the ray that passes through the single point of the pinhole lens (empty circle). (b) For a camera model with a finite aperture, we sample a point (filled circle) on the disk-shaped lens for each ray. We then compute the ray that passes through the center of the lens (corresponding to the pinhole model) and the point where it intersects the plane of focus (solid line). We know that all objects in the plane of focus must be in focus, regardless of the lens sample position. Therefore, the ray corresponding to the lens position sample (dashed line) is given by the ray starting on the lens sample point and passing through the computed intersection point on the plane of focus.*
 
-```text
-                                                             art
-       Figure 5.15: Landscape scene with depth of field and only four samples per pixel: the depth of field is
-       undersampled and the image is grainy. (Scene courtesy of Laubwerk.)
-```
+![Figure 5.15](images/pages/page-0348.png)
+*Figure 5.15: Landscape scene with depth of field and only four samples per pixel: the depth of field is undersampled and the image is grainy. (Scene courtesy of Laubwerk.)*
 
-The SampleUniformDiskConcentric() function, which is defined in Section A.5.1, takes a (u, v) sample position in [0, 1)2 and maps it to a 2D unit disk centered at the origin (0, 0). To turn this into a point on the lens, these coordinates are scaled by the lens radius. The CameraSample class provides the (u, v) lens-sampling parameters in the pLens member variable. 〈Sample point on lens〉 ≡ 226
+The `SampleUniformDiskConcentric()` function, which is defined in Section A.5.1, takes a (u, v) sample position in [0, 1)2 and maps it to a 2D unit disk centered at the origin (0, 0). To turn this into a point on the lens, these coordinates are scaled by the lens radius. The `CameraSample` class provides the (u, v) lens-sampling parameters in the pLens member variable. 〈Sample point on lens〉 ≡ 226
 
 Point2f pLens = lensRadius * SampleUniformDiskConcentric(sample.pLens);
 
@@ -709,7 +643,9 @@ Now the ray can be initialized. The origin is set to the sampled point on the le
 
 ray.o = Point3f(pLens.x, pLens.y, 0); ray.d = Normalize(pFocus - ray.o);
 
-To compute ray differentials with the thin lens, the approach used in the fragment 〈Update ray for effect of lens〉 is applied to rays offset one pixel in the x and y directions on the film plane. The fragments that implement this, 〈Compute OrthographicCamera ray differentials accounting for lens〉 and 〈Compute PerspectiveCamera ray differentials accounting for lens〉, are not included here. 5.3 SPHERICAL CAMERA
+To compute ray differentials with the thin lens, the approach used in the fragment 〈Update ray for effect of lens〉 is applied to rays offset one pixel in the x and y directions on the film plane. The fragments that implement this, 〈Compute OrthographicCamera ray differentials accounting for lens〉 and 〈Compute PerspectiveCamera ray differentials accounting for lens〉, are not included here.
+
+## 5.3 SPHERICAL CAMERA
 
 One advantage of ray tracing compared to scan line or rasterization-based rendering methods is that it is easy to employ unusual image projections. We have great freedom in how the image sample positions are mapped into ray directions, since the rendering algorithm does not depend on properties such as straight lines in the scene always projecting to straight lines in the image. In this section, we will describe a camera model that traces rays in all directions around a point in the scene, giving a view of everything that is visible from that point. The Spherical Camera supports two spherical parameterizations from Section 3.8 to map points in the image to associated directions. Figure 5.16 shows this camera in action with the San Miguel model.
 
@@ -729,16 +665,12 @@ One advantage of ray tracing compared to scan line or rasterization-based render
    SampleUniformDiskConcentric() 1014
 ```
 
-```text
-                                                           art
-        Figure 5.16: The San Miguel scene rendered with the SphericalCamera, which traces rays in all
-        directions from the camera position. (a) Rendered using an equirectangular mapping. (b) Rendered with
-        an equal-area mapping. (Scene courtesy of Guillermo M. Leal Llaguno.)
-```
+![Figure 5.16](images/pages/page-0350.png)
+*Figure 5.16: The San Miguel scene rendered with the SphericalCamera, which traces rays in all directions from the camera position. (a) Rendered using an equirectangular mapping. (b) Rendered with an equal-area mapping. (Scene courtesy of Guillermo M. Leal Llaguno.)*
 
 〈SphericalCamera Definition〉 ≡ class SphericalCamera : public CameraBase { public: 〈SphericalCamera::Mapping Definition 230〉 〈SphericalCamera Public Methods 229〉 private: 〈SphericalCamera Private Members 230〉 };
 
-SphericalCamera does not derive from ProjectiveCamera since the projections that it uses are nonlinear and cannot be captured by a single 4 × 4 matrix. 〈SphericalCamera Public Methods〉 ≡ 229
+`SphericalCamera` does not derive from `ProjectiveCamera` since the projections that it uses are nonlinear and cannot be captured by a single 4 × 4 matrix. 〈SphericalCamera Public Methods〉 ≡ 229
 
 SphericalCamera(CameraBaseParameters baseParameters, Mapping mapping) : CameraBase(baseParameters), mapping(mapping) { 〈Compute minimum differentials for SphericalCamera〉
 
@@ -746,7 +678,7 @@ SphericalCamera(CameraBaseParameters baseParameters, Mapping mapping) : CameraBa
 }
 ```
 
-The first mapping that SphericalCamera supports is the equirectangular mapping that was defined in Section 3.8.3. In the implementation here, θ values range from 0 at the top of the image to π at the bottom of the image, and ϕ values range from 0 to 2π, moving from left to right across the image. The equirectangular mapping is easy to evaluate and has the advantage that lines of constant latitude and longitude on the sphere remain straight. However, it preserves neither area nor angles between curves on the sphere (i.e., it is not conformal). These issues are especially evident at the top and bottom of the image in Figure 5.16(a). Therefore, the SphericalCamera also supports the equal-area mapping from Section 3.8.3. With this mapping, any finite solid angle of directions on the sphere maps to the same area in the image, regardless of where it is on the sphere. (This mapping is also used by the ImageInfiniteLight, which is described in Section 12.5.2, and so images rendered using this camera can be used as light sources.) The equal-area mapping’s use with the SphericalCamera is shown in Figure 5.16(b).
+The first mapping that `SphericalCamera` supports is the equirectangular mapping that was defined in Section 3.8.3. In the implementation here, θ values range from 0 at the top of the image to π at the bottom of the image, and ϕ values range from 0 to 2π, moving from left to right across the image. The equirectangular mapping is easy to evaluate and has the advantage that lines of constant latitude and longitude on the sphere remain straight. However, it preserves neither area nor angles between curves on the sphere (i.e., it is not conformal). These issues are especially evident at the top and bottom of the image in Figure 5.16(a). Therefore, the `SphericalCamera` also supports the equal-area mapping from Section 3.8.3. With this mapping, any finite solid angle of directions on the sphere maps to the same area in the image, regardless of where it is on the sphere. (This mapping is also used by the `ImageInfiniteLight`, which is described in Section 12.5.2, and so images rendered using this camera can be used as light sources.) The equal-area mapping’s use with the `SphericalCamera` is shown in Figure 5.16(b).
 
 An enumeration reflects which mapping should be used.
 
@@ -764,21 +696,19 @@ enum Mapping { EquiRectangular, EqualArea }; 〈SphericalCamera Private Members�
 
 Mapping mapping;
 
-The main task of the GenerateRay() method is to apply the requested mapping. The rest of it follows the earlier GenerateRay() methods.
+The main task of the `GenerateRay()` method is to apply the requested mapping. The rest of it follows the earlier `GenerateRay()` methods.
 
-〈SphericalCamera Method Definitions〉 ≡ pstd::optional<CameraRay> SphericalCamera::GenerateRay(
-
-CameraSample sample, SampledWavelengths &lambda) const { 〈Compute spherical camera ray direction 230〉 Ray ray(Point3f(0, 0, 0), dir, SampleTime(sample.time), medium); return CameraRay{RenderFromCamera(ray)}; }
+〈SphericalCamera Method Definitions〉 ≡ pstd::optional<CameraRay> SphericalCamera::GenerateRay(CameraSample sample, SampledWavelengths &lambda) const { 〈Compute spherical camera ray direction 230〉 Ray ray(Point3f(0, 0, 0), dir, SampleTime(sample.time), medium); return CameraRay{RenderFromCamera(ray)}; }
 
 For the use of both mappings, (u, v) coordinates in NDC space are found by dividing the raster space sample location by the image’s overall resolution. Then, after the mapping is applied, the y and z coordinates are swapped to account for the fact that both mappings are defined with z as the “up” direction, while y is “up” in camera space. 〈Compute spherical camera ray direction〉 ≡ 230
 
-Point2f uv(sample.pfilm.x / film.FullResolution().x, sample.pfilm.y / film.FullResolution().y); Vector3f dir; if (mapping == EquiRectangular) { 〈Compute ray direction using equirectangular mapping 230〉 } else { 〈Compute ray direction using equal-area mapping 230〉 } pstd::swap(dir.y, dir.z);
+Point2f uv(sample.pFilm.x / film.FullResolution().x, sample.pFilm.y / film.FullResolution().y); Vector3f dir; if (mapping == EquiRectangular) { 〈Compute ray direction using equirectangular mapping 230〉 } else { 〈Compute ray direction using equal-area mapping 230〉 } pstd::swap(dir.y, dir.z);
 
 For the equirectangular mapping, the (u, v) coordinates are scaled to cover the (θ, ϕ) range and the spherical coordinate formula is used to compute the ray direction. 〈Compute ray direction using equirectangular mapping〉 ≡ 230
 
 Float theta = Pi * uv[1], phi = 2 * Pi * uv[0]; dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
 
-The (u, v) values for the CameraSample may be slightly outside of the range [0, 1]2, due to the pixel sample filter function. A call to WrapEqualAreaSquare() takes care of handling the boundary conditions before EqualAreaSquareToSphere() performs the actual mapping. 〈Compute ray direction using equal-area mapping〉 ≡ 230
+The (u, v) values for the `CameraSample` may be slightly outside of the range [0, 1]2, due to the pixel sample filter function. A call to `WrapEqualAreaSquare()` takes care of handling the boundary conditions before `EqualAreaSquareToSphere()` performs the actual mapping. 〈Compute ray direction using equal-area mapping〉 ≡ 230
 
 uv = WrapEqualAreaSquare(uv); dir = EqualAreaSquareToSphere(uv);
 
@@ -808,15 +738,10 @@ uv = WrapEqualAreaSquare(uv); dir = EqualAreaSquareToSphere(uv);
 
 ## 5.4 FILM AND IMAGING
 
-After the camera’s projection or lens system forms an image of the scene on the film, it is necessary to model how the film measures light to create the final image generated by the renderer. This section starts with an overview of the radiometry of how light is measured on the film and then continues with the topic of how spectral energy is converted to tristimulus colors (typically, RGB). This leads to the PixelSensor class, which models that process as well as further processing that is generally performed by cameras. After next considering how image samples on the film are accumulated into the pixels of the final image, we introduce the Film interface and then two implementations of it that put this model into practice.
+After the camera’s projection or lens system forms an image of the scene on the film, it is necessary to model how the film measures light to create the final image generated by the renderer. This section starts with an overview of the radiometry of how light is measured on the film and then continues with the topic of how spectral energy is converted to tristimulus colors (typically, `RGB`). This leads to the `PixelSensor` class, which models that process as well as further processing that is generally performed by cameras. After next considering how image samples on the film are accumulated into the pixels of the final image, we introduce the `Film` interface and then two implementations of it that put this model into practice.
 
-```text
-                                                              art
-        Figure 5.17: The Image of the Scene on the Lens, as Seen from Two Points on the Film Plane. Both
-        are from a rendering of the San Miguel scene. (a) As seen from a point where the scene is in sharp focus;
-        the incident radiance is effectively constant over its area. (b) As seen from a pixel in an out-of-focus area,
-        a small image of part of the scene is visible, with potentially rapidly varying radiance.
-```
+![Figure 5.17](images/pages/page-0354.png)
+*Figure 5.17: The Image of the Scene on the Lens, as Seen from Two Points on the Film Plane. Both are from a rendering of the San Miguel scene. (a) As seen from a point where the scene is in sharp focus; the incident radiance is effectively constant over its area. (b) As seen from a pixel in an out-of-focus area, a small image of part of the scene is visible, with potentially rapidly varying radiance.*
 
 ### 5.4.1 THE CAMERA MEASUREMENT EQUATION
 
@@ -828,17 +753,12 @@ Given a simulation of the process of real image formation, it is also worthwhile
 
 Integrating irradiance at a point on the film over the time that the shutter is open gives radiant exposure, which is the radiometric unit for energy per area, J/m2.
 
-```text
-                                                               art
-         Figure 5.18: Geometric setting for the irradiance measurement equation, (5.3). Radiance can be measured
-         as it passes through points p′ on the plane tangent to the rear lens element to a point on the film plane p. z
-         is the axial distance from the film plane to the rear element tangent plane, and θ is the angle between the
-         vector from p′ to p and the optical axis.
-```
+![Figure 5.18](images/pages/page-0355.png)
+*Figure 5.18: Geometric setting for the irradiance measurement equation, (5.3). Radiance can be measured as it passes through points p′ on the plane tangent to the rear lens element to a point on the film plane p. z is the axial distance from the film plane to the rear element tangent plane, and θ is the angle between the vector from p′ to p and the optical axis.*
 
 art (Radiant exposure is also known as fluence.) Measuring radiant exposure at a point captures the effect that the amount of energy received on the film plane is partially related to the length of time the camera shutter is open. Photographic film (or CCD or CMOS sensors in digital cameras) measures radiant energy over a small area.4 Taking Equation (5.4) and also integrating over sensor pixel area, Ap, we have art
 
-the Joules arriving at a pixel; this is called the camera measurement equation. Although these factors apply to all of the camera models introduced in this chapter, they are only included in the implementation of the RealisticCamera. The reason is purely pragmatic: most renderers do not model this effect, so omitting it from the simpler camera models makes it easier to compare images rendered by pbrt with those rendered by other systems.
+the Joules arriving at a pixel; this is called the camera measurement equation. Although these factors apply to all of the camera models introduced in this chapter, they are only included in the implementation of the `RealisticCamera`. The reason is purely pragmatic: most renderers do not model this effect, so omitting it from the simpler camera models makes it easier to compare images rendered by pbrt with those rendered by other systems.
 
 ### 5.4.2 MODELING SENSOR RESPONSE
 
@@ -856,7 +776,7 @@ Each pixel must receive a sufficient amount of light either to cause the necessa
 
 private: 〈PixelSensor Private Methods 236〉 〈PixelSensor Private Members 234〉 };
 
-PixelSensor models three components of sensor pixels’ operation: 1. Exposure controls: These are the user-settable parameters that control how bright or dark the image is. 2. RGB response: PixelSensor uses spectral response curves that are based on measurements of physical camera sensors to model the conversion of spectral radiance to tristimulus colors. 3. White balance: Cameras generally process the images they capture, including adjusting initial RGB values according to the color of illumination to model chromatic adaptation in the human visual system. Thus, captured images appear visually similar to what a human observer would remember having seen when taking a picture. pbrt includes a realistic camera model as well as idealized models based on projection matrices. Because pinhole cameras have apertures with infinitesimal area, we make some pragmatic trade-offs in the implementation of the PixelSensor so that images rendered with pinhole models are not completely black. We leave it the Camera’s responsibility to model the effect of the aperture size. The idealized models do not account for it at all, while the RealisticCamera does so in the 〈Compute weighting for RealisticCamera ray〉 fragment. The PixelSensor then only accounts for the shutter time and the ISO setting. These two factors are collected into a single quantity called the imaging ratio. The PixelSensor constructor takes the sensor’s RGB matching functions — art, ḡ, and art—and the imaging ratio as parameters. It also takes the color space requested by the user for the final output RGB values as well as the spectrum of an illuminant that specifies what color to consider to be white in the scene; together, these will make it possible to convert spectral energy to RGB as measured by the sensor and then to RGB in the output color space.
+`PixelSensor` models three components of sensor pixels’ operation: 1. Exposure controls: These are the user-settable parameters that control how bright or dark the image is. 2. `RGB` response: `PixelSensor` uses spectral response curves that are based on measurements of physical camera sensors to model the conversion of spectral radiance to tristimulus colors. 3. White balance: Cameras generally process the images they capture, including adjusting initial `RGB` values according to the color of illumination to model chromatic adaptation in the human visual system. Thus, captured images appear visually similar to what a human observer would remember having seen when taking a picture. pbrt includes a realistic camera model as well as idealized models based on projection matrices. Because pinhole cameras have apertures with infinitesimal area, we make some pragmatic trade-offs in the implementation of the `PixelSensor` so that images rendered with pinhole models are not completely black. We leave it the Camera’s responsibility to model the effect of the aperture size. The idealized models do not account for it at all, while the `RealisticCamera` does so in the 〈Compute weighting for RealisticCamera ray〉 fragment. The `PixelSensor` then only accounts for the shutter time and the ISO setting. These two factors are collected into a single quantity called the imaging ratio. The `PixelSensor` constructor takes the sensor’s `RGB` matching functions — art, ḡ, and art—and the imaging ratio as parameters. It also takes the color space requested by the user for the final output `RGB` values as well as the spectrum of an illuminant that specifies what color to consider to be white in the scene; together, these will make it possible to convert spectral energy to `RGB` as measured by the sensor and then to `RGB` in the output color space.
 
 *Figure 5.19 shows the effect of modeling camera response, comparing rendering a scene using the XYZ matching functions to compute initial pixel colors with rendering with the matching functions for an actual camera sensor. 〈PixelSensor Public Methods〉 ≡ 234*
 
@@ -875,17 +795,12 @@ DenselySampledSpectrum r_bar, g_bar, b_bar; Float imagingRatio;
    Spectrum 165
 ```
 
-```text
-                                                           art
-        Figure 5.19: The Effect of Accurately Modeling Camera Sensor Response. (a) Scene rendered using
-        the XYZ matching functions for the PixelSensor. (b) Scene rendered using measured sensor response
-        curves for a Canon EOS 5D camera. Note that the color tones are slightly cooler—they have less orange
-        and more blue to them. (Scene courtesy of Beeple.)
-```
+![Figure 5.19](images/pages/page-0359.png)
+*Figure 5.19: The Effect of Accurately Modeling Camera Sensor Response. (a) Scene rendered using the XYZ matching functions for the PixelSensor. (b) Scene rendered using measured sensor response curves for a Canon EOS 5D camera. Note that the color tones are slightly cooler—they have less orange and more blue to them. (Scene courtesy of Beeple.)*
 
-The RGB color space in which a sensor pixel records light is generally not the same as the RGB color space that the user has specified for the final image. The former is generally specific to a camera and is determined by the physical properties of its pixel color filters, and the latter is generally a device-independent color space like sRGB or one of the other color spaces
+The `RGB` color space in which a sensor pixel records light is generally not the same as the `RGB` color space that the user has specified for the final image. The former is generally specific to a camera and is determined by the physical properties of its pixel color filters, and the latter is generally a device-independent color space like sRGB or one of the other color spaces
 
-described in Section 4.6.3. Therefore, the PixelSensor constructor computes a 3 × 3 matrix that converts from its RGB space to XYZ. From there, it is easy to convert to a particular output color space. This matrix is found by solving an optimization problem. It starts with over twenty spectral distributions, representing the reflectance of patches with a variety of colors from a standardized color chart. The constructor computes the RGB colors of those patches under the camera’s illuminant in the camera’s color space as well as their XYZ colors under the illuminant of the output color space. If these colors are respectively denoted by column vectors, then we can consider the problem of finding a 3 × 3 matrix M:
+described in Section 4.6.3. Therefore, the `PixelSensor` constructor computes a 3 × 3 matrix that converts from its `RGB` space to `XYZ`. From there, it is easy to convert to a particular output color space. This matrix is found by solving an optimization problem. It starts with over twenty spectral distributions, representing the reflectance of patches with a variety of colors from a standardized color chart. The constructor computes the `RGB` colors of those patches under the camera’s illuminant in the camera’s color space as well as their `XYZ` colors under the illuminant of the output color space. If these colors are respectively denoted by column vectors, then we can consider the problem of finding a 3 × 3 matrix M:
 
 ```text
    PixelSensor 234
@@ -895,7 +810,7 @@ As long as there are more than three reflectances, this is an over-constrained p
 
 〈Compute rgbCamera values for training swatches 236〉 〈Compute xyzOutput values for training swatches〉 〈Initialize XYZFromSensorRGB using linear least squares 237〉
 
-Given the sensor’s illuminant, the work of computing the RGB coefficients for each reflectance is handled by the ProjectReflectance() method. 〈Compute rgbCamera values for training swatches〉 ≡ 236
+Given the sensor’s illuminant, the work of computing the `RGB` coefficients for each reflectance is handled by the `ProjectReflectance()` method. 〈Compute rgbCamera values for training swatches〉 ≡ 236
 
 Float rgbCamera[nSwatchReflectances][3]; for (int i = 0; i < nSwatchReflectances; ++i) { RGB rgb = ProjectReflectance<RGB>(swatchReflectances[i], sensorIllum, &r_bar, &g_bar, &b_bar); for (int c = 0; c < 3; ++c) rgbCamera[i][c] = rgb[c]; }
 
@@ -907,7 +822,7 @@ in pbrt are based on measurements of a standard color chart.6
 
 static constexpr int nSwatchReflectances = 24; static Spectrum swatchReflectances[nSwatchReflectances];
 
-The ProjectReflectance() utility method takes spectral distributions for a reflectance and an illuminant as well as three spectral matching functions art for a tristimulus color space. It returns a triplet of color coefficients ci given by art where r is the spectral reflectance function, L is the illuminant’s spectral distribution, and art is a spectral matching function. Under the assumption that the second matching function art generally corresponds to luminance or at least something green, the color that causes the greatest response by the human visual system, the returned color triplet is normalized by art. In this way, the linear least squares fit at least roughly weights each RGB/XYZ pair according to visual importance. The ProjectReflectance() utility function takes the color space triplet type as a template parameter and is therefore able to return both RGB and XYZ values as appropriate. Its implementation follows the same general form as Spectrum::InnerProduct(), computing a Riemann sum over 1 nm spaced wavelengths, so it is not included here. 〈PixelSensor Private Methods〉 ≡ 234
+The `ProjectReflectance()` utility method takes spectral distributions for a reflectance and an illuminant as well as three spectral matching functions art for a tristimulus color space. It returns a triplet of color coefficients ci given by art where r is the spectral reflectance function, L is the illuminant’s spectral distribution, and art is a spectral matching function. Under the assumption that the second matching function art generally corresponds to luminance or at least something green, the color that causes the greatest response by the human visual system, the returned color triplet is normalized by art. In this way, the linear least squares fit at least roughly weights each `RGB`/`XYZ` pair according to visual importance. The `ProjectReflectance()` utility function takes the color space triplet type as a template parameter and is therefore able to return both `RGB` and `XYZ` values as appropriate. Its implementation follows the same general form as `Spectrum::InnerProduct()`, computing a Riemann sum over 1 nm spaced wavelengths, so it is not included here. 〈PixelSensor Private Methods〉 ≡ 234
 
 template <typename Triplet> static Triplet ProjectReflectance(Spectrum r, Spectrum illum, Spectrum b1, Spectrum b2, Spectrum b3);
 
@@ -922,7 +837,7 @@ template <typename Triplet> static Triplet ProjectReflectance(Spectrum r, Spectr
    XYZ 178
 ```
 
-The fragment that computes XYZ coefficients in the output color space, 〈Compute xyzOutput values for training swatches〉, is generally similar to the one for RGB, with the differences that it uses the output illuminant and the XYZ spectral matching functions and initializes the xyzOutput array. It is therefore also not included here. Given the two matrices of color coefficients, a call to the LinearLeastSquares() function solves the optimization problem of Equation (5.7). 〈Initialize XYZFromSensorRGB using linear least squares〉 ≡ 236
+The fragment that computes `XYZ` coefficients in the output color space, 〈Compute xyzOutput values for training swatches〉, is generally similar to the one for `RGB`, with the differences that it uses the output illuminant and the `XYZ` spectral matching functions and initializes the xyzOutput array. It is therefore also not included here. Given the two matrices of color coefficients, a call to the `LinearLeastSquares()` function solves the optimization problem of Equation (5.7). 〈Initialize XYZFromSensorRGB using linear least squares〉 ≡ 236
 
 ```rust
 let m = LinearLeastSquares(rgb_camera, xyz_output, n_swatches);
@@ -932,11 +847,11 @@ if m.is_none() {
 self.xyz_from_sensor_rgb = m.unwrap();
 ```
 
-Because the RGB and XYZ colors are computed using the color spaces’ respective illuminants, the matrix M also performs white balancing. 〈PixelSensor Public Members〉 ≡ 234
+Because the `RGB` and `XYZ` colors are computed using the color spaces’ respective illuminants, the matrix M also performs white balancing. 〈PixelSensor Public Members〉 ≡ 234
 
 SquareMatrix<3> XYZFromSensorRGB;
 
-A second PixelSensor constructor uses XYZ matching functions for the pixel sensor’s spectral response curves. If a specific camera sensor is not specified in the scene description file, this is the default. Note that with this usage, the member variables r_bar, g_bar, and b_bar are misnamed in that they are actually X, Y, and Z. 〈PixelSensor Public Methods〉 +≡ 234
+A second `PixelSensor` constructor uses `XYZ` matching functions for the pixel sensor’s spectral response curves. If a specific camera sensor is not specified in the scene description file, this is the default. Note that with this usage, the member variables r_bar, g_bar, and b_bar are misnamed in that they are actually X, Y, and Z. 〈PixelSensor Public Methods〉 +≡ 234
 
 PixelSensor(const RGBColorSpace *outputColorSpace, Spectrum sensorIllum, Float imagingRatio, Allocator alloc) : r_bar(&Spectra::X(), alloc), g_bar(&Spectra::Y(), alloc), b_bar(&Spectra::Z(), alloc), imagingRatio(imagingRatio) { 〈Compute white balancing matrix for XYZ PixelSensor 237〉 }
 
@@ -968,9 +883,9 @@ if (sensorIllum) { Point2f sourceWhite = SpectrumToXYZ(sensorIllum).xy(); Point2
    XYZ::xy() 180
 ```
 
-The main functionality provided by the PixelSensor is the ToSensorRGB() method, which converts a point-sampled spectral distribution L(λi) in a SampledSpectrum to RGB coefficients in the sensor’s
+The main functionality provided by the `PixelSensor` is the `ToSensorRGB()` method, which converts a point-sampled spectral distribution L(λi) in a `SampledSpectrum` to `RGB` coefficients in the sensor’s
 
-color space. It does so via Monte Carlo evaluation of the sensor response integral, Equation (5.6), giving estimators of the form art where n is equal to NSpectrumSamples. The associated PDF values are available from the SampledWavelengths and the sum over wavelengths and division by n is handled using SampledSpectrum::Average(). These coefficients are scaled by the imaging ratio, which completes the conversion. 〈PixelSensor Public Methods〉 +≡ 234
+color space. It does so via Monte Carlo evaluation of the sensor response integral, Equation (5.6), giving estimators of the form art where n is equal to `NSpectrumSamples`. The associated PDF values are available from the `SampledWavelengths` and the sum over wavelengths and division by n is handled using `SampledSpectrum::Average()`. These coefficients are scaled by the imaging ratio, which completes the conversion. 〈PixelSensor Public Methods〉 +≡ 234
 
 RGB ToSensorRGB(SampledSpectrum L, const SampledWavelengths &lambda) const { L = SafeDiv(L, lambda.PDF());
 
@@ -985,7 +900,7 @@ return imaging_ratio * RGB::new(
 
 Chromatic Adaptation and White Balance One of the remarkable properties of the human visual system is that the color of objects is generally seen as the same, even under different lighting conditions; this effect is called chromatic adaptation. Cameras perform a similar function so that photographs capture the colors that the person taking the picture remembers seeing; in that context, this process is called white balancing. pbrt provides a WhiteBalance() function that implements a white balancing algorithm called the von Kries transform. It takes two chromaticities: one is the chromaticity of the illumination and the other the chromaticity of the color white. (Recall the discussion in Section 4.6.3 of why white is not usually a constant spectrum but is instead defined as the color that humans perceive as white.) It returns a 3 × 3 matrix that applies the corresponding white balancing operation to XYZ colors. 〈White Balance Definitions〉 ≡ SquareMatrix<3> WhiteBalance(Point2f srcWhite, Point2f targetWhite) { 〈Find LMS coefficients for source and target white 238〉 〈Return white balancing matrix for source and target white 239〉 }
 
-White balance with the von Kries transform is performed in the LMS color space, which is a color space where the responsivity of the three matching functions is specified to match the three types of cone in the human eye. By performing white balancing in the LMS space, we can model the effect of modulating the contribution of each type of cone in the eye, which is believed to be how chromatic adaptation is implemented in humans. After computing normalized XYZ colors corresponding to the provided chromaticities, the LMSFromXYZ matrix can be used to transform to LMS from XYZ.
+White balance with the von Kries transform is performed in the LMS color space, which is a color space where the responsivity of the three matching functions is specified to match the three types of cone in the human eye. By performing white balancing in the LMS space, we can model the effect of modulating the contribution of each type of cone in the eye, which is believed to be how chromatic adaptation is implemented in humans. After computing normalized `XYZ` colors corresponding to the provided chromaticities, the `LMSFromXYZ` matrix can be used to transform to LMS from `XYZ`.
 
 〈Find LMS coefficients for source and target white〉 ≡ 238
 
@@ -993,7 +908,7 @@ XYZ srcXYZ = XYZ::FromxyY(srcWhite), dstXYZ = XYZ::FromxyY(targetWhite); auto sr
 
 3 × 3 matrices that convert between LMS and XYZ are available as constants. 〈Color Space Constants〉 ≡ extern const SquareMatrix<3> LMSFromXYZ, XYZFromLMS;
 
-Given a color in LMS space, white balancing is performed by dividing out the color of the scene’s illuminant and then multiplying by the color of the desired illuminant, which can be represented by a diagonal matrix. The complete white balance matrix that operates on XYZ colors follows directly.
+Given a color in LMS space, white balancing is performed by dividing out the color of the scene’s illuminant and then multiplying by the color of the desired illuminant, which can be represented by a diagonal matrix. The complete white balance matrix that operates on `XYZ` colors follows directly.
 
 ```text
    LMSFromXYZ 238
@@ -1015,14 +930,8 @@ Given a color in LMS space, white balancing is performed by dividing out the col
    XYZ::FromxyY() 180
 ```
 
-```text
-                                                           art
-        Figure 5.20: The Effect of White Balance. (a) Image of a scene with a yellow illuminant that has a
-        similar spectral distribution to an incandescent light bulb. (b) White balanced image, using a color
-        temperature of 3000 K. Due to chromatic adaptation, this image is much closer than (a) to what a human
-        observer would perceive viewing this scene. (Scene courtesy of Wig42 from Blend Swap, via Benedikt
-        Bitterli.)
-```
+![Figure 5.20](images/pages/page-0367.png)
+*Figure 5.20: The Effect of White Balance. (a) Image of a scene with a yellow illuminant that has a similar spectral distribution to an incandescent light bulb. (b) White balanced image, using a color temperature of 3000 K. Due to chromatic adaptation, this image is much closer than (a) to what a human observer would perceive viewing this scene. (Scene courtesy of Wig42 from Blend Swap, via Benedikt Bitterli.)*
 
 〈Return white balancing matrix for source and target white〉 ≡ 238
 
@@ -1030,7 +939,7 @@ SquareMatrix<3> LMScorrect = SquareMatrix<3>::Diag( dstLMS[0] / srcLMS[0], dstLM
 
 *Figure 5.20 shows an image rendered with a yellowish illuminant and the image after white balancing with the illuminant’s chromaticity.*
 
-Sampling Sensor Response Because the sensor response functions used by a PixelSensor describe the sensor’s wavelength-dependent response to radiance, it is worth at least approximately accounting for their variation when sampling the wavelengths of light that a ray is to carry. At minimum, a wavelength where all of them are zero should never be chosen, as that wavelength will make no contribution to the final image. More generally, applying importance sampling according to the sensor response functions is desirable as it offers the possibility of reducing error in the estimates of Equation (5.8).
+Sampling Sensor Response Because the sensor response functions used by a `PixelSensor` describe the sensor’s wavelength-dependent response to radiance, it is worth at least approximately accounting for their variation when sampling the wavelengths of light that a ray is to carry. At minimum, a wavelength where all of them are zero should never be chosen, as that wavelength will make no contribution to the final image. More generally, applying importance sampling according to the sensor response functions is desirable as it offers the possibility of reducing error in the estimates of Equation (5.8).
 
 ```text
    LMSFromXYZ 238
@@ -1040,11 +949,8 @@ Sampling Sensor Response Because the sensor response functions used by a PixelSe
    XYZFromLMS 238
 ```
 
-```text
-                                                          art
-       Figure 5.21: (a) Plot of normalized PDFs corresponding to the CIE Y matching function and the sum of
-       the X, Y, and Z matching functions. (b) Plot of the parametric distribution pv(λ) from Equation (5.9).
-```
+![Figure 5.21](images/pages/page-0368.png)
+*Figure 5.21: (a) Plot of normalized PDFs corresponding to the CIE Y matching function and the sum of the X, Y, and Z matching functions. (b) Plot of the parametric distribution pv(λ) from Equation (5.9).*
 
 However, choosing a distribution to use for sampling is challenging since the goal is minimizing error perceived by humans rather than strictly minimizing numeric error. Figure 5.21(a) shows the plots of both the CIE Y matching function and the sum of X, Y, and Z matching functions, both of which could be used. In practice, sampling according to Y alone gives excessive chromatic noise, but sampling by the sum of all three matching functions devotes too many samples to wavelengths between 400 nm and 500 nm, which are relatively unimportant visually. A parametric probability distribution function that balances these concerns and works well for sampling the visible wavelengths is art
 
@@ -1054,7 +960,7 @@ A = 0.0072 nm−1, and B = 538 nm. Figure 5.21(b) shows a plot of pv(λ).
 
 Our implementation samples over the wavelength range from 360 nm to 830 nm. The normalization constant that converts f into a PDF is precomputed. 〈Sampling Inline Functions〉 +≡ Float VisibleWavelengthsPDF(Float lambda) { if (lambda < 360 || lambda > 830) return 0; return 0.0039398042f / Sqr(std::cosh(0.0072f * (lambda - 538))); }
 
-The PDF can be sampled using the inversion method; the result is implemented in Sample VisibleWavelengths().
+The PDF can be sampled using the inversion method; the result is implemented in `SampleVisibleWavelengths()`.
 
 ```text
    Float 23
@@ -1063,25 +969,20 @@ The PDF can be sampled using the inversion method; the result is implemented in 
 
 〈Sampling Inline Functions〉 +≡ Float SampleVisibleWavelengths(Float u) { return 538 - 138.888889f * std::atanh(0.85691062f -1.82750197f * u); }
 
-We can now implement another sampling method in the SampledWavelengths class, Sample Visible(), which uses this technique. 〈SampledWavelengths Public Methods〉 +≡ 173
+We can now implement another sampling method in the `SampledWavelengths` class, `SampleVisible()`, which uses this technique. 〈SampledWavelengths Public Methods〉 +≡ 173
 
 static SampledWavelengths SampleVisible(Float u) { SampledWavelengths swl; for (int i = 0; i < NSpectrumSamples; ++i) {
 
 〈Compute up for ith wavelength sample 241〉 swl.lambda[i] = SampleVisibleWavelengths(up); swl.pdf[i] = VisibleWavelengthsPDF(swl.lambda[i]); } return swl; }
 
-Like SampledWavelengths::SampleUniform(), SampleVisible() uses a single random sample to generate all wavelength samples. It uses a slightly different approach, taking uniform steps across the [0, 1) sample space before sampling each wavelength. 〈Compute up for ith wavelength sample〉 ≡ 241
+Like `SampledWavelengths::SampleUniform()`, `SampleVisible()` uses a single random sample to generate all wavelength samples. It uses a slightly different approach, taking uniform steps across the [0, 1) sample space before sampling each wavelength. 〈Compute up for ith wavelength sample〉 ≡ 241
 
 Float up = u + Float(i) / NSpectrumSamples; if (up > 1) up -= 1;
 
-Using this distribution for sampling in place of a uniform distribution is worthwhile. Figure 5.22 shows two images of a scene, one rendered using uniform wavelength samples and the other rendered using SampleVisible(). Color noise is greatly reduced, with only a 1% increase in runtime.
+Using this distribution for sampling in place of a uniform distribution is worthwhile. Figure 5.22 shows two images of a scene, one rendered using uniform wavelength samples and the other rendered using `SampleVisible()`. Color noise is greatly reduced, with only a 1% increase in runtime.
 
-```text
-                                                         art
-        Figure 5.22: (a) Scene rendered with 4 samples per pixel, each with 4 wavelength samples, sampled
-        uniformly over the visible range. (b) Rendered at the same sampling rates but instead sampling
-        wavelengths using SampledWavelengths::SampleVisible(). This image has substantially less color
-        noise, at a negligible cost in additional computation. (Model courtesy of Yasutoshi Mori.)
-```
+![Figure 5.22](images/pages/page-0370.png)
+*Figure 5.22: (a) Scene rendered with 4 samples per pixel, each with 4 wavelength samples, sampled uniformly over the visible range. (b) Rendered at the same sampling rates but instead sampling wavelengths using SampledWavelengths::SampleVisible(). This image has substantially less color noise, at a negligible cost in additional computation. (Model courtesy of Yasutoshi Mori.)*
 
 ```text
    Float 23
@@ -1097,7 +998,7 @@ Using this distribution for sampling in place of a uniform distribution is worth
 
 ### 5.4.3 FILTERING IMAGE SAMPLES
 
-The main responsibility of Film implementations is to aggregate multiple spectral samples at each pixel in order to compute a final value for it. In a physical camera, each pixel integrates light over a small area. Its response may have some spatial variation over that area that depends on the physical design of the sensor. In Chapter 8 we will consider this operation from the perspective of signal processing and will see that the details of where the image function is sampled and how those samples are weighted can significantly affect the final image quality. Pending those details, for now we will assume that some filter function f is used to define the spatial variation in sensor response around each image pixel. These filter functions quickly go to zero, encoding the fact that pixels only respond to light close to them on the film. They also encode any further spatial variation in the pixel’s response. With this approach, if we have an image function r(x, y) that gives the red color at an arbitrary position on the film (e.g., as measured using a sensor response function art with Equation (5.6)), then the filtered red value rf at a position (x, y) is given by art where the filter function f is assumed to integrate to 1. As usual, we will estimate this integral using point samples of the image function. The estimator is art Two approaches have been used in graphics to sample the integrand. The first, which was used in all three previous versions of pbrt, is to sample the image uniformly. Each image sample may then contribute to multiple pixels’ final values, depending on the extent of the filter function being used. This approach gives the estimator art where A is the film area. Figure 5.23 illustrates the approach; it shows a pixel at location (x, y) that has a pixel filter with extent radius.x in the x direction and radius.y in the y direction. All the samples at positions (xi, yi) inside the box given by the filter extent may contribute to the pixel’s value, depending on the filter function’s value for f (x − xi, y − yi).
+The main responsibility of `Film` implementations is to aggregate multiple spectral samples at each pixel in order to compute a final value for it. In a physical camera, each pixel integrates light over a small area. Its response may have some spatial variation over that area that depends on the physical design of the sensor. In Chapter 8 we will consider this operation from the perspective of signal processing and will see that the details of where the image function is sampled and how those samples are weighted can significantly affect the final image quality. Pending those details, for now we will assume that some filter function f is used to define the spatial variation in sensor response around each image pixel. These filter functions quickly go to zero, encoding the fact that pixels only respond to light close to them on the film. They also encode any further spatial variation in the pixel’s response. With this approach, if we have an image function r(x, y) that gives the red color at an arbitrary position on the film (e.g., as measured using a sensor response function art with Equation (5.6)), then the filtered red value rf at a position (x, y) is given by art where the filter function f is assumed to integrate to 1. As usual, we will estimate this integral using point samples of the image function. The estimator is art Two approaches have been used in graphics to sample the integrand. The first, which was used in all three previous versions of pbrt, is to sample the image uniformly. Each image sample may then contribute to multiple pixels’ final values, depending on the extent of the filter function being used. This approach gives the estimator art where A is the film area. Figure 5.23 illustrates the approach; it shows a pixel at location (x, y) that has a pixel filter with extent radius.x in the x direction and radius.y in the y direction. All the samples at positions (xi, yi) inside the box given by the filter extent may contribute to the pixel’s value, depending on the filter function’s value for f (x − xi, y − yi).
 
 While Equation (5.12) gives an unbiased estimate of the pixel value, variation in the filter function leads to variance in the estimates. Consider the case of a constant image function r: in that case, we would expect the resulting image pixels to all be exactly equal to r. However, the sum of filter values f (x − xi, y − yi) will not generally be equal to 1: it only equals 1 in expectation. Thus, the image will include noise, even in this simple setting. If the alternative estimator art is used instead, that variance is eliminated at the cost of a small amount of bias. (This is the weighted importance sampling Monte Carlo estimator.) In practice, this trade-off is worthwhile.
 
@@ -1105,13 +1006,8 @@ While Equation (5.12) gives an unbiased estimate of the pixel value, variation i
    Film 244
 ```
 
-```text
-                                                             art
-        Figure 5.23: 2D Image Filtering. To compute a filtered pixel value for the pixel marked with a filled
-        circle located at (x, y), all the image samples inside the box around (x, y) with extent radius.x and
-        radius.y need to be considered. Each of the image samples (xi, yi), denoted by open circles, is weighted
-        by a 2D filter function, f (x − xi, y − yi). The weighted average of all samples is the final pixel value.
-```
+![Figure 5.23](images/pages/page-0372.png)
+*Figure 5.23: 2D Image Filtering. To compute a filtered pixel value for the pixel marked with a filled circle located at (x, y), all the image samples inside the box around (x, y) with extent radius.x and radius.y need to be considered. Each of the image samples (xi, yi), denoted by open circles, is weighted by a 2D filter function, f (x − xi, y − yi). The weighted average of all samples is the final pixel value.*
 
 Equation (5.10) can also be estimated independently at each pixel. This is the approach used in this version of pbrt. In this case, it is worthwhile to sample points on the film using a distribution based on the filter function. This approach is known as filter importance sampling. With it, the spatial variation of the filter is accounted for purely via the distribution of sample locations for a pixel rather than scaling each sample’s contribution according to the filter’s value. If p ∝ f, then those two factors cancel in Equation (5.11) and we are left with an average of the r(xi, yi) sample values scaled by the constant of proportionality. However, here we must handle the rare (for rendering) case of estimating an integral that may be negative: as we will see in Chapter 8, filter functions that are partially negative can give better results than those that are nonnegative. In that case, we have p ∝ |f|, which gives art
 
@@ -1119,15 +1015,15 @@ where sign(x) is 1 if x > 0, 0 if it is 0, and −1 otherwise. However, this est
 
 ### 5.4.4 THE FILM INTERFACE
 
-With the foundations of sensor response and pixel sample filtering established, we can introduce the Film interface. It is defined in the file base/film.h.
+With the foundations of sensor response and pixel sample filtering established, we can introduce the `Film` interface. It is defined in the file base/film.h.
 
 〈Film Definition〉 ≡ class Film : public TaggedPointer<RGBFilm, GBufferFilm, SpectralFilm> { public: 〈Film Interface 244〉 };
 
-SpectralFilm, which is not described here, records spectral images over a specified wavelength range that is discretized into non-overlapping ranges. See the documentation of pbrt’s file format for more information about the SpectralFilm’s use.
+`SpectralFilm`, which is not described here, records spectral images over a specified wavelength range that is discretized into non-overlapping ranges. See the documentation of pbrt’s file format for more information about the `SpectralFilm`’s use.
 
-Samples can be provided to the film in two ways. The first is from the Sampler selecting points on the film at which the Integrator estimates the radiance. These samples are provided to the Film via the AddSample() method, which takes the following parameters: The sample’s pixel coordinates, pFilm. The spectral radiance of the sample, L. The sample’s wavelengths, lambda. An optional VisibleSurface that describes the geometry at the first visible point along the sample’s camera ray. A weight for the sample to use in computing Equation (5.13) that is returned by Filter::Sample().
+Samples can be provided to the film in two ways. The first is from the Sampler selecting points on the film at which the Integrator estimates the radiance. These samples are provided to the Film via the `AddSample()` method, which takes the following parameters: The sample’s pixel coordinates, pFilm. The spectral radiance of the sample, L. The sample’s wavelengths, lambda. An optional `VisibleSurface` that describes the geometry at the first visible point along the sample’s camera ray. A weight for the sample to use in computing Equation (5.13) that is returned by `Filter::Sample()`.
 
-Film implementations can assume that multiple threads will not call AddSample() concurrently with the same pFilm location (though they should assume that threads will call it concurrently with different ones). Therefore, it is not necessary to worry about mutual exclusion in this method’s implementation unless some data that is not unique to a pixel is modified. 〈Film Interface〉 ≡ 244
+`Film` implementations can assume that multiple threads will not call `AddSample()` concurrently with the same pFilm location (though they should assume that threads will call it concurrently with different ones). Therefore, it is not necessary to worry about mutual exclusion in this method’s implementation unless some data that is not unique to a pixel is modified. 〈Film Interface〉 ≡ 244
 
 void AddSample(Point2i pFilm, SampledSpectrum L, const SampledWavelengths &lambda, const VisibleSurface *visibleSurface, Float weight);
 
@@ -1149,7 +1045,7 @@ void AddSample(Point2i pFilm, SampledSpectrum L, const SampledWavelengths &lambd
    VisibleSurface 245
 ```
 
-The Film interface also includes a method that returns a bounding box of all the samples that may be generated. Note that this is different than the bounding box of the image pixels in the common case that the pixel filter extents are wider than a pixel. 〈Film Interface〉 +≡ 244
+The `Film` interface also includes a method that returns a bounding box of all the samples that may be generated. Note that this is different than the bounding box of the image pixels in the common case that the pixel filter extents are wider than a pixel. 〈Film Interface〉 +≡ 244
 
 Bounds2f SampleBounds() const;
 
@@ -1168,17 +1064,17 @@ dpdy: Vector3f,
 albedo: SampledSpectrum,
 ```
 
-We will not include the VisibleSurface constructor here, as its main function is to copy appropriate values from the SurfaceInteraction into its member variables. 〈VisibleSurface Public Methods〉 ≡ 245
+We will not include the `VisibleSurface` constructor here, as its main function is to copy appropriate values from the `SurfaceInteraction` into its member variables. 〈VisibleSurface Public Methods〉 ≡ 245
 
 VisibleSurface(const SurfaceInteraction &si, SampledSpectrum albedo, const SampledWavelengths &lambda);
 
-The set member variable indicates whether a VisibleSurface has been initialized. 〈VisibleSurface Public Members〉 +≡ 245
+The set member variable indicates whether a `VisibleSurface` has been initialized. 〈VisibleSurface Public Members〉 +≡ 245
 
 bool set = false; 〈VisibleSurface Public Methods〉 +≡ 245
 
 operator bool() const { return set; }
 
-Film implementations can indicate whether they use the VisibleSurface * passed to their AddSample() method via UsesVisibleSurface(). Providing this information allows integrators to skip the expense of initializing a VisibleSurface if it will not be used. 〈Film Interface〉 +≡ 244
+`Film` implementations can indicate whether they use the `VisibleSurface` * passed to their `AddSample()` method via `UsesVisibleSurface()`. Providing this information allows integrators to skip the expense of initializing a `VisibleSurface` if it will not be used. 〈Film Interface〉 +≡ 244
 
 bool UsesVisibleSurface() const;
 
@@ -1196,11 +1092,11 @@ bool UsesVisibleSurface() const;
    VisibleSurface::set 245
 ```
 
-Light transport algorithms that sample paths starting from the light sources (such as bidirectional path tracing) require the ability to “splat” contributions to arbitrary pixels. Rather than computing the final pixel value as a weighted average of contributing splats, splats are simply summed. Generally, the more splats that are around a given pixel, the brighter the pixel will be. AddSplat() splats the provided value at the given location in the image. In contrast to AddSample(), this method may be called concurrently by multiple threads that end up updating the same pixel. Therefore, Film implementations must either implement some form of mutual exclusion or use atomic operations in their implementations of this method. 〈Film Interface〉 +≡ 244
+Light transport algorithms that sample paths starting from the light sources (such as bidirectional path tracing) require the ability to “splat” contributions to arbitrary pixels. Rather than computing the final pixel value as a weighted average of contributing splats, splats are simply summed. Generally, the more splats that are around a given pixel, the brighter the pixel will be. `AddSplat()` splats the provided value at the given location in the image. In contrast to `AddSample()`, this method may be called concurrently by multiple threads that end up updating the same pixel. Therefore, `Film` implementations must either implement some form of mutual exclusion or use atomic operations in their implementations of this method. 〈Film Interface〉 +≡ 244
 
 void AddSplat(Point2f p, SampledSpectrum v, const SampledWavelengths &lambda);
 
-Film implementations must also provide a SampleWavelengths() method that samples from the range of wavelengths that the film’s sensor responds to (e.g., using SampledWavelengths::SampleVisible()).
+`Film` implementations must also provide a `SampleWavelengths()` method that samples from the range of wavelengths that the film’s sensor responds to (e.g., using `SampledWavelengths::SampleVisible()`).
 
 〈Film Interface〉 +≡ 244
 
@@ -1210,21 +1106,21 @@ In addition, they must provide a handful of methods that give the extent of the 
 
 Point2i FullResolution() const; Bounds2i PixelBounds() const; Float Diagonal() const;
 
-A call to the Film::WriteImage() method directs the film to do the processing necessary to generate the final image and store it in a file. In addition to the camera transform, this method takes a scale factor that is applied to the samples provided to the AddSplat() method.
+A call to the `Film::WriteImage()` method directs the film to do the processing necessary to generate the final image and store it in a file. In addition to the camera transform, this method takes a scale factor that is applied to the samples provided to the `AddSplat()` method.
 
 〈Film Interface〉 +≡ 244
 
 void WriteImage(ImageMetadata metadata, Float splatScale = 1);
 
-The ToOutputRGB() method allows callers to find the output RGB value that results for given spectral radiance samples from applying the PixelSensor’s model, performing white balancing, and then converting to the output color space. (This method is used by the SPPMIntegrator included in the online edition, which has requirements that cause it to maintain the final image itself rather than using a Film implementation.) 〈Film Interface〉 +≡ 244
+The `ToOutputRGB()` method allows callers to find the output `RGB` value that results for given spectral radiance samples from applying the `PixelSensor`’s model, performing white balancing, and then converting to the output color space. (This method is used by the SPPMIntegrator included in the online edition, which has requirements that cause it to maintain the final image itself rather than using a Film implementation.) 〈Film Interface〉 +≡ 244
 
 RGB ToOutputRGB(SampledSpectrum L, const SampledWavelengths &lambda) const;
 
-A caller can also request the entire image to be returned, as well as the RGB value for a single pixel. The latter method is used for displaying in-progress images during rendering. 〈Film Interface〉 +≡ 244
+A caller can also request the entire image to be returned, as well as the `RGB` value for a single pixel. The latter method is used for displaying in-progress images during rendering. 〈Film Interface〉 +≡ 244
 
 Image GetImage(ImageMetadata *metadata, Float splatScale = 1); RGB GetPixelRGB(Point2i p, Float splatScale = 1) const;
 
-Finally, Film implementations must provide access to a few additional values for use in other parts of the system. 〈Film Interface〉 +≡ 244
+Finally, `Film` implementations must provide access to a few additional values for use in other parts of the system. 〈Film Interface〉 +≡ 244
 
 Filter GetFilter() const; const PixelSensor *GetPixelSensor() const; std::string GetFilename() const;
 
@@ -1251,7 +1147,7 @@ As we did with CameraBase for Camera implementations, we have written a FilmBase
 
 The FilmBase constructor takes a number of values: the overall resolution of the image in pixels; a bounding box that may specify a subset of the full image; a filter function; a PixelSensor; the length of the diagonal of the film’s physical area; and the filename for the output image. These are all bundled up into a small structure in order to shorten the parameter lists of forthcoming constructors. 〈FilmBaseParameters Definition〉 ≡ struct FilmBaseParameters { Point2i fullResolution; Bounds2i pixelBounds; Filter filter; Float diagonal; const PixelSensor *sensor; std::string filename; };
 
-The FilmBase constructor then just copies the various values from the parameter structure, converting the film diagonal length from millimeters (as specified in scene description files) to meters, the unit used for measuring distance in pbrt.
+The `FilmBase` constructor then just copies the various values from the parameter structure, converting the film diagonal length from millimeters (as specified in scene description files) to meters, the unit used for measuring distance in pbrt.
 
 〈FilmBase Public Methods〉 ≡ 247
 
@@ -1272,11 +1168,11 @@ Point2i fullResolution; Bounds2i pixelBounds; Filter filter; Float diagonal; con
    Point2i 92
 ```
 
-Having these values makes it possible to immediately implement a number of the methods required by the Film interface. 〈FilmBase Public Methods〉 +≡ 247
+Having these values makes it possible to immediately implement a number of the methods required by the `Film` interface. 〈FilmBase Public Methods〉 +≡ 247
 
 Point2i FullResolution() const { return fullResolution; } Bounds2i PixelBounds() const { return pixelBounds; } Float Diagonal() const { return diagonal; } Filter GetFilter() const { return filter; } const PixelSensor *GetPixelSensor() const { return sensor; } std::string GetFilename() const { return filename; }
 
-An implementation of SampleWavelengths() samples according to the distribution in Equation (5.9). 〈FilmBase Public Methods〉 +≡ 247
+An implementation of `SampleWavelengths()` samples according to the distribution in Equation (5.9). 〈FilmBase Public Methods〉 +≡ 247
 
 SampledWavelengths SampleWavelengths(Float u) const {
 
@@ -1289,11 +1185,11 @@ The Film::SampleBounds() method can also be easily implemented, given the Filter
 
 ### 5.4.6 RGBFilm
 
-RGBFilm records an image represented by RGB color.
+`RGBFilm` records an image represented by `RGB` color.
 
 〈RGBFilm Definition〉 ≡ class RGBFilm : public FilmBase { public: 〈RGBFilm Public Methods 249〉 private: 〈RGBFilm::Pixel Definition 249〉 〈RGBFilm Private Members 249〉 };
 
-In addition to the parameters that are passed along to FilmBase, RGBFilm takes a color space to use for the output image, a parameter that allows specifying the maximum value of an RGB color component, and a parameter that controls the floating-point precision in the output image. 〈RGBFilm Method Definitions〉 ≡
+In addition to the parameters that are passed along to `FilmBase`, `RGBFilm` takes a color space to use for the output image, a parameter that allows specifying the maximum value of an `RGB` color component, and a parameter that controls the floating-point precision in the output image. 〈RGBFilm Method Definitions〉 ≡
 
 RGBFilm::RGBFilm(FilmBaseParameters p, const RGBColorSpace *colorSpace, Float maxComponentValue, bool writeFP16, Allocator alloc) : FilmBase(p), pixels(p.pixelBounds, alloc), colorSpace(colorSpace), maxComponentValue(maxComponentValue), writeFP16(writeFP16) { filterIntegral = filter.Integral(); 〈Compute outputRGBFromSensorRGB matrix 249〉 }
 
@@ -1326,21 +1222,21 @@ RGBFilm::RGBFilm(FilmBaseParameters p, const RGBColorSpace *colorSpace, Float ma
    Vector2f 86
 ```
 
-The integral of the filter function will be useful to normalize the filter values used for samples provided via AddSplat(), so it is cached in a
+The integral of the filter function will be useful to normalize the filter values used for samples provided via `AddSplat()`, so it is cached in a
 
 member variable. 〈RGBFilm Private Members〉 ≡ 248
 
 const RGBColorSpace *colorSpace; Float maxComponentValue; bool writeFP16; Float filterIntegral;
 
-The color space for the final image is given by a user-specified RGBColorSpace that is unlikely to be the same as the sensor’s RGB color space. The constructor therefore computes a 3 × 3 matrix that transforms sensor RGB values to the output color space. 〈Compute outputRGBFromSensorRGB matrix〉 ≡ 248
+The color space for the final image is given by a user-specified `RGBColorSpace` that is unlikely to be the same as the sensor’s `RGB` color space. The constructor therefore computes a 3 × 3 matrix that transforms sensor `RGB` values to the output color space. 〈Compute outputRGBFromSensorRGB matrix〉 ≡ 248
 
 outputRGBFromSensorRGB = colorSpace->RGBFromXYZ * sensor->XYZFromSensorRGB; 〈RGBFilm Private Members〉 +≡ 248
 
 SquareMatrix<3> outputRGBFromSensorRGB;
 
-Given the pixel resolution of the (possibly cropped) image, the constructor allocates a 2D array of Pixel structures, with one for each pixel. The running weighted sums of pixel contributions are represented using RGB colors in the rgbSum member variable. weightSum holds the sum of filter weight values for the sample contributions to the pixel. These respectively correspond to the numerator and denominator in Equation (5.13). Finally, rgbSplat holds an (unweighted) sum of sample splats.
+Given the pixel resolution of the (possibly cropped) image, the constructor allocates a 2D array of Pixel structures, with one for each pixel. The running weighted sums of pixel contributions are represented using `RGB` colors in the rgbSum member variable. weightSum holds the sum of filter weight values for the sample contributions to the pixel. These respectively correspond to the numerator and denominator in Equation (5.13). Finally, rgbSplat holds an (unweighted) sum of sample splats.
 
-Double-precision floating point is used for all of these quantities. Single-precision floats are almost always sufficient, but when used for reference images rendered with high sample counts they may have insufficient precision to accurately store their associated sums. Although it is rare for this error to be visually evident, it can cause problems with reference images that are used to evaluate the error of Monte Carlo sampling algorithms. Figure 5.24 shows an example of this problem. We rendered a reference image of a test scene using 4 million samples in each pixel, using both 32-bit and 64-bit floating-point values for the RGBFilm pixel values. We then plotted mean squared error (MSE) as a function of sample count. For an unbiased Monte Carlo estimator, MSE is O(1/n) in the number of samples
+Double-precision floating point is used for all of these quantities. Single-precision floats are almost always sufficient, but when used for reference images rendered with high sample counts they may have insufficient precision to accurately store their associated sums. Although it is rare for this error to be visually evident, it can cause problems with reference images that are used to evaluate the error of Monte Carlo sampling algorithms. Figure 5.24 shows an example of this problem. We rendered a reference image of a test scene using 4 million samples in each pixel, using both 32-bit and 64-bit floating-point values for the `RGBFilm` pixel values. We then plotted mean squared error (MSE) as a function of sample count. For an unbiased Monte Carlo estimator, MSE is O(1/n) in the number of samples
 
 taken n; on a log–log plot, it should be a straight line with slope −1. However, we can see that for n > 1000 with a 32-bit float reference image, the reduction in MSE seems to flatten out—more samples do not seem to reduce error. With 64-bit floats, the curve maintains its expected path. 〈RGBFilm::Pixel Definition〉 ≡ 248
 
@@ -1348,7 +1244,7 @@ struct Pixel { double rgbSum[3] = {0., 0., 0.}; double weightSum = 0.; AtomicDou
 
 Array2D<Pixel> pixels;
 
-The RGBFilm does not use the VisibleSurface * passed to AddSample().
+The `RGBFilm` does not use the `VisibleSurface` * passed to `AddSample()`.
 
 〈RGBFilm Public Methods〉 ≡ 248
 
@@ -1367,26 +1263,20 @@ bool UsesVisibleSurface() const { return false; }
    SquareMatrix 1049
 ```
 
-```text
-                                                              art
-        Figure 5.24: Mean Squared Error as a Function of Sample Count. When rendering a scene using an
-        unbiased Monte Carlo estimator, we expect MSE to be related to the number of samples n by O(1/n). With
-        a log–log plot, this rate corresponds to a straight line with slope −1. For the test scene considered here, we
-        can see that using 32-bit floats for the reference image causes reported error to inaccurately stop
-        decreasing after 1,000 or so samples.
-```
+![Figure 5.24](images/pages/page-0384.png)
+*Figure 5.24: Mean Squared Error as a Function of Sample Count. When rendering a scene using an unbiased Monte Carlo estimator, we expect MSE to be related to the number of samples n by O(1/n). With a log–log plot, this rate corresponds to a straight line with slope −1. For the test scene considered here, we can see that using 32-bit floats for the reference image causes reported error to inaccurately stop decreasing after 1,000 or so samples.*
 
-AddSample() converts spectral radiance to sensor RGB before updating the Pixel corresponding to the point pFilm.
+`AddSample()` converts spectral radiance to sensor `RGB` before updating the Pixel corresponding to the point pFilm.
 
 〈RGBFilm Public Methods〉 +≡ 248
 
 void AddSample(Point2i pFilm, SampledSpectrum L, const SampledWavelengths &lambda, const VisibleSurface *, Float weight) { 〈Convert sample radiance to PixelSensor RGB 250〉 〈Optionally clamp sensor RGB value 251〉 〈Update pixel values with filtered sample contribution 251〉 }
 
-The radiance value is first converted to RGB by the sensor. 〈Convert sample radiance to PixelSensor RGB〉 ≡ 250, 252
+The radiance value is first converted to `RGB` by the sensor. 〈Convert sample radiance to PixelSensor RGB〉 ≡ 250, 252
 
 RGB rgb = sensor->ToSensorRGB(L, lambda);
 
-Images rendered with Monte Carlo integration can exhibit bright spikes of noise in pixels where the sampling distributions that were used do not match the integrand well such that when f (x)/p(x) is computed in the Monte Carlo estimator, f (x) is very large and p(x) is very small. (Such pixels are colloquially called “fireflies.”) Many additional samples may be required to get an accurate estimate for that pixel. A widely used technique to reduce the effect of fireflies is to clamp all sample contributions to some maximum amount. Doing so introduces error: energy is lost, and the image is no longer an unbiased estimate of the true image. However, when the aesthetics of rendered images are more important than their mathematics, this can be a useful remedy. Figure 5.25 shows an example of its use. The RGBFilm’s maxComponentValue parameter can be set to a threshold that is used for clamping. It is infinite by default, and no clamping is performed.
+Images rendered with Monte Carlo integration can exhibit bright spikes of noise in pixels where the sampling distributions that were used do not match the integrand well such that when f (x)/p(x) is computed in the Monte Carlo estimator, f (x) is very large and p(x) is very small. (Such pixels are colloquially called “fireflies.”) Many additional samples may be required to get an accurate estimate for that pixel. A widely used technique to reduce the effect of fireflies is to clamp all sample contributions to some maximum amount. Doing so introduces error: energy is lost, and the image is no longer an unbiased estimate of the true image. However, when the aesthetics of rendered images are more important than their mathematics, this can be a useful remedy. Figure 5.25 shows an example of its use. The `RGBFilm`’s maxComponentValue parameter can be set to a threshold that is used for clamping. It is infinite by default, and no clamping is performed.
 
 ```text
    FilmBase::sensor 247
@@ -1399,20 +1289,14 @@ Images rendered with Monte Carlo integration can exhibit bright spikes of noise 
    VisibleSurface 245
 ```
 
-```text
-                                                           art
-        Figure 5.25: Image with High Variance in Some Pixels. This scene suffers from variance spikes in
-        pixels due to difficult-to-sample light paths that occasionally intersect the sun. (a) Image rendered
-        normally. (b) Image rendered with clamping, where pixel sample RGB values are clamped to have values
-        no larger than 10. The image looks much better with clamping, though at a cost of some loss of energy.
-        (Model courtesy of Yasutoshi Mori.)
-```
+![Figure 5.25](images/pages/page-0386.png)
+*Figure 5.25: Image with High Variance in Some Pixels. This scene suffers from variance spikes in pixels due to difficult-to-sample light paths that occasionally intersect the sun. (a) Image rendered normally. (b) Image rendered with clamping, where pixel sample RGB values are clamped to have values no larger than 10. The image looks much better with clamping, though at a cost of some loss of energy. (Model courtesy of Yasutoshi Mori.)*
 
 〈Optionally clamp sensor RGB value〉 ≡ 250, 252
 
 Float m = std::max({rgb.r, rgb.g, rgb.b}); if (m > maxComponentValue) rgb *= maxComponentValue / m;
 
-Given the possibly clamped RGB value, the pixel it lies in can be updated by adding its contributions to the running sums of the numerator and denominator of Equation (5.13). 〈Update pixel values with filtered sample contribution〉 ≡ 250
+Given the possibly clamped `RGB` value, the pixel it lies in can be updated by adding its contributions to the running sums of the numerator and denominator of Equation (5.13). 〈Update pixel values with filtered sample contribution〉 ≡ 250
 
 Pixel &pixel = pixels[pFilm]; for (int c = 0; c < 3; ++c) pixel.rgbSum[c] += weight * rgb[c]; pixel.weightSum += weight;
 
@@ -1424,7 +1308,7 @@ Pixel &pixel = pixels[pFilm]; for (int c = 0; c < 3; ++c) pixel.rgbSum[c] += wei
    RGBFilm::pixels 249
 ```
 
-The AddSplat() method first reuses the first two fragments from AddSample() to compute the RGB value of the provided radiance L.
+The `AddSplat()` method first reuses the first two fragments from `AddSample()` to compute the `RGB` value of the provided radiance L.
 
 〈RGBFilm Method Definitions〉 +≡ void RGBFilm::AddSplat(Point2f p, SampledSpectrum L, const SampledWavelengths &lambda) { 〈Convert sample radiance to PixelSensor RGB 250〉 〈Optionally clamp sensor RGB value 251〉 〈Compute bounds of affected pixels for splat, splatBounds 252〉
 
@@ -1438,7 +1322,7 @@ If the filter weight is nonzero, the splat’s weighted contribution is added. U
 
 Float wt = filter.Evaluate(Point2f(p - pi - Vector2f(0.5, 0.5))); if (wt != 0) { Pixel &pixel = pixels[pi]; for (int i = 0; i < 3; ++i) pixel.rgbSplat[i].Add(wt * rgb[i]); }
 
-GetPixelRGB() returns the final RGB value for a given pixel in the RGBFilm’s output color space.
+`GetPixelRGB()` returns the final `RGB` value for a given pixel in the `RGBFilm`’s output color space.
 
 〈RGBFilm Public Methods〉 +≡ 248
 
@@ -1464,7 +1348,7 @@ RGB GetPixelRGB(Point2i p, Float splatScale = 1) const { const Pixel &pixel = pi
    Vector2i 86
 ```
 
-First, the final pixel contribution from the values provided by AddSample() is computed via Equation (5.13). 〈Normalize rgb with weight sum〉 ≡ 252
+First, the final pixel contribution from the values provided by `AddSample()` is computed via Equation (5.13). 〈Normalize rgb with weight sum〉 ≡ 252
 
 Float weightSum = pixel.weightSum; if (weightSum != 0) rgb /= weightSum;
 
@@ -1472,15 +1356,15 @@ Then Equation (5.10) can be applied to incorporate any splatted values. 〈Add s
 
 for (int c = 0; c < 3; ++c) rgb[c] += splatScale * pixel.rgbSplat[c] / filterIntegral;
 
-Finally, the color conversion matrix brings the RGB value into the output color space. 〈Convert rgb to output RGB color space〉 ≡ 252
+Finally, the color conversion matrix brings the `RGB` value into the output color space. 〈Convert rgb to output RGB color space〉 ≡ 252
 
 rgb = outputRGBFromSensorRGB * rgb;
 
-ToOutputRGB()’s implementation first uses the sensor to compute a sensor RGB and then converts to the output color space. 〈RGBFilm Public Methods〉 +≡ 248
+`ToOutputRGB()`’s implementation first uses the sensor to compute a sensor `RGB` and then converts to the output color space. 〈RGBFilm Public Methods〉 +≡ 248
 
 RGB ToOutputRGB(SampledSpectrum L, const SampledWavelengths &lambda) const { RGB sensorRGB = sensor->ToSensorRGB(L, lambda); return outputRGBFromSensorRGB * sensorRGB; }
 
-We will not include the straightforward RGBFilm WriteImage() or GetImage() method implementations in the book. The former calls GetImage() before calling Image::Write(), and the latter fills in an image using GetPixelRGB() to get each pixel’s value.
+We will not include the straightforward `RGBFilm` `WriteImage()` or `GetImage()` method implementations in the book. The former calls `GetImage()` before calling `Image::Write()`, and the latter fills in an image using `GetPixelRGB()` to get each pixel’s value.
 
 ### 5.4.7 GBufferFilm
 
@@ -1506,7 +1390,7 @@ The GBufferFilm stores not only RGB at each pixel, but also additional informati
    VarianceEstimator 1048
 ```
 
-We will not include any of the GBufferFilm implementation other than its Pixel structure, which augments the one used in RGBFilm with additional fields that store geometric information. It also stores estimates of the variance of the red, green, and blue color values at each pixel using the VarianceEstimator class, which is defined in Section B.2.11. The rest of the implementation is a straightforward generalization of RGBFilm that also updates these additional values. 〈GBufferFilm::Pixel Definition〉 ≡ 253
+We will not include any of the `GBufferFilm` implementation other than its Pixel structure, which augments the one used in `RGBFilm` with additional fields that store geometric information. It also stores estimates of the variance of the red, green, and blue color values at each pixel using the `VarianceEstimator` class, which is defined in Section B.2.11. The rest of the implementation is a straightforward generalization of `RGBFilm` that also updates these additional values. 〈GBufferFilm::Pixel Definition〉 ≡ 253
 
 struct Pixel { double rgbSum[3] = {0., 0., 0.}; double weightSum = 0., gBufferWeightSum = 0.; AtomicDouble rgbSplat[3]; Point3f pSum; Float dzdxSum = 0, dzdySum = 0; Normal3f nSum, nsSum; Point2f uvSum; double rgbAlbedoSum[3] = {0., 0., 0.}; VarianceEstimator<Float> rgbVariance[3]; };
 
@@ -1514,7 +1398,7 @@ struct Pixel { double rgbSum[3] = {0., 0., 0.}; double weightSum = 0., gBufferWe
 
 In his seminal Sketchpad system, Sutherland (1963) was the first to use projection matrices for computer graphics. Akenine-Möller et al. (2018) have provided a particularly well-written derivation of the orthographic and perspective projection matrices. Other good references for projections are Rogers and Adams’s Mathematical Elements for Computer Graphics
 
-(1990) and Eberly’s book (2001) on game engine design. See Adams and Levoy (2007) for a broad analysis of the types of radiance measurements that can be taken with cameras that have non-pinhole apertures. An unusual projection method was used by Greene and Heckbert (1986) for generating images for OMNIMAX® theaters. Potmesil and Chakravarty (1981, 1982, 1983) did early work on depth of field and motion blur in computer graphics. Cook and collaborators developed a more accurate model for these effects based on the thin lens model; this is the approach used for the depth of field calculations in Section 5.2.3 (Cook et al. 1984; Cook 1986). An alternative approach to motion blur was described by Gribel and Akenine-Möller (2017), who analytically computed the time ranges of ray–triangle intersections to eliminate stochastic sampling in time. Kolb, Mitchell, and Hanrahan (1995) showed how to simulate complex camera lens systems with ray tracing in order to model the imaging effects of real cameras; the RealisticCamera is based on their approach. Steinert et al. (2011) improved a number of details of this simulation, incorporating wavelength-dependent effects and accounting for both diffraction and glare. Joo et al. (2016) extended this approach to handle aspheric lenses and modeled diffraction at the aperture stop, which causes some brightening at the edges of the circle of confusion in practice. See the books by Hecht (2002) and Smith (2007) for excellent introductions to optics and lens systems. Hullin et al. (2012) used polynomials to model the effect of lenses on rays passing through them; they were able to construct polynomials that approximate entire lens systems from polynomial approximations of individual lenses. This approach saves the computational expense of tracing rays through lenses, though for complex scenes, this cost is generally negligible in relation to the rest of the rendering computations. Hanika and Dachsbacher (2014) improved the accuracy of this approach and showed how to combine it with bidirectional path tracing. Schrade et al. (2016) showed good results with approximation of wide-angle lenses using sparse higher-degree polynomials.
+(1990) and Eberly’s book (2001) on game engine design. See Adams and Levoy (2007) for a broad analysis of the types of radiance measurements that can be taken with cameras that have non-pinhole apertures. An unusual projection method was used by Greene and Heckbert (1986) for generating images for OMNIMAX® theaters. Potmesil and Chakravarty (1981, 1982, 1983) did early work on depth of field and motion blur in computer graphics. Cook and collaborators developed a more accurate model for these effects based on the thin lens model; this is the approach used for the depth of field calculations in Section 5.2.3 (Cook et al. 1984; Cook 1986). An alternative approach to motion blur was described by Gribel and Akenine-Möller (2017), who analytically computed the time ranges of ray–triangle intersections to eliminate stochastic sampling in time. Kolb, Mitchell, and Hanrahan (1995) showed how to simulate complex camera lens systems with ray tracing in order to model the imaging effects of real cameras; the `RealisticCamera` is based on their approach. Steinert et al. (2011) improved a number of details of this simulation, incorporating wavelength-dependent effects and accounting for both diffraction and glare. Joo et al. (2016) extended this approach to handle aspheric lenses and modeled diffraction at the aperture stop, which causes some brightening at the edges of the circle of confusion in practice. See the books by Hecht (2002) and Smith (2007) for excellent introductions to optics and lens systems. Hullin et al. (2012) used polynomials to model the effect of lenses on rays passing through them; they were able to construct polynomials that approximate entire lens systems from polynomial approximations of individual lenses. This approach saves the computational expense of tracing rays through lenses, though for complex scenes, this cost is generally negligible in relation to the rest of the rendering computations. Hanika and Dachsbacher (2014) improved the accuracy of this approach and showed how to combine it with bidirectional path tracing. Schrade et al. (2016) showed good results with approximation of wide-angle lenses using sparse higher-degree polynomials.
 
 ```text
    AtomicDouble 1100
@@ -1526,7 +1410,7 @@ In his seminal Sketchpad system, Sutherland (1963) was the first to use projecti
    VarianceEstimator 1048
 ```
 
-Film and Imaging The film sensor model presented in Section 5.4.2 and the PixelSensor class implementation are from the PhysLight system described by Langlands and Fascione (2020). See also Chen et al. (2009), who described the implementation of a fairly complete simulation of a digital camera, including the analog-to-digital conversion and noise in the measured pixel values inherent in this process. Filter importance sampling, as described in Section 8.8, was described in a paper by Ernst et al. (2006). This technique is also proposed in Shirley’s Ph.D. thesis (1990). The idea of storing additional information about the properties of the visible surface in a pixel was introduced by Perlin (1985a) and Saito and Takahashi (1990), who also coined the term G-Buffer. Shade et al. (1998) introduced the generalization of storing information about all the surfaces along each camera ray and applied this representation to view interpolation, using the originally hidden surfaces to handle disocclusion. Celarek et al. (2019) developed techniques for evaluating sampling schemes based on computing both the expectation and variance of MSE and described approaches for evaluating error in rendered images across both pixels and frequencies. The sampling technique that approximates the XYZ matching curves is due to Radziszewski et al. (2009). The SpectralFilm uses a representation for spectral images in the OpenEXR format that was introduced by Fichet et al. (2021). As discussed in Section 5.4.2, the human visual system generally factors out the illumination color to perceive surfaces’ colors independently of it. A
+Film and Imaging The film sensor model presented in Section 5.4.2 and the `PixelSensor` class implementation are from the PhysLight system described by Langlands and Fascione (2020). See also Chen et al. (2009), who described the implementation of a fairly complete simulation of a digital camera, including the analog-to-digital conversion and noise in the measured pixel values inherent in this process. Filter importance sampling, as described in Section 8.8, was described in a paper by Ernst et al. (2006). This technique is also proposed in Shirley’s Ph.D. thesis (1990). The idea of storing additional information about the properties of the visible surface in a pixel was introduced by Perlin (1985a) and Saito and Takahashi (1990), who also coined the term G-Buffer. Shade et al. (1998) introduced the generalization of storing information about all the surfaces along each camera ray and applied this representation to view interpolation, using the originally hidden surfaces to handle disocclusion. Celarek et al. (2019) developed techniques for evaluating sampling schemes based on computing both the expectation and variance of MSE and described approaches for evaluating error in rendered images across both pixels and frequencies. The sampling technique that approximates the `XYZ` matching curves is due to Radziszewski et al. (2009). The `SpectralFilm` uses a representation for spectral images in the OpenEXR format that was introduced by Fichet et al. (2021). As discussed in Section 5.4.2, the human visual system generally factors out the illumination color to perceive surfaces’ colors independently of it. A
 
 number of methods have been developed to process photographs to perform white balancing to eliminate the tinge of light source colors; see Gijsenij et al. (2011) for a survey. White balancing photographs can be challenging, since the only information available to white balancing algorithms is the final pixel values. In a renderer, the problem is easier, as information about the light sources is directly available; Wilkie and Weidlich (2009) developed an efficient method to perform accurate white balancing in a renderer.
 
@@ -1545,17 +1429,17 @@ who used relatively small neural networks to determine parameters for convention
 
 ## EXERCISES
 
-➋ 5.1 Some types of cameras expose the film by sliding a rectangular slit across the film. This leads to interesting effects when objects are moving in a different direction from the exposure slit (Glassner 1999; Stephenson 2007). Furthermore, most digital cameras read out pixel values from scanlines in succession over a period of a few milliseconds; this leads to rolling shutter artifacts, which have similar visual characteristics. Modify the way that time samples are generated in one or more of the camera implementations in this chapter to model such effects. Render images with moving objects that clearly show the effect of accounting for this issue. ➋ 5.2 Write an application that loads images rendered by the SphericalCamera and uses texture mapping to apply them to a sphere centered at the eyepoint such that they can be viewed interactively. The user should be able to freely change the viewing direction. If the correct texture-mapping function is used for generating texture coordinates on the sphere, the image generated by the application will appear as if the viewer was at the camera’s location in the scene when it was rendered, thus giving the user the ability to interactively look around the scene. ➋ 5.3 Focal stack rendering: A focal stack is a series of images of a fixed scene where the camera is focused at a different distance for each image. Hasinoff and Kutulakos (2011) and Jacobs et al. (2012) introduced a number of applications of focal stacks, including freeform depth of field, where the user can specify arbitrary depths that are in focus, achieving effects not possible with traditional optics. Render focal stacks with pbrt and write an interactive tool to control focus effects with them. ➌ 5.4 Light field camera: Ng et al. (2005) discussed the physical design and applications of a camera that captures small images of the exit pupil across the film, rather than averaging the radiance over the entire exit pupil at each pixel, as conventional cameras do. Such a camera captures a representation of the light field—the spatially and directionally varying distribution of radiance arriving at the camera sensor. By capturing the light field, a number of interesting operations are possible, including refocusing photographs after they have been taken. Read Ng et al.’s paper and implement a Camera in pbrt that captures the light field of a scene. Write a tool to allow users to interactively refocus these light fields. ➌ 5.5 The Cameras in this chapter place the film at the center of and perpendicular to the optical axis. While this is the most common configuration of actual cameras, interesting effects can be achieved by adjusting the film’s placement with respect to the lens system.
+➋ 5.1 Some types of cameras expose the film by sliding a rectangular slit across the film. This leads to interesting effects when objects are moving in a different direction from the exposure slit (Glassner 1999; Stephenson 2007). Furthermore, most digital cameras read out pixel values from scanlines in succession over a period of a few milliseconds; this leads to rolling shutter artifacts, which have similar visual characteristics. Modify the way that time samples are generated in one or more of the camera implementations in this chapter to model such effects. Render images with moving objects that clearly show the effect of accounting for this issue. ➋ 5.2 Write an application that loads images rendered by the `SphericalCamera` and uses texture mapping to apply them to a sphere centered at the eyepoint such that they can be viewed interactively. The user should be able to freely change the viewing direction. If the correct texture-mapping function is used for generating texture coordinates on the sphere, the image generated by the application will appear as if the viewer was at the camera’s location in the scene when it was rendered, thus giving the user the ability to interactively look around the scene. ➋ 5.3 Focal stack rendering: A focal stack is a series of images of a fixed scene where the camera is focused at a different distance for each image. Hasinoff and Kutulakos (2011) and Jacobs et al. (2012) introduced a number of applications of focal stacks, including freeform depth of field, where the user can specify arbitrary depths that are in focus, achieving effects not possible with traditional optics. Render focal stacks with pbrt and write an interactive tool to control focus effects with them. ➌ 5.4 Light field camera: Ng et al. (2005) discussed the physical design and applications of a camera that captures small images of the exit pupil across the film, rather than averaging the radiance over the entire exit pupil at each pixel, as conventional cameras do. Such a camera captures a representation of the light field—the spatially and directionally varying distribution of radiance arriving at the camera sensor. By capturing the light field, a number of interesting operations are possible, including refocusing photographs after they have been taken. Read Ng et al.’s paper and implement a Camera in pbrt that captures the light field of a scene. Write a tool to allow users to interactively refocus these light fields. ➌ 5.5 The Cameras in this chapter place the film at the center of and perpendicular to the optical axis. While this is the most common configuration of actual cameras, interesting effects can be achieved by adjusting the film’s placement with respect to the lens system.
 
 For example, the plane of focus in the current implementation is always perpendicular to the optical axis; if the film plane (or the lens system) is tilted so that the film is not perpendicular to the optical axis, then the plane of focus is no longer perpendicular to the optical axis. (This can be useful for landscape photography, for example, where aligning the plane of focus with the ground plane allows greater depth of field even with larger apertures.) Alternatively, the film plane can be shifted so that it is not centered on the optical axis; this shift can be used to keep the plane of focus aligned with a very tall object, for example.
 
-Modify the PerspectiveCamera to allow one or both of these adjustments and render images showing the result. (You may find Kensler’s (2021) chapter useful.) ➋ 5.6 The clamping approach used to suppress outlier sample values in the RGBFilm and GBufferFilm is a heavy-handed solution that can cause a significant amount of energy loss in the image. (Consider, for example, pixels where the sun is directly visible—the radiance along rays in those pixels may be extremely high, though it is not a cause of spiky pixels and should not be clamped.) Implement a more principled solution to this problem such as the technique of Zirr et al. (2018). Render images with your implementation and pbrt’s current approach and compare the results.
+Modify the `PerspectiveCamera` to allow one or both of these adjustments and render images showing the result. (You may find Kensler’s (2021) chapter useful.) ➋ 5.6 The clamping approach used to suppress outlier sample values in the `RGBFilm` and `GBufferFilm` is a heavy-handed solution that can cause a significant amount of energy loss in the image. (Consider, for example, pixels where the sun is directly visible—the radiance along rays in those pixels may be extremely high, though it is not a cause of spiky pixels and should not be clamped.) Implement a more principled solution to this problem such as the technique of Zirr et al. (2018). Render images with your implementation and pbrt’s current approach and compare the results.
 
 ```text
             SphericalCamera 229
 ```
 
-➋ 5.7 Investigate the sources of noise in camera sensors and mathematical models to simulate them. Then, modify the PixelSensor class to model the effect of noise. In addition to shot noise, which depends on the number of photons reaching each pixel, you may also want to model factors like read noise and dark noise, which are independent of the number of photons. Render images that exhibit noise and show the effect of different types of it as exposure time varies. ➋ 5.8 Because they are based on floating-point addition, which is not associative, the AddSplat() methods implemented in this chapter do not live up to pbrt’s goal of producing deterministic output: if different threads add splats to the same pixel in a different order over multiple runs of pbrt, the final image may differ. An alternative implementation might allocate a separate buffer for each thread’s splats and then sum the buffers at the end of rendering, which would be deterministic but would incur a memory cost proportional to the number of threads. Either implement that approach or come up with another one to address this issue and implement it in pbrt. Measure the memory and performance overhead of your approach as well as how often the current implementation is non-deterministic. Is the current implementation defensible? ➌ 5.9 Image-based rendering is the general name for a set of techniques that use one or more images of a scene to synthesize new images from viewpoints different from the original ones. One such approach is light field rendering, where a set of images from a densely spaced set of positions is used—as described by Levoy and Hanrahan (1996) and Gortler et al. (1996). Read these two papers on light fields, and modify pbrt to directly generate light fields of scenes, without requiring that the renderer be run multiple times, once for each camera position. It will probably be necessary to write a specialized Camera, Sampler, and Film to do this. Also, write an interactive light field viewer that loads light fields generated by your implementation and that generates new views of the scene.
+➋ 5.7 Investigate the sources of noise in camera sensors and mathematical models to simulate them. Then, modify the `PixelSensor` class to model the effect of noise. In addition to shot noise, which depends on the number of photons reaching each pixel, you may also want to model factors like read noise and dark noise, which are independent of the number of photons. Render images that exhibit noise and show the effect of different types of it as exposure time varies. ➋ 5.8 Because they are based on floating-point addition, which is not associative, the `AddSplat()` methods implemented in this chapter do not live up to pbrt’s goal of producing deterministic output: if different threads add splats to the same pixel in a different order over multiple runs of pbrt, the final image may differ. An alternative implementation might allocate a separate buffer for each thread’s splats and then sum the buffers at the end of rendering, which would be deterministic but would incur a memory cost proportional to the number of threads. Either implement that approach or come up with another one to address this issue and implement it in pbrt. Measure the memory and performance overhead of your approach as well as how often the current implementation is non-deterministic. Is the current implementation defensible? ➌ 5.9 Image-based rendering is the general name for a set of techniques that use one or more images of a scene to synthesize new images from viewpoints different from the original ones. One such approach is light field rendering, where a set of images from a densely spaced set of positions is used—as described by Levoy and Hanrahan (1996) and Gortler et al. (1996). Read these two papers on light fields, and modify pbrt to directly generate light fields of scenes, without requiring that the renderer be run multiple times, once for each camera position. It will probably be necessary to write a specialized Camera, Sampler, and Film to do this. Also, write an interactive light field viewer that loads light fields generated by your implementation and that generates new views of the scene.
 
 ```text
                    PixelSensor 234
